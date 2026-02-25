@@ -64,12 +64,12 @@ class KitVisualizer(Visualizer):
             self._apply_env_visibility(usd_stage, metadata)
         cam_pos = self.cfg.camera_position
         cam_target = self.cfg.camera_target
-        quality_name = self.cfg.rendering_quality if self.cfg.rendering_quality is not None else "none"
+        mode_name = self.cfg.rendering_mode if self.cfg.rendering_mode is not None else "none"
         logger.info(
-            "[KitVisualizer] initialized | camera_pos=%s camera_target=%s quality=%s",
+            "[KitVisualizer] initialized | camera_pos=%s camera_target=%s mode=%s",
             cam_pos,
             cam_target,
-            quality_name,
+            mode_name,
         )
 
         self._is_initialized = True

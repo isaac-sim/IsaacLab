@@ -61,11 +61,11 @@ class VisualizerCfg:
     Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
     """
 
-    rendering_quality: str | None = "balanced"
-    """Name of the rendering quality profile for this visualizer.
+    rendering_mode: str | None = "balanced"
+    """Name of the rendering mode profile for this visualizer.
 
-    Selects an entry from 'isaaclab.sim.SimulationCfg.rendering_quality_cfgs'.
-    If None, no rendering quality overrides are applied and backend/native defaults are used.
+    Selects an entry from 'isaaclab.sim.SimulationCfg.rendering_mode_cfgs'.
+    If None, no rendering mode overrides are applied and backend/native defaults are used.
     """
 
     def get_visualizer_type(self) -> str | None:

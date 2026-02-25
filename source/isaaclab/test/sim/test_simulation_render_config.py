@@ -24,7 +24,7 @@ from isaaclab.sim.simulation_context import SimulationContext
 
 # @pytest.mark.isaacsim_ci
 def test_render_cfg_presets():
-    """Test that quality presets are applied and can be overridden via RenderingModeCfg."""
+    """Test that rendering mode presets are applied and can be overridden via RenderingModeCfg."""
 
     # user-friendly field override
     dlss_mode = ("/rtx/post/dlss/execMode", 5)
@@ -38,13 +38,13 @@ def test_render_cfg_presets():
         preset_dict = get_kit_rendering_preset(rendering_mode)
 
         profile_name = f"profile_{rendering_mode}"
-        quality_cfg = RenderingModeCfg(
+        mode_cfg = RenderingModeCfg(
             rendering_mode_preset=rendering_mode,
             kit_dlss_mode=dlss_mode[1],
         )
         cfg = SimulationCfg(
-            rendering_quality_cfgs={profile_name: quality_cfg},
-            visualizer_cfgs=KitVisualizerCfg(rendering_quality=profile_name),
+            rendering_mode_cfgs={profile_name: mode_cfg},
+            visualizer_cfgs=KitVisualizerCfg(rendering_mode=profile_name),
         )
 
         sim = SimulationContext(cfg)
@@ -69,9 +69,9 @@ def test_render_cfg_presets():
 
 @pytest.mark.skip(reason="Timeline not stopped")
 # @pytest.mark.isaacsim_ci
-def test_rendering_quality_cfg_field_overrides():
+def test_rendering_mode_cfg_field_overrides():
     """Test that explicit RenderingModeCfg fields map to carb settings."""
-    quality_cfg = RenderingModeCfg(
+    mode_cfg = RenderingModeCfg(
         kit_enable_translucency=True,
         kit_enable_reflections=True,
         kit_enable_global_illumination=True,
@@ -85,8 +85,8 @@ def test_rendering_quality_cfg_field_overrides():
         kit_enable_ambient_occlusion=True,
     )
     cfg = SimulationCfg(
-        rendering_quality_cfgs={"custom": quality_cfg},
-        visualizer_cfgs=KitVisualizerCfg(rendering_quality="custom"),
+        rendering_mode_cfgs={"custom": mode_cfg},
+        visualizer_cfgs=KitVisualizerCfg(rendering_mode="custom"),
     )
     sim = SimulationContext(cfg)
     sim.reset()

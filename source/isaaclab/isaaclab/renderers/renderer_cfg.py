@@ -21,5 +21,5 @@ class RendererCfg:
     renderer_type: str | None = None
     """Type identifier (e.g., 'rtx', 'warp'). Must be overridden by subclasses."""
 
-    rendering_quality: str | None = None
-    """Name of the rendering quality profile to use with this renderer."""
+    rendering_mode: str | None = None
+    """Name of the rendering mode profile to use with this renderer."""

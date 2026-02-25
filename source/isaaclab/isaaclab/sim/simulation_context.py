@@ -21,8 +21,8 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
 from isaaclab.rendering_mode.rendering_mode_utils import (
-    apply_quality_profile_to_visualizer_cfg,
-    apply_runtime_quality_profile_to_visualizer,
+    apply_mode_profile_to_visualizer_cfg,
+    apply_runtime_mode_profile_to_visualizer,
 )
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.visualizers import Visualizer
@@ -151,8 +151,8 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
-        # Runtime cache of applied per-visualizer rendering quality profile names.
-        self._visualizer_quality_keys: dict[int, str | None] = {}
+        # Runtime cache of applied per-visualizer rendering mode profile names.
+        self._visualizer_mode_keys: dict[int, str | None] = {}
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -173,24 +173,24 @@ class SimulationContext:
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    def _apply_quality_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
-        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        apply_quality_profile_to_visualizer_cfg(
+    def _apply_mode_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
+        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        apply_mode_profile_to_visualizer_cfg(
             self.get_setting,
             self.set_setting,
             visualizer_cfg,
-            quality_cfgs,
+            mode_cfgs,
             logger,
         )
 
-    def _apply_runtime_quality_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
-        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        apply_runtime_quality_profile_to_visualizer(
+    def _apply_runtime_mode_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
+        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        apply_runtime_mode_profile_to_visualizer(
             self.get_setting,
             self.set_setting,
             viz,
-            self._visualizer_quality_keys,
-            quality_cfgs,
+            self._visualizer_mode_keys,
+            mode_cfgs,
             logger,
             force=force,
         )
@@ -352,10 +352,10 @@ class SimulationContext:
 
         for cfg in visualizer_cfgs:
             try:
-                self._apply_quality_profile_to_visualizer_cfg(cfg)
+                self._apply_mode_profile_to_visualizer_cfg(cfg)
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
-                self._apply_runtime_quality_profile_to_visualizer(visualizer, force=True)
+                self._apply_runtime_mode_profile_to_visualizer(visualizer, force=True)
                 self._visualizers.append(visualizer)
             except Exception as exc:
                 logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
@@ -453,7 +453,7 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
-                self._apply_runtime_quality_profile_to_visualizer(viz)
+                self._apply_runtime_mode_profile_to_visualizer(viz)
                 if viz.is_rendering_paused():
                     continue
                 if viz.is_closed:
@@ -473,7 +473,7 @@ class SimulationContext:
 
         for viz in visualizers_to_remove:
             try:
-                self._visualizer_quality_keys.pop(id(viz), None)
+                self._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
                 self._visualizers.remove(viz)
                 logger.info("Removed visualizer: %s", type(viz).__name__)
@@ -551,7 +551,7 @@ class SimulationContext:
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
-                cls._instance._visualizer_quality_keys.pop(id(viz), None)
+                cls._instance._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
             cls._instance._visualizers.clear()
             if cls._instance._scene_data_provider is not None:

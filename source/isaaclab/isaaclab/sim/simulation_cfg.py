@@ -93,12 +93,12 @@ class SimulationCfg:
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
     """
 
-    rendering_quality_cfgs: dict[str, RenderingModeCfg] = {
+    rendering_mode_cfgs: dict[str, RenderingModeCfg] = {
         "performance": RenderingModeCfg(rendering_mode_preset="performance"),
         "balanced": RenderingModeCfg(rendering_mode_preset="balanced"),
         "quality": RenderingModeCfg(rendering_mode_preset="quality"),
     }
-    """Named rendering quality profiles available to visualizers/renderers."""
+    """Named rendering mode profiles available to visualizers/renderers."""
 
     create_stage_in_memory: bool = False
     """If stage is first created in memory. Default is False.

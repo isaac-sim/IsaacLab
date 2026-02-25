@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utility helpers for applying rendering quality profiles."""
+"""Utility helpers for applying rendering mode profiles."""
 
 from __future__ import annotations
 
@@ -20,10 +20,10 @@ def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
         set_setting(key, value)
 
 
-def apply_kit_rendering_quality_cfg(set_setting: Any, quality_cfg: RenderingModeCfg) -> None:
-    """Apply kit-specific quality fields."""
-    if quality_cfg.rendering_mode_preset:
-        apply_kit_rendering_preset(set_setting, quality_cfg.rendering_mode_preset)
+def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -> None:
+    """Apply kit-specific rendering mode fields."""
+    if mode_cfg.rendering_mode_preset:
+        apply_kit_rendering_preset(set_setting, mode_cfg.rendering_mode_preset)
 
     field_to_carb = {
         "kit_enable_translucency": "/rtx/translucency/enabled",
@@ -39,21 +39,21 @@ def apply_kit_rendering_quality_cfg(set_setting: Any, quality_cfg: RenderingMode
         "kit_dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
     }
     for field_name, carb_key in field_to_carb.items():
-        value = getattr(quality_cfg, field_name, None)
+        value = getattr(mode_cfg, field_name, None)
         if value is not None:
             set_setting(carb_key, value)
 
-    if quality_cfg.kit_antialiasing_mode is not None:
+    if mode_cfg.kit_antialiasing_mode is not None:
         try:
             import omni.replicator.core as rep
 
-            rep.settings.set_render_rtx_realtime(antialiasing=quality_cfg.kit_antialiasing_mode)
+            rep.settings.set_render_rtx_realtime(antialiasing=mode_cfg.kit_antialiasing_mode)
         except Exception:
             pass
 
 
-def apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg: Any, quality_cfg: RenderingModeCfg) -> None:
-    """Apply Newton quality values to a visualizer cfg object."""
+def apply_newton_mode_cfg_to_visualizer_cfg(visualizer_cfg: Any, mode_cfg: RenderingModeCfg) -> None:
+    """Apply Newton rendering mode values to a visualizer cfg object."""
     override_fields = {
         "newton_enable_shadows": "enable_shadows",
         "newton_enable_sky": "enable_sky",
@@ -62,102 +62,102 @@ def apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg: Any, quality_cfg:
         "newton_sky_lower_color": "sky_lower_color",
         "newton_light_color": "light_color",
     }
-    for quality_field, viz_field in override_fields.items():
-        value = getattr(quality_cfg, quality_field, None)
+    for mode_field, viz_field in override_fields.items():
+        value = getattr(mode_cfg, mode_field, None)
         if value is not None and hasattr(visualizer_cfg, viz_field):
             setattr(visualizer_cfg, viz_field, value)
 
 
-def apply_newton_quality_cfg_to_viewer(viewer: Any, quality_cfg: RenderingModeCfg) -> None:
-    """Apply Newton quality values to a live Newton viewer renderer, if available."""
+def apply_newton_mode_cfg_to_viewer(viewer: Any, mode_cfg: RenderingModeCfg) -> None:
+    """Apply Newton rendering mode values to a live Newton viewer renderer, if available."""
     if viewer is None or not hasattr(viewer, "renderer"):
         return
 
-    if quality_cfg.newton_enable_shadows is not None:
-        viewer.renderer.draw_shadows = quality_cfg.newton_enable_shadows
-    if quality_cfg.newton_enable_sky is not None:
-        viewer.renderer.draw_sky = quality_cfg.newton_enable_sky
-    if quality_cfg.newton_enable_wireframe is not None:
-        viewer.renderer.draw_wireframe = quality_cfg.newton_enable_wireframe
-    if quality_cfg.newton_sky_upper_color is not None:
-        viewer.renderer.sky_upper = quality_cfg.newton_sky_upper_color
-    if quality_cfg.newton_sky_lower_color is not None:
-        viewer.renderer.sky_lower = quality_cfg.newton_sky_lower_color
-    if quality_cfg.newton_light_color is not None:
-        viewer.renderer._light_color = quality_cfg.newton_light_color
+    if mode_cfg.newton_enable_shadows is not None:
+        viewer.renderer.draw_shadows = mode_cfg.newton_enable_shadows
+    if mode_cfg.newton_enable_sky is not None:
+        viewer.renderer.draw_sky = mode_cfg.newton_enable_sky
+    if mode_cfg.newton_enable_wireframe is not None:
+        viewer.renderer.draw_wireframe = mode_cfg.newton_enable_wireframe
+    if mode_cfg.newton_sky_upper_color is not None:
+        viewer.renderer.sky_upper = mode_cfg.newton_sky_upper_color
+    if mode_cfg.newton_sky_lower_color is not None:
+        viewer.renderer.sky_lower = mode_cfg.newton_sky_lower_color
+    if mode_cfg.newton_light_color is not None:
+        viewer.renderer._light_color = mode_cfg.newton_light_color
 
 
-def resolve_rendering_quality_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
-    """Resolve effective quality profile name for a visualizer cfg."""
-    cli_quality_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
-    cli_quality = get_setting("/isaaclab/rendering/rendering_mode")
-    if cli_quality_explicit:
-        return cli_quality if cli_quality else None
-    quality_name = getattr(visualizer_cfg, "rendering_quality", None)
-    return quality_name if quality_name else None
+def resolve_rendering_mode_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
+    """Resolve effective rendering mode profile name for a visualizer cfg."""
+    cli_mode_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
+    cli_mode = get_setting("/isaaclab/rendering/rendering_mode")
+    if cli_mode_explicit:
+        return cli_mode if cli_mode else None
+    mode_name = getattr(visualizer_cfg, "rendering_mode", None)
+    return mode_name if mode_name else None
 
 
-def resolve_rendering_quality_cfg(
-    quality_name: str | None, quality_cfgs: dict[str, RenderingModeCfg], logger: Any
+def resolve_rendering_mode_cfg(
+    mode_name: str | None, mode_cfgs: dict[str, RenderingModeCfg], logger: Any
 ) -> RenderingModeCfg | None:
-    """Fetch quality cfg by name and log if missing."""
-    if not quality_name:
+    """Fetch rendering mode cfg by name and log if missing."""
+    if not mode_name:
         return None
-    quality_cfg = quality_cfgs.get(quality_name)
-    if quality_cfg is None:
+    mode_cfg = mode_cfgs.get(mode_name)
+    if mode_cfg is None:
         logger.warning(
-            "[SimulationContext] Rendering quality '%s' not found in SimulationCfg.rendering_quality_cfgs.",
-            quality_name,
+            "[SimulationContext] Rendering mode '%s' not found in SimulationCfg.rendering_mode_cfgs.",
+            mode_name,
         )
         return None
-    return quality_cfg
+    return mode_cfg
 
 
-def apply_quality_profile_to_visualizer_cfg(
+def apply_mode_profile_to_visualizer_cfg(
     get_setting: Any,
     set_setting: Any,
     visualizer_cfg: Any,
-    quality_cfgs: dict[str, RenderingModeCfg],
+    mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
 ) -> None:
-    """Resolve and apply quality profile to a visualizer config."""
-    quality_name = resolve_rendering_quality_name_for_visualizer_cfg(get_setting, visualizer_cfg)
-    quality_cfg = resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
-    if quality_cfg is None:
+    """Resolve and apply rendering mode profile to a visualizer config."""
+    mode_name = resolve_rendering_mode_name_for_visualizer_cfg(get_setting, visualizer_cfg)
+    mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
+    if mode_cfg is None:
         return
 
     visualizer_type = getattr(visualizer_cfg, "visualizer_type", None)
     if visualizer_type == "kit":
-        apply_kit_rendering_quality_cfg(set_setting, quality_cfg)
+        apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
     elif visualizer_type == "newton":
-        apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg, quality_cfg)
+        apply_newton_mode_cfg_to_visualizer_cfg(visualizer_cfg, mode_cfg)
 
 
-def apply_runtime_quality_profile_to_visualizer(
+def apply_runtime_mode_profile_to_visualizer(
     get_setting: Any,
     set_setting: Any,
     viz: Any,
-    visualizer_quality_keys: dict[int, str | None],
-    quality_cfgs: dict[str, RenderingModeCfg],
+    visualizer_mode_keys: dict[int, str | None],
+    mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
     force: bool = False,
 ) -> None:
-    """Resolve and apply runtime quality profile to an active visualizer."""
-    quality_name = resolve_rendering_quality_name_for_visualizer_cfg(get_setting, viz.cfg)
+    """Resolve and apply runtime rendering mode profile to an active visualizer."""
+    mode_name = resolve_rendering_mode_name_for_visualizer_cfg(get_setting, viz.cfg)
     viz_id = id(viz)
-    if not force and visualizer_quality_keys.get(viz_id) == quality_name:
+    if not force and visualizer_mode_keys.get(viz_id) == mode_name:
         return
 
-    quality_cfg = resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
-    if quality_cfg is None:
-        visualizer_quality_keys[viz_id] = quality_name
+    mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
+    if mode_cfg is None:
+        visualizer_mode_keys[viz_id] = mode_name
         return
 
     viz_type = getattr(viz.cfg, "visualizer_type", None)
     if viz_type == "kit":
-        apply_kit_rendering_quality_cfg(set_setting, quality_cfg)
+        apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
     elif viz_type == "newton":
-        apply_newton_quality_cfg_to_visualizer_cfg(viz.cfg, quality_cfg)
-        apply_newton_quality_cfg_to_viewer(getattr(viz, "_viewer", None), quality_cfg)
+        apply_newton_mode_cfg_to_visualizer_cfg(viz.cfg, mode_cfg)
+        apply_newton_mode_cfg_to_viewer(getattr(viz, "_viewer", None), mode_cfg)
 
-    visualizer_quality_keys[viz_id] = quality_name
+    visualizer_mode_keys[viz_id] = mode_name
