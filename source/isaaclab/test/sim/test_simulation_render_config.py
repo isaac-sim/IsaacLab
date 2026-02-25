@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import pytest
+from isaaclab_physx.visualizers import KitVisualizerCfg
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
