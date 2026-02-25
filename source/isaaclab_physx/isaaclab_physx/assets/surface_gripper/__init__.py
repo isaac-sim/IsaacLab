@@ -5,10 +5,12 @@
 
 """Sub-module for surface_gripper assets."""
 
-from .surface_gripper import SurfaceGripper
-from .surface_gripper_cfg import SurfaceGripperCfg
+import lazy_loader as lazy
 
-__all__ = [
-    "SurfaceGripper",
-    "SurfaceGripperCfg",
-]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "surface_gripper": ["SurfaceGripper"],
+        "surface_gripper_cfg": ["SurfaceGripperCfg"],
+    },
+)

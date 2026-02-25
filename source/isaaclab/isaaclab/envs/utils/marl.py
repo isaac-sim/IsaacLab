@@ -6,15 +6,17 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import gymnasium as gym
 import numpy as np
 import torch
 
 from ..common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
-from ..direct_marl_env import DirectMARLEnv
-from ..direct_rl_env import DirectRLEnv
+
+if TYPE_CHECKING:
+    from ..direct_marl_env import DirectMARLEnv
+    from ..direct_rl_env import DirectRLEnv
 
 
 def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
@@ -44,6 +46,9 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
         AssertionError: If the environment state cannot be used as observation since it was explicitly defined
             as unconstructed (:attr:`DirectMARLEnvCfg.state_space`).
     """
+
+    from ..direct_marl_env import DirectMARLEnv  # noqa: F811
+    from ..direct_rl_env import DirectRLEnv  # noqa: F811
 
     class Env(DirectRLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
@@ -164,6 +169,8 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
         AssertionError: If the environment state cannot be used as observation since it was explicitly defined
             as unconstructed (:attr:`DirectMARLEnvCfg.state_space`).
     """
+
+    from ..direct_marl_env import DirectMARLEnv  # noqa: F811
 
     class Env(DirectMARLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:

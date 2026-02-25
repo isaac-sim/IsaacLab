@@ -136,7 +136,7 @@ class HumanoidAmpEnv(DirectRLEnv):
 
         self.robot.write_root_link_pose_to_sim(root_state[:, :7], env_ids)
         self.robot.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids)
-        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
     # reset strategies
 

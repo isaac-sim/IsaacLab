@@ -5,9 +5,28 @@
 
 """Utilities built around USD operations."""
 
-from .legacy import *  # noqa: F401, F403
-from .prims import *  # noqa: F401, F403
-from .queries import *  # noqa: F401, F403
-from .semantics import *  # noqa: F401, F403
-from .stage import *  # noqa: F401, F403
-from .transforms import *  # noqa: F401, F403
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["legacy", "prims", "queries", "semantics", "stage", "transforms"],
+)
+
+_lazy_getattr = __getattr__
+_SUBMODULES = ("legacy", "prims", "queries", "semantics", "stage", "transforms")
+
+
+def __getattr__(name):
+    try:
+        return _lazy_getattr(name)
+    except AttributeError:
+        pass
+    import importlib
+
+    for submod_name in _SUBMODULES:
+        try:
+            submod = importlib.import_module(f"{__name__}.{submod_name}")
+            return getattr(submod, name)
+        except (ImportError, AttributeError):
+            continue
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

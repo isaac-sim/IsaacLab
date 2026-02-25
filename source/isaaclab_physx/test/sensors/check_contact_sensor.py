@@ -149,7 +149,7 @@ def main():
 
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             robot.reset()
             dt = []
 

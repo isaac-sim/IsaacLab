@@ -11,7 +11,7 @@ import re
 
 import numpy as np
 import yaml
-
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 def _get_repo_path():
     """Get the repository root by searching for marker files.
@@ -176,9 +176,8 @@ def _retrieve_logs(workflow, task):
     repo_path = _get_repo_path()
 
     # Defer Isaac Sim version import to avoid preloading USD before SimulationApp starts.
-    from isaaclab.utils.version import get_isaac_sim_version
 
-    if get_isaac_sim_version().major < 5:
+    if has_kit() and get_isaac_sim_version().major < 5:
         repo_path = os.path.join(repo_path, "..")
     if workflow == "rl_games":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/summaries/*")

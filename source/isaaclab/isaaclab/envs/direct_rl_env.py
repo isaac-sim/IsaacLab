@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import inspect
 import logging
 import math
@@ -19,9 +18,6 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
-
-import omni.kit.app
-import omni.physx
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
@@ -153,20 +149,20 @@ class DirectRLEnv(gym.Env):
                 self.event_manager.apply(mode="prestartup")
 
         # play the simulator to activate physics handles
-        # note: this activates the physics simulation view that exposes TensorAPIs
-        # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.stage):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments
-                # so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
+        # note: this activates the physics simulation view that exposes TensorAPIs.
+        # sim.reset() must always be called so PHYSICS_READY fires and assets (e.g. Newton
+        # articulations) get _root_view initialized. This is required for both PhysX and Newton.
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.stage):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            # this shouldn't cause an issue since later on, users do a reset over all the environments
+            # so the lazy buffers would be reset.
+            self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -177,6 +173,12 @@ class DirectRLEnv(gym.Env):
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
+            if hasattr(self.cfg.ui_window_class_type, "resolve"):
+                self.cfg.ui_window_class_type = self.cfg.ui_window_class_type.resolve()
+            elif isinstance(self.cfg.ui_window_class_type, str):
+                from isaaclab.utils.string import string_to_callable
+
+                self.cfg.ui_window_class_type = string_to_callable(self.cfg.ui_window_class_type)
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -543,6 +545,8 @@ class DirectRLEnv(gym.Env):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
+                import omni.kit.app
+
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)

@@ -10,5 +10,12 @@ Please check the Omniverse documentation for `lighting overview
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/lighting.html>`_.
 """
 
-from .lights import spawn_light
-from .lights_cfg import CylinderLightCfg, DiskLightCfg, DistantLightCfg, DomeLightCfg, LightCfg, SphereLightCfg
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "lights": ["spawn_light"],
+        "lights_cfg": ["CylinderLightCfg", "DiskLightCfg", "DistantLightCfg", "DomeLightCfg", "LightCfg", "SphereLightCfg"],
+    },
+)

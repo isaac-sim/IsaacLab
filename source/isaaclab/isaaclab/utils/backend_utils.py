@@ -5,6 +5,7 @@
 
 import importlib
 import logging
+from isaaclab.sim import SimulationContext
 
 logger = logging.getLogger(__name__)
 
@@ -35,38 +36,40 @@ class FactoryBase:
 
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
+        from isaaclab.sim import SimulationContext
 
-        # TODO: Make the backend configurable.
-        backend = "physx"
+        physics_mgr = SimulationContext.instance().physics_manager
+        mgr_name = physics_mgr.__name__  # e.g. "PhysxManager", "NewtonManager"
+        physics_backend = mgr_name.replace("Manager", "").lower()  # "physx", "newton"
 
         if cls == FactoryBase:
             raise TypeError("FactoryBase cannot be instantiated directly. Please subclass it.")
 
         # If backend is not in registry, try to import it and register the class.
         # This is done to only import the module once.
-        if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
-            module_name = f"isaaclab_{backend}.{cls._module_subpath}"
+        if physics_backend not in cls._registry:
+            # Construct the module name from the physics_backend and the determined subpath.
+            module_name = f"isaaclab_{physics_backend}.{cls._module_subpath}"
             try:
                 module = importlib.import_module(module_name)
                 module_class = getattr(module, cls.__name__)
                 # Manually register the class
-                cls.register(backend, module_class)
+                cls.register(physics_backend, module_class)
 
             except ImportError as e:
                 raise ValueError(
-                    f"Could not import module for backend {backend!r} for factory {cls.__name__}. "
+                    f"Could not import module for backend {physics_backend!r} for factory {cls.__name__}. "
                     f"Attempted to import from '{module_name}'.\n"
                     f"Original error: {e}"
                 ) from e
 
         # Now check registry again. The import should have registered the class.
         try:
-            impl = cls._registry[backend]
+            impl = cls._registry[physics_backend]
         except KeyError:
             available = list(cls.get_registry_keys())
             raise ValueError(
-                f"Unknown backend {backend!r} for {cls.__name__}. "
+                f"Unknown backend {physics_backend!r} for {cls.__name__}. "
                 f"A module was found at '{module_name}', but it did not contain a class with the name {cls.__name__}.\n"
                 f"Currently available backends: {available}."
             ) from None

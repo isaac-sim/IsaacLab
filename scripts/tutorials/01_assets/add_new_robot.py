@@ -126,12 +126,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 wp.to_torch(scene["Jetbot"].data.default_joint_pos).clone(),
                 wp.to_torch(scene["Jetbot"].data.default_joint_vel).clone(),
             )
-            scene["Jetbot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["Jetbot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             joint_pos, joint_vel = (
                 wp.to_torch(scene["Dofbot"].data.default_joint_pos).clone(),
                 wp.to_torch(scene["Dofbot"].data.default_joint_vel).clone(),
             )
-            scene["Dofbot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["Dofbot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting Jetbot and Dofbot state...")

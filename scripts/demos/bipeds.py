@@ -93,7 +93,7 @@ def run_simulator(sim: sim_utils.SimulationContext, robots: list[Articulation], 
                     wp.to_torch(robot.data.default_joint_pos),
                     wp.to_torch(robot.data.default_joint_vel),
                 )
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
+                robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
                 root_state = wp.to_torch(robot.data.default_root_state).clone()
                 root_state[:, :3] += origins[index]
                 robot.write_root_pose_to_sim(root_state[:, :7])

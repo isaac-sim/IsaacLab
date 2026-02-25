@@ -20,35 +20,16 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 from __future__ import annotations
 
 import logging
-from dataclasses import MISSING
 
 import numpy as np
 import torch
 
-import omni.physx.scripts.utils as physx_utils
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
-
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+
+from .visualization_markers_cfg import VisualizationMarkersCfg
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@configclass
-class VisualizationMarkersCfg:
-    """A class to configure a :class:`VisualizationMarkers`."""
-
-    prim_path: str = MISSING
-    """The prim path where the :class:`UsdGeom.PointInstancer` will be created."""
-
-    markers: dict[str, SpawnerCfg] = MISSING
-    """The dictionary of marker configurations.
-
-    The key is the name of the marker, and the value is the configuration of the marker.
-    The key is used to identify the marker in the class.
-    """
 
 
 class VisualizationMarkers:
@@ -144,6 +125,8 @@ class VisualizationMarkers:
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
+        from pxr import Gf, UsdGeom
+
         # get next free path for the prim
         prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         # create a new prim
@@ -202,6 +185,8 @@ class VisualizationMarkers:
         Args:
             visible: flag to set the visibility.
         """
+        from pxr import UsdGeom
+
         imageable = UsdGeom.Imageable(self._instancer_manager)
         if visible:
             imageable.MakeVisible()
@@ -214,6 +199,8 @@ class VisualizationMarkers:
         Returns:
             True if the markers are visible, False otherwise.
         """
+        from pxr import UsdGeom
+
         return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
 
     def visualize(
@@ -270,6 +257,8 @@ class VisualizationMarkers:
             ValueError: When input arrays do not follow the expected shapes.
             ValueError: When the function is called with all None arguments.
         """
+        from pxr import Vt
+
         # check if it is visible (if not then let's not waste time)
         if not self.is_visible():
             return
@@ -370,6 +359,9 @@ class VisualizationMarkers:
         Args:
             prim: The prim to check.
         """
+        import omni.physx.scripts.utils as physx_utils
+        from pxr import Sdf, UsdGeom, UsdPhysics
+
         # check if prim is valid
         if not prim.IsValid():
             raise ValueError(f"Prim at path '{prim.GetPrimAtPath()}' is not valid.")
@@ -402,5 +394,11 @@ class VisualizationMarkers:
             # add children to list
             all_prims += child_prim.GetChildren()
 
-        # remove any physics on the markers because they are only for visualization!
-        physx_utils.removeRigidBodySubtree(prim)
+        # remove any physics on the markers because they are only for visualization (PhysX backend only)
+        from isaaclab.sim.simulation_context import SimulationContext
+
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None and "Physx" in sim_ctx.physics_manager.__name__:
+            import omni.physx.scripts.utils as physx_utils
+
+            physx_utils.removeRigidBodySubtree(prim)

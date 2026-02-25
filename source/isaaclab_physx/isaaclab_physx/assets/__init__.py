@@ -38,22 +38,16 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from .articulation import Articulation, ArticulationData
-from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
-from .rigid_object import RigidObject, RigidObjectData
-from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionData
-from .surface_gripper import SurfaceGripper, SurfaceGripperCfg
+import lazy_loader as lazy
 
-__all__ = [
-    "Articulation",
-    "ArticulationData",
-    "DeformableObject",
-    "DeformableObjectCfg",
-    "DeformableObjectData",
-    "RigidObject",
-    "RigidObjectData",
-    "RigidObjectCollection",
-    "RigidObjectCollectionData",
-    "SurfaceGripper",
-    "SurfaceGripperCfg",
-]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=[],
+    submod_attrs={
+        "articulation": ["Articulation", "ArticulationData"],
+        "deformable_object": ["DeformableObject", "DeformableObjectCfg", "DeformableObjectData"],
+        "rigid_object": ["RigidObject", "RigidObjectData"],
+        "rigid_object_collection": ["RigidObjectCollection", "RigidObjectCollectionData"],
+        "surface_gripper": ["SurfaceGripper", "SurfaceGripperCfg"],
+    },
+)

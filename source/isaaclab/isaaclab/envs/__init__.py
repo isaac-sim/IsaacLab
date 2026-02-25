@@ -42,16 +42,30 @@ For more information about the workflow design patterns, see the `Task Design Wo
 .. _`Task Design Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 """
 
-from . import mdp, ui
-from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
-from .direct_marl_env import DirectMARLEnv
-from .direct_marl_env_cfg import DirectMARLEnvCfg
-from .direct_rl_env import DirectRLEnv
-from .direct_rl_env_cfg import DirectRLEnvCfg
-from .manager_based_env import ManagerBasedEnv
-from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .manager_based_rl_env import ManagerBasedRLEnv
-from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from .manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
-from .mimic_env_cfg import *
-from .utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["mdp", "ui"],
+    submod_attrs={
+        "common": ["VecEnvObs", "VecEnvStepReturn", "ViewerCfg"],
+        "direct_marl_env": ["DirectMARLEnv"],
+        "direct_marl_env_cfg": ["DirectMARLEnvCfg"],
+        "direct_rl_env": ["DirectRLEnv"],
+        "direct_rl_env_cfg": ["DirectRLEnvCfg"],
+        "manager_based_env": ["ManagerBasedEnv"],
+        "manager_based_env_cfg": ["ManagerBasedEnvCfg"],
+        "manager_based_rl_env": ["ManagerBasedRLEnv"],
+        "manager_based_rl_env_cfg": ["ManagerBasedRLEnvCfg"],
+        "manager_based_rl_mimic_env": ["ManagerBasedRLMimicEnv"],
+        "mimic_env_cfg": [
+            "DataGenConfig",
+            "SubTaskConfig",
+            "SubTaskConstraintType",
+            "SubTaskConstraintCoordinationScheme",
+            "SubTaskConstraintConfig",
+            "MimicEnvCfg",
+        ],
+        "utils.marl": ["multi_agent_to_single_agent", "multi_agent_with_one_agent"],
+    },
+)

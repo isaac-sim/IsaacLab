@@ -11,10 +11,7 @@ import json
 from collections.abc import Iterable, Mapping, Sized
 from typing import Any
 
-import torch
-
-from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
-from .string import callable_to_string, string_to_callable, string_to_slice
+from .string import DeferredClass, callable_to_string, string_to_callable, string_to_slice
 
 """
 Dictionary <-> Class operations.
@@ -42,10 +39,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
-    elif isinstance(obj, torch.Tensor):
-        # We have to treat torch tensors specially because `torch.tensor.__dict__` returns an empty
-        # dict, which would mean that a torch.tensor would be stored as an empty dict. Instead we
-        # want to store it directly as the tensor.
+    elif (getattr(type(obj), "__module__", "") or "").startswith(("torch", "numpy", "warp")):
+        # Tensor-like objects (torch.Tensor, np.ndarray, wp.array) have __dict__ that returns
+        # an empty/misleading dict.  Return them directly instead of recursing.
         return obj
     elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__
@@ -142,8 +138,10 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
 
             # -- 3) callable attribute → resolve string --------------
             elif callable(obj_mem):
-                # update function name
-                value = string_to_callable(value)
+                try:
+                    value = string_to_callable(value)
+                except (ImportError, ValueError):
+                    value = DeferredClass(value)
 
             # -- 4) simple scalar / explicit None ---------------------
             elif value is None or isinstance(value, type(obj_mem)):
@@ -227,6 +225,8 @@ def convert_dict_to_backend(
         The updated dict with the data converted to the desired backend.
     """
     # THINK: Should we also support converting to a specific device, e.g. "cuda:0"?
+    from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
+
     # Check the backend is valid.
     if backend not in TENSOR_TYPE_CONVERSIONS:
         raise ValueError(f"Unknown backend '{backend}'. Supported backends are 'numpy', 'torch', and 'warp'.")

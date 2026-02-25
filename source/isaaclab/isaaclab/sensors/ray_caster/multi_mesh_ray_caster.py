@@ -15,8 +15,6 @@ import torch
 import trimesh
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
-
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.math import matrix_from_quat, quat_mul
@@ -29,6 +27,8 @@ from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
+    import omni.physics.tensors.impl.api as physx
+
 
 # import logger
 logger = logging.getLogger(__name__)

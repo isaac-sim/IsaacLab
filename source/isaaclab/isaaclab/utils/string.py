@@ -393,6 +393,65 @@ def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], boo
     return result
 
 
+class DeferredClass:
+    """A callable wrapper that lazily resolves a class from a ``"module:ClassName"`` string.
+
+    This allows configuration classes to specify their associated implementation class as a
+    string path, deferring the import until the class is first called. Consumers can call
+    instances of this class exactly like the resolved class itself -- no ``isinstance`` checks
+    or ``string_to_callable`` calls are needed at the call site.
+
+    Example usage in a cfg class:
+
+    .. code-block:: python
+
+        class ArticulationCfg(AssetBaseCfg):
+            class_type: type | DeferredClass = DeferredClass(
+                "isaaclab.assets.articulation.articulation:Articulation"
+            )
+
+    The resolved class is cached after the first call.
+    """
+
+    def __init__(self, class_path: str):
+        """Initialize with a ``"module:ClassName"`` string path.
+
+        Args:
+            class_path: Dotted module path and class name separated by ``:``.
+                        For example: ``"isaaclab.assets.articulation.articulation:Articulation"``.
+        """
+        self._class_path = class_path
+        self._resolved: type | None = None
+
+    def resolve(self) -> type:
+        """Resolve and return the class, importing it if not yet done."""
+        if self._resolved is None:
+            self._resolved = string_to_callable(self._class_path)
+        return self._resolved
+
+    def __call__(self, *args, **kwargs):
+        """Instantiate the resolved class, forwarding all arguments."""
+        return self.resolve()(*args, **kwargs)
+
+    @property
+    def __name__(self) -> str:
+        """Return the class name portion of the path, resolving lazily if needed."""
+        if self._resolved is not None:
+            return self._resolved.__name__
+        return self._class_path.split(":")[-1]
+
+    @property
+    def __module__(self) -> str:
+        """Return the module portion of the path, resolving lazily if needed."""
+        if self._resolved is not None:
+            return self._resolved.__module__
+        return self._class_path.split(":")[0]
+
+    def __repr__(self) -> str:
+        status = repr(self._resolved) if self._resolved is not None else f"'{self._class_path}'"
+        return f"DeferredClass({status})"
+
+
 def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
     """Find the first prim above the regex pattern prim and its position.
     Args:

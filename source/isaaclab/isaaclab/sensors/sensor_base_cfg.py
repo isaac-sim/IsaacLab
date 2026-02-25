@@ -3,11 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
-from .sensor_base import SensorBase
+if TYPE_CHECKING:
+    from .sensor_base import SensorBase
 
 
 @configclass

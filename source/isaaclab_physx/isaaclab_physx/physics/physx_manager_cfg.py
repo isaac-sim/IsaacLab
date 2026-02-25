@@ -10,12 +10,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
-
-from .physx_manager import PhysxManager
+from isaaclab.utils import DeferredClass, configclass
 
 if TYPE_CHECKING:
     from isaaclab.physics import PhysicsManager
+
+    from .physx_manager import PhysxManager
 
 
 @configclass
@@ -41,7 +41,7 @@ class PhysxCfg(PhysicsCfg):
     # PhysX Scene Settings
     # ------------------------------------------------------------------
 
-    class_type: type[PhysicsManager] = PhysxManager
+    class_type: type[PhysicsManager] | DeferredClass = DeferredClass("isaaclab_physx.physics.physx_manager:PhysxManager")
     """The class type of the PhysxManager."""
 
     # ------------------------------------------------------------------

@@ -5,7 +5,13 @@
 
 """Sub-module for PhysX rigid contact sensor."""
 
-from .contact_sensor import ContactSensor
-from .contact_sensor_data import ContactSensorData
+import lazy_loader as lazy
 
-__all__ = ["ContactSensor", "ContactSensorData"]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "contact_sensor": ["ContactSensor"],
+        "contact_sensor_cfg": ["ContactSensorCfg"],
+        "contact_sensor_data": ["ContactSensorData"],
+    },
+)

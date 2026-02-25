@@ -13,15 +13,10 @@ import newton
 import torch
 import warp as wp
 
-from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
-
-from ..visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
-
-    from ..sim.scene_data_providers import SceneDataProvider
 
 
 logger = logging.getLogger(__name__)
@@ -86,14 +81,17 @@ class RenderData:
         return None
 
     def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
+        if self.render_context is None:
+            return
+
         converted_orientations = convert_camera_frame_orientation_convention(
             orientations, origin="world", target="opengl"
         )
 
-        self.camera_transforms = wp.empty((1, self.render_context.world_count), dtype=wp.transformf)
+        self.camera_transforms = wp.empty((1, self.render_context.num_worlds), dtype=wp.transformf)
         wp.launch(
             RenderData._update_transforms,
-            self.render_context.world_count,
+            self.render_context.num_worlds,
             [positions, converted_orientations, self.camera_transforms],
         )
 
@@ -111,14 +109,14 @@ class RenderData:
             return wp.array(
                 ptr=torch_array.ptr,
                 dtype=dtype,
-                shape=(self.render_context.world_count, self.num_cameras, self.height, self.width),
+                shape=(self.render_context.num_worlds, self.num_cameras, self.height, self.width),
                 device=torch_array.device,
                 copy=False,
             )
 
         logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
         return wp.zeros(
-            (self.render_context.world_count, self.num_cameras, self.height, self.width),
+            (self.render_context.num_worlds, self.num_cameras, self.height, self.width),
             dtype=dtype,
             device=torch_array.device,
         )
@@ -137,16 +135,41 @@ class NewtonWarpRenderer:
     RenderData = RenderData
 
     def __init__(self):
-        self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
+        # Defer SensorTiledCamera creation until the Newton model is available (after physics init).
+        # Newton is not yet started when __init__ runs (called from _setup_scene), so we cannot
+        # access NewtonManager.get_model() here — it returns None until MODEL_INIT callbacks fire.
+        self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
+        logger.info("NewtonWarpRenderer: created (sensor creation deferred until first use)")
+
+    def _ensure_sensor(self) -> None:
+        """Create the Newton sensor the first time it is needed (after Newton physics is ready)."""
+        if self.newton_sensor is not None:
+            return
+        from isaaclab_newton.physics import NewtonManager
+
+        model = NewtonManager.get_model()
+        if model is None:
+            raise RuntimeError(
+                "NewtonWarpRenderer: Newton model is not available yet. "
+                "Ensure that the renderer is used only after Newton physics has been initialized."
+            )
+        logger.info(
+            f"NewtonWarpRenderer: creating SensorTiledCamera with Newton model "
+            f"(num_worlds={model.num_worlds})"
+        )
+        self.newton_sensor = newton.sensors.SensorTiledCamera(model)
 
     def create_render_data(self, sensor: SensorBase) -> RenderData:
+        self._ensure_sensor()
+        assert self.newton_sensor is not None
         return RenderData(self.newton_sensor.render_context, sensor)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
         render_data.set_outputs(output_data)
 
     def update_transforms(self):
-        SimulationContext.instance().update_scene_data_provider(True)
+        # No-op: state is read live from NewtonManager each render call, no caching to flush.
+        pass
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -154,8 +177,18 @@ class NewtonWarpRenderer:
         render_data.update(positions, orientations, intrinsics)
 
     def render(self, render_data: RenderData):
+        from isaaclab_newton.physics import NewtonManager
+
+        state = NewtonManager.get_state_0()
+        if state is None:
+            logger.warning("NewtonWarpRenderer.render: Newton state is None, skipping render")
+            return
+
+        logger.debug(f"NewtonWarpRenderer.render: using live Newton state (type={type(state).__name__})")
+        self._ensure_sensor()
+        assert self.newton_sensor is not None
         self.newton_sensor.render(
-            self.get_scene_data_provider().get_newton_state(),
+            state,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -170,6 +203,3 @@ class NewtonWarpRenderer:
         if image_data is not None:
             if image_data.ptr != output_data.data_ptr():
                 wp.copy(wp.from_torch(output_data), image_data)
-
-    def get_scene_data_provider(self) -> SceneDataProvider:
-        return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

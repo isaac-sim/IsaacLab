@@ -182,7 +182,7 @@ def _run_ik_controller(
             joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
             joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
             # joint_pos *= sample_uniform(0.9, 1.1, joint_pos.shape, joint_pos.device)
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             robot.set_joint_position_target(joint_pos)
             robot.write_data_to_sim()
             # randomize root state yaw, ik should work regardless base rotation

@@ -16,11 +16,20 @@ The following converters are currently supported:
 
 """
 
-from .asset_converter_base import AssetConverterBase
+import lazy_loader as lazy
+
 from .asset_converter_base_cfg import AssetConverterBaseCfg
-from .mesh_converter import MeshConverter
 from .mesh_converter_cfg import MeshConverterCfg
-from .mjcf_converter import MjcfConverter
 from .mjcf_converter_cfg import MjcfConverterCfg
-from .urdf_converter import UrdfConverter
 from .urdf_converter_cfg import UrdfConverterCfg
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "asset_converter_base": ["AssetConverterBase"],
+        "mesh_converter": ["MeshConverter"],
+        "mjcf_converter": ["MjcfConverter"],
+        "urdf_converter": ["UrdfConverter"],
+    },
+)
+__all__ += ["AssetConverterBaseCfg", "MeshConverterCfg", "MjcfConverterCfg", "UrdfConverterCfg"]

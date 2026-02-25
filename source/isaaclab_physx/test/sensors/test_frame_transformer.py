@@ -162,7 +162,7 @@ def test_frame_transformer_feet_wrt_base(sim):
             # -- robot
             scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
             scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # reset buffers
             scene.reset()
 
@@ -260,7 +260,7 @@ def test_frame_transformer_feet_wrt_thigh(sim):
             # -- robot
             scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
             scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # reset buffers
             scene.reset()
 
@@ -338,7 +338,7 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
             # -- robot
             scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
             scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # reset buffers
             scene.reset()
 
@@ -522,7 +522,7 @@ def test_frame_transformer_all_bodies(sim):
             # -- robot
             scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
             scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # reset buffers
             scene.reset()
 
@@ -714,8 +714,8 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
             scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
             scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
             scene.articulations["robot"].write_joint_state_to_sim(
-                scene.articulations["robot"].data.default_joint_pos,
-                scene.articulations["robot"].data.default_joint_vel,
+                position=scene.articulations["robot"].data.default_joint_pos,
+                velocity=scene.articulations["robot"].data.default_joint_vel,
             )
             # Reset robot_1
             root_state_1 = wp.to_torch(scene.articulations["robot_1"].data.default_root_state).clone()
@@ -723,8 +723,8 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
             scene.articulations["robot_1"].write_root_pose_to_sim(root_state_1[:, :7])
             scene.articulations["robot_1"].write_root_velocity_to_sim(root_state_1[:, 7:])
             scene.articulations["robot_1"].write_joint_state_to_sim(
-                scene.articulations["robot_1"].data.default_joint_pos,
-                scene.articulations["robot_1"].data.default_joint_vel,
+                position=scene.articulations["robot_1"].data.default_joint_pos,
+                velocity=scene.articulations["robot_1"].data.default_joint_vel,
             )
             scene.reset()
 

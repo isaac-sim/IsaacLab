@@ -10,7 +10,6 @@ import functools
 import textwrap
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-import omni.kit.commands
 import omni.ui as ui
 from pxr import Gf
 
@@ -193,6 +192,8 @@ def show_instruction(
         resolution_scale=300,
         widget_args=[wrapped_text, {"font_size": font_size, "color": text_color}, width],
     )
+
+    import omni.kit.commands
 
     copied_prim = omni.kit.commands.execute(
         "CopyPrim",

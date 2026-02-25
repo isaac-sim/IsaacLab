@@ -190,7 +190,7 @@ class AnymalCEnv(DirectRLEnv):
         default_root_state[:, :3] += self._terrain.env_origins[env_ids]
         self._robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self._robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self._robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
         # Logging
         extras = dict()
         for key in self._episode_sums.keys():

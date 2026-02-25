@@ -27,7 +27,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -130,8 +130,8 @@ class Camera(SensorBase):
         settings.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # This is only introduced in isaac sim 6.0
-        isaac_sim_version = get_isaac_sim_version()
-        if isaac_sim_version.major >= 6:
+        isaac_sim_version = get_isaac_sim_version() if has_kit() else None
+        if has_kit() and isaac_sim_version is not None and isaac_sim_version.major >= 6:
             # Set RTX flag to enable fast path if only depth or albedo is requested
             supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
             if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
@@ -140,7 +140,7 @@ class Camera(SensorBase):
             # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
             if settings.get("/isaaclab/has_gui"):
                 settings.set_bool("/rtx/sdg/force/disableColorRender", False)
-        else:
+        elif has_kit() and isaac_sim_version is not None and isaac_sim_version.major < 6:
             if "albedo" in self.cfg.data_types:
                 logger.warning(
                     "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
@@ -194,7 +194,7 @@ class Camera(SensorBase):
 
         # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == version.parse("4.5"):
+        if has_kit() and get_isaac_sim_version() == version.parse("4.5"):
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
                 logger.warning(
                     "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"

@@ -5,16 +5,15 @@
 
 """Sub-module for rigid articulated assets."""
 
-from .base_articulation import BaseArticulation
-from .base_articulation_data import BaseArticulationData
-from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
-from .articulation_data import ArticulationData
+import lazy_loader as lazy
 
-__all__ = [
-    "BaseArticulation",
-    "BaseArticulationData",
-    "Articulation",
-    "ArticulationCfg",
-    "ArticulationData",
-]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "base_articulation": ["BaseArticulation"],
+        "base_articulation_data": ["BaseArticulationData"],
+        "articulation": ["Articulation"],
+        "articulation_cfg": ["ArticulationCfg"],
+        "articulation_data": ["ArticulationData"],
+    },
+)

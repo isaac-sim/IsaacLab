@@ -5,5 +5,6 @@
 
 """Sub-module containing operations based on warp."""
 
-from . import fabric  # noqa: F401
+from . import fabric, utils  # noqa: F401
 from .ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
+from .utils import make_mask_from_torch_ids

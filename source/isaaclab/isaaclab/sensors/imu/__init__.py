@@ -7,10 +7,15 @@
 Imu Sensor
 """
 
-from .base_imu import BaseImu
-from .base_imu_data import BaseImuData
-from .imu import Imu
-from .imu_cfg import ImuCfg
-from .imu_data import ImuData
+import lazy_loader as lazy
 
-__all__ = ["BaseImu", "BaseImuData", "Imu", "ImuCfg", "ImuData"]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "base_imu": ["BaseImu"],
+        "base_imu_data": ["BaseImuData"],
+        "imu": ["Imu"],
+        "imu_cfg": ["ImuCfg"],
+        "imu_data": ["ImuData"],
+    },
+)

@@ -7,8 +7,7 @@ from dataclasses import MISSING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.utils import configclass
-
-from .surface_gripper import SurfaceGripper
+from isaaclab.utils.string import DeferredClass
 
 
 @configclass
@@ -30,4 +29,6 @@ class SurfaceGripperCfg(AssetBaseCfg):
     retry_interval: float | None = None
     """The amount of time the gripper will spend trying to grasp an object."""
 
-    class_type: type = SurfaceGripper
+    class_type: type | DeferredClass = DeferredClass(
+        "isaaclab_physx.assets.surface_gripper.surface_gripper:SurfaceGripper"
+    )

@@ -6,16 +6,14 @@
 from dataclasses import MISSING
 
 from isaaclab.assets.rigid_object import RigidObjectCfg
-from isaaclab.utils import configclass
-
-from .rigid_object_collection import RigidObjectCollection
+from isaaclab.utils import DeferredClass, configclass
 
 
 @configclass
 class RigidObjectCollectionCfg:
     """Configuration parameters for a rigid object collection."""
 
-    class_type: type = RigidObjectCollection
+    class_type: type | DeferredClass = DeferredClass("isaaclab.assets.rigid_object_collection.rigid_object_collection:RigidObjectCollection")
     """The associated asset class.
 
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.

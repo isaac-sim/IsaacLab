@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import enum
 import os
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -15,45 +14,13 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import RecorderTermCfg
+from .manager_term_cfg import DatasetExportMode, RecorderManagerBaseCfg, RecorderTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-
-
-class DatasetExportMode(enum.IntEnum):
-    """The mode to handle episode exports."""
-
-    EXPORT_NONE = 0  # Export none of the episodes
-    EXPORT_ALL = 1  # Export all episodes to a single dataset file
-    EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES = 2  # Export succeeded and failed episodes in separate files
-    EXPORT_SUCCEEDED_ONLY = 3  # Export only succeeded episodes to a single dataset file
-
-
-@configclass
-class RecorderManagerBaseCfg:
-    """Base class for configuring recorder manager terms."""
-
-    dataset_file_handler_class_type: type = HDF5DatasetFileHandler
-
-    dataset_export_dir_path: str = "/tmp/isaaclab/logs"
-    """The directory path where the recorded datasets are exported."""
-
-    dataset_filename: str = "dataset"
-    """Dataset file name without file extension."""
-
-    dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_ALL
-    """The mode to handle episode exports."""
-
-    export_in_record_pre_reset: bool = True
-    """Whether to export episodes in the record_pre_reset call."""
-
-    export_in_close: bool = False
-    """Whether to export episodes in the close call."""
 
 
 class RecorderTerm(ManagerTermBase):

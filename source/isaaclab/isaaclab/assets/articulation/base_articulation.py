@@ -2406,6 +2406,7 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def write_joint_state_to_sim(
         self,
+        *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,

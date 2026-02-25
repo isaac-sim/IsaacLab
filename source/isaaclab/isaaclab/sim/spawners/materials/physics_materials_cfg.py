@@ -5,13 +5,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils import configclass
-
-from . import physics_materials
+from isaaclab.utils import DeferredClass, configclass
 
 
 @configclass
@@ -24,7 +21,7 @@ class PhysicsMaterialCfg:
     `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`__.
     """
 
-    func: Callable = MISSING
+    func: DeferredClass = MISSING
     """Function to use for creating the material."""
 
 
@@ -35,7 +32,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
     See :meth:`spawn_rigid_body_material` for more information.
     """
 
-    func: Callable = physics_materials.spawn_rigid_body_material
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.materials.physics_materials:spawn_rigid_body_material")
 
     static_friction: float = 0.5
     """The static friction coefficient. Defaults to 0.5."""
@@ -89,7 +86,7 @@ class DeformableBodyMaterialCfg(PhysicsMaterialCfg):
 
     """
 
-    func: Callable = physics_materials.spawn_deformable_body_material
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material")
 
     density: float | None = None
     """The material density. Defaults to None, in which case the simulation decides the default density."""

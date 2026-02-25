@@ -8,15 +8,12 @@ from __future__ import annotations
 import torch
 import warp as wp
 
-from pxr import UsdGeom
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -206,6 +203,10 @@ class FrankaCabinetEnv(DirectRLEnv):
 
         self.robot_dof_targets = torch.zeros((self.num_envs, self._robot.num_joints), device=self.device)
 
+        from pxr import UsdGeom
+
+        from isaaclab.sim.utils.stage import get_current_stage
+
         stage = get_current_stage()
         hand_pose = get_env_local_pose(
             self.scene.env_origins[0],
@@ -342,11 +343,11 @@ class FrankaCabinetEnv(DirectRLEnv):
         joint_pos = torch.clamp(joint_pos, self.robot_dof_lower_limits, self.robot_dof_upper_limits)
         joint_vel = torch.zeros_like(joint_pos)
         self._robot.set_joint_position_target(joint_pos, env_ids=env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
         # cabinet state
         zeros = torch.zeros((len(env_ids), self._cabinet.num_joints), device=self.device)
-        self._cabinet.write_joint_state_to_sim(zeros, zeros, env_ids=env_ids)
+        self._cabinet.write_joint_state_to_sim(position=zeros, velocity=zeros, env_ids=env_ids)
 
         # Need to refresh the intermediate values so that _get_observations() can use the latest values
         self._compute_intermediate_values(env_ids)

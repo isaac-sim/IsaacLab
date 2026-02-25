@@ -31,6 +31,16 @@ def has_kit() -> bool:
 
 
 @functools.lru_cache(maxsize=1)
+def has_kit() -> bool:
+    """Check if the Omniverse/Isaac Sim app is launched and running. Result is cached."""
+    try:
+        import omni.usd
+        return True
+    except (ImportError, AttributeError):
+        return False
+
+
+@functools.lru_cache(maxsize=1)
 def get_isaac_sim_version() -> Version:
     """Get the Isaac Sim version as a Version object, cached for performance.
 

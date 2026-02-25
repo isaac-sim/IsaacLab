@@ -23,6 +23,8 @@ import pytest
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.hydra import (
+    _cleanup_presets,
+    _cleanup_presets_dict,
     _parse_val,
     _setattr,
     apply_overrides,
@@ -452,3 +454,79 @@ def test_override_order_left_right_scalar_wins(test_configs):
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], preset_sel, preset_scalar, presets)
 
     assert env_cfg.actions.arm_action.scale == 2.0
+
+
+# =============================================================================
+# Tests for preset cleanup
+# =============================================================================
+
+
+def test_cleanup_presets_removes_from_config(test_configs):
+    """After cleanup, no config object in the tree should have a 'presets' attribute."""
+    env_cfg, agent_cfg, presets = test_configs
+
+    # Verify presets exist before cleanup
+    assert hasattr(env_cfg.observations, "presets")
+    assert hasattr(env_cfg.actions, "presets")
+    assert hasattr(env_cfg.actions.arm_action, "presets")
+    assert hasattr(agent_cfg.policy, "presets")
+
+    _cleanup_presets(env_cfg)
+    _cleanup_presets(agent_cfg)
+
+    # All presets should be gone
+    assert not hasattr(env_cfg.observations, "presets")
+    assert not hasattr(env_cfg.actions, "presets")
+    assert not hasattr(env_cfg.actions.arm_action, "presets")
+    assert not hasattr(agent_cfg.policy, "presets")
+
+    # Non-preset fields should be untouched
+    assert env_cfg.decimation == 4
+    assert env_cfg.observations.enable_corruption is True
+    assert agent_cfg.policy.actor_hidden_dims == [256, 128]
+
+
+def test_cleanup_presets_dict_removes_from_dict(test_configs):
+    """After cleanup, no nested dict should contain a 'presets' key."""
+    env_cfg, agent_cfg, _ = test_configs
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+
+    # Verify presets exist in dict before cleanup
+    assert "presets" in hydra_cfg["env"]["observations"]
+    assert "presets" in hydra_cfg["env"]["actions"]
+
+    _cleanup_presets_dict(hydra_cfg)
+
+    # Walk the entire dict tree to ensure no presets remain
+    def _check_no_presets(d, path=""):
+        if isinstance(d, dict):
+            assert "presets" not in d, f"Found 'presets' key at {path}"
+            for k, v in d.items():
+                _check_no_presets(v, f"{path}.{k}")
+
+    _check_no_presets(hydra_cfg)
+
+
+def test_cleanup_after_apply_overrides(test_configs):
+    """Full flow: apply overrides then cleanup — config is clean for managers."""
+    env_cfg, agent_cfg, presets = test_configs
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+
+    # Apply a global preset
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [], [], presets)
+
+    # Cleanup
+    _cleanup_presets(env_cfg)
+    _cleanup_presets(agent_cfg)
+    _cleanup_presets_dict(hydra_cfg)
+
+    # Preset was applied
+    assert env_cfg.observations.enable_corruption is False
+    assert agent_cfg.policy.actor_hidden_dims == [32, 16]
+
+    # No presets remain anywhere
+    assert not hasattr(env_cfg.observations, "presets")
+    assert not hasattr(env_cfg.actions, "presets")
+    assert not hasattr(agent_cfg.policy, "presets")
+    assert "presets" not in hydra_cfg["env"].get("observations", {})
+    assert "presets" not in hydra_cfg["agent"].get("policy", {})

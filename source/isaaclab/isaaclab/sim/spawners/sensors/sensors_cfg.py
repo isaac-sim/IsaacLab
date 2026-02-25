@@ -5,14 +5,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Literal
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
-
-from . import sensors
+from isaaclab.utils import DeferredClass, configclass
 
 
 @configclass
@@ -26,7 +23,7 @@ class PinholeCameraCfg(SpawnerCfg):
         world unit is Meter s.t. all of these values are set in cm.
     """
 
-    func: Callable = sensors.spawn_camera
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.sensors.sensors:spawn_camera")
 
     projection_type: str = "pinhole"
     """Type of projection to use for the camera. Defaults to "pinhole".
@@ -172,7 +169,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     .. _fish-eye camera: https://en.wikipedia.org/wiki/Fisheye_lens
     """
 
-    func: Callable = sensors.spawn_camera
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.sensors.sensors:spawn_camera")
 
     projection_type: Literal[
         "fisheyePolynomial",
