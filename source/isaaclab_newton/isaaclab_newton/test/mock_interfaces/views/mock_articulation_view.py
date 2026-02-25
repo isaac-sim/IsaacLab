@@ -137,13 +137,9 @@ class MockNewtonArticulationView:
         """Lazily create root transforms with identity quaternions."""
         if self._root_transforms is None:
             if self._is_fixed_base:
-                self._root_transforms = wp.zeros(
-                    (self._count, 1, 1), dtype=wp.transformf, device=self._device
-                )
+                self._root_transforms = wp.zeros((self._count, 1, 1), dtype=wp.transformf, device=self._device)
             else:
-                self._root_transforms = wp.zeros(
-                    (self._count, 1), dtype=wp.transformf, device=self._device
-                )
+                self._root_transforms = wp.zeros((self._count, 1), dtype=wp.transformf, device=self._device)
         return self._root_transforms
 
     def _ensure_root_velocities(self) -> wp.array | None:
@@ -151,9 +147,7 @@ class MockNewtonArticulationView:
         if self._is_fixed_base:
             return None
         if self._root_velocities is None:
-            self._root_velocities = wp.zeros(
-                (self._count, 1), dtype=wp.spatial_vectorf, device=self._device
-            )
+            self._root_velocities = wp.zeros((self._count, 1), dtype=wp.spatial_vectorf, device=self._device)
         return self._root_velocities
 
     def _ensure_link_transforms(self) -> wp.array:
@@ -457,25 +451,24 @@ class MockNewtonArticulationView:
             self._link_velocities = wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev)
 
         # DOF state
-        self._dof_positions = wp.array(
-            np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev
-        )
-        self._dof_velocities = wp.array(
-            np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev
-        )
+        self._dof_positions = wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
+        self._dof_velocities = wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
 
         # Body properties
         self._attributes["body_com"] = wp.array(
             np.random.randn(N, 1, L, 3).astype(np.float32),
-            dtype=wp.vec3f, device=dev,
+            dtype=wp.vec3f,
+            device=dev,
         )
         self._attributes["body_mass"] = wp.array(
             (np.random.rand(N, 1, L) * 10 + 0.1).astype(np.float32),
-            dtype=wp.float32, device=dev,
+            dtype=wp.float32,
+            device=dev,
         )
         self._attributes["body_inertia"] = wp.array(
             np.random.randn(N, 1, L, 9).astype(np.float32),
-            dtype=wp.mat33f, device=dev,
+            dtype=wp.mat33f,
+            device=dev,
         )
 
         # Joint properties
@@ -496,11 +489,13 @@ class MockNewtonArticulationView:
         ):
             self._attributes[attr_name] = wp.array(
                 np.random.randn(N, 1, J).astype(np.float32),
-                dtype=wp.float32, device=dev,
+                dtype=wp.float32,
+                device=dev,
             )
 
         # Body forces
         self._attributes["body_f"] = wp.array(
             np.random.randn(N, 1, L, 6).astype(np.float32),
-            dtype=wp.spatial_vectorf, device=dev,
+            dtype=wp.spatial_vectorf,
+            device=dev,
         )

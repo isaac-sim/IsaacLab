@@ -16,8 +16,6 @@ from unittest.mock import MagicMock, patch
 
 import warp as wp
 
-from .views import MockNewtonArticulationView
-
 
 class MockNewtonModel:
     """Mock Newton model that provides gravity."""
@@ -111,7 +109,8 @@ def create_mock_newton_manager(
     """Create a mock NewtonManager for testing.
 
     Args:
-        patch_path: The module path to patch (e.g., "isaaclab_newton.assets.articulation.articulation_data.NewtonManager").
+        patch_path: The module path to patch
+            (e.g., "isaaclab_newton.assets.articulation.articulation_data.NewtonManager").
         gravity: Gravity vector to use for the mock model.
 
     Returns:

@@ -8,11 +8,6 @@
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.test.mock_interfaces.factories import (
-    create_mock_articulation_view,
-    create_mock_humanoid_view,
-    create_mock_quadruped_view,
-)
 from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView
 
 
@@ -73,9 +68,7 @@ class TestMockNewtonArticulationViewRootGetters:
     @pytest.fixture
     def view(self):
         """Create a view with 4 instances, 12 DOFs, 13 links."""
-        return MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        return MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
 
     def test_get_root_transforms_shape(self, view):
         """Test root transforms shape - should be (N, 1) with wp.transformf dtype."""
@@ -119,9 +112,7 @@ class TestMockNewtonArticulationViewLinkGetters:
     @pytest.fixture
     def view(self):
         """Create a view with 4 instances, 12 DOFs, 13 links."""
-        return MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        return MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
 
     def test_get_link_transforms_shape(self, view):
         """Test link transforms shape - should be (N, 1, L) with wp.transformf dtype."""
@@ -149,9 +140,7 @@ class TestMockNewtonArticulationViewDOFGetters:
     @pytest.fixture
     def view(self):
         """Create a view with 4 instances, 12 DOFs, 13 links."""
-        return MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        return MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
 
     def test_get_dof_positions_shape(self, view):
         """Test DOF positions shape - should be (N, 1, J)."""
@@ -191,9 +180,7 @@ class TestMockNewtonArticulationViewMassGetters:
     @pytest.fixture
     def view(self):
         """Create a view with 4 instances, 12 DOFs, 13 links."""
-        return MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        return MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
 
     def test_get_body_mass_shape(self, view):
         """Test body mass shape via get_attribute()."""
@@ -220,9 +207,7 @@ class TestMockNewtonArticulationViewSetters:
     @pytest.fixture
     def view(self):
         """Create a view with 4 instances, 12 DOFs, 13 links."""
-        return MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        return MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
 
     def test_set_root_transforms(self, view):
         """Test setting root transforms round-trip."""
@@ -262,9 +247,7 @@ class TestMockNewtonArticulationViewMockSetters:
     @pytest.fixture
     def view(self):
         """Create a view with 4 instances, 12 DOFs, 13 links."""
-        return MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        return MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
 
     def test_set_mock_root_transforms(self, view):
         """Test mock root transform setter round-trip."""
@@ -296,27 +279,21 @@ class TestMockNewtonArticulationViewMockSetters:
 
     def test_set_mock_dof_positions(self, view):
         """Test mock DOF position setter round-trip."""
-        mock_data = wp.array(
-            np.random.randn(4, 1, 12).astype(np.float32), dtype=wp.float32, device="cpu"
-        )
+        mock_data = wp.array(np.random.randn(4, 1, 12).astype(np.float32), dtype=wp.float32, device="cpu")
         view.set_mock_dof_positions(mock_data)
         result = view.get_dof_positions(None)
         np.testing.assert_allclose(result.numpy(), mock_data.numpy(), rtol=1e-5)
 
     def test_set_mock_dof_velocities(self, view):
         """Test mock DOF velocity setter round-trip."""
-        mock_data = wp.array(
-            np.random.randn(4, 1, 12).astype(np.float32), dtype=wp.float32, device="cpu"
-        )
+        mock_data = wp.array(np.random.randn(4, 1, 12).astype(np.float32), dtype=wp.float32, device="cpu")
         view.set_mock_dof_velocities(mock_data)
         result = view.get_dof_velocities(None)
         np.testing.assert_allclose(result.numpy(), mock_data.numpy(), rtol=1e-5)
 
     def test_set_mock_masses(self, view):
         """Test mock body mass setter round-trip."""
-        mock_data = wp.array(
-            (np.random.rand(4, 1, 13) * 10).astype(np.float32), dtype=wp.float32, device="cpu"
-        )
+        mock_data = wp.array((np.random.rand(4, 1, 13) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
         view.set_mock_masses(mock_data)
         result = view.get_attribute("body_mass", None)
         np.testing.assert_allclose(result.numpy(), mock_data.numpy(), rtol=1e-5)
@@ -341,9 +318,7 @@ class TestMockNewtonArticulationViewRandomData:
 
     def test_set_random_mock_data_populates_arrays(self):
         """Test that set_random_mock_data populates non-None arrays."""
-        view = MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        view = MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
         view.set_random_mock_data()
 
         # Root state should be populated
@@ -395,9 +370,7 @@ class TestMockNewtonArticulationViewRandomData:
 
     def test_set_random_mock_data_has_nonzero_values(self):
         """Test that random data has non-zero values."""
-        view = MockNewtonArticulationView(
-            num_instances=4, num_joints=12, num_bodies=13, device="cpu"
-        )
+        view = MockNewtonArticulationView(num_instances=4, num_joints=12, num_bodies=13, device="cpu")
         view.set_random_mock_data()
 
         positions = view.get_dof_positions(None)
