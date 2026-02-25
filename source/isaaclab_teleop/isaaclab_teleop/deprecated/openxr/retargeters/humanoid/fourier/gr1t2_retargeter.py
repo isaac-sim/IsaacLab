@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -16,7 +17,10 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
+# This import exception is suppressed because gr1_t2_dex_retargeting_utils depends
+# on pinocchio which is not available on Windows.
+with contextlib.suppress(Exception):
+    from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
 
 
 class GR1T2Retargeter(RetargeterBase):
