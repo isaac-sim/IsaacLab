@@ -274,15 +274,13 @@ class ContactSensor(BaseContactSensor):
         if self.cfg.force_threshold is None:
             self.cfg.force_threshold = 0.0
 
-        self._generate_force_matrix = (
-            self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_prim_expr is not None
-        )
+        self._generate_force_matrix = bool(self.cfg.filter_prim_paths_expr or self.cfg.filter_shape_prim_expr)
 
         self._sensor_key = NewtonManager.add_contact_sensor(
-            body_names_expr=self.cfg.prim_path if self.cfg.sensor_shape_prim_expr is None else None,
-            shape_names_expr=self.cfg.sensor_shape_prim_expr,
-            contact_partners_body_expr=self.cfg.filter_prim_paths_expr,
-            contact_partners_shape_expr=self.cfg.filter_shape_prim_expr,
+            body_names_expr=self.cfg.prim_path if not self.cfg.sensor_shape_prim_expr else None,
+            shape_names_expr=self.cfg.sensor_shape_prim_expr or None,
+            contact_partners_body_expr=self.cfg.filter_prim_paths_expr or None,
+            contact_partners_shape_expr=self.cfg.filter_shape_prim_expr or None,
             prune_noncolliding=True,
         )
 

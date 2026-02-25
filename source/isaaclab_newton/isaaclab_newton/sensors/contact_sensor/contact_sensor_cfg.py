@@ -41,11 +41,11 @@ class NewtonContactSensorCfg(ContactSensorCfg):
         """Read-only alias for :attr:`prim_path`."""
         return self.prim_path
 
-    sensor_shape_prim_expr: list[str] | None = None
+    sensor_shape_prim_expr: list[str] = []
     """List of shape prim path expressions for shape-level contact sensing.
-    Defaults to None, meaning sensing is at the body level (via :attr:`prim_path`).
+    Defaults to empty, meaning sensing is at the body level (via :attr:`prim_path`).
 
-    Mutually exclusive with body-level sensing: if set, :attr:`prim_path` is ignored
+    Mutually exclusive with body-level sensing: if non-empty, :attr:`prim_path` is ignored
     for the sensing objects and these shape expressions are used instead.
 
     .. note::
@@ -55,9 +55,9 @@ class NewtonContactSensorCfg(ContactSensorCfg):
         Example: ``{ENV_REGEX_NS}/Robot/fingertip_.*`` becomes ``/World/envs/env_.*/Robot/fingertip_.*``.
     """
 
-    filter_shape_prim_expr: list[str] | None = None
+    filter_shape_prim_expr: list[str] = []
     """List of shape prim path expressions to filter contacts against at the shape level.
-    Defaults to None, meaning filter partners are resolved at the body level only
+    Defaults to empty, meaning filter partners are resolved at the body level only
     (via :attr:`ContactSensorCfg.filter_prim_paths_expr`).
 
     If provided, the force matrix reports per-shape contact forces between the sensing

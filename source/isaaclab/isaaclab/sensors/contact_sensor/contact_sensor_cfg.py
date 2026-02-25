@@ -60,8 +60,8 @@ class ContactSensorCfg(SensorBaseCfg):
     """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
     the current data is stored (no history)."""
 
-    filter_prim_paths_expr: list[str] | None = None
-    """List of body prim path expressions to filter contacts against. Defaults to None,
+    filter_prim_paths_expr: list[str] = []
+    """List of body prim path expressions to filter contacts against. Defaults to empty,
     meaning contacts with all bodies are aggregated into the net force.
 
     If provided, a per-partner force matrix (:attr:`ContactSensorData.force_matrix_w`) is

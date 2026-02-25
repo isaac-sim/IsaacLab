@@ -37,16 +37,9 @@ class BaseContactSensor(SensorBase):
     when you want to report the contact forces between the sensor bodies and a specific set of
     bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
 
-    The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
-    sensor body in an environment can be filtered against multiple bodies in that environment. If you need to
-    filter multiple sensor bodies against multiple bodies, you need to create separate sensors for each sensor
-    body.
-
-    As an example, suppose you want to report the contact forces for all the feet of a robot against an object
-    exclusively. In that case, setting the :attr:`ContactSensorCfg.prim_path` and
-    :attr:`ContactSensorCfg.filter_prim_paths_expr` with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object``
-    respectively will not work. Instead, you need to create a separate sensor for each foot and filter
-    it against the object.
+    The PhysX backend only supports one-to-many filtered contact reporting: a single sensor
+    body filtered against multiple partners. For many-to-many, create separate sensors per
+    body. The Newton backend supports many-to-many natively.
     """
 
     cfg: ContactSensorCfg

@@ -333,7 +333,7 @@ class ContactSensor(BaseContactSensor):
 
         # check if filter paths are valid
         if self.cfg.track_contact_points or self.cfg.track_friction_forces:
-            if self.cfg.filter_prim_paths_expr is None:
+            if not self.cfg.filter_prim_paths_expr:
                 raise ValueError(
                     "The 'filter_prim_paths_expr' is empty. Please specify a valid filter pattern to track"
                     f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
@@ -374,7 +374,7 @@ class ContactSensor(BaseContactSensor):
         # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
         # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
-        if self.cfg.filter_prim_paths_expr is not None:
+        if self.cfg.filter_prim_paths_expr:
             force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)
         else:
             force_matrix_flat = None
