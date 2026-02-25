@@ -132,7 +132,7 @@ Pre-recorded demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``
-here: `[Franka Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
+here: `[Franka Dataset] <https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
 
 If using the pre-recorded dataset, skip the next section and proceed directly to the :ref:`Generating additional demonstrations <generating-additional-demonstrations>` section.
