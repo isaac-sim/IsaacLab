@@ -135,7 +135,7 @@ The dataset contains:
 Download and Setup
 ^^^^^^^^^^^^^^^^^^
 
-1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
+1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
 
 2. Prepare the datasets directory and move the downloaded file:
 
