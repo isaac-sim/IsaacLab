@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.2.3 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_newton.assets.Articulation` and
+  :class:`~isaaclab_newton.assets.RigidObject` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype` and
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype_mask`.
+
+
 0.2.2 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~
 
