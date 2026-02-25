@@ -165,7 +165,10 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        self.assert_shape_and_dtype(states, (env_ids.shape[0],), wp.float32, "states")
+        if full_data:
+            self.assert_shape_and_dtype(states, (self.num_instances,), wp.float32, "states")
+        else:
+            self.assert_shape_and_dtype(states, (env_ids.shape[0],), wp.float32, "states")
 
         # Convert torch input to warp
         if isinstance(states, torch.Tensor):
@@ -234,7 +237,10 @@ class SurfaceGripper(AssetBase):
             ("retry_interval", retry_interval, self._retry_interval),
         ]:
             if prop_data is not None:
-                self.assert_shape_and_dtype(prop_data, (env_ids.shape[0],), wp.float32, prop_name)
+                if full_data:
+                    self.assert_shape_and_dtype(prop_data, (self.num_instances,), wp.float32, prop_name)
+                else:
+                    self.assert_shape_and_dtype(prop_data, (env_ids.shape[0],), wp.float32, prop_name)
                 wp.launch(
                     write_scalar_at_indices,
                     dim=env_ids.shape[0],
@@ -421,33 +427,6 @@ class SurfaceGripper(AssetBase):
         env_ids = self._resolve_env_ids(indices)
         self.reset_index(env_ids)
 
-    def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
-    ) -> None:
-        """Assert the shape and dtype of a tensor or warp array.
-
-        Args:
-            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
-            shape: The shape to assert.
-            dtype: The warp dtype to assert.
-            name: Optional parameter name for error messages.
-        """
-        if __debug__:
-            cls = type(self).__name__
-            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
-            if isinstance(tensor, (int, float)):
-                return
-            elif isinstance(tensor, wp.array):
-                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
-                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
-            elif isinstance(tensor, torch.Tensor):
-                if dtype is wp.float32:
-                    offset = ()
-                elif dtype is wp.int32:
-                    offset = ()
-                else:
-                    raise ValueError(f"Unsupported dtype: {dtype}")
-                assert tensor.shape == (*shape, *offset), f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
 
     """
     Initialization.

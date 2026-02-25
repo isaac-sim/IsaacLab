@@ -332,7 +332,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
-        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        if full_data:
+            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+        else:
+            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim,
             dim=env_ids.shape[0],
@@ -413,7 +416,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
-        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        if full_data:
+            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+        else:
+            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim,
             dim=env_ids.shape[0],
@@ -501,7 +507,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
-        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        if full_data:
+            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+        else:
+            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim,
             dim=env_ids.shape[0],
@@ -591,7 +600,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
-        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        if full_data:
+            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+        else:
+            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Access body_com_pose_b and root_link_pose_w properties to ensure they are current.
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim,
@@ -687,7 +699,10 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
-        self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if full_data:
+            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+        else:
+            self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -771,7 +786,10 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
-        self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if full_data:
+            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+        else:
+            self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer,
@@ -854,7 +872,10 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
-        self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if full_data:
+            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+        else:
+            self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_single_body_inertia_to_buffer,
@@ -1056,37 +1077,6 @@ class RigidObject(BaseRigidObject):
         # set all existing views to None to invalidate them
         self._root_view = None
 
-    def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
-    ) -> None:
-        """Assert the shape and dtype of a tensor or warp array.
-
-        Args:
-            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
-            shape: The shape to assert.
-            dtype: The warp dtype to assert.
-            name: Optional parameter name for error messages.
-        """
-        if __debug__:
-            cls = type(self).__name__
-            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
-            if isinstance(tensor, (int, float)):
-                return
-            elif isinstance(tensor, wp.array):
-                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
-                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
-            elif isinstance(tensor, torch.Tensor):
-                if dtype is wp.float32:
-                    offset = ()
-                elif dtype is wp.vec3f:
-                    offset = (3,)
-                elif dtype is wp.transformf:
-                    offset = (7,)
-                elif dtype is wp.spatial_vectorf:
-                    offset = (6,)
-                else:
-                    raise ValueError(f"Unsupported dtype: {dtype}")
-                assert tensor.shape == (*shape, *offset), f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
 
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
