@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,33 +14,31 @@ simulation_app = AppLauncher(headless=True).app
 
 import os
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
+
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
+import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
-from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     """Setup and teardown for each test."""
     # Setup: Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # Setup: Create simulation context
     dt = 0.01
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
 
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")
     extension_path = get_extension_path_from_name("isaacsim.asset.importer.mjcf")
     config = MjcfConverterCfg(
         asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
-        import_sites=True,
-        fix_base=False,
-        make_instanceable=True,
+        self_collision=False,
     )
 
     # Yield the resources for the test
@@ -48,8 +46,6 @@ def test_setup_teardown():
 
     # Teardown: Cleanup simulation
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -81,7 +77,7 @@ def test_config_change(test_setup_teardown):
 
     # change the config
     new_config = mjcf_config
-    new_config.fix_base = not mjcf_config.fix_base
+    new_config.self_collision = not mjcf_config.self_collision
     # define the usd directory
     new_config.usd_dir = mjcf_converter.usd_dir
     # convert to usd but this time in the same directory as previous step
@@ -96,9 +92,9 @@ def test_create_prim_from_usd(test_setup_teardown):
     """Call conversion and create a prim from it."""
     sim, mjcf_config = test_setup_teardown
 
-    urdf_converter = MjcfConverter(mjcf_config)
+    mjcf_converter = MjcfConverter(mjcf_config)
 
     prim_path = "/World/Robot"
-    prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
 
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert sim.stage.GetPrimAtPath(prim_path).IsValid()

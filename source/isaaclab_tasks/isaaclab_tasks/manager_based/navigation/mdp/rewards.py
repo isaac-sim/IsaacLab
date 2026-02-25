@@ -1,12 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -16,7 +17,7 @@ def position_command_error_tanh(env: ManagerBasedRLEnv, std: float, command_name
     """Reward position tracking with tanh kernel."""
     command = env.command_manager.get_command(command_name)
     des_pos_b = command[:, :3]
-    distance = torch.norm(des_pos_b, dim=1)
+    distance = torch.linalg.norm(des_pos_b, dim=1)
     return 1 - torch.tanh(distance / std)
 
 

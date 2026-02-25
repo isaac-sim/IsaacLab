@@ -1,12 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.math import apply_delta_pose, compute_pose_error
 
@@ -81,7 +82,7 @@ class DifferentialIKController:
         elif self.cfg.command_type == "pose" and self.cfg.use_relative_mode:
             return 6  # (dx, dy, dz, droll, dpitch, dyaw)
         else:
-            return 7  # (x, y, z, qw, qx, qy, qz)
+            return 7  # (x, y, z, qx, qy, qz, qw)
 
     """
     Operations.
@@ -108,7 +109,7 @@ class DifferentialIKController:
             command: The input command in shape (N, 3) or (N, 6) or (N, 7).
             ee_pos: The current end-effector position in shape (N, 3).
                 This is only needed if the command type is ``position_rel`` or ``pose_rel``.
-            ee_quat: The current end-effector orientation (w, x, y, z) in shape (N, 4).
+            ee_quat: The current end-effector orientation (x, y, z, w) in shape (N, 4).
                 This is only needed if the command type is ``position_*`` or ``pose_rel``.
 
         Raises:
@@ -209,7 +210,7 @@ class DifferentialIKController:
             # U: 6xd, S: dxd, V: d x num-joint
             U, S, Vh = torch.linalg.svd(jacobian)
             S_inv = 1.0 / S
-            S_inv = torch.where(S > min_singular_value, S_inv, torch.zeros_like(S_inv))
+            S_inv = torch.where(min_singular_value < S, S_inv, torch.zeros_like(S_inv))
             jacobian_pinv = (
                 torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6]
                 @ torch.diag_embed(S_inv)

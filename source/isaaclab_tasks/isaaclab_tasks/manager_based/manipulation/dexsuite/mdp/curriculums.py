@@ -1,13 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import mdp
@@ -95,13 +97,19 @@ class DifficultyScheduler(ManagerTermBase):
         object: RigidObject = env.scene[object_cfg.name]
         command = env.command_manager.get_command("object_pose")
         des_pos_w, des_quat_w = combine_frame_transforms(
-            asset.data.root_pos_w[env_ids], asset.data.root_quat_w[env_ids], command[env_ids, :3], command[env_ids, 3:7]
+            wp.to_torch(asset.data.root_pos_w)[env_ids],
+            wp.to_torch(asset.data.root_quat_w)[env_ids],
+            command[env_ids, :3],
+            command[env_ids, 3:7],
         )
         pos_err, rot_err = compute_pose_error(
-            des_pos_w, des_quat_w, object.data.root_pos_w[env_ids], object.data.root_quat_w[env_ids]
+            des_pos_w,
+            des_quat_w,
+            wp.to_torch(object.data.root_pos_w)[env_ids],
+            wp.to_torch(object.data.root_quat_w)[env_ids],
         )
-        pos_dist = torch.norm(pos_err, dim=1)
-        rot_dist = torch.norm(rot_err, dim=1)
+        pos_dist = torch.linalg.norm(pos_err, dim=1)
+        rot_dist = torch.linalg.norm(rot_err, dim=1)
         move_up = (pos_dist < pos_tol) & (rot_dist < rot_tol) if rot_tol else pos_dist < pos_tol
         demot = self.current_adr_difficulties[env_ids] if promotion_only else self.current_adr_difficulties[env_ids] - 1
         self.current_adr_difficulties[env_ids] = torch.where(

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,22 +7,20 @@ from __future__ import annotations
 
 import json
 import logging
-import numpy as np
 import re
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
-import carb
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
+import numpy as np
+import torch
+from packaging import version
+
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.sim.utils import stage as stage_utils
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -30,6 +28,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.version import get_isaac_sim_version
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -51,9 +50,14 @@ class Camera(SensorBase):
 
     - ``"rgb"``: A 3-channel rendered color image.
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
+    - ``"albedo"``: A 4-channel fast diffuse-albedo only path for color image.
+      Note that this path will achieve the best performance when used alone or with depth only.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: The same as ``"distance_to_image_plane"``.
+    - ``"simple_shading_constant_diffuse"``: Simple shading (constant diffuse) RGB approximation.
+    - ``"simple_shading_diffuse_mdl"``: Simple shading (diffuse MDL) RGB approximation.
+    - ``"simple_shading_full_mdl"``: Simple shading (full MDL) RGB approximation.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -92,6 +96,20 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
+    # Class-level dedup stamp: tracks the last (sim instance, physics step) at
+    # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
+    # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
+    # any stale stamp from a previous instance.
+    _last_render_update_key: tuple[int, int] = (0, -1)
+
+    SIMPLE_SHADING_MODES: dict[str, int] = {
+        "simple_shading_constant_diffuse": 0,
+        "simple_shading_diffuse_mdl": 1,
+        "simple_shading_full_mdl": 2,
+    }
+    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
+    SIMPLE_SHADING_MODE_SETTING: str = "/rtx/sdg/simpleShading/mode"
+
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
 
@@ -119,8 +137,35 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        settings = get_settings_manager()
+        settings.set_bool("/isaaclab/render/rtx_sensors", True)
+
+        # This is only introduced in isaac sim 6.0
+        isaac_sim_version = get_isaac_sim_version()
+        if isaac_sim_version.major >= 6:
+            # Set RTX flag to enable fast path if only depth or albedo is requested
+            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
+            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
+
+            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+            if settings.get("/isaaclab/has_gui"):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+        else:
+            if "albedo" in self.cfg.data_types:
+                logger.warning(
+                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                )
+            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
+                logger.warning(
+                    "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
+                    " will be ignored."
+                )
+
+        # Set simple shading mode (if requested) before rendering
+        simple_shading_mode = self._resolve_simple_shading_mode()
+        if simple_shading_mode is not None:
+            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -147,10 +192,9 @@ class Camera(SensorBase):
         # Create empty variables for storing output data
         self._data = CameraData()
 
-        # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        isaac_sim_version = get_version()
+        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
-        if int(isaac_sim_version[2]) == 4 and int(isaac_sim_version[3]) == 5:
+        if get_isaac_sim_version() == version.parse("4.5"):
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
                 logger.warning(
                     "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
@@ -259,7 +303,6 @@ class Camera(SensorBase):
             matrices = np.asarray(matrices, dtype=float)
         # iterate over env_ids
         for i, intrinsic_matrix in zip(env_ids, matrices):
-
             height, width = self.image_shape
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
@@ -274,11 +317,11 @@ class Camera(SensorBase):
                 param_name = to_camel_case(param_name, to="CC")
                 # get attribute from the class
                 param_attr = getattr(sensor_prim, f"Get{param_name}Attr")
-                # set value
-                # note: We have to do it this way because the camera might be on a different
-                #   layer (default cameras are on session layer), and this is the simplest
-                #   way to set the property on the right layer.
-                omni.usd.set_prop_val(param_attr(), param_value)
+                # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
+                if isinstance(param_value, np.floating):
+                    param_value = float(param_value)
+                # set value using pure USD API
+                param_attr().Set(param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
 
@@ -308,7 +351,7 @@ class Camera(SensorBase):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -353,7 +396,7 @@ class Camera(SensorBase):
         if env_ids is None:
             env_ids = self._ALL_INDICES
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
         self._view.set_world_poses(eyes, orientations, env_ids)
@@ -393,8 +436,7 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -405,9 +447,10 @@ class Camera(SensorBase):
 
         # Initialize parent class
         super()._initialize_impl()
-        # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
+        self._view = XformPrimView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -425,9 +468,9 @@ class Camera(SensorBase):
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
 
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._view.prim_paths:
-            # Get camera prim
-            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
+        for cam_prim in self._view.prims:
+            # Obtain the prim path
+            cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
@@ -478,8 +521,25 @@ class Camera(SensorBase):
                 else:
                     device_name = "cpu"
 
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                if name == "albedo":
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+                if name in self.SIMPLE_SHADING_MODES:
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
+                    )
+
                 # Map special cases to their corresponding annotator names
-                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane"}
+                simple_shading_cases = {key: self.SIMPLE_SHADING_AOV for key in self.SIMPLE_SHADING_MODES}
+                special_cases = {
+                    "rgba": "rgb",
+                    "depth": "distance_to_image_plane",
+                    "albedo": "DiffuseAlbedoSD",
+                    **simple_shading_cases,
+                }
                 # Get the annotator name, falling back to the original name if not a special case
                 annotator_name = special_cases.get(name, name)
                 # Create the annotator node
@@ -500,6 +560,10 @@ class Camera(SensorBase):
         # -- pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        self._ensure_render_update()
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:
@@ -536,6 +600,55 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _ensure_render_update(self) -> None:
+        """Ensure the Kit RTX renderer has been pumped for the current physics step.
+
+        This keeps the Kit-specific ``app.update()`` logic inside the camera sensor
+        rather than in the backend-agnostic ``SimulationContext``.
+
+        Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
+        only the first call triggers ``app.update()``.  Subsequent calls are no-ops
+        because the class-level ``_last_render_update_key`` already matches the
+        current ``(id(sim), step_count)`` pair.
+
+        The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
+        ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
+        any stale stamp left over from a previous instance.
+
+        No-op conditions:
+            * Already called this step (dedup across camera instances).
+            * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
+            * Rendering is not active.
+        """
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
+            return
+
+        key = (id(sim), sim._physics_step_count)
+        if Camera._last_render_update_key == key:
+            return  # Already pumped this step (by another camera or a visualizer)
+
+        # If a visualizer already pumps the Kit app loop, mark as done and skip.
+        if any(viz.pumps_app_update() for viz in sim.visualizers):
+            Camera._last_render_update_key = key
+            return
+
+        if not sim.is_rendering:
+            return
+
+        # Sync physics results → Fabric so RTX sees updated positions.
+        # physics_manager.step() only runs simulate()/fetch_results() and does NOT
+        # call _update_fabric(), so without this the render would lag one frame behind.
+        sim.physics_manager.forward()
+
+        import omni.kit.app
+
+        sim.set_setting("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        sim.set_setting("/app/player/playSimulations", True)
+
+        Camera._last_render_update_key = key
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
@@ -578,7 +691,7 @@ class Camera(SensorBase):
 
         Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
 
-        Note:
+        .. note::
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
         """
@@ -612,7 +725,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:
@@ -707,9 +820,24 @@ class Camera(SensorBase):
         # motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused
         elif name == "motion_vectors":
             data = data[..., :2]
+        elif name in self.SIMPLE_SHADING_MODES:
+            data = data[..., :3]
 
         # return the data and info
         return data, info
+
+    def _resolve_simple_shading_mode(self) -> int | None:
+        """Resolve the requested simple shading mode from data types."""
+        requested = [data_type for data_type in self.cfg.data_types if data_type in self.SIMPLE_SHADING_MODES]
+        if not requested:
+            return None
+        if len(requested) > 1:
+            logger.warning(
+                "Multiple simple shading modes requested (%s). Using '%s' only.",
+                requested,
+                requested[0],
+            )
+        return self.SIMPLE_SHADING_MODES[requested[0]]
 
     """
     Internal simulation callbacks.

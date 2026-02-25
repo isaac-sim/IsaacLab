@@ -1,13 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
 import sys
+
 import torch
 import trimesh
-
 import warp as wp
 
 print("Python Executable:", sys.executable)
@@ -24,7 +24,6 @@ Util Functions
 
 
 def get_gripper_open_width(obj_filepath):
-
     retrieve_file_path(obj_filepath, download_dir="./")
     obj_mesh = trimesh.load_mesh(os.path.basename(obj_filepath))
     # obj_mesh = trimesh.load_mesh(obj_filepath)
@@ -66,7 +65,6 @@ def get_closest_state_idx(ref_traj, curr_ee_pos):
 
 
 def get_reward_mask(ref_traj, curr_ee_pos, tolerance):
-
     _, min_dist_step_idx, _ = get_closest_state_idx(ref_traj, curr_ee_pos)
     selected_steps = torch.index_select(
         ref_traj, dim=1, index=min_dist_step_idx
@@ -155,7 +153,7 @@ def check_plug_close_to_socket(keypoints_plug, keypoints_socket, dist_threshold,
     """Check if plug is close to socket."""
 
     # Compute keypoint distance between plug and socket
-    keypoint_dist = torch.norm(keypoints_socket - keypoints_plug, p=2, dim=-1)
+    keypoint_dist = torch.linalg.norm(keypoints_socket - keypoints_plug, ord=2, dim=-1)
 
     # Check if keypoint distance is below threshold
     is_plug_close_to_socket = torch.where(

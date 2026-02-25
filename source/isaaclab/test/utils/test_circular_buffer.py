@@ -1,11 +1,7 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-import torch
-
-import pytest
 
 """Launch Isaac Sim Simulator first."""
 
@@ -14,7 +10,10 @@ from isaaclab.app import AppLauncher
 # launch omniverse app in headless mode
 simulation_app = AppLauncher(headless=True).app
 
-"""Rest everything follows from here."""
+"""Rest everything follows."""
+
+import pytest
+import torch
 
 from isaaclab.utils import CircularBuffer
 

@@ -1,7 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
 
 from dataclasses import MISSING
 
@@ -18,8 +20,8 @@ class OffsetCfg:
 
     pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+    rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
 
 @configclass
@@ -33,11 +35,14 @@ class FrameTransformerCfg(SensorBaseCfg):
         prim_path: str = MISSING
         """The prim path corresponding to a rigid body.
 
-        This can be a regex pattern to match multiple prims. For example, "/Robot/.*" will match all prims under "/Robot".
+        This can be a regex pattern to match multiple prims. For example, "/Robot/.*"
+        will match all prims under "/Robot".
 
-        This means that if the source :attr:`FrameTransformerCfg.prim_path` is "/Robot/base", and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is "/Robot/.*",
-        then the frame transformer will track the poses of all the prims under "/Robot",
-        including "/Robot/base" (even though this will result in an identity pose w.r.t. the source frame).
+        This means that if the source :attr:`FrameTransformerCfg.prim_path` is "/Robot/base",
+        and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is "/Robot/.*", then
+        the frame transformer will track the poses of all the prims under "/Robot",
+        including "/Robot/base" (even though this will result in an identity pose w.r.t.
+        the source frame).
         """
 
         name: str | None = None
@@ -68,6 +73,6 @@ class FrameTransformerCfg(SensorBaseCfg):
     visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
     """The configuration object for the visualization markers. Defaults to FRAME_MARKER_CFG.
 
-    Note:
+    .. note::
         This attribute is only used when debug visualization is enabled.
     """

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import inspect
 import logging
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg
@@ -190,6 +191,13 @@ class EventManager(ManagerBase):
             logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
 
+        # ensure class-based terms are resolved before applying
+        # the timeline PLAY callback may not have fired yet, so we resolve synchronously
+        # note: skip for "prestartup" mode as those terms are handled in _prepare_terms
+        # and scene entities don't exist yet
+        if mode != "prestartup" and not self._is_scene_entities_resolved:
+            self._resolve_terms_callback(None)
+
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")
@@ -204,6 +212,12 @@ class EventManager(ManagerBase):
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
+            # initialize class-based terms if not already initialized (for non-prestartup modes)
+            if inspect.isclass(term_cfg.func):
+                logger.info(
+                    f"Initializing term '{self._mode_term_names[mode][index]}' with class '{term_cfg.func.__name__}'."
+                )
+                term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]

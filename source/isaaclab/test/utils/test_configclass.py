@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,13 +18,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import copy
 import os
-import torch
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
 from typing import Any, ClassVar
 
 import pytest
+import torch
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
@@ -107,7 +107,7 @@ class EnvCfg:
 @configclass
 class RobotDefaultStateCfg:
     pos = (0.0, 0.0, 0.0)  # type annotation missing on purpose (immutable)
-    rot: tuple = (1.0, 0.0, 0.0, 0.0)
+    rot: tuple = (0.0, 0.0, 0.0, 1.0)  # xyzw format
     dof_pos: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     dof_vel = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]  # type annotation missing on purpose (mutable)
 
@@ -217,7 +217,7 @@ class ChildADemoCfg(ParentDemoCfg):
 
     def __post_init__(self):
         self.b = 3  # change value of existing field
-        self.m.rot = (2.0, 0.0, 0.0, 0.0)  # change value of default
+        self.m.rot = (0.0, 0.0, 0.0, 2.0)  # change value of default (xyzw format)
         self.i = ["a", "b"]  # change value of existing field
 
 
@@ -401,7 +401,7 @@ basic_demo_cfg_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -413,7 +413,7 @@ basic_demo_cfg_change_correct = {
     "env": {"num_envs": 22, "episode_length": 2000, "viewer": {"eye": (2.0, 2.0, 2.0), "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -425,7 +425,7 @@ basic_demo_cfg_change_with_none_correct = {
     "env": {"num_envs": 22, "episode_length": 2000, "viewer": None},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -437,7 +437,7 @@ basic_demo_cfg_change_with_tuple_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -459,7 +459,7 @@ basic_demo_post_init_cfg_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -791,9 +791,9 @@ def test_functions_config():
     """Tests having functions as values in the configuration instance."""
     cfg = FunctionsDemoCfg()
     # check types
-    assert cfg.__annotations__["func"] == type(dummy_function1)
-    assert cfg.__annotations__["wrapped_func"] == type(wrapped_dummy_function3)
-    assert cfg.__annotations__["func_in_dict"] == dict
+    assert cfg.__annotations__["func"] is type(dummy_function1)
+    assert cfg.__annotations__["wrapped_func"] is type(wrapped_dummy_function3)
+    assert cfg.__annotations__["func_in_dict"] is dict
     # check calling
     assert cfg.func() == 1
     assert cfg.wrapped_func() == 4
@@ -930,7 +930,7 @@ def test_config_inheritance():
     # check post init
     assert cfg_a.b == 3
     assert cfg_a.i == ["a", "b"]
-    assert cfg_a.m.rot == (2.0, 0.0, 0.0, 0.0)
+    assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
 
 
 def test_config_inheritance_independence():
@@ -951,8 +951,8 @@ def test_config_inheritance_independence():
     assert cfg_b.b == 8
     assert cfg_a.c == RobotDefaultStateCfg()
     assert isinstance(cfg_b.c, type(MISSING))
-    assert cfg_a.m.rot == (2.0, 0.0, 0.0, 0.0)
-    assert cfg_b.m.rot == (1.0, 0.0, 0.0, 0.0)
+    assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
+    assert cfg_b.m.rot == (0.0, 0.0, 0.0, 1.0)
     assert isinstance(cfg_a.j, type(MISSING))
     assert cfg_b.j == ["3", "4"]
     assert cfg_a.i == ["a", "b"]
@@ -993,10 +993,10 @@ def test_config_with_class_type():
     # since python 3.10, annotations are stored as strings
     annotations = {k: eval(v) if isinstance(v, str) else v for k, v in cfg.__annotations__.items()}
     # check types
-    assert annotations["class_name_1"] == type
+    assert annotations["class_name_1"] is type
     assert annotations["class_name_2"] == type[DummyClass]
     assert annotations["class_name_3"] == type[DummyClass]
-    assert annotations["class_name_4"] == ClassVar[type[DummyClass]]
+    assert annotations["class_name_4"] is ClassVar[type[DummyClass]]
     # check values
     assert cfg.class_name_1 == DummyClass
     assert cfg.class_name_2 == DummyClass

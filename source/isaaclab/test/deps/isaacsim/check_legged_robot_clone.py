@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -42,17 +42,19 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 
 import logging
 import os
+
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
 
+import isaaclab.sim.utils.nucleus as nucleus_utils
+import isaaclab.sim.utils.prims as prim_utils
+
 # import logger
 logger = logging.getLogger(__name__)
-import isaaclab.sim.utils.nucleus as nucleus_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -89,7 +91,7 @@ def main():
     world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = GridCloner(spacing=2.0, stage=world.stage)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")

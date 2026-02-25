@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,16 +13,19 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import os
+
+import gymnasium as gym
+import pytest
 import torch
 
-import omni.usd
-import pytest
-from env_test_utils import setup_environment
+import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+
+# Local imports should be imported last
+from env_test_utils import setup_environment  # isort: skip
 
 
 @pytest.fixture(scope="function")
@@ -42,7 +45,7 @@ def test_record_video(task_name, setup_video_params):
     num_envs, device, step_trigger, video_length = setup_video_params
     videos_dir = os.path.join(os.path.dirname(__file__), "output", "videos", "train")
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # parse configuration
     env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)

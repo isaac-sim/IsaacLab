@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,7 +33,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import math
+
 import torch
+import warp as wp
 
 import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
 
@@ -122,7 +124,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Simulate physics
     while simulation_app.is_running():
         # perform this loop at policy control freq (50 Hz)
-        robot.set_joint_position_target(robot.data.default_joint_pos.clone())
+        robot.set_joint_position_target(wp.to_torch(robot.data.default_joint_pos).clone())
         robot.write_data_to_sim()
         # perform step
         sim.step()

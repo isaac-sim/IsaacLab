@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -60,12 +60,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
 import random
+
+import numpy as np
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
@@ -82,8 +82,8 @@ def define_sensor() -> Camera:
     # Setup camera sensor
     # In contrast to the ray-cast camera, we spawn the prim at these locations.
     # This means the camera sensor will be attached to these prims.
-    prim_utils.create_prim("/World/Origin_00", "Xform")
-    prim_utils.create_prim("/World/Origin_01", "Xform")
+    sim_utils.create_prim("/World/Origin_00", "Xform")
+    sim_utils.create_prim("/World/Origin_01", "Xform")
     camera_cfg = CameraCfg(
         prim_path="/World/Origin_.*/CameraSensor",
         update_period=0,
@@ -124,7 +124,7 @@ def design_scene() -> dict:
     scene_entities = {}
 
     # Xform to hold objects
-    prim_utils.create_prim("/World/Objects", "Xform")
+    sim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
     for i in range(8):
         # sample random position
@@ -196,7 +196,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     camera_index = args_cli.camera_id
 
     # Create the markers for the --draw option outside of is_running() loop
-    if sim.has_gui() and args_cli.draw:
+    if sim.get_setting("/isaaclab/has_gui") and args_cli.draw:
         cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/CameraPointCloud")
         cfg.markers["hit"].radius = 0.002
         pc_markers = VisualizationMarkers(cfg)
@@ -248,7 +248,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             rep_writer.write(rep_output)
 
         # Draw pointcloud if there is a GUI and --draw has been passed
-        if sim.has_gui() and args_cli.draw and "distance_to_image_plane" in camera.data.output.keys():
+        if (
+            sim.get_setting("/isaaclab/has_gui")
+            and args_cli.draw
+            and "distance_to_image_plane" in camera.data.output.keys()
+        ):
             # Derive pointcloud from camera at camera_index
             pointcloud = create_pointcloud_from_depth(
                 intrinsic_matrix=camera.data.intrinsic_matrices[camera_index],

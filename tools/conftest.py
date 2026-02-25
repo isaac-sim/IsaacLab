@@ -1,24 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import contextlib
 import os
-
-# Platform-specific imports for real-time output streaming
 import select
 import subprocess
 import sys
 import time
 
-# Third-party imports
-from prettytable import PrettyTable
-
 import pytest
 from junitparser import Error, JUnitXml, TestCase, TestSuite
+from prettytable import PrettyTable
 
-import tools.test_settings as test_settings
+# Local imports
+import test_settings as test_settings  # isort: skip
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -144,20 +141,16 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         env = os.environ.copy()
 
         # Determine timeout for this test
-        timeout = (
-            test_settings.PER_TEST_TIMEOUTS[file_name]
-            if file_name in test_settings.PER_TEST_TIMEOUTS
-            else test_settings.DEFAULT_TIMEOUT
-        )
+        timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
         # Prepare command
+        # Note: Command options matter as they are used for cleanups inside AppLauncher
         cmd = [
             sys.executable,
             "-m",
             "pytest",
             "--no-header",
-            "-c",
-            f"{workspace_root}/pytest.ini",
+            f"--config-file={workspace_root}/pyproject.toml",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
             "--tb=short",
         ]
@@ -275,6 +268,7 @@ def pytest_sessionstart(session):
     # Get filter pattern from environment variable or command line
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
+    curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
@@ -289,8 +283,10 @@ def pytest_sessionstart(session):
     print("=" * 50)
     print(f"Filter pattern: '{filter_pattern}'")
     print(f"Exclude pattern: '{exclude_pattern}'")
+    print(f"Curobo-only mode: {curobo_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -304,10 +300,17 @@ def pytest_sessionstart(session):
         for root, _, files in os.walk(source_dir):
             for file in files:
                 if file.startswith("test_") and file.endswith(".py"):
-                    # Skip if the file is in TESTS_TO_SKIP
-                    if file in test_settings.TESTS_TO_SKIP:
-                        print(f"Skipping {file} as it's in the skip list")
-                        continue
+                    if curobo_only:
+                        # In curobo-only mode, run exclusively the cuRobo and SkillGen tests.
+                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
+                        # these tests (which are skipped in base-image jobs) can execute.
+                        if file not in test_settings.CUROBO_TESTS:
+                            continue
+                    else:
+                        # Skip if the file is in TESTS_TO_SKIP
+                        if file in test_settings.TESTS_TO_SKIP:
+                            print(f"Skipping {file} as it's in the skip list")
+                            continue
 
                     full_path = os.path.join(root, file)
 
@@ -409,12 +412,14 @@ def pytest_sessionstart(session):
             - test_status[test_path]["errors"]
             - test_status[test_path]["skipped"]
         )
-        per_test_result_table.add_row([
-            test_path,
-            test_status[test_path]["result"],
-            f"{test_status[test_path]['time_elapsed']:0.2f}",
-            f"{num_tests_passed}/{test_status[test_path]['tests']}",
-        ])
+        per_test_result_table.add_row(
+            [
+                test_path,
+                test_status[test_path]["result"],
+                f"{test_status[test_path]['time_elapsed']:0.2f}",
+                f"{num_tests_passed}/{test_status[test_path]['tests']}",
+            ]
+        )
 
     summary_str += per_test_result_table.get_string()
 

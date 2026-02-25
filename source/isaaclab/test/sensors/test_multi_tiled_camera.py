@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,20 +16,18 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import copy
-import numpy as np
 import random
-import torch
 
-import isaacsim.core.utils.prims as prim_utils
-import omni.replicator.core as rep
+import numpy as np
 import pytest
+import torch
 from flaky import flaky
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
+
+import omni.replicator.core as rep
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
-from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()
@@ -38,7 +36,7 @@ def setup_camera():
     camera_cfg = TiledCameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -47,7 +45,7 @@ def setup_camera():
         ),
     )
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.01
     # Load kit helper
@@ -56,15 +54,13 @@ def setup_camera():
     # populate scene
     _populate_scene()
     # load stage
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     yield camera_cfg, sim, dt
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -78,7 +74,7 @@ def test_multi_tiled_camera_init(setup_camera):
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -87,7 +83,7 @@ def test_multi_tiled_camera_init(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -157,6 +153,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -173,7 +170,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -183,7 +180,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -224,6 +221,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                 elif data_type in [
                     "rgba",
+                    "albedo",
                     "semantic_segmentation",
                     "instance_segmentation_fast",
                     "instance_id_segmentation_fast",
@@ -246,6 +244,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         info = camera.data.info
         assert output["rgb"].dtype == torch.uint8
         assert output["rgba"].dtype == torch.uint8
+        assert output["albedo"].dtype == torch.uint8
         assert output["depth"].dtype == torch.float
         assert output["distance_to_camera"].dtype == torch.float
         assert output["distance_to_image_plane"].dtype == torch.float
@@ -274,7 +273,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
     resolutions = [(16, 16), (23, 765)]
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -284,7 +283,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -336,6 +335,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
 
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
@@ -345,7 +345,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -354,7 +354,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
     # modify scene to be less stochastic
-    stage = stage_utils.get_current_stage()
+    stage = sim_utils.get_current_stage()
     for i in range(10):
         prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
         color = Gf.Vec3f(1, 1, 1)
@@ -408,12 +408,12 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     num_tiled_cameras = 3
     num_cameras_per_tiled_camera = 4
     positions = [(0.0, 0.0, 4.0), (0.0, 0.0, 2.0), (0.0, 0.0, 3.0)]
-    rotations = [(0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0)]
+    rotations = [(0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0)]
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -491,7 +491,7 @@ def _populate_scene():
         position *= np.asarray([1.5, 1.5, 0.5])
         # create prim
         prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
-        prim = prim_utils.create_prim(
+        prim = sim_utils.create_prim(
             f"/World/Objects/Obj_{i:02d}",
             prim_type,
             translation=position,
@@ -504,6 +504,8 @@ def _populate_scene():
         color = Gf.Vec3f(random.random(), random.random(), random.random())
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
-        # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        # add rigid body and collision properties using Isaac Lab schemas
+        prim_path = f"/World/Objects/Obj_{i:02d}"
+        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
+        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
+        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,9 +26,32 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
+import warnings
+
 from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
-from .simulation_cfg import PhysxCfg, RenderCfg, SimulationCfg  # noqa: F401, F403
+from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
+from .views import *  # noqa: F401, F403
+
+# Deprecated alias for PhysxCfg -> PhysxCfg
+# This supports old code that uses `from isaaclab.sim import PhysxCfg`
+try:
+    from isaaclab_physx.physics import PhysxCfg as _PhysxCfg
+
+    class PhysxCfg(_PhysxCfg):
+        """DEPRECATED: Use PhysxCfg from isaaclab_physx.physics instead."""
+
+        def __init__(self, *args, **kwargs):
+            warnings.warn(
+                "PhysxCfg is deprecated. Use PhysxCfg from isaaclab_physx.physics instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            super().__init__(*args, **kwargs)
+
+except ImportError:
+    # isaaclab_physx not installed
+    PhysxCfg = None  # type: ignore

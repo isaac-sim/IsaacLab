@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,8 +33,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-
-import isaacsim.core.utils.prims as prim_utils
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -59,9 +58,9 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Each group will have a robot in it
     origins = [[0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]]
     # Origin 1
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # Origin 2
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation
     cartpole_cfg = CARTPOLE_CFG.copy()
@@ -105,7 +104,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             print("[INFO]: Resetting robot state...")
         # Apply random action
         # -- generate random joint efforts
-        efforts = torch.randn_like(robot.data.joint_pos) * 5.0
+        efforts = torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 5.0
         # -- apply action to the robot
         robot.set_joint_effort_target(efforts)
         # -- write data to sim

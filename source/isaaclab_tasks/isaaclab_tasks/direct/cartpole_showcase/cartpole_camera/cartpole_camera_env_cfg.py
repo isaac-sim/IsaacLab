@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,7 +17,7 @@ from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleRGBCamera
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> TiledCameraCfg:
     return TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=[data_type],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -163,10 +163,14 @@ class DictBoxEnvCfg(CartpoleCameraEnvCfg):
     tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
-    observation_space = spaces.Dict({
-        "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        "camera": spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
-    })  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
+    observation_space = spaces.Dict(
+        {
+            "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            "camera": spaces.Box(
+                low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)
+            ),
+        }
+    )  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
@@ -197,10 +201,14 @@ class DictDiscreteEnvCfg(CartpoleCameraEnvCfg):
     tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
-    observation_space = spaces.Dict({
-        "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        "camera": spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
-    })  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
+    observation_space = spaces.Dict(
+        {
+            "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            "camera": spaces.Box(
+                low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)
+            ),
+        }
+    )  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
@@ -238,10 +246,14 @@ class DictMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
-    observation_space = spaces.Dict({
-        "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        "camera": spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
-    })  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
+    observation_space = spaces.Dict(
+        {
+            "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            "camera": spaces.Box(
+                low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)
+            ),
+        }
+    )  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
     action_space = spaces.MultiDiscrete([3, 2])  # or for simplicity: [{3}, {2}]
 
 
@@ -275,10 +287,12 @@ class TupleBoxEnvCfg(CartpoleCameraEnvCfg):
     tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
-    observation_space = spaces.Tuple((
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    ))  # or for simplicity: ([height, width, 3], 2)
+    observation_space = spaces.Tuple(
+        (
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        )
+    )  # or for simplicity: ([height, width, 3], 2)
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
@@ -309,10 +323,12 @@ class TupleDiscreteEnvCfg(CartpoleCameraEnvCfg):
     tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
-    observation_space = spaces.Tuple((
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    ))  # or for simplicity: ([height, width, 3], 2)
+    observation_space = spaces.Tuple(
+        (
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        )
+    )  # or for simplicity: ([height, width, 3], 2)
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
@@ -350,8 +366,10 @@ class TupleMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
-    observation_space = spaces.Tuple((
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    ))  # or for simplicity: ([height, width, 3], 2)
+    observation_space = spaces.Tuple(
+        (
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        )
+    )  # or for simplicity: ([height, width, 3], 2)
     action_space = spaces.MultiDiscrete([3, 2])  # or for simplicity: [{3}, {2}]

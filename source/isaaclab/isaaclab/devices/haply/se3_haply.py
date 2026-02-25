@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import numpy as np
 import threading
 import time
-import torch
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
+import torch
 
 try:
     import websockets
@@ -88,7 +89,7 @@ class HaplyDevice(DeviceBase):
         # Current data cache
         self.cached_data = {
             "position": np.zeros(3, dtype=np.float32),
-            "quaternion": np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32),
+            "quaternion": np.array([0.0, 0.0, 1.0, 0.0], dtype=np.float32),
             "buttons": {"a": False, "b": False, "c": False},
             "inverse3_connected": False,
             "versegrip_connected": False,
@@ -331,10 +332,12 @@ class HaplyDevice(DeviceBase):
                                     current_force = self.feedback_force.copy()
 
                                 request_msg = {
-                                    "inverse3": [{
-                                        "device_id": self.inverse3_device_id,
-                                        "commands": {"set_cursor_force": {"values": current_force}},
-                                    }]
+                                    "inverse3": [
+                                        {
+                                            "device_id": self.inverse3_device_id,
+                                            "commands": {"set_cursor_force": {"values": current_force}},
+                                        }
+                                    ]
                                 }
                                 await ws.send(json.dumps(request_msg))
 

@@ -36,6 +36,8 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.converters
    lab/isaaclab.sim.schemas
    lab/isaaclab.sim.spawners
+   lab/isaaclab.sim.views
+   lab/isaaclab.sim.utils
 
 
 isaaclab_rl extension
@@ -64,6 +66,21 @@ The following modules are available in the ``isaaclab_mimic`` extension:
    datagen
    envs
 
+isaaclab_contrib extension
+-----------------------------
+
+The following modules are available in the ``isaaclab_contrib`` extension:
+
+.. currentmodule:: isaaclab_contrib
+
+.. autosummary::
+   :toctree: lab_contrib
+
+   actuators
+   assets
+   mdp
+   rl
+   sensors
 
 isaaclab_tasks extension
 ------------------------
@@ -79,3 +96,32 @@ It includes the following modules:
    :toctree: lab_tasks
 
    utils
+
+isaaclab_teleop extension
+-------------------------
+
+The following modules are available in the ``isaaclab_teleop`` extension:
+
+.. currentmodule:: isaaclab_teleop
+
+.. toctree::
+   :maxdepth: 2
+
+   lab_teleop/isaaclab_teleop
+
+isaaclab_physx extension
+------------------------
+
+The following modules are available in the ``isaaclab_physx`` extension:
+
+.. currentmodule:: isaaclab_physx
+
+.. autosummary::
+   :toctree: lab_physx
+
+   assets
+
+.. toctree::
+   :hidden:
+
+   lab_physx/isaaclab_physx.assets

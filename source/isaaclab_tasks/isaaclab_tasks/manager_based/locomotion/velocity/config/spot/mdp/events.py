@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,8 +12,10 @@ the randomization introduced by the function.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
+import warp as wp
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
@@ -39,16 +41,16 @@ def reset_joints_around_default(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # get default joint state
-    joint_min_pos = asset.data.default_joint_pos[env_ids] + position_range[0]
-    joint_max_pos = asset.data.default_joint_pos[env_ids] + position_range[1]
-    joint_min_vel = asset.data.default_joint_vel[env_ids] + velocity_range[0]
-    joint_max_vel = asset.data.default_joint_vel[env_ids] + velocity_range[1]
+    joint_min_pos = wp.to_torch(asset.data.default_joint_pos)[env_ids] + position_range[0]
+    joint_max_pos = wp.to_torch(asset.data.default_joint_pos)[env_ids] + position_range[1]
+    joint_min_vel = wp.to_torch(asset.data.default_joint_vel)[env_ids] + velocity_range[0]
+    joint_max_vel = wp.to_torch(asset.data.default_joint_vel)[env_ids] + velocity_range[1]
     # clip pos to range
-    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids, ...]
+    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[env_ids, ...]
     joint_min_pos = torch.clamp(joint_min_pos, min=joint_pos_limits[..., 0], max=joint_pos_limits[..., 1])
     joint_max_pos = torch.clamp(joint_max_pos, min=joint_pos_limits[..., 0], max=joint_pos_limits[..., 1])
     # clip vel to range
-    joint_vel_abs_limits = asset.data.soft_joint_vel_limits[env_ids]
+    joint_vel_abs_limits = wp.to_torch(asset.data.soft_joint_vel_limits)[env_ids]
     joint_min_vel = torch.clamp(joint_min_vel, min=-joint_vel_abs_limits, max=joint_vel_abs_limits)
     joint_max_vel = torch.clamp(joint_max_vel, min=-joint_vel_abs_limits, max=joint_vel_abs_limits)
     # sample these values randomly

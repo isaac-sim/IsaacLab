@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,14 +12,15 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import shutil
 import tempfile
+
+import gymnasium as gym
+import pytest
 import torch
 
-import carb
-import omni.usd
-import pytest
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -30,8 +31,7 @@ def temp_dir():
     """Fixture to create and clean up a temporary directory for test datasets."""
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
     # create a temporary directory to store the test datasets
     temp_dir = tempfile.mkdtemp()
     yield temp_dir
@@ -45,7 +45,7 @@ def temp_dir():
 @pytest.mark.isaacsim_ci
 def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
     """Check FrameTransformer values after reset."""
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # parse configuration
     env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)

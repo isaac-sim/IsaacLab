@@ -1,10 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-module for rigid articulated assets."""
 
+from .base_articulation import BaseArticulation
+from .base_articulation_data import BaseArticulationData
 from .articulation import Articulation
 from .articulation_cfg import ArticulationCfg
 from .articulation_data import ArticulationData
+
+__all__ = [
+    "BaseArticulation",
+    "BaseArticulationData",
+    "Articulation",
+    "ArticulationCfg",
+    "ArticulationData",
+]

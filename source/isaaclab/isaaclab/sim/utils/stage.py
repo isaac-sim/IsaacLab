@@ -1,172 +1,263 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utilities for operating on the USD stage."""
+
+from __future__ import annotations
+
 import builtins
 import contextlib
 import logging
+import os
 import threading
-import typing
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
-import carb
-import omni
-import omni.kit.app
-from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.utils.carb import get_carb_setting
-from isaacsim.core.version import get_version
-from omni.metrics.assembler.core import get_metrics_assembler_interface
-from omni.usd.commands import DeletePrimsCommand
-from pxr import Sdf, Usd, UsdGeom, UsdUtils
+from pxr import Sdf, Usd, UsdUtils
+
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
-# _context is a singleton design in isaacsim and for that reason
-#  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
-#  that singleton to this _context
-sim_stage._context = _context
-
-AXES_TOKEN = {
-    "X": UsdGeom.Tokens.x,
-    "x": UsdGeom.Tokens.x,
-    "Y": UsdGeom.Tokens.y,
-    "y": UsdGeom.Tokens.y,
-    "Z": UsdGeom.Tokens.z,
-    "z": UsdGeom.Tokens.z,
-}
-"""Mapping from axis name to axis USD token
-
-    >>> import isaacsim.core.utils.constants as constants_utils
-    >>>
-    >>> # get the x-axis USD token
-    >>> constants_utils.AXES_TOKEN['x']
-    X
-    >>> constants_utils.AXES_TOKEN['X']
-    X
-"""
+# Kit-dependent imports (only available when running with Kit/Isaac Sim)
+if has_kit():
+    import omni.kit.app
 
 
-def attach_stage_to_usd_context(attaching_early: bool = False):
-    """Attaches the current USD stage in memory to the USD context.
+def _check_ancestral(prim: Usd.Prim) -> bool:
+    """Check if a prim is brought into composition by its ancestor (an ancestral prim).
 
-    This function should be called during or after scene is created and before stage is simulated or rendered.
+    This is a pure USD implementation of ``omni.usd.check_ancestral``.
 
-    Note:
-        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
+    An ancestral prim is one that exists due to a reference, payload, or other composition arc
+    on an ancestor prim. Such prims cannot be directly deleted because they are "opinions" from
+    the referenced asset, not locally authored prims.
 
     Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
+        prim: The USD prim to check.
+
+    Returns:
+        True if the prim is an ancestral prim, False otherwise.
     """
+    if not prim or not prim.IsValid():
+        return False
 
-    from isaacsim.core.simulation_manager import SimulationManager
+    def _check_ancestral_node(node) -> bool:
+        """Recursively check if any composition node is due to an ancestor."""
+        if node.IsDueToAncestor():
+            return True
+        return any(_check_ancestral_node(child) for child in node.children)
 
-    from isaaclab.sim.simulation_context import SimulationContext
+    prim_index = prim.GetPrimIndex()
+    if not prim_index:
+        return False
 
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    return _check_ancestral_node(prim_index.rootNode)
+
+
+def resolve_paths(
+    src_layer_identifier: str,
+    dst_layer_identifier: str,
+    store_relative_path: bool = True,
+) -> None:
+    """Resolve external asset paths in a destination layer relative to a source layer.
+
+    When content is copied from one USD layer to another (e.g., via ``Sdf.CopySpec`` or
+    ``layer.TransferContent``), relative asset paths that were valid from the source
+    layer's location may become invalid from the destination layer's location. This
+    function recalculates those paths.
+
+    This uses USD's built-in ``UsdUtils.ModifyAssetPaths`` to update all external references
+    (sublayers, references, payloads, asset paths) in the destination layer.
+
+    Args:
+        src_layer_identifier: The identifier (path) of the source layer.
+        dst_layer_identifier: The identifier (path) of the destination layer.
+        store_relative_path: Whether to store paths as relative. Defaults to True.
+
+    Example:
+        >>> from pxr import Sdf
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> # After copying content to a new layer
+        >>> source_layer = stage.GetRootLayer()
+        >>> target_layer = Sdf.Layer.CreateNew("/path/to/output.usd")
+        >>> target_layer.TransferContent(source_layer)
+        >>> sim_utils.resolve_paths(source_layer.identifier, target_layer.identifier)
+        >>> target_layer.Save()
+    """
+    src_layer = Sdf.Layer.FindOrOpen(src_layer_identifier)
+    dst_layer = Sdf.Layer.FindOrOpen(dst_layer_identifier)
+
+    if not src_layer:
+        logger.warning(f"Source layer not found: {src_layer_identifier}")
+        return
+    if not dst_layer:
+        logger.warning(f"Destination layer not found: {dst_layer_identifier}")
         return
 
-    # if stage is not in memory, we can return early
-    if not is_current_stage_in_memory():
-        return
+    dst_dir = os.path.dirname(dst_layer.realPath or dst_layer.identifier)
 
-    # attach stage to physx
-    stage_id = get_current_stage_id()
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
+    def _modify_path(asset_path: str) -> str:
+        if not asset_path:
+            return asset_path
+        resolved = src_layer.ComputeAbsolutePath(asset_path)
+        if store_relative_path and resolved and dst_dir:
+            try:
+                return os.path.relpath(resolved, dst_dir)
+            except ValueError:
+                return resolved
+        return resolved or asset_path
 
-    # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+    UsdUtils.ModifyAssetPaths(dst_layer, _modify_path)
 
-    # if rendering is not enabled, we don't need to attach it
-    if not is_rendering_enabled:
-        return
 
-    # early attach warning msg
-    if attaching_early:
-        logger.warning(
-            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-            " memory."
-        )
+# ##############################################################################
+# Public API
+# ##############################################################################
 
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
 
-    # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
+try:
+    # _context is a singleton design in isaacsim and for that reason
+    #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
+    #  that singleton to this _context
+    from isaacsim.core.utils import stage as sim_stage
 
-    # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)
+    sim_stage._context = _context  # type: ignore
+except ImportError:
+    pass
 
-    # attach stage to usd context
-    omni.usd.get_context().attach_stage_with_callback(stage_id)
 
-    # attach stage to physx
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
+def create_new_stage() -> Usd.Stage:
+    """Create a new in-memory USD stage.
 
-    # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
+    Creates a new stage using pure USD (``Usd.Stage.CreateInMemory()``).
+
+    If Kit is running and Kit extensions need to discover this stage (e.g.
+    PhysX, ``isaacsim.core.prims.Articulation``), call
+    :func:`attach_stage_to_usd_context` after scene setup.
+
+    Returns:
+        Usd.Stage: The created USD stage.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> sim_utils.create_new_stage()
+        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
+                       sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
+                       pathResolverContext=<invalid repr>)
+    """
+    stage: Usd.Stage = Usd.Stage.CreateInMemory()
+    _context.stage = stage
+    UsdUtils.StageCache.Get().Insert(stage)
+    return stage
 
 
 def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
+    """Checks if the current stage is NOT attached to the USD context.
 
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
+    This function compares the current stage (from :func:`get_current_stage`) with
+    the stage attached to Kit's ``omni.usd`` context. If they are different,
+    the current stage is considered "in memory" - meaning it's not the stage
+    that the viewport/UI displays.
+
+    This is useful for determining if we're working with a separate in-memory
+    stage created via :func:`create_new_stage_in_memory` with
+    ``SimulationCfg(create_stage_in_memory=True)``.
+
+    In kitless mode (no USD context), this always returns True.
 
     Returns:
-        Whether the current stage is in memory.
+        True if the current stage is different from (not attached to) the context stage.
+        Also returns True if there is no context stage at all.
     """
+    if not has_kit():
+        return True
 
-    # grab current stage id
-    stage_id = get_current_stage_id()
+    import omni.usd
 
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
+    context = omni.usd.get_context()
+    if context is None:
+        return True
 
-    # check if stage ids are the same
-    return stage_id != context_stage_id
+    context_stage = context.get_stage()
+    if context_stage is None:
+        return True
+
+    return get_current_stage() is not context_stage
+
+
+def open_stage(usd_path: str) -> Usd.Stage:
+    """Open the given USD file.
+
+    Opens a USD file using pure USD (``Usd.Stage.Open()``). If Kit is available and
+    context attachment is needed for viewport/UI display, use
+    :func:`attach_stage_to_usd_context` after opening the stage.
+
+    Args:
+        usd_path: The path to the USD file to open.
+
+    Returns:
+        The opened USD stage.
+
+    Raises:
+        ValueError: When input path is not a supported file type by USD.
+        RuntimeError: When failed to open the stage.
+    """
+    if not Usd.Stage.IsSupportedFile(usd_path):
+        raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
+
+    stage = Usd.Stage.Open(usd_path)
+    if stage is None:
+        raise RuntimeError(f"Failed to open USD stage at path '{usd_path}'.")
+    # Set as current stage so get_current_stage() can find it
+    _context.stage = stage
+    return stage
 
 
 @contextlib.contextmanager
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """Context manager that sets a thread-local stage, if supported.
 
-    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
+    This function binds the stage to the thread-local context for the duration of the context manager.
+    During the context manager, any call to :func:`get_current_stage` will return the stage specified
+    in the context manager. After the context manager is exited, the stage is restored to the default
+    stage attached to the USD context.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For backwards
+        compatibility, it falls back to a no-op context manager in Isaac Sim < 5.0.
 
     Args:
-        stage: The stage to set temporarily.
+        stage: The stage to set in the context.
+
+    Returns:
+        A context manager that sets the stage in the context.
 
     Raises:
         AssertionError: If the stage is not a USD stage instance.
 
     Example:
-
-    .. code-block:: python
-
         >>> from pxr import Usd
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
-        >>> with stage_utils.use_stage(stage_in_memory):
-        ...    # operate on the specified stage
-        ...    pass
+        >>> with sim_utils.use_stage(stage_in_memory):
+        ...     # operate on the specified stage
+        ...     pass
         >>> # operate on the default stage attached to the USD context
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
+    if get_isaac_sim_version().major < 5:
+        logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
     else:
         # check stage
-        assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
+        if not isinstance(stage, Usd.Stage):
+            raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
         # store previous context value if it exists
         previous_stage = getattr(_context, "stage", None)
         # set new context value
@@ -181,6 +272,211 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
                 _context.stage = previous_stage
 
 
+def update_stage() -> None:
+    """Triggers a full application update cycle to process USD stage changes.
+
+    This function calls ``omni.kit.app.get_app_interface().update()`` which triggers
+    a complete application update including:
+
+    * Physics simulation step (if ``/app/player/playSimulations`` is True)
+    * Rendering (RTX path tracing, viewport updates)
+    * UI updates (widgets, windows)
+    * Timeline events and callbacks
+    * Extension updates
+    * USD/Fabric synchronization
+
+    When to Use:
+        * **After creating a new stage**: ``create_new_stage()`` → ``update_stage()``
+        * **After spawning prims**: ``cfg.func("/World/Robot", cfg)`` → ``update_stage()``
+        * **After USD authoring**: Creating materials, lights, meshes, etc.
+        * **Before simulation starts**: During setup phase, before ``sim.reset()``
+        * **In test fixtures**: To ensure consistent state before each test
+
+    When NOT to Use:
+        * **During active simulation** (after ``sim.play()``): Can interfere with
+          physics stepping and cause double-stepping or timing issues.
+        * **During sensor updates**: Can reset RTX renderer state mid-cycle,
+          causing incorrect sensor outputs (e.g., ``inf`` depth values).
+        * **Inside physics/render callbacks**: Can cause recursion or timing issues.
+        * **Inside ``sim.step()`` or ``sim.render()``**: These already perform
+          app updates internally with proper safeguards.
+
+    For rendering during simulation without physics stepping, use::
+
+        sim.set_setting("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        sim.set_setting("/app/player/playSimulations", True)
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> # Setup phase - safe to use
+        >>> sim_utils.create_new_stage()
+        >>> robot_cfg.func("/World/Robot", robot_cfg)
+        >>> sim_utils.update_stage()  # Commit USD changes
+        >>>
+        >>> # Simulation phase - DO NOT use update_stage()
+        >>> sim.reset()
+        >>> sim.play()
+        >>> for _ in range(100):
+        ...     sim.step()  # Handles updates internally
+    """
+    omni.kit.app.get_app_interface().update()
+
+
+def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
+    """Saves contents of the root layer of the current stage to the specified USD file.
+
+    If the file already exists, it will be overwritten.
+
+    Args:
+        usd_path: The file path to save the current stage to
+        save_and_reload_in_place: Whether to open the saved USD file in place. Defaults to True.
+
+    Returns:
+        True if operation is successful, otherwise False.
+
+    Raises:
+        ValueError: When input path is not a supported file type by USD.
+        RuntimeError: When layer creation or save operation fails.
+    """
+    # check if USD file is supported
+    if not Usd.Stage.IsSupportedFile(usd_path):
+        raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
+
+    # create new layer
+    layer = Sdf.Layer.CreateNew(usd_path)
+    if layer is None:
+        raise RuntimeError(f"Failed to create new USD layer at path '{usd_path}'.")
+
+    # get root layer
+    root_layer = get_current_stage().GetRootLayer()
+    # transfer content from root layer to new layer
+    layer.TransferContent(root_layer)
+
+    # resolve paths so asset references remain valid from the new location
+    resolve_paths(root_layer.identifier, layer.identifier)
+
+    # save layer
+    result = layer.Save()
+    if not result:
+        logger.error(f"Failed to save USD layer to path '{usd_path}'.")
+
+    # if requested, open the saved USD file in place
+    if save_and_reload_in_place and result:
+        open_stage(usd_path)
+
+    return result
+
+
+def close_stage() -> bool:
+    """Closes the current USD stage by clearing the stage cache.
+
+    If Kit is running, this also closes the stage attached to the Kit USD context
+    (``omni.usd.get_context().close_stage()``).
+
+    .. note::
+
+        Once the stage is closed, it is necessary to open a new stage or create a
+        new one in order to work on it.
+
+    Returns:
+        True if operation is successful.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> sim_utils.close_stage()
+        True
+    """
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_cache.Clear()
+    _context.stage = None
+
+    if has_kit():
+        import omni.usd
+
+        omni.usd.get_context().close_stage()
+
+    return True
+
+
+def _is_prim_deletable(prim: Usd.Prim) -> bool:
+    """Check if a prim can be safely deleted.
+
+    This function checks various conditions to determine if a prim should be deleted:
+    - Root prim ("/") cannot be deleted
+    - Prims under "/Render" namespace are preserved
+    - Prims with "no_delete" metadata are preserved
+    - Prims hidden in stage window are preserved
+    - Ancestral prims (from USD references) cannot be deleted
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if the prim can be deleted, False otherwise.
+    """
+    prim_path = prim.GetPath().pathString
+    if prim_path == "/":
+        return False
+    if prim_path.startswith("/Render"):
+        return False
+    if prim.GetMetadata("no_delete"):
+        return False
+    if prim.GetMetadata("hide_in_stage_window"):
+        return False
+    # Check ancestral prims (from USD references) using pure USD helper
+    if _check_ancestral(prim):
+        return False
+    return True
+
+
+def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
+    """Deletes all prims in the stage without populating the undo command buffer.
+
+    The function will delete all prims in the stage that satisfy the predicate. If the predicate
+    is None, a default predicate will be used that deletes all prims. The default predicate deletes
+    all prims that are not the root prim, are not under the /Render namespace, have the ``no_delete``
+    metadata, are not ancestral to any other prim, and are not hidden in the stage window.
+
+    Args:
+        predicate: A user defined function that takes the USD prim as an argument and
+            returns a boolean indicating if the prim should be deleted. If the predicate is None,
+            a default predicate will be used that deletes all prims.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> # clear the whole stage
+        >>> sim_utils.clear_stage()
+        >>>
+        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
+        >>> # Delete only the prims of type Cube
+        >>> predicate = lambda _prim: _prim.GetTypeName() == "Cube"
+        >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
+    """
+    # Note: Need to import this here to prevent circular dependencies.
+    from .prims import delete_prim
+    from .queries import get_all_matching_child_prims
+
+    def _predicate_from_path(prim: Usd.Prim) -> bool:
+        if predicate is None:
+            return _is_prim_deletable(prim)
+        # Custom predicate must also pass the deletable check
+        return predicate(prim) and _is_prim_deletable(prim)
+
+    # get all prims to delete
+    prims = get_all_matching_child_prims("/", _predicate_from_path)
+    # convert prims to prim paths
+    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
+    # delete prims
+    delete_prim(prim_paths_to_delete)
+
+    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:  # type: ignore
+        omni.kit.app.get_app_interface().update()
+
+
 def get_current_stage(fabric: bool = False) -> Usd.Stage:
     """Get the current open USD or Fabric stage
 
@@ -191,606 +487,52 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
         The USD or Fabric stage as specified by the input arg fabric.
 
     Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.get_current_stage()
+        >>> sim_utils.get_current_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
-                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
-                        pathResolverContext=<invalid repr>)
+                       sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
+                       pathResolverContext=<invalid repr>)
     """
-    stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
+    # First check thread-local context for an in-memory stage
+    stage = getattr(_context, "stage", None)
+    if stage is not None:
+        if fabric:
+            import usdrt
+
+            # Get stage ID and attach to Fabric stage
+            stage_id = get_current_stage_id()
+            return usdrt.Usd.Stage.Attach(stage_id)
+        return stage
+
     return stage
 
 
 def get_current_stage_id() -> int:
-    """Get the current open stage id
+    """Get the current open stage ID.
 
     Returns:
         The current open stage id.
 
     Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.get_current_stage_id()
+        >>> sim_utils.get_current_stage_id()
         1234567890
     """
-    stage = get_current_stage()
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_id = stage_cache.GetId(stage).ToLongInt()
-    if stage_id < 0:
-        stage_id = stage_cache.Insert(stage).ToLongInt()
-    return stage_id
-
-
-def update_stage() -> None:
-    """Update the current USD stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.update_stage()
-    """
-    omni.kit.app.get_app_interface().update()
-
-
-# TODO: make a generic util for setting all layer properties
-def set_stage_up_axis(axis: str = "z") -> None:
-    """Change the up axis of the current stage
-
-    Args:
-        axis (UsdGeom.Tokens, optional): valid values are ``"x"``, ``"y"`` and ``"z"``
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> # set stage up axis to Y-up
-        >>> stage_utils.set_stage_up_axis("y")
-    """
+    # get current stage
     stage = get_current_stage()
     if stage is None:
-        raise Exception("There is no stage currently opened")
-    rootLayer = stage.GetRootLayer()
-    rootLayer.SetPermissionToEdit(True)
-    with Usd.EditContext(stage, rootLayer):
-        UsdGeom.SetStageUpAxis(stage, AXES_TOKEN[axis])
-
-
-def get_stage_up_axis() -> str:
-    """Get the current up-axis of USD stage.
-
-    Returns:
-        str: The up-axis of the stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.get_stage_up_axis()
-        Z
-    """
-    stage = get_current_stage()
-    return UsdGeom.GetStageUpAxis(stage)
-
-
-def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
-    """Deletes all prims in the stage without populating the undo command buffer
-
-    Args:
-        predicate: user defined function that takes a prim_path (str) as input and returns True/False if the prim
-            should/shouldn't be deleted. If predicate is None, a default is used that deletes all prims
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> # clear the whole stage
-        >>> stage_utils.clear_stage()
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> # Delete only the prims of type Cube
-        >>> predicate = lambda path: prims_utils.get_prim_type_name(path) == "Cube"
-        >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
-    """
-    # Note: Need to import this here to prevent circular dependencies.
-    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
-    from isaacsim.core.utils.prims import (  # isaaclab.utils.prims import (
-        get_all_matching_child_prims,
-        get_prim_path,
-        is_prim_ancestral,
-        is_prim_hidden_in_stage,
-        is_prim_no_delete,
-    )
-
-    def default_predicate(prim_path: str):
-        # prim = get_prim_at_path(prim_path)
-        # skip prims that we cannot delete
-        if is_prim_no_delete(prim_path):
-            return False
-        if is_prim_hidden_in_stage(prim_path):
-            return False
-        if is_prim_ancestral(prim_path):
-            return False
-        if prim_path == "/":
-            return False
-        if prim_path.startswith("/Render"):
-            return False
-        return True
-
-    if predicate is None:
-        prims = get_all_matching_child_prims("/", default_predicate)
-        prim_paths_to_delete = [get_prim_path(prim) for prim in prims]
-        DeletePrimsCommand(prim_paths_to_delete).do()
-    else:
-        prims = get_all_matching_child_prims("/", predicate)
-        prim_paths_to_delete = [get_prim_path(prim) for prim in prims]
-        DeletePrimsCommand(prim_paths_to_delete).do()
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        omni.kit.app.get_app_interface().update()
-
-
-def print_stage_prim_paths(fabric: bool = False) -> None:
-    """Traverses the stage and prints all prim (hidden or not) paths.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> stage_utils.print_stage_prim_paths()
-        /Render
-        /World
-        /World/Cube
-        /World/Cube_01
-        /World/Cube_02
-        /OmniverseKit_Persp
-        /OmniverseKit_Front
-        /OmniverseKit_Top
-        /OmniverseKit_Right
-    """
-    # Note: Need to import this here to prevent circular dependencies.
-    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
-    # from isaaclab.utils.prims import get_prim_path
-    from isaacsim.core.utils.prims import get_prim_path
-
-    for prim in traverse_stage(fabric=fabric):
-        prim_path = get_prim_path(prim)
-        print(prim_path)
-
-
-def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
-    """Add USD reference to the opened stage at specified prim path.
-
-    Adds a reference to an external USD file at the specified prim path on the current stage.
-    If the prim does not exist, it will be created with the specified type.
-    This function also handles stage units verification to ensure compatibility.
-
-    Args:
-        usd_path: The path to USD file to reference.
-        prim_path: The prim path where the reference will be attached.
-        prim_type: The type of prim to create if it doesn't exist. Defaults to "Xform".
-
-    Returns:
-        The USD prim at the specified prim path.
-
-    Raises:
-        FileNotFoundError: When the input USD file is not found at the specified path.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> # load an USD file (franka.usd) to the stage under the path /World/panda
-        >>> prim = stage_utils.add_reference_to_stage(
-        ...     usd_path="/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd",
-        ...     prim_path="/World/panda"
-        ... )
-        >>> prim
-        Usd.Prim(</World/panda>)
-    """
-    stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        prim = stage.DefinePrim(prim_path, prim_type)
-    # logger.info("Loading Asset from path {} ".format(usd_path))
-    # Handle units
-    sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
-    if not sdf_layer:
-        pass
-        # logger.info(f"Could not get Sdf layer for {usd_path}")
-    else:
-        stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
-        ret_val = get_metrics_assembler_interface().check_layers(
-            stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
-        )
-        if ret_val["ret_val"]:
-            try:
-                import omni.metrics.assembler.ui
-
-                payref = Sdf.Reference(usd_path)
-                omni.kit.commands.execute("AddReference", stage=stage, prim_path=prim.GetPath(), reference=payref)
-            except Exception:
-                success_bool = prim.GetReferences().AddReference(usd_path)
-                if not success_bool:
-                    raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
-        else:
-            success_bool = prim.GetReferences().AddReference(usd_path)
-            if not success_bool:
-                raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
-
-    return prim
-
-
-def create_new_stage() -> Usd.Stage:
-    """Create a new stage attached to the USD context.
-
-    Returns:
-        Usd.Stage: The created USD stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.create_new_stage()
-        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
-                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
-                        pathResolverContext=<invalid repr>)
-    """
-    return omni.usd.get_context().new_stage()
-
-
-def create_new_stage_in_memory() -> Usd.Stage:
-    """Creates a new stage in memory, if supported.
-
-    Returns:
-        The new stage in memory.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.create_new_stage_in_memory()
-        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0xf7b00e0:tmp.usda'),
-                        sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
-                        pathResolverContext=<invalid repr>)
-    """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
-            " stage attached to USD context."
-        )
-        return create_new_stage()
-    else:
-        return Usd.Stage.CreateInMemory()
-
-
-def open_stage(usd_path: str) -> bool:
-    """Open the given usd file and replace currently opened stage.
-
-    Args:
-        usd_path (str): Path to the USD file to open.
-
-    Raises:
-        ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
-        True
-    """
-    if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be loaded with this method")
-    usd_context = omni.usd.get_context()
-    usd_context.disable_save_to_recent_files()
-    result = omni.usd.get_context().open_stage(usd_path)
-    usd_context.enable_save_to_recent_files()
-    return result
-
-
-def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
-    """Save usd file to path, it will be overwritten with the current stage
-
-    Args:
-        usd_path (str): File path to save the current stage to
-        save_and_reload_in_place (bool, optional): use ``save_as_stage`` to save and reload the root layer in place. Defaults to True.
-
-    Raises:
-        ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
-        True
-    """
-    if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be saved with this method")
-
-    layer = Sdf.Layer.CreateNew(usd_path)
-    root_layer = get_current_stage().GetRootLayer()
-    layer.TransferContent(root_layer)
-    omni.usd.resolve_paths(root_layer.identifier, layer.identifier)
-    result = layer.Save()
-    if save_and_reload_in_place:
-        open_stage(usd_path)
-
-    return result
-
-
-def close_stage(callback_fn: typing.Callable | None = None) -> bool:
-    """Closes the current opened USD stage.
-
-    .. note::
-
-        Once the stage is closed, it is necessary to open a new stage or create a new one in order to work on it.
-
-    Args:
-        callback_fn: Callback function to call while closing. Defaults to None.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.close_stage()
-        True
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> def callback(*args, **kwargs):
-        ...     print("callback:", args, kwargs)
-        ...
-        >>> stage_utils.close_stage(callback)
-        True
-        >>> stage_utils.close_stage(callback)
-        callback: (False, 'Stage opening or closing already in progress!!') {}
-        False
-    """
-    if callback_fn is None:
-        result = omni.usd.get_context().close_stage()
-    else:
-        result = omni.usd.get_context().close_stage_with_callback(callback_fn)
-    return result
-
-
-def traverse_stage(fabric=False) -> typing.Iterable:
-    """Traverse through prims (hidden or not) in the opened Usd stage.
-
-    Returns:
-        Generator which yields prims from the stage in depth-first-traversal order.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> # Traverse through prims in the stage
-        >>> for prim in stage_utils.traverse_stage():
-        >>>     print(prim)
-        Usd.Prim(</World>)
-        Usd.Prim(</World/Cube>)
-        Usd.Prim(</World/Cube_01>)
-        Usd.Prim(</World/Cube_02>)
-        Usd.Prim(</OmniverseKit_Persp>)
-        Usd.Prim(</OmniverseKit_Front>)
-        Usd.Prim(</OmniverseKit_Top>)
-        Usd.Prim(</OmniverseKit_Right>)
-        Usd.Prim(</Render>)
-    """
-    return get_current_stage(fabric=fabric).Traverse()
-
-
-def is_stage_loading() -> bool:
-    """Convenience function to see if any files are being loaded.
-
-    Returns:
-        bool: True if loading, False otherwise
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.is_stage_loading()
-        False
-    """
-    context = omni.usd.get_context()
-    if context is None:
-        return False
-    else:
-        _, _, loading = context.get_stage_loading_status()
-        return loading > 0
-
-
-def set_stage_units(stage_units_in_meters: float) -> None:
-    """Set the stage meters per unit
-
-    The most common units and their values are listed in the following table:
-
-    +------------------+--------+
-    | Unit             | Value  |
-    +==================+========+
-    | kilometer (km)   | 1000.0 |
-    +------------------+--------+
-    | meters (m)       | 1.0    |
-    +------------------+--------+
-    | inch (in)        | 0.0254 |
-    +------------------+--------+
-    | centimeters (cm) | 0.01   |
-    +------------------+--------+
-    | millimeter (mm)  | 0.001  |
-    +------------------+--------+
-
-    Args:
-        stage_units_in_meters (float): units for stage
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.set_stage_units(1.0)
-    """
-    if get_current_stage() is None:
-        raise Exception("There is no stage currently opened, init_stage needed before calling this func")
-    with Usd.EditContext(get_current_stage(), get_current_stage().GetRootLayer()):
-        UsdGeom.SetStageMetersPerUnit(get_current_stage(), stage_units_in_meters)
-
-
-def get_stage_units() -> float:
-    """Get the stage meters per unit currently set
-
-    The most common units and their values are listed in the following table:
-
-    +------------------+--------+
-    | Unit             | Value  |
-    +==================+========+
-    | kilometer (km)   | 1000.0 |
-    +------------------+--------+
-    | meters (m)       | 1.0    |
-    +------------------+--------+
-    | inch (in)        | 0.0254 |
-    +------------------+--------+
-    | centimeters (cm) | 0.01   |
-    +------------------+--------+
-    | millimeter (mm)  | 0.001  |
-    +------------------+--------+
-
-    Returns:
-        float: current stage meters per unit
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> stage_utils.get_stage_units()
-        1.0
-    """
-    return UsdGeom.GetStageMetersPerUnit(get_current_stage())
-
-
-def get_next_free_path(path: str, parent: str = None) -> str:
-    """Returns the next free usd path for the current stage
-
-    Args:
-        path (str): path we want to check
-        parent (str, optional): Parent prim for the given path. Defaults to None.
-
-    Returns:
-        str: a new path that is guaranteed to not exist on the current stage
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01.
-        >>> # Get the next available path for /World/Cube
-        >>> stage_utils.get_next_free_path("/World/Cube")
-        /World/Cube_02
-    """
-    if parent is not None:
-        # remove trailing slash from parent and leading slash from path
-        path = omni.usd.get_stage_next_free_path(
-            get_current_stage(), parent.rstrip("/") + "/" + path.lstrip("/"), False
-        )
-    else:
-        path = omni.usd.get_stage_next_free_path(get_current_stage(), path, True)
-    return path
-
-
-def remove_deleted_references():
-    """Clean up deleted references in the current USD stage.
-
-    Removes any deleted items from both payload and references lists
-    for all prims in the stage's root layer. Prints information about
-    any deleted items that were cleaned up.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from isaaclab.sim.utils import stage as stage_utils
-        >>> stage_utils.remove_deleted_references()
-        Removed 2 deleted payload items from </World/Robot>
-        Removed 1 deleted reference items from </World/Scene>
-    """
-    stage = get_current_stage()
-    deleted_count = 0
-
-    for prim in stage.Traverse():
-        prim_spec = stage.GetRootLayer().GetPrimAtPath(prim.GetPath())
-        if not prim_spec:
-            continue
-
-        # Clean payload references
-        payload_list = prim_spec.GetInfo("payload")
-        if payload_list.deletedItems:
-            deleted_payload_count = len(payload_list.deletedItems)
-            print(f"Removed {deleted_payload_count} deleted payload items from {prim.GetPath()}")
-            payload_list.deletedItems = []
-            prim_spec.SetInfo("payload", payload_list)
-            deleted_count += deleted_payload_count
-
-        # Clean prim references
-        references_list = prim_spec.GetInfo("references")
-        if references_list.deletedItems:
-            deleted_ref_count = len(references_list.deletedItems)
-            print(f"Removed {deleted_ref_count} deleted reference items from {prim.GetPath()}")
-            references_list.deletedItems = []
-            prim_spec.SetInfo("references", references_list)
-            deleted_count += deleted_ref_count
-
-    if deleted_count == 0:
-        print("No deleted references or payloads found in the stage.")
+        raise RuntimeError("No current stage available. Did you create a stage?")
+
+    # retrieve stage ID from stage cache
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_id = stage_cache.GetId(stage).ToLongInt()
+    # if stage ID is not found, insert it into the stage cache
+    if stage_id < 0:
+        # Ensure stage has a valid root layer before inserting
+        if not stage.GetRootLayer():
+            raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
+        stage_id = stage_cache.Insert(stage).ToLongInt()
+    # return stage ID
+    return stage_id

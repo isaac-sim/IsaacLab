@@ -1,7 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+# ========================================= IMPORTANT NOTICE =========================================
+#
+# This file defines the agent configuration used to generate the "Training Performance" table in
+# https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html.
+# Ensure that the configurations for the other RL libraries are updated if this one is modified.
+#
+# ====================================================================================================
 
 params:
   seed: 42
@@ -50,13 +58,13 @@ params:
     device_name: 'cuda:0'
     multi_gpu: False
     ppo: True
-    mixed_precision: True
+    mixed_precision: False
     normalize_input: True
     normalize_value: True
     value_bootstrap: True
     num_actors: -1
     reward_shaper:
-      scale_value: 0.6
+      scale_value: 1.0
     normalize_advantage: True
     gamma: 0.99
     tau: 0.95
@@ -72,7 +80,7 @@ params:
     truncate_grads: True
     e_clip: 0.2
     horizon_length: 32
-    minibatch_size: 32768
+    minibatch_size: 32768  # num_envs * horizon_length / num_mini_batches
     mini_epochs: 5
     critic_coef: 4
     clip_value: True

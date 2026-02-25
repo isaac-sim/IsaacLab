@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -290,7 +290,8 @@ def resolve_matching_names_values(
     For example, consider the dictionary is {"a|d|e": 1, "b|c": 2}, the list of strings is ['a', 'b', 'c', 'd', 'e'].
     If :attr:`preserve_order` is False, then the function will return the indices of the matched strings, the
     matched strings, and the values as: ([0, 1, 2, 3, 4], ['a', 'b', 'c', 'd', 'e'], [1, 2, 2, 1, 1]). When
-    :attr:`preserve_order` is True, it will return them as: ([0, 3, 4, 1, 2], ['a', 'd', 'e', 'b', 'c'], [1, 1, 1, 2, 2]).
+    :attr:`preserve_order` is True, it will return them as:
+    ([0, 3, 4, 1, 2], ['a', 'd', 'e', 'b', 'c'], [1, 1, 1, 2, 2]).
 
     Args:
         data: A dictionary of regular expressions and values to match the strings in the list.
@@ -370,3 +371,46 @@ def resolve_matching_names_values(
         )
     # return
     return index_list, names_list, values_list
+
+
+def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], bool]) -> str:
+    """Find a unique string name based on the predicate function provided.
+    The string is appended with "_N", where N is a natural number till the resultant string
+    is unique.
+    Args:
+        initial_name (str): The initial string name.
+        is_unique_fn (Callable[[str], bool]): The predicate function to validate against.
+    Returns:
+        str: A unique string based on input function.
+    """
+    if is_unique_fn(initial_name):
+        return initial_name
+    iterator = 1
+    result = initial_name + "_" + str(iterator)
+    while not is_unique_fn(result):
+        result = initial_name + "_" + str(iterator)
+        iterator += 1
+    return result
+
+
+def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
+    """Find the first prim above the regex pattern prim and its position.
+    Args:
+        prim_path_regex (str): full prim path including the regex pattern prim.
+    Returns:
+        Tuple[str, int]: First position is the prim path to the parent of the regex prim.
+                    Second position represents the level of the regex prim in the USD stage tree representation.
+    """
+    prim_paths_list = str(prim_path_regex).split("/")
+    root_idx = None
+    for prim_path_idx in range(len(prim_paths_list)):
+        chars = set("[]*|^")
+        if any((c in chars) for c in prim_paths_list[prim_path_idx]):
+            root_idx = prim_path_idx
+            break
+    root_prim_path = None
+    tree_level = None
+    if root_idx is not None:
+        root_prim_path = "/".join(prim_paths_list[:root_idx])
+        tree_level = root_idx
+    return root_prim_path, tree_level

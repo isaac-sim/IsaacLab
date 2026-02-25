@@ -46,7 +46,7 @@ Installing dependencies
 
    .. code-block:: none
 
-      pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+      pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
@@ -58,14 +58,14 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
          .. code-block:: bash
 
-            pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64

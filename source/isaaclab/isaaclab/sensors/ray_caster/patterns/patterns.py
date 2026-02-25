@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import math
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from . import patterns_cfg
@@ -96,7 +97,7 @@ def pinhole_camera_pattern(
     transform_vec = torch.tensor([1, -1, -1], device=device).unsqueeze(0).unsqueeze(2)
     pix_in_cam_frame = pix_in_cam_frame[:, [2, 0, 1], :] * transform_vec
     # normalize ray directions
-    ray_directions = (pix_in_cam_frame / torch.norm(pix_in_cam_frame, dim=1, keepdim=True)).permute(0, 2, 1)
+    ray_directions = (pix_in_cam_frame / torch.linalg.norm(pix_in_cam_frame, dim=1, keepdim=True)).permute(0, 2, 1)
     # for camera, we always ray-cast from the sensor's origin
     ray_starts = torch.zeros_like(ray_directions, device=device)
 
@@ -153,7 +154,9 @@ def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch
         up_to = None
 
     # Horizontal angles
-    num_horizontal_angles = math.ceil((cfg.horizontal_fov_range[1] - cfg.horizontal_fov_range[0]) / cfg.horizontal_res)
+    num_horizontal_angles = (
+        math.ceil((cfg.horizontal_fov_range[1] - cfg.horizontal_fov_range[0]) / cfg.horizontal_res) + 1
+    )
     horizontal_angles = torch.linspace(cfg.horizontal_fov_range[0], cfg.horizontal_fov_range[1], num_horizontal_angles)[
         :up_to
     ]

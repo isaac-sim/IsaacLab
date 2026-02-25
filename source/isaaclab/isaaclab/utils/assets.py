@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,22 +21,35 @@ import tempfile
 import time
 from typing import Literal
 
-import carb
 import omni.client
 
-# import logger
 logger = logging.getLogger(__name__)
 
-NUCLEUS_ASSET_ROOT_DIR = carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
+
+def _parse_kit_asset_root() -> str:
+    """Parse ``persistent.isaac.asset_root.cloud`` from ``apps/isaaclab.python.kit``."""
+    import re
+
+    _ISAACLAB_ROOT = os.path.join(os.path.dirname(__file__), *([".."] * 4))
+    kit_path = os.path.normpath(os.path.join(_ISAACLAB_ROOT, "apps", "isaaclab.python.kit"))
+    with open(kit_path) as f:
+        for line in reversed(f.readlines()):  # read from the last line since it's the last setting defined
+            m = re.match(r'\s*persistent\.isaac\.asset_root\.cloud\s*=\s*"([^"]*)"', line)
+            if m:
+                return m.group(1)
+    return ""
+
+
+NUCLEUS_ASSET_ROOT_DIR: str = _parse_kit_asset_root()
 """Path to the root directory on the Nucleus Server."""
 
-NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
+NVIDIA_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
 """Path to the root directory on the NVIDIA Nucleus Server."""
 
-ISAAC_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
+ISAAC_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
 """Path to the ``Isaac`` directory on the NVIDIA Nucleus Server."""
 
-ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
+ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
 
@@ -189,8 +202,9 @@ Helper functions.
 async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
     """Checks whether the given USD path is available on the Omniverse Nucleus server.
 
-    This function is a asynchronous routine to check the availability of the given USD path on the Omniverse Nucleus server.
-    It will return True if the USD path is available on the server, False otherwise.
+    This function is a asynchronous routine to check the availability of the given USD path on
+    the Omniverse Nucleus server. It will return True if the USD path is available on the server,
+    False otherwise.
 
     Args:
         usd_path: The remote or local USD file path to check.

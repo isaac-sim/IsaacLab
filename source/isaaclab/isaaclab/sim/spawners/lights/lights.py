@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,10 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 from pxr import Usd, UsdLux
 
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils import clone, create_prim, get_current_stage, safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:
     from . import lights_cfg
@@ -38,18 +37,22 @@ def spawn_light(
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration for the light source.
         translation: The translation of the prim. Defaults to None, in which case this is set to the origin.
-        orientation: The orientation of the prim as (w, x, y, z). Defaults to None, in which case this
+        orientation: The orientation of the prim as (x, y, z, w). Defaults to None, in which case this
             is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Raises:
         ValueError:  When a prim already exists at the specified prim path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # check if prim already exists
-    if prim_utils.is_prim_path_valid(prim_path):
+    if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # create the prim
-    prim = prim_utils.create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
+    prim = create_prim(
+        prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation, stage=stage
+    )
 
     # convert to dict
     cfg = cfg.to_dict()

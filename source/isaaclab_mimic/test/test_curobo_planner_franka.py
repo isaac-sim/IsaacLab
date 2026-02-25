@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -39,11 +39,11 @@ from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_joint_p
 # Predefined EE goals for the test
 # Each entry is a tuple of: (goal specification, goal ID)
 predefined_ee_goals_and_ids = [
-    ({"pos": [0.70, -0.25, 0.25], "quat": [0.0, 0.707, 0.0, 0.707]}, "Behind wall, left"),
-    ({"pos": [0.70, 0.25, 0.25], "quat": [0.0, 0.707, 0.0, 0.707]}, "Behind wall, right"),
-    ({"pos": [0.65, 0.0, 0.45], "quat": [0.0, 1.0, 0.0, 0.0]}, "Behind wall, center, high"),
-    ({"pos": [0.80, -0.15, 0.35], "quat": [0.0, 0.5, 0.0, 0.866]}, "Behind wall, far left"),
-    ({"pos": [0.80, 0.15, 0.35], "quat": [0.0, 0.5, 0.0, 0.866]}, "Behind wall, far right"),
+    ({"pos": [0.70, -0.25, 0.25], "quat": [0.707, 0.0, 0.707, 0.0]}, "Behind wall, left"),
+    ({"pos": [0.70, 0.25, 0.25], "quat": [0.707, 0.0, 0.707, 0.0]}, "Behind wall, right"),
+    ({"pos": [0.65, 0.0, 0.45], "quat": [1.0, 0.0, 0.0, 0.0]}, "Behind wall, center, high"),
+    ({"pos": [0.80, -0.15, 0.35], "quat": [0.5, 0.0, 0.866, 0.0]}, "Behind wall, far left"),
+    ({"pos": [0.80, 0.15, 0.35], "quat": [0.5, 0.0, 0.866, 0.0]}, "Behind wall, far right"),
 ]
 
 

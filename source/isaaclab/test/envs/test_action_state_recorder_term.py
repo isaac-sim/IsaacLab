@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,16 +12,16 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import shutil
 import tempfile
-import torch
 import uuid
 
-import carb
-import omni.usd
+import gymnasium as gym
 import pytest
+import torch
 
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -30,9 +30,8 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_carb_settings():
-    """Set up carb settings to prevent simulation getting stuck."""
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    """Set up settings to prevent simulation getting stuck."""
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.fixture
@@ -89,7 +88,7 @@ def check_initial_state_recorder_term(env):
 @pytest.mark.parametrize("num_envs", [1, 2])
 def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
     """Check action state recorder terms."""
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"
 

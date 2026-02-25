@@ -1,0 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+""".. deprecated:: Moved to ``isaaclab_teleop.deprecated.openxr``."""
+
+from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import *  # noqa: E501,F401,F403

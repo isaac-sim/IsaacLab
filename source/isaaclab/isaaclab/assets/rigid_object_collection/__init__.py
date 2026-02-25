@@ -1,10 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-module for rigid object collection."""
 
+from .base_rigid_object_collection import BaseRigidObjectCollection
+from .base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from .rigid_object_collection import RigidObjectCollection
 from .rigid_object_collection_cfg import RigidObjectCollectionCfg
 from .rigid_object_collection_data import RigidObjectCollectionData
+
+__all__ = [
+    "BaseRigidObjectCollection",
+    "BaseRigidObjectCollectionData",
+    "RigidObjectCollection",
+    "RigidObjectCollectionCfg",
+    "RigidObjectCollectionData",
+]

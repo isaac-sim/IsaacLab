@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,21 +20,20 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
-
-import omni.usd
 import pytest
+import torch
+import warp as wp
+
 from pxr import Sdf
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
-from isaaclab.managers import ActionTerm, ActionTermCfg
+from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -103,8 +102,8 @@ class CubeActionTerm(ActionTerm):
 
     def apply_actions(self):
         # implement a PD controller to track the target position
-        pos_error = self._processed_actions - (self._asset.data.root_pos_w - self._env.scene.env_origins)
-        vel_error = -self._asset.data.root_lin_vel_w
+        pos_error = self._processed_actions - (wp.to_torch(self._asset.data.root_pos_w) - self._env.scene.env_origins)
+        vel_error = -wp.to_torch(self._asset.data.root_lin_vel_w)
         # set velocity targets
         self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
         self._asset.write_root_velocity_to_sim(self._vel_command)
@@ -132,7 +131,7 @@ def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tens
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w - env.scene.env_origins
+    return wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
 
 
 ##
@@ -283,7 +282,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
 def test_scale_randomization(device):
     """Test scale randomization for cube environment."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # set the device
     env_cfg = CubeEnvCfg()
@@ -306,7 +305,7 @@ def test_scale_randomization(device):
     prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
 
     # get the stage
-    stage = omni.usd.get_context().get_stage()
+    stage = sim_utils.get_current_stage()
 
     # check if the scale values are truly random
     for i in range(3):
@@ -340,7 +339,7 @@ def test_scale_randomization(device):
 def test_scale_randomization_failure_replicate_physics():
     """Test scale randomization failure when replicate physics is set to True."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     # set the arguments
     cfg_failure = CubeEnvCfg()
     cfg_failure.scene.replicate_physics = True

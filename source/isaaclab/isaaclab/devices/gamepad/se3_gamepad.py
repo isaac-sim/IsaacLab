@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,15 +7,18 @@
 
 from __future__ import annotations
 
-import numpy as np
-import torch
 import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
+import torch
 from scipy.spatial.transform import Rotation
 
 import carb
 import omni
+
+from isaaclab.app.settings_manager import get_settings_manager
 
 from ..device_base import DeviceBase, DeviceCfg
 
@@ -61,8 +64,7 @@ class Se3Gamepad(DeviceBase):
             cfg: Configuration object for gamepad settings.
         """
         # turn off simulator gamepad control
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
+        get_settings_manager().set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity

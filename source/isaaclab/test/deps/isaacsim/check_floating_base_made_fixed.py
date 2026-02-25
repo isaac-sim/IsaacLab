@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -31,20 +31,22 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 """Rest everything follows."""
 
 import logging
+
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.physx
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import PhysxSchema, UsdPhysics
+from pxr import UsdPhysics
+
+import isaaclab.sim.utils.nucleus as nucleus_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 
 # import logger
 logger = logging.getLogger(__name__)
-import isaaclab.sim.utils.nucleus as nucleus_utils
-import isaaclab.sim.utils.stage as stage_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -126,7 +128,7 @@ def main():
         parent_prim = root_prim.GetParent()
         # apply api to parent
         UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
-        PhysxSchema.PhysxArticulationAPI.Apply(parent_prim)
+        parent_prim.AddAppliedSchema("PhysxArticulationAPI")
 
         # copy the attributes
         # -- usd attributes
@@ -134,15 +136,15 @@ def main():
         for attr_name in root_usd_articulation_api.GetSchemaAttributeNames():
             attr = root_prim.GetAttribute(attr_name)
             parent_prim.GetAttribute(attr_name).Set(attr.Get())
-        # -- physx attributes
-        root_physx_articulation_api = PhysxSchema.PhysxArticulationAPI(root_prim)
-        for attr_name in root_physx_articulation_api.GetSchemaAttributeNames():
-            attr = root_prim.GetAttribute(attr_name)
-            parent_prim.GetAttribute(attr_name).Set(attr.Get())
+        # -- physx attributes (by name: physxArticulation:*)
+        for attr in root_prim.GetAttributes():
+            name = attr.GetName()
+            if name.startswith("physxArticulation:"):
+                parent_prim.GetAttribute(name).Set(attr.Get())
 
         # remove api from root
         root_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-        root_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+        root_prim.RemoveAppliedSchema("PhysxArticulationAPI")
 
         # rename root path to parent path
         root_prim_path = parent_prim.GetPath().pathString

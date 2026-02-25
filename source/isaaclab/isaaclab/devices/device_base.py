@@ -1,16 +1,19 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Base class for teleoperation interface."""
 
-import torch
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 
@@ -26,7 +29,7 @@ class DeviceCfg:
     # Retargeters that transform device data into robot commands
     retargeters: list[RetargeterCfg] = field(default_factory=list)
     # Concrete device class to construct for this config. Set by each device module.
-    class_type: type["DeviceBase"] | None = None
+    class_type: type[DeviceBase] | None = None
 
 
 @dataclass

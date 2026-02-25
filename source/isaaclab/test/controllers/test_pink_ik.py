@@ -1,10 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Launch Isaac Sim Simulator first."""
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+
+# Import pinocchio in the main script to force the use of the dependencies
+# installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
 
@@ -19,18 +21,19 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import contextlib
-import gymnasium as gym
 import json
-import numpy as np
 import re
-import torch
 from pathlib import Path
 
-import omni.usd
+import gymnasium as gym
+import numpy as np
 import pytest
+import torch
+import warp as wp
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
+import isaaclab.sim as sim_utils
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
 
 import isaaclab_tasks  # noqa: F401
@@ -69,7 +72,7 @@ def create_test_env(env_name, num_envs):
     """Create a test environment with the Pink IK controller."""
     device = "cuda:0"
 
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     try:
         env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
@@ -110,9 +113,9 @@ def env_and_cfg(request):
     # Try to infer which is left and which is right
     left_candidates = [f for f in frames if "left" in f.lower()]
     right_candidates = [f for f in frames if "right" in f.lower()]
-    assert (
-        len(left_candidates) == 1 and len(right_candidates) == 1
-    ), f"Could not uniquely identify left/right frames from: {frames}"
+    assert len(left_candidates) == 1 and len(right_candidates) == 1, (
+        f"Could not uniquely identify left/right frames from: {frames}"
+    )
     left_eef_urdf_link_name = left_candidates[0]
     right_eef_urdf_link_name = right_candidates[0]
 
@@ -294,7 +297,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 def get_link_pose(env, link_name):
     """Get the position and orientation of a link."""
     link_index = env.scene["robot"].data.body_names.index(link_name)
-    link_states = env.scene._articulations["robot"]._data.body_link_state_w
+    link_states = wp.to_torch(env.scene._articulations["robot"].data.body_link_state_w)
     link_pose = link_states[:, link_index, :7]
     return link_pose[:, :3], link_pose[:, 3:7]
 
@@ -347,7 +350,7 @@ def compute_errors(
     isaaclab_controlled_joint_ids = action_term._isaaclab_controlled_joint_ids
 
     # Get current and target positions for controlled joints only
-    curr_joints = articulation.data.joint_pos[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
+    curr_joints = wp.to_torch(articulation.data.joint_pos)[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
     target_joints = action_term.processed_actions[:, : len(isaaclab_controlled_joint_ids)].cpu().numpy()[0]
 
     # Reorder joints for Pink IK (using controlled joint ordering)
@@ -394,7 +397,7 @@ def verify_errors(errors, test_setup, tolerances):
 
     for hand in ["left", "right"]:
         # Check PD controller errors
-        pd_error_norm = torch.norm(errors[f"{hand}_pd_error"], dim=1)
+        pd_error_norm = torch.linalg.norm(errors[f"{hand}_pd_error"], dim=1)
         torch.testing.assert_close(
             pd_error_norm,
             zero_tensor,
@@ -407,7 +410,7 @@ def verify_errors(errors, test_setup, tolerances):
         )
 
         # Check IK position errors
-        pos_error_norm = torch.norm(errors[f"{hand}_pos_error"], dim=1)
+        pos_error_norm = torch.linalg.norm(errors[f"{hand}_pos_error"], dim=1)
         torch.testing.assert_close(
             pos_error_norm,
             zero_tensor,

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -182,7 +182,7 @@ class Extraction(DisassemblyTask):
         init_state=ArticulationCfg.InitialStateCfg(
             # init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.6, 0.0, 0.05),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={},
             joint_vel={},
         ),
@@ -212,7 +212,7 @@ class Extraction(DisassemblyTask):
         # init_state=ArticulationCfg.InitialStateCfg(
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.0, 0.4, 0.1),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
             # joint_pos={},
             # joint_vel={}
         ),

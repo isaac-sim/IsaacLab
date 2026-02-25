@@ -1,20 +1,29 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import carb
+import logging
+
 from pink.tasks import DampingTask, FrameTask
+
+try:
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
-from isaaclab.devices import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg
-from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.manipulation.pick_place.nutpour_gr1t2_base_env_cfg import NutPourGR1T2BaseEnvCfg
+from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg import (
+    _build_gr1t2_pickplace_pipeline,
+)
 
 
 @configclass
@@ -78,7 +87,8 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 base_link_name="base_link",
                 num_hand_joints=22,
                 show_ik_warnings=False,
-                fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
+                # Determines whether Pink IK solver will fail due to a joint limit violation
+                fail_on_joint_limit_violation=False,
                 variable_input_tasks=[
                     FrameTask(
                         "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
@@ -120,7 +130,6 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                     ),
                 ],
                 fixed_input_tasks=[],
-                xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
             ),
         )
         # Convert USD to URDF and change revolute joints to fixed
@@ -132,20 +141,11 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
         self.actions.gr1_action.controller.urdf_path = temp_urdf_output_path
         self.actions.gr1_action.controller.mesh_path = temp_urdf_meshes_output_path
 
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.gr1_action.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )
+        # IsaacTeleop-based teleoperation pipeline
+        if _TELEOP_AVAILABLE:
+            pipeline = _build_gr1t2_pickplace_pipeline()
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

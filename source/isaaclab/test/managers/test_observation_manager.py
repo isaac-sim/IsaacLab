@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,11 +15,11 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import torch
 from collections import namedtuple
 from typing import TYPE_CHECKING
 
 import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import (
@@ -88,7 +88,6 @@ class non_callable_complex_function_class(ManagerTermBase):
 
 
 class MyDataClass:
-
     def __init__(self, num_envs: int, device: str):
         self.pos_w = torch.rand((num_envs, 3), device=device)
         self.lin_vel_w = torch.rand((num_envs, 3), device=device)
@@ -193,9 +192,10 @@ def test_str_with_history(setup_env):
     print()
     print(obs_man_str)
     obs_man_str_split = obs_man_str.split("|")
-    term_1_str_index = obs_man_str_split.index(" term_1           ")
+    term_1_str_index = obs_man_str_split.index(" term_1      ")
     term_1_str_shape = obs_man_str_split[term_1_str_index + 1].strip()
-    assert term_1_str_shape == "(20,)"
+    # Handle numpy 2.0 where shape may be represented as (np.int64(20),) instead of (20,)
+    assert term_1_str_shape in ("(20,)", "(np.int64(20),)")
 
 
 def test_config_equivalence(setup_env):
@@ -283,7 +283,6 @@ def test_config_terms(setup_env):
 
         @configclass
         class SampleImageGroupCfg(ObservationGroupCfg):
-
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
 
@@ -337,7 +336,6 @@ def test_compute(setup_env):
 
         @configclass
         class ImageCfg(ObservationGroupCfg):
-
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
 
@@ -675,7 +673,6 @@ def test_serialize(setup_env):
     serialize_data = {"test": 0}
 
     class test_serialize_term(ManagerTermBase):
-
         def __init__(self, cfg: RewardTermCfg, env: ManagerBasedEnv):
             super().__init__(cfg, env)
 

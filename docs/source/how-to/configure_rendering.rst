@@ -149,3 +149,43 @@ Due to this, we recommend using per-tile or per-camera resolution of at least 10
 For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
 quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+
+
+If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
+adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
+areas that become newly visible between frames:
+
+.. code-block:: python
+
+   render_cfg = sim_utils.RenderCfg(
+      carb_settings={
+         "/rtx/aovConverter/disocclusionScale": 10000,
+      }
+   )
+
+.. note::
+
+   This parameter is not commonly exposed as it may have side effects in certain scenarios.
+   Only use it as a last resort if other quality settings do not resolve the visual artifacts.
+   The value can be adjusted to a very high value to reduce disocclusion artifacts.
+
+
+Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
+------------------------------------------------------------
+
+When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
+`3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
+in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
+
+.. code-block:: python
+
+   render_cfg = sim_utils.RenderCfg(
+      carb_settings={
+         "omni.rtx.nre.compositing.rendererHints": 3,
+      }
+   )
+
+.. warning::
+
+   With multiple environments, each environment holds its own copy of the scene, increasing device memory use,
+   and environments are rendered one after another, which can substantially slow down rendering.

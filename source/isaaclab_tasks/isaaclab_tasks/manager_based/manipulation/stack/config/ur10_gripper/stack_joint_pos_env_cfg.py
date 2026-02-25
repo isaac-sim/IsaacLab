@@ -1,9 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab_physx.assets import SurfaceGripperCfg
+
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -33,6 +35,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 class EventCfgLongSuction:
     """Configuration for events."""
 
+    # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
     init_franka_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
         mode="reset",
@@ -100,7 +103,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         # Set each stacking cube deterministically
         self.scene.cube_1 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=self.cube_scale,
@@ -109,7 +112,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         )
         self.scene.cube_2 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_2",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=self.cube_scale,
@@ -118,7 +121,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         )
         self.scene.cube_3 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_3",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=self.cube_scale,
@@ -135,6 +138,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
 
 @configclass
 class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
+    """Configuration for the UR10 Long Suction Cube Stack Environment."""
 
     def __post_init__(self):
         # post init of parent
@@ -176,7 +180,6 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
 
 @configclass
 class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

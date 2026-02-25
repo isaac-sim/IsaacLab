@@ -1,21 +1,28 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import logging
+import os
 import tempfile
-import torch
 
-import carb
+import torch
 from pink.tasks import FrameTask
+
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter import UnitreeG1RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -27,11 +34,237 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from . import mdp
 
 from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
+
+
+def _build_g1_inspire_pickplace_pipeline():
+    """Build an IsaacTeleop retargeting pipeline for Unitree G1 Inspire Hand pick-place teleoperation.
+
+    Creates two Se3AbsRetargeters for left and right wrist pose tracking and
+    two DexHandRetargeters for left and right dexterous hand finger control
+    from hand tracking data. All outputs are flattened into a single action
+    tensor via TensorReorderer.
+    """
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+    from isaacteleop.retargeting_engine.retargeters import (
+        DexHandRetargeter,
+        DexHandRetargeterConfig,
+        Se3AbsRetargeter,
+        Se3RetargeterConfig,
+        TensorReorderer,
+    )
+    from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
+
+    # Create input sources (trackers are auto-discovered from pipeline)
+    hands = HandsSource(name="hands")
+
+    # External input: world-to-anchor 4x4 transform matrix provided by IsaacTeleopDevice
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
+
+    # Apply the coordinate-frame transform to hand poses so that
+    # downstream retargeters receive data in the simulation world frame.
+    transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
+
+    # -------------------------------------------------------------------------
+    # SE3 Absolute Pose Retargeters (left and right wrists)
+    # -------------------------------------------------------------------------
+    # Left wrist: 90-degree Y rotation offset
+    # From UnitreeG1Retargeter._retarget_abs: the USD control frame requires
+    # a rotation of (0, 180, 0) in euler angles relative to OpenXR frame.
+    left_se3_cfg = Se3RetargeterConfig(
+        input_device=HandsSource.LEFT,
+        zero_out_xy_rotation=False,
+        use_wrist_rotation=True,
+        use_wrist_position=True,
+        target_offset_roll=0.0,
+        target_offset_pitch=90.0,
+        target_offset_yaw=0.0,
+    )
+    left_se3 = Se3AbsRetargeter(left_se3_cfg, name="left_ee_pose")
+    connected_left_se3 = left_se3.connect(
+        {
+            HandsSource.LEFT: transformed_hands.output(HandsSource.LEFT),
+        }
+    )
+
+    # Right wrist: rotation offset for USD control frame
+    # From UnitreeG1Retargeter._retarget_abs: rotation of (180, 0, 0) in euler angles.
+    right_se3_cfg = Se3RetargeterConfig(
+        input_device=HandsSource.RIGHT,
+        zero_out_xy_rotation=False,
+        use_wrist_rotation=True,
+        use_wrist_position=True,
+        target_offset_roll=180.0,
+        target_offset_pitch=-90.0,
+        target_offset_yaw=0.0,
+    )
+    right_se3 = Se3AbsRetargeter(right_se3_cfg, name="right_ee_pose")
+    connected_right_se3 = right_se3.connect(
+        {
+            HandsSource.RIGHT: transformed_hands.output(HandsSource.RIGHT),
+        }
+    )
+
+    # -------------------------------------------------------------------------
+    # DexHand Retargeters (left and right hands)
+    # -------------------------------------------------------------------------
+    # Resolve dex-retargeting YAML config paths from the Unitree inspire retargeter data directory
+    import isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_dex_retargeting_utils as _dex_utils
+
+    _data_dir = os.path.abspath(os.path.join(os.path.dirname(_dex_utils.__file__), "data"))
+    _config_dir = os.path.join(_data_dir, "configs", "dex-retargeting")
+    left_yaml_path = os.path.join(_config_dir, "unitree_hand_left_dexpilot.yml")
+    right_yaml_path = os.path.join(_config_dir, "unitree_hand_right_dexpilot.yml")
+
+    # Resolve URDF paths (downloads from Omniverse if needed)
+    local_left_urdf = retrieve_file_path(
+        f"{ISAACLAB_NUCLEUS_DIR}/Mimic/G1_inspire_assets/retarget_inspire_white_left_hand.urdf"
+    )
+    local_right_urdf = retrieve_file_path(
+        f"{ISAACLAB_NUCLEUS_DIR}/Mimic/G1_inspire_assets/retarget_inspire_white_right_hand.urdf"
+    )
+
+    # Hand-tracking to base-link frame transform (OPERATOR2MANO matrix)
+    # From g1_dex_retargeting_utils: [[0,-1,0],[-1,0,0],[0,0,-1]]
+    operator2mano = (0, -1, 0, -1, 0, 0, 0, 0, -1)
+
+    # Joint names for each hand (12 DOF per hand)
+    left_hand_joint_names = [
+        "L_thumb_proximal_yaw_joint",
+        "L_thumb_proximal_pitch_joint",
+        "L_thumb_intermediate_joint",
+        "L_thumb_distal_joint",
+        "L_index_proximal_joint",
+        "L_index_intermediate_joint",
+        "L_middle_proximal_joint",
+        "L_middle_intermediate_joint",
+        "L_ring_proximal_joint",
+        "L_ring_intermediate_joint",
+        "L_pinky_proximal_joint",
+        "L_pinky_intermediate_joint",
+    ]
+
+    right_hand_joint_names = [
+        "R_thumb_proximal_yaw_joint",
+        "R_thumb_proximal_pitch_joint",
+        "R_thumb_intermediate_joint",
+        "R_thumb_distal_joint",
+        "R_index_proximal_joint",
+        "R_index_intermediate_joint",
+        "R_middle_proximal_joint",
+        "R_middle_intermediate_joint",
+        "R_ring_proximal_joint",
+        "R_ring_intermediate_joint",
+        "R_pinky_proximal_joint",
+        "R_pinky_intermediate_joint",
+    ]
+
+    left_dex_cfg = DexHandRetargeterConfig(
+        hand_retargeting_config=left_yaml_path,
+        hand_urdf=local_left_urdf,
+        hand_joint_names=left_hand_joint_names,
+        hand_side="left",
+        handtracking_to_baselink_frame_transform=operator2mano,
+    )
+    left_dex = DexHandRetargeter(left_dex_cfg, name="left_hand")
+    connected_left_dex = left_dex.connect(
+        {
+            HandsSource.LEFT: hands.output(HandsSource.LEFT),
+        }
+    )
+
+    right_dex_cfg = DexHandRetargeterConfig(
+        hand_retargeting_config=right_yaml_path,
+        hand_urdf=local_right_urdf,
+        hand_joint_names=right_hand_joint_names,
+        hand_side="right",
+        handtracking_to_baselink_frame_transform=operator2mano,
+    )
+    right_dex = DexHandRetargeter(right_dex_cfg, name="right_hand")
+    connected_right_dex = right_dex.connect(
+        {
+            HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+        }
+    )
+
+    # -------------------------------------------------------------------------
+    # TensorReorderer: flatten into a 38D action tensor
+    # -------------------------------------------------------------------------
+    # Se3AbsRetargeter outputs 7D arrays: [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+    left_ee_elements = ["l_pos_x", "l_pos_y", "l_pos_z", "l_quat_x", "l_quat_y", "l_quat_z", "l_quat_w"]
+    right_ee_elements = ["r_pos_x", "r_pos_y", "r_pos_z", "r_quat_x", "r_quat_y", "r_quat_z", "r_quat_w"]
+
+    # Output order must match the PinkInverseKinematicsActionCfg expected tensor layout:
+    #   [left_wrist(7), right_wrist(7), hand_joints(24)]
+    # Hand joints follow hand_joint_names order from ActionsCfg.pink_ik_cfg.
+    output_order = (
+        left_ee_elements
+        + right_ee_elements
+        + [
+            # hand_joint_names indices 0-4 (left proximal + thumb yaw)
+            "L_index_proximal_joint",
+            "L_middle_proximal_joint",
+            "L_pinky_proximal_joint",
+            "L_ring_proximal_joint",
+            "L_thumb_proximal_yaw_joint",
+            # hand_joint_names indices 5-9 (right proximal + thumb yaw)
+            "R_index_proximal_joint",
+            "R_middle_proximal_joint",
+            "R_pinky_proximal_joint",
+            "R_ring_proximal_joint",
+            "R_thumb_proximal_yaw_joint",
+            # hand_joint_names indices 10-14 (left intermediate + thumb pitch)
+            "L_index_intermediate_joint",
+            "L_middle_intermediate_joint",
+            "L_pinky_intermediate_joint",
+            "L_ring_intermediate_joint",
+            "L_thumb_proximal_pitch_joint",
+            # hand_joint_names indices 15-19 (right intermediate + thumb pitch)
+            "R_index_intermediate_joint",
+            "R_middle_intermediate_joint",
+            "R_pinky_intermediate_joint",
+            "R_ring_intermediate_joint",
+            "R_thumb_proximal_pitch_joint",
+            # hand_joint_names indices 20-23 (thumb intermediate + distal)
+            "L_thumb_intermediate_joint",
+            "R_thumb_intermediate_joint",
+            "L_thumb_distal_joint",
+            "R_thumb_distal_joint",
+        ]
+    )
+
+    reorderer = TensorReorderer(
+        input_config={
+            "left_ee_pose": left_ee_elements,
+            "right_ee_pose": right_ee_elements,
+            "left_hand_joints": left_hand_joint_names,
+            "right_hand_joints": right_hand_joint_names,
+        },
+        output_order=output_order,
+        name="action_reorderer",
+        input_types={
+            "left_ee_pose": "array",
+            "right_ee_pose": "array",
+            "left_hand_joints": "scalar",
+            "right_hand_joints": "scalar",
+        },
+    )
+    connected_reorderer = reorderer.connect(
+        {
+            "left_ee_pose": connected_left_se3.output("ee_pose"),
+            "right_ee_pose": connected_right_se3.output("ee_pose"),
+            "left_hand_joints": connected_left_dex.output("hand_joints"),
+            "right_hand_joints": connected_right_dex.output("hand_joints"),
+        }
+    )
+
+    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
+    return pipeline
 
 
 ##
@@ -39,11 +272,12 @@ from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
 ##
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
+    """Configuration for the Unitree G1 Inspire Hand Pick Place Base Scene."""
 
     # Table
     packing_table = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -52,7 +286,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.9996], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.9996], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
@@ -68,7 +302,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 1.0),
-            rot=(0.7071, 0, 0, 0.7071),
+            rot=(0.0, 0.0, 0.7071, 0.7071),
             joint_pos={
                 # right-arm
                 "right_shoulder_pitch_joint": 0.0,
@@ -208,7 +442,6 @@ class ActionsCfg:
                 ),
             ],
             fixed_input_tasks=[],
-            xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
         ),
         enable_gravity_compensation=False,
     )
@@ -304,59 +537,55 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
-    )
-
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (12), right hand joint pos (12)]
-    idle_action = torch.tensor([
-        # 14 hand joints for EEF control
-        -0.1487,
-        0.2038,
-        1.0952,
-        0.707,
-        0.0,
-        0.0,
-        0.707,
-        0.1487,
-        0.2038,
-        1.0952,
-        0.707,
-        0.0,
-        0.0,
-        0.707,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ])
+    idle_action = torch.tensor(
+        [
+            # 14 hand joints for EEF control
+            -0.1487,
+            0.2038,
+            1.0952,
+            0.0,
+            0.0,
+            0.707,
+            0.707,
+            0.1487,
+            0.2038,
+            1.0952,
+            0.0,
+            0.0,
+            0.707,
+            0.707,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+    )
 
     def __post_init__(self):
         """Post initialization."""
@@ -376,34 +605,15 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.pink_ik_cfg.controller.urdf_path = temp_urdf_output_path
         self.actions.pink_ik_cfg.controller.mesh_path = temp_urdf_meshes_output_path
 
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        UnitreeG1RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * 26,
-                            sim_device=self.sim.device,
-                            # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is consistent with robot.joint_names[-24:]
-                            # The order of the joints does matter as it will be used for converting pink_ik actions to final control actions in IsaacLab.
-                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-                "manusvive": ManusViveCfg(
-                    retargeters=[
-                        UnitreeG1RetargeterCfg(
-                            enable_visualization=True,
-                            num_open_xr_hand_joints=2 * 26,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            },
-        )
+        # IsaacTeleop-based teleoperation pipeline
+        if _TELEOP_AVAILABLE:
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            pipeline = _build_g1_inspire_pickplace_pipeline()
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

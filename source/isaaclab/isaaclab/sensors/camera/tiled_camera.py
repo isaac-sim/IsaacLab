@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,27 +7,30 @@ from __future__ import annotations
 
 import json
 import math
-import numpy as np
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+import numpy as np
+import torch
 import warp as wp
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
+
 from pxr import UsdGeom
 
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
 from .camera import Camera
 
 if TYPE_CHECKING:
+    from isaaclab.renderers import Renderer
+
     from .tiled_camera_cfg import TiledCameraCfg
 
 
 class TiledCamera(Camera):
+    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -39,9 +42,14 @@ class TiledCamera(Camera):
 
     - ``"rgb"``: A 3-channel rendered color image.
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
+    - ``"albedo"``: A 4-channel fast diffuse-albedo only path for color image.
+      Note that this path will achieve the best performance when used alone or with depth only.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: Alias for ``"distance_to_image_plane"``.
+    - ``"simple_shading_constant_diffuse"``: Simple shading (constant diffuse) RGB approximation.
+    - ``"simple_shading_diffuse_mdl"``: Simple shading (diffuse MDL) RGB approximation.
+    - ``"simple_shading_full_mdl"``: Simple shading (full MDL) RGB approximation.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -73,7 +81,7 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: TiledCameraCfg):
+    def __init__(self, cfg: TiledCameraCfg, renderer: Renderer | None = None):
         """Initializes the tiled camera sensor.
 
         Args:
@@ -81,15 +89,10 @@ class TiledCamera(Camera):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            RuntimeError: If Isaac Sim version < 4.2
             ValueError: If the provided data types are not supported by the camera.
         """
-        isaac_sim_version = float(".".join(get_version()[2:4]))
-        if isaac_sim_version < 4.2:
-            raise RuntimeError(
-                f"TiledCamera is only available from Isaac Sim 4.2.0. Current version is {isaac_sim_version}. Please"
-                " update to Isaac Sim 4.2.0"
-            )
+        self.renderer = renderer
+        self.render_data = None
         super().__init__(cfg)
 
     def __del__(self):
@@ -146,8 +149,7 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -158,8 +160,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -173,60 +174,95 @@ class TiledCamera(Camera):
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._view.prim_paths:
+        cam_prim_paths = []
+        for cam_prim in self._view.prims:
             # Get camera prim
-            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
+            cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
-            sensor_prim = UsdGeom.Camera(cam_prim)
-            self._sensor_prims.append(sensor_prim)
+            self._sensor_prims.append(UsdGeom.Camera(cam_prim))
+            cam_prim_paths.append(cam_prim_path)
 
-        # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(
-            cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
-        )
-        self._render_product_paths = [rp.path]
+        if self.renderer is not None:
+            self.render_data = self.renderer.create_render_data(self)
 
-        # Define the annotators based on requested data types
-        self._annotators = dict()
-        for annotator_type in self.cfg.data_types:
-            if annotator_type == "rgba" or annotator_type == "rgb":
-                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
-                self._annotators["rgba"] = annotator
-            elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
-                # keep depth for backwards compatibility
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "distance_to_image_plane", device=self.device, do_array_copy=False
+        else:
+            # Create replicator tiled render product
+            rp = rep.create.render_product_tiled(
+                cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
+            )
+            self._render_product_paths = [rp.path]
+
+            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
+                rep.AnnotatorRegistry.register_annotator_from_aov(
+                    aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
                 )
-                self._annotators[annotator_type] = annotator
-            # note: we are verbose here to make it easier to understand the code.
-            #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-            #   if colorize is false, the data is returned as a uint32 image with ids as values.
-            else:
-                init_params = None
-                if annotator_type == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
+                # Set simple shading mode (if requested) before rendering
+                simple_shading_mode = self._resolve_simple_shading_mode()
+                if simple_shading_mode is not None:
+                    get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+            # Define the annotators based on requested data types
+            self._annotators = dict()
+            for annotator_type in self.cfg.data_types:
+                if annotator_type == "rgba" or annotator_type == "rgb":
+                    annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
+                    self._annotators["rgba"] = annotator
+                elif annotator_type == "albedo":
+                    # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                    # once it's exposed, we can remove this
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                    )
+                    self._annotators["albedo"] = annotator
+                elif annotator_type in self.SIMPLE_SHADING_MODES:
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        self.SIMPLE_SHADING_AOV, device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
+                elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
+                    # keep depth for backwards compatibility
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        "distance_to_image_plane", device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
+                # note: we are verbose here to make it easier to understand the code.
+                #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
+                #   if colorize is false, the data is returned as a uint32 image with ids as values.
+                else:
+                    init_params = None
+                    if annotator_type == "semantic_segmentation":
+                        init_params = {
+                            "colorize": self.cfg.colorize_semantic_segmentation,
+                            "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                        }
+                    elif annotator_type == "instance_segmentation_fast":
+                        init_params = {"colorize": self.cfg.colorize_instance_segmentation}
+                    elif annotator_type == "instance_id_segmentation_fast":
+                        init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    annotator_type, init_params, device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        annotator_type, init_params, device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
 
-        # Attach the annotator to the render product
-        for annotator in self._annotators.values():
-            annotator.attach(self._render_product_paths)
+            # Attach the annotator to the render product
+            for annotator in self._annotators.values():
+                annotator.attach(self._render_product_paths)
 
         # Create internal buffers
         self._create_buffers()
+
+    def _update_poses(self, env_ids: Sequence[int]):
+        super()._update_poses(env_ids)
+        if self.renderer is not None:
+            self.renderer.update_camera(
+                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+            )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
@@ -235,6 +271,20 @@ class TiledCamera(Camera):
         # update latest camera pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+
+        if self.renderer is not None:
+            self.renderer.render(self.render_data)
+
+            for output_name, output_data in self._data.output.items():
+                if output_name == "rgb":
+                    continue
+                self.renderer.write_output(self.render_data, output_name, output_data)
+            return
+
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        self._ensure_render_update()
 
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():
@@ -266,10 +316,17 @@ class TiledCamera(Camera):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
                 )
 
-            # For motion vectors, we only require the first two channels of the tiled buffer
+            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
+
+            # For normals, we only require the first three channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
+            if data_type == "normals":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            if data_type in self.SIMPLE_SHADING_MODES:
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,
@@ -292,9 +349,9 @@ class TiledCamera(Camera):
             #       larger than the clipping range in the output. We apply an additional clipping to ensure values
             #       are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                self._data.output[data_type][
-                    self._data.output[data_type] > self.cfg.spawn.clipping_range[1]
-                ] = torch.inf
+                self._data.output[data_type][self._data.output[data_type] > self.cfg.spawn.clipping_range[1]] = (
+                    torch.inf
+                )
             # apply defined clipping behavior
             if (
                 data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"
@@ -330,13 +387,13 @@ class TiledCamera(Camera):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # create the data object
+        # -- intrinsic matrix
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._update_intrinsic_matrices(self._ALL_INDICES)
         self._data.image_shape = self.image_shape
         # -- output data
         data_dict = dict()
@@ -347,6 +404,15 @@ class TiledCamera(Camera):
         if "rgb" in self.cfg.data_types:
             # RGB is the first 3 channels of RGBA
             data_dict["rgb"] = data_dict["rgba"][..., :3]
+        if "albedo" in self.cfg.data_types:
+            data_dict["albedo"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+            ).contiguous()
+        for data_type in self.SIMPLE_SHADING_MODES:
+            if data_type in self.cfg.data_types:
+                data_dict[data_type] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
+                ).contiguous()
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
@@ -397,6 +463,8 @@ class TiledCamera(Camera):
 
         self._data.output = data_dict
         self._data.info = dict()
+        if self.renderer is not None:
+            self.renderer.set_outputs(self.render_data, self._data.output)
 
     def _tiled_image_shape(self) -> tuple[int, int]:
         """Returns a tuple containing the dimension of the tiled image."""

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -72,7 +73,7 @@ def main():
 
     # Fetch relevant parameters to make the quadcopter hover in place
     prop_body_ids = robot.find_bodies("m.*_prop")[0]
-    robot_mass = robot.root_physx_view.get_masses().sum()
+    robot_mass = robot.root_view.get_masses().sum()
     gravity = torch.tensor(sim.cfg.gravity, device=sim.device).norm()
 
     # Now we are ready!
@@ -90,10 +91,11 @@ def main():
             sim_time = 0.0
             count = 0
             # reset dof state
-            joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+            joint_pos, joint_vel = wp.to_torch(robot.data.default_joint_pos), wp.to_torch(robot.data.default_joint_vel)
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
-            robot.write_root_pose_to_sim(robot.data.default_root_state[:, :7])
-            robot.write_root_velocity_to_sim(robot.data.default_root_state[:, 7:])
+            default_root_state = wp.to_torch(robot.data.default_root_state)
+            robot.write_root_pose_to_sim(default_root_state[:, :7])
+            robot.write_root_velocity_to_sim(default_root_state[:, 7:])
             robot.reset()
             # reset command
             print(">>>>>>>> Reset!")
@@ -101,7 +103,11 @@ def main():
         forces = torch.zeros(robot.num_instances, 4, 3, device=sim.device)
         torques = torch.zeros_like(forces)
         forces[..., 2] = robot_mass * gravity / 4.0
-        robot.set_external_force_and_torque(forces, torques, body_ids=prop_body_ids)
+        robot.permanent_wrench_composer.set_forces_and_torques(
+            forces=forces,
+            torques=torques,
+            body_ids=prop_body_ids,
+        )
         robot.write_data_to_sim()
         # perform step
         sim.step()

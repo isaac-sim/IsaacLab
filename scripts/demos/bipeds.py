@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -56,11 +57,13 @@ def design_scene(sim: sim_utils.SimulationContext) -> tuple[list, torch.Tensor]:
     cfg.func("/World/Light", cfg)
 
     # Define origins
-    origins = torch.tensor([
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ]).to(device=sim.device)
+    origins = torch.tensor(
+        [
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    ).to(device=sim.device)
 
     # Robots
     cassie = Articulation(CASSIE_CFG.replace(prim_path="/World/Cassie"))
@@ -86,9 +89,12 @@ def run_simulator(sim: sim_utils.SimulationContext, robots: list[Articulation], 
             count = 0
             for index, robot in enumerate(robots):
                 # reset dof state
-                joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+                joint_pos, joint_vel = (
+                    wp.to_torch(robot.data.default_joint_pos),
+                    wp.to_torch(robot.data.default_joint_vel),
+                )
                 robot.write_joint_state_to_sim(joint_pos, joint_vel)
-                root_state = robot.data.default_root_state.clone()
+                root_state = wp.to_torch(robot.data.default_root_state).clone()
                 root_state[:, :3] += origins[index]
                 robot.write_root_pose_to_sim(root_state[:, :7])
                 robot.write_root_velocity_to_sim(root_state[:, 7:])
@@ -97,7 +103,7 @@ def run_simulator(sim: sim_utils.SimulationContext, robots: list[Articulation], 
             print(">>>>>>>> Reset!")
         # apply action to the robot
         for robot in robots:
-            robot.set_joint_position_target(robot.data.default_joint_pos.clone())
+            robot.set_joint_position_target(wp.to_torch(robot.data.default_joint_pos).clone())
             robot.write_data_to_sim()
         # perform step
         sim.step()

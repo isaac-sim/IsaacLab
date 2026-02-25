@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,11 +9,16 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
+from __future__ import annotations
+
 from dataclasses import MISSING, field
+from typing import TYPE_CHECKING
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import XrCfg
+
+if TYPE_CHECKING:
+    from isaaclab.devices.openxr import XrCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -124,13 +129,14 @@ class ManagerBasedEnvCfg:
     """
 
     num_rerenders_on_reset: int = 0
-    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.
+    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be
+    performed after reset.
 
-    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
-      latest states in simulation caused by the reset.
-    * When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
-      to reflect the latest states from the reset. This comes at a cost of performance as additional render
-      steps will be performed after each time an environment is reset.
+    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+      reset will be stale and will not reflect the latest states in simulation caused by the reset.
+    * When this is greater than 0, the specified number of extra render steps will be performed to update the
+      sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+      render steps will be performed after each time an environment is reset.
     """
 
     wait_for_textures: bool = True
@@ -141,6 +147,17 @@ class ManagerBasedEnvCfg:
 
     teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
     """Configuration for teleoperation devices."""
+
+    isaac_teleop: object | None = None
+    """Configuration for IsaacTeleop-based teleoperation.
+
+    When set, the environment uses the IsaacTeleop stack for XR teleoperation instead
+    of the native Isaac Lab teleop devices. This should be a IsaacTeleopCfg instance
+    from the isaaclab_teleop package.
+
+    The teleop scripts will automatically detect this configuration and use the
+    IsaacTeleop stack when present.
+    """
 
     export_io_descriptors: bool = False
     """Whether to export the IO descriptors for the environment. Defaults to False."""

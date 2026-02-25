@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.3.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.2.4 (2025-11-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Configuration for OpenArm robots used for manipulation tasks.
+
 0.2.3 (2025-08-11)
 ~~~~~~~~~~~~~~~~~~
 

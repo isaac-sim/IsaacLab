@@ -1,21 +1,22 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Shared test utilities for Isaac Lab environments."""
 
-import gymnasium as gym
 import inspect
 import os
+
+import gymnasium as gym
+import pytest
 import torch
 
-import carb
-import omni.usd
-import pytest
-from isaacsim.core.version import get_version
-
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.spaces import sample_space
+from isaaclab.sim import SimulationContext
+from isaaclab.utils.version import get_isaac_sim_version
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -80,8 +81,8 @@ def setup_environment(
     # sort environments alphabetically
     registered_tasks.sort()
 
-    # this flag is necessary to prevent a bug where the simulation gets stuck randomy when running many environments
-    carb.settings.get_settings().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
@@ -110,8 +111,7 @@ def _run_environments(
     """
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5 and create_stage_in_memory:
+    if get_isaac_sim_version().major < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation
@@ -126,12 +126,21 @@ def _run_environments(
     ]:
         return
 
+    # these environments are using SingleArticulation class, which need to be updated
+    if "RmpFlow" in task_name or "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor" in task_name:
+        return
+
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if "Visuomotor" in task_name and num_envs == 32:
         return
 
     # skip automate environments as they require cuda installation
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
+        return
+
+    # skip skillgen environments as they require cuRobo installation;
+    # tested separately via test_environments_skillgen.py
+    if "Skillgen" in task_name:
         return
 
     # Check if this is the teddy bear environment and if it's being called from the right test file
@@ -185,10 +194,11 @@ def _check_random_actions(
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
 
-    # reset the rtx sensors carb setting to False
-    carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    # reset the rtx sensors setting to False
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+    env = None
     try:
         # parse config
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
@@ -209,59 +219,55 @@ def _check_random_actions(
                 return
             env = gym.make(task_name, cfg=env_cfg)
 
-    except Exception as e:
-        # try to close environment on exception
-        if "env" in locals() and hasattr(env, "_is_closed"):
-            env.close()
-        else:
-            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                e.obj.close()
-        pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+        # disable control on stop
+        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-    # disable control on stop
-    env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
+        # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
+        if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
+            for i in range(env.unwrapped.single_action_space.shape[0]):
+                if env.unwrapped.single_action_space.low[i] == float("-inf"):
+                    env.unwrapped.single_action_space.low[i] = -1.0
+                if env.unwrapped.single_action_space.high[i] == float("inf"):
+                    env.unwrapped.single_action_space.low[i] = 1.0
 
-    # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
-    if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        for i in range(env.unwrapped.single_action_space.shape[0]):
-            if env.unwrapped.single_action_space.low[i] == float("-inf"):
-                env.unwrapped.single_action_space.low[i] = -1.0
-            if env.unwrapped.single_action_space.high[i] == float("inf"):
-                env.unwrapped.single_action_space.low[i] = 1.0
+        # reset environment
+        obs, _ = env.reset()
 
-    # reset environment
-    obs, _ = env.reset()
+        # check signal
+        assert _check_valid_tensor(obs)
 
-    # check signal
-    assert _check_valid_tensor(obs)
-
-    # simulate environment for num_steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            if multi_agent:
-                actions = {
-                    agent: sample_space(
-                        env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
-                    )
-                    for agent in env.unwrapped.possible_agents
-                }
-            else:
-                actions = sample_space(
-                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
-                )
-            # apply actions
-            transition = env.step(actions)
-            # check signals
-            for data in transition[:-1]:  # exclude info
+        # simulate environment for num_steps
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
                 if multi_agent:
-                    for agent, agent_data in data.items():
-                        assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    actions = {
+                        agent: sample_space(
+                            env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
+                        )
+                        for agent in env.unwrapped.possible_agents
+                    }
                 else:
-                    assert _check_valid_tensor(data), f"Invalid data: {data}"
+                    actions = sample_space(
+                        env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                    )
+                # apply actions
+                transition = env.step(actions)
+                # check signals
+                for data in transition[:-1]:  # exclude info
+                    if multi_agent:
+                        for agent, agent_data in data.items():
+                            assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    else:
+                        assert _check_valid_tensor(data), f"Invalid data: {data}"
 
-    # close environment
-    env.close()
+    finally:
+        # Always ensure cleanup happens, regardless of success or failure
+        if env is not None:
+            env.close()
+
+        # Clear the simulation context singleton (also closes the USD context stage)
+        SimulationContext.clear_instance()
 
 
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

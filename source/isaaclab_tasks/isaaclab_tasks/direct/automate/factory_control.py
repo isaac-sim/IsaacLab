@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,11 +9,10 @@ Imported by base, environment, and task classes. Not directly executed.
 """
 
 import math
+
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-
-from isaaclab.utils.math import axis_angle_from_quat
+from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul
 
 
 def compute_dof_torque(
@@ -65,8 +64,7 @@ def compute_dof_torque(
     jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
     dof_torque[:, 0:7] = (jacobian_T @ task_wrench.unsqueeze(-1)).squeeze(-1)
 
-    # adapted from https://gitlab-master.nvidia.com/carbon-gym/carbgym/-/blob/b4bbc66f4e31b1a1bee61dbaafc0766bbfbf0f58/python/examples/franka_cube_ik_osc.py#L70-78
-    # roboticsproceedings.org/rss07/p31.pdf
+    # adapted from roboticsproceedings.org/rss07/p31.pdf
 
     # useful tensors
     arm_mass_matrix_inv = torch.inverse(arm_mass_matrix)
@@ -116,15 +114,13 @@ def get_pose_error(
             quat_dot.expand(-1, 4) >= 0, ctrl_target_fingertip_midpoint_quat, -ctrl_target_fingertip_midpoint_quat
         )
 
-        fingertip_midpoint_quat_norm = torch_utils.quat_mul(
-            fingertip_midpoint_quat, torch_utils.quat_conjugate(fingertip_midpoint_quat)
-        )[
-            :, 0
-        ]  # scalar component
-        fingertip_midpoint_quat_inv = torch_utils.quat_conjugate(
-            fingertip_midpoint_quat
-        ) / fingertip_midpoint_quat_norm.unsqueeze(-1)
-        quat_error = torch_utils.quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_midpoint_quat_inv)
+        fingertip_midpoint_quat_norm = quat_mul(fingertip_midpoint_quat, quat_conjugate(fingertip_midpoint_quat))[
+            :, 3
+        ]  # W component is at index 3 in XYZW format
+        fingertip_midpoint_quat_inv = quat_conjugate(fingertip_midpoint_quat) / fingertip_midpoint_quat_norm.unsqueeze(
+            -1
+        )
+        quat_error = quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_midpoint_quat_inv)
 
         # Convert to axis-angle error
         axis_angle_error = axis_angle_from_quat(quat_error)
@@ -133,13 +129,15 @@ def get_pose_error(
         return pos_error, quat_error
     elif rot_error_type == "axis_angle":
         return pos_error, axis_angle_error
+    else:
+        raise ValueError(f"Unsupported rotation error type: {rot_error_type}. Valid: 'quat', 'axis_angle'.")
 
 
 def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
     """Get delta Franka DOF position from delta pose using specified IK method."""
     # References:
     # 1) https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf
-    # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)
+    # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)  # noqa: E501
 
     if ik_method == "pinv":  # Jacobian pseudoinverse
         k_val = 1.0
@@ -165,7 +163,7 @@ def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
         U, S, Vh = torch.linalg.svd(jacobian)
         S_inv = 1.0 / S
         min_singular_value = 1.0e-5
-        S_inv = torch.where(S > min_singular_value, S_inv, torch.zeros_like(S_inv))
+        S_inv = torch.where(min_singular_value < S, S_inv, torch.zeros_like(S_inv))
         jacobian_pinv = (
             torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6] @ torch.diag_embed(S_inv) @ torch.transpose(U, dim0=1, dim1=2)
         )

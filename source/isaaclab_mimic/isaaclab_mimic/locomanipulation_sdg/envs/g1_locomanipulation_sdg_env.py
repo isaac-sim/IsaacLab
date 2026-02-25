@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -36,13 +36,12 @@ NUM_BOXES = 12
 
 @configclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
-
     packing_table_2 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable2",
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=[-2, -3.55, -0.3],
             # rot=[0, 0, 0, 1]),
-            rot=[0.9238795, 0, 0, -0.3826834],
+            rot=[0, 0, -0.3826834, 0.9238795],
         ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
@@ -57,7 +56,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.9848078, 0.0, -0.1736482, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, -0.1736482, 0.0, 0.9848078), convention="world"),
     )
 
 
@@ -68,7 +67,7 @@ for i in range(NUM_FORKLIFTS):
         f"forklift_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Forklift{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -83,7 +82,7 @@ for i in range(NUM_BOXES):
         f"box_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Box{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -100,7 +99,6 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 
     @configclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
-
         robot_pov_cam = ObsTerm(
             func=manip_mdp.image,
             params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
@@ -134,14 +132,13 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         self.sim.render_interval = 6
 
         # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"
+        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
 
 class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
-
     def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
         super().__init__(cfg)
         self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
@@ -185,7 +182,6 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         right_hand_joint_positions_target: torch.Tensor,
         base_velocity_target: torch.Tensor,
     ):
-
         action = torch.zeros(self.action_space.shape)
 
         # Set base height
@@ -193,15 +189,15 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         action[0, lower_body_index_offset + 3 : lower_body_index_offset + 4] = torch.tensor([0.8])
 
         # Left hand pose
-        assert left_hand_pose_target.shape == (
-            self._frame_pose_dim,
-        ), f"Expected pose shape ({self._frame_pose_dim},), got {left_hand_pose_target.shape}"
+        assert left_hand_pose_target.shape == (self._frame_pose_dim,), (
+            f"Expected pose shape ({self._frame_pose_dim},), got {left_hand_pose_target.shape}"
+        )
         action[0, : self._frame_pose_dim] = left_hand_pose_target
 
         # Right hand pose
-        assert right_hand_pose_target.shape == (
-            self._frame_pose_dim,
-        ), f"Expected pose shape ({self._frame_pose_dim},), got {right_hand_pose_target.shape}"
+        assert right_hand_pose_target.shape == (self._frame_pose_dim,), (
+            f"Expected pose shape ({self._frame_pose_dim},), got {right_hand_pose_target.shape}"
+        )
         action[0, self._frame_pose_dim : 2 * self._frame_pose_dim] = right_hand_pose_target
 
         # Left hand joint positions
@@ -220,8 +216,7 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         )
         action[
             0,
-            2 * self._frame_pose_dim
-            + self._number_of_finger_joints : 2 * self._frame_pose_dim
+            2 * self._frame_pose_dim + self._number_of_finger_joints : 2 * self._frame_pose_dim
             + 2 * self._number_of_finger_joints,
         ] = right_hand_joint_positions_target
 
@@ -261,7 +256,6 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         )
 
     def get_obstacle_fixtures(self):
-
         obstacles = [
             SceneFixture(
                 self.scene,

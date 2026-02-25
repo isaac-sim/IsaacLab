@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -151,6 +151,7 @@ Env to Place Upright Mug with AgiBot Left Arm using RMPFlow
 
 
 class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2BoxEnvCfg):
+    """Configuration for the Agibot Place Upright Mug RMP Rel Environment."""
 
     def __post_init__(self):
         # post init of parent
@@ -169,7 +170,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         # Table
         self.scene.table = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.50, 0.0, 0.60], rot=[0.707, 0, 0, 0.707]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.50, 0.0, 0.60], rot=[0.0, 0.0, 0.707, 0.707]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
                 scale=(1.0, 1.0, 0.60),
@@ -195,7 +196,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
             body_name="gripper_center",
             controller=AGIBOT_LEFT_ARM_RMPFLOW_CFG,
             scale=1.0,
-            body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0], rot=[0.7071, 0.0, -0.7071, 0.0]),
+            body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, -0.7071, 0.0, 0.7071]),
             articulation_prim_expr="/World/envs/env_.*/Robot",
             use_relative_mode=self.use_relative_mode,
         )
@@ -249,10 +250,10 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.0],
                         rot=[
-                            0.7071,
                             0.0,
                             -0.7071,
                             0.0,
+                            0.7071,
                         ],
                     ),
                 ),

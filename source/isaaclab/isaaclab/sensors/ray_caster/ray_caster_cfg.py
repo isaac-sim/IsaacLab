@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration for the ray-cast sensor."""
 
+from __future__ import annotations
 
 from dataclasses import MISSING
 from typing import Literal
@@ -28,15 +29,15 @@ class RayCasterCfg(SensorBaseCfg):
 
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
     class_type: type = RayCaster
 
     mesh_prim_paths: list[str] = MISSING
     """The list of mesh primitive paths to ray cast against.
 
-    Note:
+    .. note::
         Currently, only a single static mesh is supported. We are working on supporting multiple
         static meshes and dynamic meshes.
     """
@@ -66,10 +67,10 @@ class RayCasterCfg(SensorBaseCfg):
     The options are:
 
     * ``base`` if the rays' starting positions and directions track the full root position and orientation.
-    * ``yaw`` if the rays' starting positions and directions track root position and only yaw component of orientation.
-      This is useful for ray-casting height maps.
-    * ``world`` if rays' starting positions and directions are always fixed. This is useful in combination with a mapping
-      package on the robot and querying ray-casts in a global frame.
+    * ``yaw`` if the rays' starting positions and directions track root position and only yaw component of
+      the orientation. This is useful for ray-casting height maps.
+    * ``world`` if rays' starting positions and directions are always fixed. This is useful in combination
+      with a mapping package on the robot and querying ray-casts in a global frame.
     """
 
     pattern_cfg: PatternBaseCfg = MISSING
@@ -94,6 +95,6 @@ class RayCasterCfg(SensorBaseCfg):
     visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
     """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
 
-    Note:
+    .. note::
         This attribute is only used when debug visualization is enabled.
     """

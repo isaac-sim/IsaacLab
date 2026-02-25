@@ -1,15 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
+from datetime import datetime
 
-import env_benchmark_test_utils as utils
 import pytest
+
+# Local imports should be imported last
+import env_benchmark_test_utils as utils  # isort: skip
 
 # Global variable for storing KPI data
 GLOBAL_KPI_STORE = {}
+# Global variable for storing the start timestamp
+START_TIMESTAMP = None
 
 
 def pytest_addoption(parser):
@@ -91,11 +96,17 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("workflow", workflows)
 
 
+# The pytest session start hook to capture the start timestamp
+def pytest_sessionstart(session):
+    global START_TIMESTAMP
+    START_TIMESTAMP = datetime.now().isoformat()
+
+
 # The pytest session finish hook
 def pytest_sessionfinish(session, exitstatus):
     # Access global variable instead of fixture
     tag = session.config.getoption("--tag")
-    utils.process_kpi_data(GLOBAL_KPI_STORE, tag=tag)
+    utils.process_kpi_data(GLOBAL_KPI_STORE, tag=tag, timestamp=START_TIMESTAMP)
     print(json.dumps(GLOBAL_KPI_STORE, indent=2))
     save_kpi_payload = session.config.getoption("--save_kpi_payload")
     if save_kpi_payload:
