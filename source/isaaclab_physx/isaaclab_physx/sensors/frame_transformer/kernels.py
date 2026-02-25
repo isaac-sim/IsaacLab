@@ -12,6 +12,7 @@ import warp as wp
 
 @wp.kernel
 def frame_transformer_update_kernel(
+    env_mask: wp.array(dtype=wp.bool),
     raw_transforms: wp.array(dtype=wp.transformf),
     source_raw_indices: wp.array(dtype=wp.int32),
     target_raw_indices: wp.array2d(dtype=wp.int32),
@@ -50,6 +51,9 @@ def frame_transformer_update_kernel(
         target_quat_source: Output target quaternions relative to source frame. Shape is (N, M, 4).
     """
     env_id, frame_id = wp.tid()
+
+    if not env_mask[env_id]:
+        return
 
     # Get source frame transform
     source_idx = source_raw_indices[env_id]

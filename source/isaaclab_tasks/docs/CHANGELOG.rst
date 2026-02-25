@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.1.1 (2026-02-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update stack and pick place environments to use warp data and fix quaternion ordering.
+
+
 1.1.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 

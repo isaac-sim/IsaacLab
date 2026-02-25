@@ -41,7 +41,7 @@ class Imu(BaseImu):
     .. note::
 
         We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        IMU sensor accuracy depends on the chosen phsyx timestep. For a sufficient accuracy, we recommend to keep the
+        IMU sensor accuracy depends on the chosen physx timestep. For a sufficient accuracy, we recommend to keep the
         timestep at least as 200Hz.
 
     .. note::
@@ -104,20 +104,17 @@ class Imu(BaseImu):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        # resolve indices and mask
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timestamps
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None:
-            env_ids_wp = self._ALL_ENV_INDICES
-        else:
-            env_ids_wp = wp.from_torch(torch.tensor(env_ids, dtype=torch.int32, device=self._device), dtype=wp.int32)
+        super().reset(None, env_mask)
 
         wp.launch(
             imu_reset_kernel,
-            dim=env_ids_wp.shape[0],
+            dim=self._num_envs,
             inputs=[
-                env_ids_wp,
+                env_mask,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
@@ -204,13 +201,9 @@ class Imu(BaseImu):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
-        # default to all sensors
-        if len(env_ids) == self._num_envs:
-            env_ids_wp = self._ALL_ENV_INDICES
-        else:
-            env_ids_wp = wp.from_torch(torch.tensor(env_ids, dtype=torch.int32, device=self._device), dtype=wp.int32)
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
 
         # Fetch view data as warp typed arrays
         transforms = self._view.get_transforms().view(wp.transformf)
@@ -220,9 +213,9 @@ class Imu(BaseImu):
 
         wp.launch(
             imu_update_kernel,
-            dim=env_ids_wp.shape[0],
+            dim=self._num_envs,
             inputs=[
-                env_ids_wp,
+                env_mask,
                 transforms,
                 velocities,
                 self._coms_buffer,
@@ -263,11 +256,6 @@ class Imu(BaseImu):
         # Set gravity bias
         gravity_bias_torch = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(self._view.count, 1)
         self._gravity_bias_w = wp.from_torch(gravity_bias_torch.contiguous(), dtype=wp.vec3f)
-
-        # Pre-allocate all-env indices for fast path
-        self._ALL_ENV_INDICES = wp.from_torch(
-            torch.arange(self._view.count, dtype=torch.int32, device=self._device), dtype=wp.int32
-        )
 
         # Pre-allocate GPU buffer for COMs (get_coms() returns CPU array)
         self._coms_buffer = wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)

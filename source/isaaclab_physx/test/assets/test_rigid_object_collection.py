@@ -123,11 +123,11 @@ def test_initialization(sim, num_envs, num_cubes, device):
 
     # Check if object is initialized
     assert object_collection.is_initialized
-    assert len(object_collection.object_names) == num_cubes
+    assert len(object_collection.body_names) == num_cubes
 
     # Check buffers that exist and have correct shapes
-    assert wp.to_torch(object_collection.data.object_link_pos_w).shape == (num_envs, num_cubes, 3)
-    assert wp.to_torch(object_collection.data.object_link_quat_w).shape == (num_envs, num_cubes, 4)
+    assert wp.to_torch(object_collection.data.body_link_pos_w).shape == (num_envs, num_cubes, 3)
+    assert wp.to_torch(object_collection.data.body_link_quat_w).shape == (num_envs, num_cubes, 4)
     assert wp.to_torch(object_collection.data.body_mass).shape == (num_envs, num_cubes, 1)
     assert wp.to_torch(object_collection.data.body_inertia).shape == (num_envs, num_cubes, 9)
 
@@ -190,20 +190,22 @@ def test_initialization_with_kinematic_enabled(sim, num_envs, num_cubes, device)
 
     # Check if object is initialized
     assert object_collection.is_initialized
-    assert len(object_collection.object_names) == num_cubes
+    assert len(object_collection.body_names) == num_cubes
 
     # Check buffers that exist and have correct shapes
-    assert wp.to_torch(object_collection.data.object_link_pos_w).shape == (num_envs, num_cubes, 3)
-    assert wp.to_torch(object_collection.data.object_link_quat_w).shape == (num_envs, num_cubes, 4)
+    assert wp.to_torch(object_collection.data.body_link_pos_w).shape == (num_envs, num_cubes, 3)
+    assert wp.to_torch(object_collection.data.body_link_quat_w).shape == (num_envs, num_cubes, 4)
 
     # Simulate physics
     for _ in range(2):
         sim.step()
         object_collection.update(sim.cfg.dt)
         # check that the object is kinematic
-        default_object_state = wp.to_torch(object_collection.data.default_object_state).clone()
-        default_object_state[..., :3] += origins.unsqueeze(1)
-        torch.testing.assert_close(wp.to_torch(object_collection.data.object_link_state_w), default_object_state)
+        default_body_pose = wp.to_torch(object_collection.data.default_body_pose).clone()
+        default_body_vel = wp.to_torch(object_collection.data.default_body_vel).clone()
+        default_body_pose[..., :3] += origins.unsqueeze(1)
+        torch.testing.assert_close(wp.to_torch(object_collection.data.body_link_pose_w), default_body_pose)
+        torch.testing.assert_close(wp.to_torch(object_collection.data.body_link_vel_w), default_body_vel)
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -229,7 +231,7 @@ def test_external_force_buffer(sim, device):
     sim.reset()
 
     # find objects to apply the force
-    object_ids, object_names = object_collection.find_objects(".*")
+    object_ids, object_names = object_collection.find_bodies(".*")
     # reset object
     object_collection.reset()
 
@@ -248,7 +250,7 @@ def test_external_force_buffer(sim, device):
         external_wrench_b[:, :, 0] = force
         external_wrench_b[:, :, 3] = force
 
-        object_collection.permanent_wrench_composer.set_forces_and_torques(
+        object_collection.permanent_wrench_composer.set_forces_and_torques_index(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             body_ids=object_ids,
@@ -260,7 +262,7 @@ def test_external_force_buffer(sim, device):
             assert wp.to_torch(object_collection._permanent_wrench_composer.composed_force)[i, 0, 0].item() == force
             assert wp.to_torch(object_collection._permanent_wrench_composer.composed_torque)[i, 0, 0].item() == force
 
-        object_collection.instantaneous_wrench_composer.add_forces_and_torques(
+        object_collection.instantaneous_wrench_composer.add_forces_and_torques_index(
             body_ids=object_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
@@ -281,7 +283,7 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
     sim.reset()
 
     # find objects to apply the force
-    object_ids, object_names = object_collection.find_objects(".*")
+    object_ids, object_names = object_collection.find_bodies(".*")
 
     # Sample a force equal to the weight of the object
     external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
@@ -290,22 +292,24 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
 
     for i in range(5):
         # reset object state
-        object_state = wp.to_torch(object_collection.data.default_object_state).clone()
+        body_pose = wp.to_torch(object_collection.data.default_body_pose).clone()
+        body_vel = wp.to_torch(object_collection.data.default_body_vel).clone()
         # need to shift the position of the cubes otherwise they will be on top of each other
-        object_state[..., :2] += origins.unsqueeze(1)[..., :2]
-        object_collection.write_object_state_to_sim(object_state)
+        body_pose[..., :2] += origins.unsqueeze(1)[..., :2]
+        object_collection.write_body_link_pose_to_sim_index(body_poses=body_pose)
+        object_collection.write_body_com_velocity_to_sim_index(body_velocities=body_vel)
         # reset object
         object_collection.reset()
 
         is_global = False
         if i % 2 == 0:
-            positions = wp.to_torch(object_collection.data.object_link_pos_w)[:, object_ids, :3]
+            positions = wp.to_torch(object_collection.data.body_link_pos_w)[:, object_ids, :3]
             is_global = True
         else:
             positions = None
 
         # apply force
-        object_collection.permanent_wrench_composer.set_forces_and_torques(
+        object_collection.permanent_wrench_composer.set_forces_and_torques_index(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=positions,
@@ -323,11 +327,11 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
 
         # First object should still be at the same Z position (1.0)
         torch.testing.assert_close(
-            wp.to_torch(object_collection.data.object_link_pos_w)[:, 0::2, 2],
-            torch.ones_like(wp.to_torch(object_collection.data.object_pos_w)[:, 0::2, 2]),
+            wp.to_torch(object_collection.data.body_link_pos_w)[:, 0::2, 2],
+            torch.ones_like(wp.to_torch(object_collection.data.body_link_pos_w)[:, 0::2, 2]),
         )
         # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-        assert torch.all(wp.to_torch(object_collection.data.object_link_pos_w)[:, 1::2, 2] < 1.0)
+        assert torch.all(wp.to_torch(object_collection.data.body_link_pos_w)[:, 1::2, 2] < 1.0)
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
@@ -344,7 +348,7 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
     sim.reset()
 
     # find objects to apply the force
-    object_ids, object_names = object_collection.find_objects(".*")
+    object_ids, object_names = object_collection.find_bodies(".*")
 
     # Sample a force equal to the weight of the object
     external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
@@ -356,16 +360,18 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
     # Desired force and torque
     for i in range(5):
         # reset object state
-        object_state = wp.to_torch(object_collection.data.default_object_state).clone()
+        body_pose = wp.to_torch(object_collection.data.default_body_pose).clone()
+        body_vel = wp.to_torch(object_collection.data.default_body_vel).clone()
         # need to shift the position of the cubes otherwise they will be on top of each other
-        object_state[..., :2] += origins.unsqueeze(1)[..., :2]
-        object_collection.write_object_state_to_sim(object_state)
+        body_pose[..., :2] += origins.unsqueeze(1)[..., :2]
+        object_collection.write_body_link_pose_to_sim_index(body_poses=body_pose)
+        object_collection.write_body_com_velocity_to_sim_index(body_velocities=body_vel)
         # reset object
         object_collection.reset()
 
         is_global = False
         if i % 2 == 0:
-            body_com_pos_w = wp.to_torch(object_collection.data.object_link_pos_w)[:, object_ids, :3]
+            body_com_pos_w = wp.to_torch(object_collection.data.body_link_pos_w)[:, object_ids, :3]
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
             external_wrench_positions_b[..., 2] = 0.0
@@ -377,7 +383,7 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
             external_wrench_positions_b[..., 2] = 0.0
 
         # apply force
-        object_collection.permanent_wrench_composer.set_forces_and_torques(
+        object_collection.permanent_wrench_composer.set_forces_and_torques_index(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
@@ -385,7 +391,7 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
             env_ids=None,
             is_global=is_global,
         )
-        object_collection.permanent_wrench_composer.add_forces_and_torques(
+        object_collection.permanent_wrench_composer.add_forces_and_torques_index(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
@@ -402,9 +408,9 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
             object_collection.update(sim.cfg.dt)
 
         # First object should be rotating around it's X axis
-        assert torch.all(wp.to_torch(object_collection.data.object_ang_vel_b)[:, 0::2, 0] > 0.1)
+        assert torch.all(wp.to_torch(object_collection.data.body_com_ang_vel_b)[:, 0::2, 0] > 0.1)
         # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-        assert torch.all(wp.to_torch(object_collection.data.object_link_pos_w)[:, 1::2, 2] < 1.0)
+        assert torch.all(wp.to_torch(object_collection.data.body_link_pos_w)[:, 1::2, 2] < 1.0)
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])
@@ -421,20 +427,20 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
     object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
 
-    state_types = ["object_pos_w", "object_quat_w", "object_lin_vel_w", "object_ang_vel_w"]
+    state_types = ["body_link_pos_w", "body_link_quat_w", "body_com_lin_vel_w", "body_com_ang_vel_w"]
 
     # Set each state type individually as they are dependent on each other
     for state_type_to_randomize in state_types:
         state_dict = {
-            "object_pos_w": torch.zeros_like(wp.to_torch(object_collection.data.object_pos_w), device=sim.device),
-            "object_quat_w": default_orientation(num=num_cubes * num_envs, device=sim.device).view(
+            "body_link_pos_w": torch.zeros_like(wp.to_torch(object_collection.data.body_link_pos_w), device=sim.device),
+            "body_link_quat_w": default_orientation(num=num_cubes * num_envs, device=sim.device).view(
                 num_envs, num_cubes, 4
             ),
-            "object_lin_vel_w": torch.zeros_like(
-                wp.to_torch(object_collection.data.object_lin_vel_w), device=sim.device
+            "body_com_lin_vel_w": torch.zeros_like(
+                wp.to_torch(object_collection.data.body_com_lin_vel_w), device=sim.device
             ),
-            "object_ang_vel_w": torch.zeros_like(
-                wp.to_torch(object_collection.data.object_ang_vel_w), device=sim.device
+            "body_com_ang_vel_w": torch.zeros_like(
+                wp.to_torch(object_collection.data.body_com_ang_vel_w), device=sim.device
             ),
         }
 
@@ -443,29 +449,29 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
             object_collection.reset()
 
             # Set random state
-            if state_type_to_randomize == "object_quat_w":
+            if state_type_to_randomize == "body_link_quat_w":
                 state_dict[state_type_to_randomize] = random_orientation(
                     num=num_cubes * num_envs, device=sim.device
                 ).view(num_envs, num_cubes, 4)
             else:
                 state_dict[state_type_to_randomize] = torch.randn(num_envs, num_cubes, 3, device=sim.device)
                 # make sure objects do not overlap
-                if state_type_to_randomize == "object_pos_w":
+                if state_type_to_randomize == "body_link_pos_w":
                     state_dict[state_type_to_randomize][..., :2] += origins.unsqueeze(1)[..., :2]
 
             # perform simulation
             for _ in range(5):
-                object_state = torch.cat(
-                    [
-                        state_dict["object_pos_w"],
-                        state_dict["object_quat_w"],
-                        state_dict["object_lin_vel_w"],
-                        state_dict["object_ang_vel_w"],
-                    ],
+                body_pose = torch.cat(
+                    [state_dict["body_link_pos_w"], state_dict["body_link_quat_w"]],
+                    dim=-1,
+                )
+                body_vel = torch.cat(
+                    [state_dict["body_com_lin_vel_w"], state_dict["body_com_ang_vel_w"]],
                     dim=-1,
                 )
                 # reset object state
-                object_collection.write_object_state_to_sim(object_state=object_state)
+                object_collection.write_body_link_pose_to_sim_index(body_poses=body_pose)
+                object_collection.write_body_com_velocity_to_sim_index(body_velocities=body_vel)
                 sim.step()
 
                 # assert that set object quantities are equal to the ones set in the state_dict
@@ -515,60 +521,61 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
     spin_twist[5] = torch.randn(1, device=device)
 
     # initial spawn point
-    init_com = wp.to_torch(cube_object.data.object_com_state_w)[..., :3]
+    init_com = wp.to_torch(cube_object.data.body_com_pose_w)[..., :3]
 
     for i in range(10):
         # spin the object around Z axis (com)
-        cube_object.write_object_velocity_to_sim(spin_twist.repeat(num_envs, num_cubes, 1))
+        cube_object.write_body_com_velocity_to_sim_index(body_velocities=spin_twist.repeat(num_envs, num_cubes, 1))
         sim.step()
         cube_object.update(sim.cfg.dt)
 
         # get state properties
-        object_state_w = wp.to_torch(cube_object.data.object_state_w)
-        object_link_state_w = wp.to_torch(cube_object.data.object_link_state_w)
-        object_com_state_w = wp.to_torch(cube_object.data.object_com_state_w)
+        object_link_pose_w = wp.to_torch(cube_object.data.body_link_pose_w)
+        object_link_vel_w = wp.to_torch(cube_object.data.body_link_vel_w)
+        object_com_pose_w = wp.to_torch(cube_object.data.body_com_pose_w)
+        object_com_vel_w = wp.to_torch(cube_object.data.body_com_vel_w)
 
         # if offset is [0,0,0] all object_state_%_w will match and all body_%_w will match
         if not with_offset:
-            torch.testing.assert_close(object_state_w, object_com_state_w)
-            torch.testing.assert_close(object_state_w, object_link_state_w)
+            torch.testing.assert_close(object_link_pose_w, object_com_pose_w)
+            torch.testing.assert_close(object_com_vel_w, object_link_vel_w)
         else:
             # cubes are spinning around center of mass
             # position will not match
             # center of mass position will be constant (i.e. spinning around com)
-            torch.testing.assert_close(init_com, object_com_state_w[..., :3])
+            torch.testing.assert_close(init_com, object_com_pose_w[..., :3])
 
             # link position will be moving but should stay constant away from center of mass
             object_link_state_pos_rel_com = quat_apply_inverse(
-                object_link_state_w[..., 3:7],
-                object_link_state_w[..., :3] - object_com_state_w[..., :3],
+                object_link_pose_w[..., 3:],
+                object_link_pose_w[..., :3] - object_com_pose_w[..., :3],
             )
 
             torch.testing.assert_close(-offset, object_link_state_pos_rel_com)
 
             # orientation of com will be a constant rotation from link orientation
-            com_quat_b = wp.to_torch(cube_object.data.object_com_quat_b)
-            com_quat_w = quat_mul(object_link_state_w[..., 3:7], com_quat_b)
-            torch.testing.assert_close(com_quat_w, object_com_state_w[..., 3:7])
+            com_quat_b = wp.to_torch(cube_object.data.body_com_quat_b)
+            com_quat_w = quat_mul(object_link_pose_w[..., 3:], com_quat_b)
+            torch.testing.assert_close(com_quat_w, object_com_pose_w[..., 3:])
 
             # orientation of link will match object state will always match
-            torch.testing.assert_close(object_state_w[..., 3:7], object_link_state_w[..., 3:7])
+            torch.testing.assert_close(object_link_pose_w[..., 3:], object_link_pose_w[..., 3:])
 
             # lin_vel will not match
             # center of mass vel will be constant (i.e. spinning around com)
             torch.testing.assert_close(
-                torch.zeros_like(object_com_state_w[..., 7:10]),
-                object_com_state_w[..., 7:10],
+                torch.zeros_like(object_com_vel_w[..., :3]),
+                object_com_vel_w[..., :3],
             )
 
             # link frame will be moving, and should be equal to input angular velocity cross offset
-            lin_vel_rel_object_gt = quat_apply_inverse(object_link_state_w[..., 3:7], object_link_state_w[..., 7:10])
+            lin_vel_rel_object_gt = quat_apply_inverse(object_link_pose_w[..., 3:], object_link_vel_w[..., :3])
             lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_envs, num_cubes, 1)[..., 3:], -offset)
             torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3)
 
             # ang_vel will always match
-            torch.testing.assert_close(object_state_w[..., 10:], object_com_state_w[..., 10:])
-            torch.testing.assert_close(object_state_w[..., 10:], object_link_state_w[..., 10:])
+            torch.testing.assert_close(object_com_vel_w[..., 3:], object_com_vel_w[..., 3:])
+            torch.testing.assert_close(object_com_vel_w[..., 3:], object_link_vel_w[..., 3:])
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])
@@ -608,9 +615,9 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
         wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com
     )
 
-    rand_state = torch.zeros_like(wp.to_torch(cube_object.data.object_link_state_w))
-    rand_state[..., :7] = wp.to_torch(cube_object.data.default_object_state)[..., :7]
-    rand_state[..., :3] += wp.to_torch(cube_object.data.object_link_pos_w)
+    rand_state = torch.zeros(num_envs, num_cubes, 13, device=device)
+    rand_state[..., :7] = wp.to_torch(cube_object.data.default_body_pose)
+    rand_state[..., :3] += wp.to_torch(cube_object.data.body_link_pos_w)
     # make quaternion a unit vector
     rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
 
@@ -622,19 +629,33 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
 
         if state_location == "com":
             if i % 2 == 0:
-                cube_object.write_object_com_state_to_sim(rand_state)
+                cube_object.write_body_com_pose_to_sim_index(body_poses=rand_state[..., :7])
+                cube_object.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:])
             else:
-                cube_object.write_object_com_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+                cube_object.write_body_com_pose_to_sim_index(
+                    body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+                )
+                cube_object.write_body_com_velocity_to_sim_index(
+                    body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+                )
         elif state_location == "link":
             if i % 2 == 0:
-                cube_object.write_object_link_state_to_sim(rand_state)
+                cube_object.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7])
+                cube_object.write_body_link_velocity_to_sim_index(body_velocities=rand_state[..., 7:])
             else:
-                cube_object.write_object_link_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+                cube_object.write_body_link_pose_to_sim_index(
+                    body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+                )
+                cube_object.write_body_link_velocity_to_sim_index(
+                    body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+                )
 
         if state_location == "com":
-            torch.testing.assert_close(rand_state, wp.to_torch(cube_object.data.object_com_state_w))
+            torch.testing.assert_close(rand_state[..., :7], wp.to_torch(cube_object.data.body_com_pose_w))
+            torch.testing.assert_close(rand_state[..., 7:], wp.to_torch(cube_object.data.body_com_vel_w))
         elif state_location == "link":
-            torch.testing.assert_close(rand_state, wp.to_torch(cube_object.data.object_link_state_w))
+            torch.testing.assert_close(rand_state[..., :7], wp.to_torch(cube_object.data.body_link_pose_w))
+            torch.testing.assert_close(rand_state[..., 7:], wp.to_torch(cube_object.data.body_link_vel_w))
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])
@@ -650,11 +671,13 @@ def test_reset_object_collection(sim, num_envs, num_cubes, device):
         object_collection.update(sim.cfg.dt)
 
         # Move the object to a random position
-        object_state = wp.to_torch(object_collection.data.default_object_state).clone()
-        object_state[..., :3] = torch.randn(num_envs, num_cubes, 3, device=sim.device)
+        body_pose = wp.to_torch(object_collection.data.default_body_pose).clone()
+        body_pose[..., :3] = torch.randn(num_envs, num_cubes, 3, device=sim.device)
         # Random orientation
-        object_state[..., 3:7] = random_orientation(num=num_cubes, device=sim.device)
-        object_collection.write_object_state_to_sim(object_state)
+        body_pose[..., 3:7] = random_orientation(num=num_cubes, device=sim.device)
+        object_collection.write_body_link_pose_to_sim_index(body_poses=body_pose)
+        body_vel = wp.to_torch(object_collection.data.default_body_vel).clone()
+        object_collection.write_body_com_velocity_to_sim_index(body_velocities=body_vel)
 
         if i % 2 == 0:
             object_collection.reset()
@@ -737,7 +760,7 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
             gravity[..., 2] = -9.81
 
         # Check the body accelerations are correct
-        torch.testing.assert_close(wp.to_torch(object_collection.data.object_acc_w), gravity)
+        torch.testing.assert_close(wp.to_torch(object_collection.data.body_com_acc_w), gravity)
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])
@@ -780,8 +803,8 @@ def test_write_object_state_functions_data_consistency(
         wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com
     )
 
-    rand_state = torch.rand_like(wp.to_torch(cube_object.data.object_link_state_w))
-    rand_state[..., :3] += wp.to_torch(cube_object.data.object_link_pos_w)
+    rand_state = torch.rand(num_envs, num_cubes, 13, device=device)
+    rand_state[..., :3] += wp.to_torch(cube_object.data.body_link_pos_w)
     # make quaternion a unit vector
     rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
 
@@ -790,91 +813,95 @@ def test_write_object_state_functions_data_consistency(
     sim.step()
     cube_object.update(sim.cfg.dt)
 
+    body_link_pose_w = wp.to_torch(cube_object.data.body_link_pose_w)
+    body_com_pose_w = wp.to_torch(cube_object.data.body_com_pose_w)
     object_link_to_com_pos, object_link_to_com_quat = subtract_frame_transforms(
-        wp.to_torch(cube_object.data.object_link_state_w)[..., :3].view(-1, 3),
-        wp.to_torch(cube_object.data.object_link_state_w)[..., 3:7].view(-1, 4),
-        wp.to_torch(cube_object.data.object_com_state_w)[..., :3].view(-1, 3),
-        wp.to_torch(cube_object.data.object_com_state_w)[..., 3:7].view(-1, 4),
+        body_link_pose_w[..., :3].view(-1, 3),
+        body_link_pose_w[..., 3:7].view(-1, 4),
+        body_com_pose_w[..., :3].view(-1, 3),
+        body_com_pose_w[..., 3:7].view(-1, 4),
     )
 
     if state_location == "com":
-        cube_object.write_object_com_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+        cube_object.write_body_com_pose_to_sim_index(
+            body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+        )
+        cube_object.write_body_com_velocity_to_sim_index(
+            body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+        )
     elif state_location == "link":
-        cube_object.write_object_link_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+        cube_object.write_body_link_pose_to_sim_index(
+            body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+        )
+        cube_object.write_body_link_velocity_to_sim_index(
+            body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+        )
     elif state_location == "root":
-        cube_object.write_object_state_to_sim(rand_state, env_ids=env_ids, object_ids=object_ids)
+        cube_object.write_body_link_pose_to_sim_index(
+            body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+        )
+        cube_object.write_body_com_velocity_to_sim_index(
+            body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+        )
 
     if state_location == "com":
+        com_pose_w = wp.to_torch(cube_object.data.body_com_pose_w)
+        com_vel_w = wp.to_torch(cube_object.data.body_com_vel_w)
         expected_root_link_pos, expected_root_link_quat = combine_frame_transforms(
-            wp.to_torch(cube_object.data.object_com_state_w)[..., :3].view(-1, 3),
-            wp.to_torch(cube_object.data.object_com_state_w)[..., 3:7].view(-1, 4),
+            com_pose_w[..., :3].view(-1, 3),
+            com_pose_w[..., 3:].view(-1, 4),
             quat_rotate(quat_inv(object_link_to_com_quat), -object_link_to_com_pos),
             quat_inv(object_link_to_com_quat),
         )
-        # torch.testing.assert_close(rand_state, wp.to_torch(cube_object.data.object_com_state_w))
         expected_object_link_pose = torch.cat((expected_root_link_pos, expected_root_link_quat), dim=1).view(
             num_envs, -1, 7
         )
-        # test both root_pose and root_link_state_w successfully updated when root_com_state_w updates
-        torch.testing.assert_close(
-            expected_object_link_pose, wp.to_torch(cube_object.data.object_link_state_w)[..., :7]
-        )
-        # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+        link_pose_w = wp.to_torch(cube_object.data.body_link_pose_w)
+        link_vel_w = wp.to_torch(cube_object.data.body_link_vel_w)
+        # test both root_pose and root_link successfully updated when root_com updates
+        torch.testing.assert_close(expected_object_link_pose, link_pose_w)
+        # skip lin_vel because it differs from link frame, this should be fine because we are only checking
         # if velocity update is triggered, which can be determined by comparing angular velocity
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_com_state_w)[..., 10:],
-            wp.to_torch(cube_object.data.object_link_state_w)[..., 10:],
-        )
-        torch.testing.assert_close(expected_object_link_pose, wp.to_torch(cube_object.data.object_state_w)[..., :7])
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_com_state_w)[..., 10:],
-            wp.to_torch(cube_object.data.object_state_w)[..., 10:],
-        )
+        torch.testing.assert_close(com_vel_w[..., 3:], link_vel_w[..., 3:])
+        torch.testing.assert_close(expected_object_link_pose, link_pose_w)
+        torch.testing.assert_close(com_vel_w[..., 3:], wp.to_torch(cube_object.data.body_com_vel_w)[..., 3:])
     elif state_location == "link":
+        link_pose_w = wp.to_torch(cube_object.data.body_link_pose_w)
+        link_vel_w = wp.to_torch(cube_object.data.body_link_vel_w)
         expected_com_pos, expected_com_quat = combine_frame_transforms(
-            wp.to_torch(cube_object.data.object_link_state_w)[..., :3].view(-1, 3),
-            wp.to_torch(cube_object.data.object_link_state_w)[..., 3:7].view(-1, 4),
+            link_pose_w[..., :3].view(-1, 3),
+            link_pose_w[..., 3:].view(-1, 4),
             object_link_to_com_pos,
             object_link_to_com_quat,
         )
         expected_object_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1).view(num_envs, -1, 7)
-        # test both root_pose and root_com_state_w successfully updated when root_link_state_w updates
-        torch.testing.assert_close(expected_object_com_pose, wp.to_torch(cube_object.data.object_com_state_w)[..., :7])
-        # skip 7:10 because they differs from link frame, this should be fine because we are only checking
+        com_pose_w = wp.to_torch(cube_object.data.body_com_pose_w)
+        com_vel_w = wp.to_torch(cube_object.data.body_com_vel_w)
+        # test both root_pose and root_com successfully updated when root_link updates
+        torch.testing.assert_close(expected_object_com_pose, com_pose_w)
+        # skip lin_vel because it differs from link frame, this should be fine because we are only checking
         # if velocity update is triggered, which can be determined by comparing angular velocity
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_link_state_w)[..., 10:],
-            wp.to_torch(cube_object.data.object_com_state_w)[..., 10:],
-        )
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_link_state_w)[..., :7],
-            wp.to_torch(cube_object.data.object_state_w)[..., :7],
-        )
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_link_state_w)[..., 10:],
-            wp.to_torch(cube_object.data.object_state_w)[..., 10:],
-        )
+        torch.testing.assert_close(link_vel_w[..., 3:], com_vel_w[..., 3:])
+        torch.testing.assert_close(link_pose_w, wp.to_torch(cube_object.data.body_link_pose_w))
+        torch.testing.assert_close(link_vel_w[..., 3:], wp.to_torch(cube_object.data.body_com_vel_w)[..., 3:])
     elif state_location == "root":
+        body_link_pose_w = wp.to_torch(cube_object.data.body_link_pose_w)
+        body_com_vel_w = wp.to_torch(cube_object.data.body_com_vel_w)
         expected_object_com_pos, expected_object_com_quat = combine_frame_transforms(
-            wp.to_torch(cube_object.data.object_state_w)[..., :3].view(-1, 3),
-            wp.to_torch(cube_object.data.object_state_w)[..., 3:7].view(-1, 4),
+            body_link_pose_w[..., :3].view(-1, 3),
+            body_link_pose_w[..., 3:].view(-1, 4),
             object_link_to_com_pos,
             object_link_to_com_quat,
         )
         expected_object_com_pose = torch.cat((expected_object_com_pos, expected_object_com_quat), dim=1).view(
             num_envs, -1, 7
         )
-        # test both root_com_state_w and root_link_state_w successfully updated when root_pose updates
-        torch.testing.assert_close(expected_object_com_pose, wp.to_torch(cube_object.data.object_com_state_w)[..., :7])
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_state_w)[..., 7:],
-            wp.to_torch(cube_object.data.object_com_state_w)[..., 7:],
-        )
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_state_w)[..., :7],
-            wp.to_torch(cube_object.data.object_link_state_w)[..., :7],
-        )
-        torch.testing.assert_close(
-            wp.to_torch(cube_object.data.object_state_w)[..., 10:],
-            wp.to_torch(cube_object.data.object_link_state_w)[..., 10:],
-        )
+        com_pose_w = wp.to_torch(cube_object.data.body_com_pose_w)
+        com_vel_w = wp.to_torch(cube_object.data.body_com_vel_w)
+        link_pose_w = wp.to_torch(cube_object.data.body_link_pose_w)
+        link_vel_w = wp.to_torch(cube_object.data.body_link_vel_w)
+        # test both root_com and root_link successfully updated when root_pose updates
+        torch.testing.assert_close(expected_object_com_pose, com_pose_w)
+        torch.testing.assert_close(body_com_vel_w, com_vel_w)
+        torch.testing.assert_close(body_link_pose_w, link_pose_w)
+        torch.testing.assert_close(body_com_vel_w[..., 3:], link_vel_w[..., 3:])

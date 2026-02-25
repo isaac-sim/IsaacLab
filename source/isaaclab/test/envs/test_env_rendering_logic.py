@@ -179,6 +179,9 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         #   Without it, the test will exit after the environment is closed
         env.sim._app_control_on_stop_handle = None  # type: ignore
 
+        # Reset to initialize visualizers (they're created lazily in reset())
+        env.reset()
+
         # Ensure the default Kit visualizer is active for rendering callbacks.
         assert isinstance(env.sim.visualizers[0], KitVisualizer)
 

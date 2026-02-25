@@ -12,6 +12,8 @@ import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
 
+from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_kernel
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,52 +22,65 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def pose_w(self) -> wp.array | None:
-        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
-        logger.warning(
-            "The `pose_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
-            "sensor poses in world frame."
-        )
-        # Cannot simply cat vec3f + quatf in warp; return None to signal deprecation
-        # Users should access pos_w and quat_w separately.
-        return None
-
-    @property
-    def pos_w(self) -> wp.array | None:
-        """Position of the sensor origin in world frame. Shape is (N, B) vec3f.
+        """Pose of the sensor origin in world frame.
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
-        logger.warning(
-            "The `pos_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
-            "sensor positions in world frame."
+        wp.launch(
+            concat_pos_and_quat_to_pose_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[self._pos_w, self._quat_w],
+            outputs=[self._pose_w],
+            device=self._device,
         )
+        return self._pose_w
+
+    @property
+    def pos_w(self) -> wp.array | None:
+        """Position of the sensor origin in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+
+        None if :attr:`ContactSensorCfg.track_pose` is False.
+        """
         return self._pos_w
 
     @property
     def quat_w(self) -> wp.array | None:
-        """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame. Shape is (N, B) quatf.
+        """Orientation of the sensor origin in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.quatf. In torch this resolves to
+        (num_instances, num_sensors, 4). The orientation is provided in (x, y, z, w) format.
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
-        logger.warning(
-            "The `quat_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
-            "sensor orientations in world frame."
-        )
         return self._quat_w
 
     @property
     def net_forces_w(self) -> wp.array | None:
-        """The net normal contact forces in world frame. Shape is (N, B) vec3f."""
+        """The net normal contact forces in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+        """
         return self._net_forces_w
 
     @property
     def net_forces_w_history(self) -> wp.array | None:
-        """History of net normal contact forces. Shape is (N, T, B) vec3f."""
+        """History of net normal contact forces.
+
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+        """
         return self._net_forces_w_history
 
     @property
     def force_matrix_w(self) -> wp.array | None:
-        """Normal contact forces filtered between sensor and filtered bodies. Shape is (N, B, M) vec3f.
+        """Normal contact forces filtered between sensor and filtered bodies.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
         """
@@ -73,7 +88,10 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def force_matrix_w_history(self) -> wp.array | None:
-        """History of filtered contact forces. Shape is (N, T, B, M) vec3f.
+        """History of filtered contact forces.
+
+        Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
         """
@@ -81,7 +99,10 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def contact_pos_w(self) -> wp.array | None:
-        """Average position of contact points. Shape is (N, B, M) vec3f.
+        """Average position of contact points.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
 
         None if :attr:`ContactSensorCfg.track_contact_points` is False.
         """
@@ -89,7 +110,10 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def friction_forces_w(self) -> wp.array | None:
-        """Sum of friction forces. Shape is (N, B, M) vec3f.
+        """Sum of friction forces.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
 
         None if :attr:`ContactSensorCfg.track_friction_forces` is False.
         """
@@ -97,7 +121,9 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def last_air_time(self) -> wp.array | None:
-        """Time spent in air before last contact. Shape is (N, B) float32.
+        """Time spent in air before last contact.
+
+        Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
@@ -105,7 +131,9 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def current_air_time(self) -> wp.array | None:
-        """Time spent in air since last detach. Shape is (N, B) float32.
+        """Time spent in air since last detach.
+
+        Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
@@ -113,7 +141,9 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def last_contact_time(self) -> wp.array | None:
-        """Time spent in contact before last detach. Shape is (N, B) float32.
+        """Time spent in contact before last detach.
+
+        Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
@@ -121,7 +151,9 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def current_contact_time(self) -> wp.array | None:
-        """Time spent in contact since last contact. Shape is (N, B) float32.
+        """Time spent in contact since last contact.
+
+        Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
@@ -130,7 +162,7 @@ class ContactSensorData(BaseContactSensorData):
     def create_buffers(
         self,
         num_envs: int,
-        num_bodies: int,
+        num_sensors: int,
         num_filter_shapes: int,
         history_length: int,
         track_pose: bool,
@@ -143,7 +175,7 @@ class ContactSensorData(BaseContactSensorData):
 
         Args:
             num_envs: Number of environments.
-            num_bodies: Number of bodies per environment.
+            num_sensors: Number of sensors per environment.
             num_filter_shapes: Number of filtered shapes for force matrix.
             history_length: Length of force history buffer.
             track_pose: Whether to track sensor pose.
@@ -152,47 +184,54 @@ class ContactSensorData(BaseContactSensorData):
             track_friction_forces: Whether to track friction forces.
             device: Device for tensor storage.
         """
+        self._num_envs = num_envs
+        self._num_sensors = num_sensors
+        self._device = device
         # Ensure history_length >= 1 for consistent buffer shapes
         effective_history = max(history_length, 1)
 
         # Net forces (always tracked)
-        self._net_forces_w = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
-        self._net_forces_w_history = wp.zeros((num_envs, effective_history, num_bodies), dtype=wp.vec3f, device=device)
+        self._net_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
+        self._net_forces_w_history = wp.zeros((num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device)
 
-        # Force matrix (optional - only with filter)
+        # Track force matrix if requested - only with filter
         if num_filter_shapes > 0:
-            self._force_matrix_w = wp.zeros((num_envs, num_bodies, num_filter_shapes), dtype=wp.vec3f, device=device)
+            self._force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device)
             self._force_matrix_w_history = wp.zeros(
-                (num_envs, effective_history, num_bodies, num_filter_shapes), dtype=wp.vec3f, device=device
+                (num_envs, effective_history, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
             )
         else:
             self._force_matrix_w = None
             self._force_matrix_w_history = None
 
-        # Pose tracking (optional)
+        # Track pose if requested
         if track_pose:
-            self._pos_w = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
-            self._quat_w = wp.zeros((num_envs, num_bodies), dtype=wp.quatf, device=device)
+            self._pos_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
+            self._quat_w = wp.zeros((num_envs, num_sensors), dtype=wp.quatf, device=device)
+            self._pose_w = wp.zeros((num_envs, num_sensors), dtype=wp.transformf, device=device)
         else:
             self._pos_w = None
             self._quat_w = None
+            self._pose_w = None
 
-        # Air/contact time tracking (optional)
+        # Track air time if requested
         if track_air_time:
-            self._last_air_time = wp.zeros((num_envs, num_bodies), dtype=wp.float32, device=device)
-            self._current_air_time = wp.zeros((num_envs, num_bodies), dtype=wp.float32, device=device)
-            self._last_contact_time = wp.zeros((num_envs, num_bodies), dtype=wp.float32, device=device)
-            self._current_contact_time = wp.zeros((num_envs, num_bodies), dtype=wp.float32, device=device)
+            self._last_air_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._current_air_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._last_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_transition = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
         else:
             self._last_air_time = None
             self._current_air_time = None
             self._last_contact_time = None
             self._current_contact_time = None
+            self._first_transition = None
 
-        # Contact points (optional) - filled with NaN
+        # Track contact points if requested - filled with NaN
         if track_contact_points:
             self._contact_pos_w = wp.full(
-                (num_envs, num_bodies, num_filter_shapes),
+                (num_envs, num_sensors, num_filter_shapes),
                 dtype=wp.vec3f,
                 device=device,
                 value=wp.vec3f(math.nan, math.nan, math.nan),
@@ -200,8 +239,10 @@ class ContactSensorData(BaseContactSensorData):
         else:
             self._contact_pos_w = None
 
-        # Friction forces (optional)
+        # Track friction forces if requested
         if track_friction_forces:
-            self._friction_forces_w = wp.zeros((num_envs, num_bodies, num_filter_shapes), dtype=wp.vec3f, device=device)
+            self._friction_forces_w = wp.zeros(
+                (num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
+            )
         else:
             self._friction_forces_w = None

@@ -14,15 +14,19 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import pytest
+import torch
+from isaaclab_physx.cloner import physx_replicate
 
-from isaacsim.core.cloner import GridCloner
-
-import isaaclab.sim as sim_utils
+import isaaclab.sim.utils as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
+
+NUM_ENVS = 4096
+SPACING = 2.0
 
 
 @pytest.mark.parametrize(
@@ -39,15 +43,32 @@ def test_robot_load_performance(test_config, device):
     """Test robot load time."""
     with build_simulation_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
-        cloner = GridCloner(spacing=2, stage=sim.stage)
-        target_paths = cloner.generate_paths("/World/Robots", 4096)
-        sim_utils.get_current_stage().DefinePrim(target_paths[0], "Xform")
-        _ = cloner.clone(
-            source_prim_path=target_paths[0],
-            prim_paths=target_paths,
-            replicate_physics=False,
-            copy_from_source=True,
+        stage = sim_utils.get_current_stage()
+
+        # Generate grid positions for environments
+        positions, _ = cloner.grid_transforms(NUM_ENVS, SPACING, device=device)
+
+        # Create environment prims using USD replicate
+        env_paths = [f"/World/Robots_{i}" for i in range(NUM_ENVS)]
+        stage.DefinePrim(env_paths[0], "Xform")
+        cloner.usd_replicate(
+            stage=stage,
+            sources=[env_paths[0]],
+            destinations=["/World/Robots_{}"],
+            env_ids=torch.arange(NUM_ENVS),
+            positions=positions,
         )
+
+        # Replicate physics - mapping is (num_sources, num_envs) bool mask
+        physx_replicate(
+            stage=stage,
+            sources=[env_paths[0]],
+            destinations=["/World/Robots_{}"],
+            env_ids=torch.arange(NUM_ENVS),
+            mapping=torch.ones(1, NUM_ENVS, dtype=torch.bool),  # 1 source -> all envs
+            device=device,
+        )
+
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
             robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_.*/Robot"))  # noqa: F841
             sim.reset()

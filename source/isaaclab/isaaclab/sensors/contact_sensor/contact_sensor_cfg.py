@@ -26,8 +26,10 @@ class ContactSensorCfg(SensorBaseCfg):
     track_friction_forces: bool = False
     """Whether to track the friction forces at the contact points. Defaults to False."""
 
-    max_contact_data_count_per_prim: int = 4
-    """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4.
+    max_contact_data_count_per_prim: int | None = None
+    """The maximum number of contacts across all batches of the sensor to keep track of.
+
+    When set to None, PhysX will use a default value of 4.
 
     This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
     of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.
@@ -39,11 +41,17 @@ class ContactSensorCfg(SensorBaseCfg):
 
         """
 
+    history_length: int = 0
+    """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
+    the current data is stored (no history)."""
+
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
 
-    force_threshold: float = 1.0
+    force_threshold: float | None = None
     """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
+
+    When set to None, PhysX will use a default value of 1.0, and Newton will use a default value of 0.0.
 
     This value is only used for tracking the mode duration (the time in contact or in air),
     if :attr:`track_air_time` is True.

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.2.0 (2026-02-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update data generator to support Isaac Lab 3.0.
+* Use unique quaternion for GR1 pick place env Mimic actions.
+* Discard failed Mimic demos by default for Franka stacking task.
+
+
 1.1.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
