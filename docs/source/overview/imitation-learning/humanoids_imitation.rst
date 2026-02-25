@@ -565,7 +565,8 @@ To generate the locomanipulation dataset, use the following command:
        --navigate_step 130 \
        --enable_pinocchio \
        --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
-       --enable_cameras
+       --enable_cameras \
+       --visualizer kit
 
 .. note::
 
