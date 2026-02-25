@@ -126,7 +126,7 @@ def orientation_command_error_tanh(
     command = env.command_manager.get_command(command_name)
     # obtain the desired and current orientations
     des_quat_b = command[:, 3:7]
-    des_quat_w = math_utils.quat_mul(wp.to_torch(asset.data.root_state_w)[:, 3:7], des_quat_b)
+    des_quat_w = math_utils.quat_mul(wp.to_torch(asset.data.root_link_pose_w)[:, 3:7], des_quat_b)
     quat_distance = math_utils.quat_error_magnitude(wp.to_torch(object.data.root_quat_w), des_quat_w)
 
     return (1 - torch.tanh(quat_distance / std)) * contacts(env, 1.0).float()

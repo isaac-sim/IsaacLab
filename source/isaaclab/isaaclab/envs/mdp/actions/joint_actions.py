@@ -197,7 +197,7 @@ class JointPositionAction(JointAction):
 
     def apply_actions(self):
         # set position targets
-        self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 
 
 class RelativeJointPositionAction(JointAction):
@@ -230,7 +230,7 @@ class RelativeJointPositionAction(JointAction):
         # add current joint positions to the processed actions
         current_actions = self.processed_actions + wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         # set position targets
-        self._asset.set_joint_position_target(current_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=current_actions, joint_ids=self._joint_ids)
 
 
 class JointVelocityAction(JointAction):
@@ -248,7 +248,7 @@ class JointVelocityAction(JointAction):
 
     def apply_actions(self):
         # set joint velocity targets
-        self._asset.set_joint_velocity_target(self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_velocity_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 
 
 class JointEffortAction(JointAction):
@@ -262,4 +262,4 @@ class JointEffortAction(JointAction):
 
     def apply_actions(self):
         # set joint effort targets
-        self._asset.set_joint_effort_target(self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_effort_target_index(target=self.processed_actions, joint_ids=self._joint_ids)

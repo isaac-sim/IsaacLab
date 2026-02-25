@@ -59,7 +59,7 @@ class InHandReOrientationCommand(CommandTerm):
         # create buffers to store the command
         # -- command: (x, y, z)
         init_pos_offset = torch.tensor(cfg.init_pos_offset, dtype=torch.float, device=self.device)
-        self.pos_command_e = wp.to_torch(self.object.data.default_root_state)[:, :3] + init_pos_offset
+        self.pos_command_e = wp.to_torch(self.object.data.default_root_pose)[:, :3] + init_pos_offset
         self.pos_command_w = self.pos_command_e + self._env.scene.env_origins
         # -- orientation: (x, y, z, w)
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)

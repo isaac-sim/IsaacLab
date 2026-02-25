@@ -111,12 +111,12 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.pose_command_b[:, 3:],
         )
         # compute the error
-        object_root_state_w = wp.to_torch(self.object.data.root_state_w)
+        object_root_pose_w = wp.to_torch(self.object.data.root_link_pose_w)
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            object_root_state_w[:, :3],
-            object_root_state_w[:, 3:7],
+            object_root_pose_w[:, :3],
+            object_root_pose_w[:, 3:7],
         )
         self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)

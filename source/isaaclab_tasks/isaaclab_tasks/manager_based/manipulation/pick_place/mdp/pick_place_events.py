@@ -45,10 +45,10 @@ def reset_object_poses_nut_pour(
     sorting_scale = env.scene[sorting_scale_cfg.name]
 
     # get default root state
-    sorting_beaker_root_states = wp.to_torch(sorting_beaker.data.default_root_state)[env_ids].clone()
-    factory_nut_root_states = wp.to_torch(factory_nut.data.default_root_state)[env_ids].clone()
-    sorting_bowl_root_states = wp.to_torch(sorting_bowl.data.default_root_state)[env_ids].clone()
-    sorting_scale_root_states = wp.to_torch(sorting_scale.data.default_root_state)[env_ids].clone()
+    sorting_beaker_root_poses = wp.to_torch(sorting_beaker.data.default_root_pose)[env_ids].clone()
+    factory_nut_root_poses = wp.to_torch(factory_nut.data.default_root_pose)[env_ids].clone()
+    sorting_bowl_root_poses = wp.to_torch(sorting_bowl.data.default_root_pose)[env_ids].clone()
+    sorting_scale_root_poses = wp.to_torch(sorting_scale.data.default_root_pose)[env_ids].clone()
 
     # get pose ranges
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
@@ -59,39 +59,37 @@ def reset_object_poses_nut_pour(
         ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=sorting_beaker.device
     )
     orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    positions_sorting_beaker = (
-        sorting_beaker_root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    )
-    positions_factory_nut = factory_nut_root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_sorting_beaker = math_utils.quat_mul(sorting_beaker_root_states[:, 3:7], orientations_delta)
-    orientations_factory_nut = math_utils.quat_mul(factory_nut_root_states[:, 3:7], orientations_delta)
+    positions_sorting_beaker = sorting_beaker_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+    positions_factory_nut = factory_nut_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+    orientations_sorting_beaker = math_utils.quat_mul(sorting_beaker_root_poses[:, 3:7], orientations_delta)
+    orientations_factory_nut = math_utils.quat_mul(factory_nut_root_poses[:, 3:7], orientations_delta)
 
     # randomize sorting bowl
     rand_samples = math_utils.sample_uniform(
         ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=sorting_beaker.device
     )
     orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    positions_sorting_bowl = sorting_bowl_root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_sorting_bowl = math_utils.quat_mul(sorting_bowl_root_states[:, 3:7], orientations_delta)
+    positions_sorting_bowl = sorting_bowl_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+    orientations_sorting_bowl = math_utils.quat_mul(sorting_bowl_root_poses[:, 3:7], orientations_delta)
 
     # randomize scorting scale
     rand_samples = math_utils.sample_uniform(
         ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=sorting_beaker.device
     )
     orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    positions_sorting_scale = sorting_scale_root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_sorting_scale = math_utils.quat_mul(sorting_scale_root_states[:, 3:7], orientations_delta)
+    positions_sorting_scale = sorting_scale_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+    orientations_sorting_scale = math_utils.quat_mul(sorting_scale_root_poses[:, 3:7], orientations_delta)
 
     # set into the physics simulation
-    sorting_beaker.write_root_pose_to_sim(
-        torch.cat([positions_sorting_beaker, orientations_sorting_beaker], dim=-1), env_ids=env_ids
+    sorting_beaker.write_root_pose_to_sim_index(
+        root_pose=torch.cat([positions_sorting_beaker, orientations_sorting_beaker], dim=-1), env_ids=env_ids
     )
-    factory_nut.write_root_pose_to_sim(
-        torch.cat([positions_factory_nut, orientations_factory_nut], dim=-1), env_ids=env_ids
+    factory_nut.write_root_pose_to_sim_index(
+        root_pose=torch.cat([positions_factory_nut, orientations_factory_nut], dim=-1), env_ids=env_ids
     )
-    sorting_bowl.write_root_pose_to_sim(
-        torch.cat([positions_sorting_bowl, orientations_sorting_bowl], dim=-1), env_ids=env_ids
+    sorting_bowl.write_root_pose_to_sim_index(
+        root_pose=torch.cat([positions_sorting_bowl, orientations_sorting_bowl], dim=-1), env_ids=env_ids
     )
-    sorting_scale.write_root_pose_to_sim(
-        torch.cat([positions_sorting_scale, orientations_sorting_scale], dim=-1), env_ids=env_ids
+    sorting_scale.write_root_pose_to_sim_index(
+        root_pose=torch.cat([positions_sorting_scale, orientations_sorting_scale], dim=-1), env_ids=env_ids
     )
