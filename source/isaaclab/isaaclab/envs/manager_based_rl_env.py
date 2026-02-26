@@ -16,19 +16,9 @@ import torch
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvStepReturn
-
-
-def _get_isaac_sim_version_str() -> str:
-    try:
-        return str(get_isaac_sim_version())
-    except Exception:
-        return "unknown"
-
-
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
@@ -67,7 +57,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": _get_isaac_sim_version_str(),
     }
     """Metadata for the environment."""
 
@@ -198,8 +187,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            with Timer(name="simulate", msg="Simulation step took"):
-                self.sim.step(render=False)
+            self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
@@ -246,16 +234,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
-        # -- compute observations (includes camera/tiled camera rendering)
+        # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        if self.common_step_counter <= 3 or self.common_step_counter % 50 == 0:
-            import logging
-            logging.getLogger(__name__).debug(
-                "[PERF][manager_based_rl_env] Computing observations (camera/tiled render) step #%s...",
-                self.common_step_counter,
-            )
-        with Timer(name="render", msg="Rendering step took"):
-            self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras

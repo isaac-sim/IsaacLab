@@ -172,28 +172,15 @@ class ManagerBasedEnv:
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 # since the reset can trigger callbacks which use the stage,
                 # we need to set the stage context here
-                import time as _t
-
-                print("[INFO]:   (1/3) sim.reset() — activating physics for all envs...", flush=True)
-                _t0 = _t.perf_counter()
-                with use_stage(self.sim.get_initial_stage()):
+                with use_stage(self.sim.stage):
                     self.sim.reset()
-                print(f"[INFO]:   sim.reset() done in {_t.perf_counter() - _t0:.2f} s", flush=True)
-                print(
-                    "[INFO]:   (2/3) scene.update() — pre-populating data buffers (articulations, sensors)...",
-                    flush=True,
-                )
-                _t1 = _t.perf_counter()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
                 # this shouldn't cause an issue since later on, users do a reset over all the environments
                 # so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
-                print(f"[INFO]:   scene.update() done in {_t.perf_counter() - _t1:.2f} s", flush=True)
-            print("[INFO]:   (3/3) Loading managers (action, observation, etc.)...", flush=True)
             # add timeline event to load managers
             self.load_managers()
-            print("[INFO]: Simulation start complete.", flush=True)
 
         # extend UI elements
         # we need to do this here after all the managers are initialized

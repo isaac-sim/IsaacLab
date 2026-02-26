@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Train an RL agent with RSL-RL.
+"""Script to train RL agent with RSL-RL."""
 
+"""Launch Isaac Sim Simulator first.
 This script is the main entry point for RSL-RL training. The renderer backend is chosen by
 ``env.scene=``: use an RTX variant (e.g. ``64x64rtx_rgb``) or a warp variant
 (e.g. ``64x64warp_rgb``) for Warp. TiledCameraCfg is used for both. When using Warp, the
@@ -58,17 +59,6 @@ def _hydra_arg_priority(arg: str) -> tuple[int, str]:
 
 hydra_args_sorted = sorted(hydra_args, key=_hydra_arg_priority)
 sys.argv = [sys.argv[0]] + hydra_args_sorted
-
-# Load env's warp and newton before the app launches (no isaaclab/carb deps here).
-# When using newton_warp this avoids DeviceLike/torch conflicts with Isaac Sim's bundled warp.
-import os
-
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-if _script_dir not in sys.path:
-    sys.path.insert(0, _script_dir)
-import warp_bootstrap
-
-warp_bootstrap.ensure_warp_newton_ready()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -241,34 +231,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-
-    # Print average sim/render timing when available.
-    # Warp renderer timers (newton_warp_sync_plus_render, etc.) only appear when using the newton_warp backend.
-    # TODO: Instrument newton_warp_render_full and newton_warp_kernel_only in the Newton Warp renderer/tiled_camera
-    #       (e.g. around _newton_sensor.render() and optionally 4D<->3D copies) so these show data instead of "(no data)".
-    try:
-        timers = [
-            ("simulate", "Sim (physics step)"),
-            ("render", "Render (total, observation_manager.compute)"),
-            ("newton_warp_sync_plus_render", "Render (Warp: PhysX→Newton sync + prep + kernel + copy)"),
-            ("newton_warp_render_full", "Render (Warp prep + kernel + buffer copy)"),
-            ("newton_warp_kernel_only", "Render (Warp kernel only)"),
-        ]
-        lines = []
-        for name, label in timers:
-            try:
-                s = Timer.get_timer_statistics(name)
-                mean_us = s["mean"] * 1e6
-                std_us = s["std"] * 1e6
-                lines.append(f"  {label}: mean={mean_us:.2f} us  std={std_us:.2f} us  n={s['n']}")
-            except TimerError:
-                lines.append(f"  {label}: (no data)")
-        if lines:
-            print("[Timing summary]")
-            print("\n".join(lines))
-    except Exception:
-        pass
-
 
     # close the simulator
     env.close()

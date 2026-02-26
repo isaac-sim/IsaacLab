@@ -77,7 +77,7 @@ class PhysxSceneDataProvider:
         self._view_body_index_map: dict[str, list[int]] = {}
         self._warned_once: set[str] = set()
 
-        # Discovered from stage and cached once available.
+        # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
@@ -151,16 +151,9 @@ class PhysxSceneDataProvider:
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
-            # Extract scene structure from Newton model (single source of truth).
-            # 4D Newton (pip @ 35657fc+) exposes body_label/articulation_label; older/prebundle uses body_key/articulation_key.
-            if hasattr(self._newton_model, "body_label"):
-                self._rigid_body_paths = list(self._newton_model.body_label)
-            else:
-                self._rigid_body_paths = list(self._newton_model.body_key)
-            if hasattr(self._newton_model, "articulation_label"):
-                self._articulation_paths = list(self._newton_model.articulation_label)
-            else:
-                self._articulation_paths = list(self._newton_model.articulation_key)
+            # Extract scene structure from Newton model (single source of truth)
+            self._rigid_body_paths = list(self._newton_model.body_label)
+            self._articulation_paths = list(self._newton_model.articulation_label)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -174,7 +167,7 @@ class PhysxSceneDataProvider:
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install isaaclab_newton to use Newton/Rerun visualizers: pip install isaaclab_newton"
+                "Install the Newton backend to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
@@ -200,10 +193,7 @@ class PhysxSceneDataProvider:
             self._filtered_newton_state = self._filtered_newton_model.state()
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            if hasattr(self._filtered_newton_model, "body_label"):
-                filtered_paths = list(self._filtered_newton_model.body_label)
-            else:
-                filtered_paths = list(self._filtered_newton_model.body_key)
+            filtered_paths = list(self._filtered_newton_model.body_key)
             self._filtered_body_indices = []
             missing = []
             for path in filtered_paths:
@@ -220,7 +210,7 @@ class PhysxSceneDataProvider:
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install isaaclab_newton to use Newton/Rerun visualizers: pip install isaaclab_newton"
+                "Install the Newton backend to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None
@@ -414,8 +404,6 @@ class PhysxSceneDataProvider:
         count = 0
         for idx in uncovered:
             path = self._rigid_body_paths[idx]
-            if path in self._xform_view_failures:
-                continue
             try:
                 if path not in self._xform_views:
                     self._xform_views[path] = XformPrimView(
@@ -520,7 +508,7 @@ class PhysxSceneDataProvider:
             self._set_body_q_kernel = _set_body_q
             return self._set_body_q_kernel
         except Exception as exc:
-            logger.debug("[PhysxSceneDataProvider] Warp unavailable for Newton state sync: %s", exc)
+            logger.warning(f"[PhysxSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
             return None
 
     def _get_set_body_q_subset_kernel(self):
