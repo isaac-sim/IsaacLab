@@ -66,7 +66,6 @@ Installing dependencies
             .. code-block:: bash
 
                sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
-=======
 >>>>>>> develop
 
          .. note::
