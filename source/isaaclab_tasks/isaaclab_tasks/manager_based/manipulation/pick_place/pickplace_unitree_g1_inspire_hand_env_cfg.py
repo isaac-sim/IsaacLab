@@ -6,7 +6,6 @@ import os
 import tempfile
 
 import torch
-
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 

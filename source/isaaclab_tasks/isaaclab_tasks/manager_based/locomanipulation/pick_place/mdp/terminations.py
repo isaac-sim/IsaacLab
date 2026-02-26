@@ -71,9 +71,7 @@ def task_done_pick_place_table_frame(
     table = env.scene[table_cfg.name]
     # Avoid importing sim views at module-load time for pure cfg loading.
     if not hasattr(table, "get_world_poses"):
-        raise TypeError(
-            f"Expected table '{table_cfg.name}' to expose get_world_poses(), got {type(table)}"
-        )
+        raise TypeError(f"Expected table '{table_cfg.name}' to expose get_world_poses(), got {type(table)}")
 
     # Get table world pose
     table_pos_w, table_quat_w = table.get_world_poses()

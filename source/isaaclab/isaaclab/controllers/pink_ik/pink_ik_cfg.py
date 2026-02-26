@@ -11,6 +11,7 @@ from dataclasses import field
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
+
 from .pink_task_cfg import PinkIKTaskCfg
 
 if TYPE_CHECKING:

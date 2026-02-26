@@ -120,4 +120,3 @@ class LocalFrameTask(FrameTask):
         jacobian_in_frame = configuration.get_frame_jacobian(self.frame)
         J = -pin.Jlog6(transform_frame_to_target) @ jacobian_in_frame
         return J
-

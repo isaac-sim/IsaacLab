@@ -27,8 +27,8 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.string import resolve_matching_names_values
 
 from .null_space_posture_task import NullSpacePostureTask
-from .pink_task_cfg import PinkIKTaskCfg
 from .pink_kinematics_configuration import PinkKinematicsConfiguration
+from .pink_task_cfg import PinkIKTaskCfg
 
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg

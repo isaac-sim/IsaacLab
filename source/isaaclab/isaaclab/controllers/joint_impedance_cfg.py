@@ -58,4 +58,3 @@ class JointImpedanceControllerCfg:
 
     Note: Used only when :obj:`impedance_mode` is "variable".
     """
-

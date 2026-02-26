@@ -64,4 +64,3 @@ class NullSpacePostureTaskCfg(PinkIKTaskCfg):
     controlled_frames: list[str] = field(default_factory=list)
     controlled_joints: list[str] = field(default_factory=list)
     class_type: str | type | None = "isaaclab.controllers.pink_ik.null_space_posture_task:NullSpacePostureTask"
-

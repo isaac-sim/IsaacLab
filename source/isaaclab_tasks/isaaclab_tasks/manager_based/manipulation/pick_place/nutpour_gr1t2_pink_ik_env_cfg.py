@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 
 from isaaclab_tasks.manager_based.manipulation.pick_place.nutpour_gr1t2_base_env_cfg import NutPourGR1T2BaseEnvCfg
 from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg import (
