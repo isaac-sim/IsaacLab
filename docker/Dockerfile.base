@@ -70,7 +70,7 @@ RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml
 
 # Install apt dependencies for extensions that declare them in their extension.toml
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source 
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source
 
 # Apt Cleanup
 RUN apt-get -y autoremove && apt-get clean && \
