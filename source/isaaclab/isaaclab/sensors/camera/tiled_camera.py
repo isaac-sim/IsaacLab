@@ -344,16 +344,6 @@ class TiledCamera(Camera):
                     self._data.output["rgb"] = (
                         self._data.output["rgba"][..., [2, 1, 0]] if order == "bgra" else self._data.output["rgba"][..., :3]
                     )
-                # TODO: remove when PR is reviewed
-                # Save flattened color image to /tmp/newton_renders every N frames
-                n = getattr(self, "_warp_save_frame_count", 0)
-                if getattr(self, "_warp_save_interval", 50) and n % getattr(self, "_warp_save_interval", 50) == 0:
-                    try:
-                        from isaaclab_newton.renderers.newton_warp_renderer import save_data
-                        save_data(self, f"/tmp/newton_renders/frame_{n:06d}/rgb_tiled.png")
-                    except ImportError:
-                        pass
-                self._warp_save_frame_count = n + 1
             return
 
         # Extract the flattened image buffer (RTX rendering path)

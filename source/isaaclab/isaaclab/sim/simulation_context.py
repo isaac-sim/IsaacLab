@@ -543,6 +543,7 @@ class SimulationContext:
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None
             raise exception_to_raise
+        import time as _t
         _t0 = _t.perf_counter()
         super().reset(soft=soft)
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
@@ -553,7 +554,7 @@ class SimulationContext:
             _t1 = _t.perf_counter()
             self.physics_sim_view._backend.initialize_kinematic_bodies()
             elapsed = _t.perf_counter() - _t1
-            print(f"[PERF][simulation_context] reset(): initialize_kinematic_bodies() took {elapsed:.3f} s", flush=True)
+            logger.debug("[PERF][simulation_context] reset(): initialize_kinematic_bodies() took %s s", round(elapsed, 3))
         # perform additional rendering steps to warm up replicator buffers
         # this is only needed for the first time we set the simulation
         if not soft:
@@ -561,7 +562,7 @@ class SimulationContext:
                 _t2 = _t.perf_counter()
                 self.render()
                 elapsed = _t.perf_counter() - _t2
-                print(f"[PERF][simulation_context] reset(): render() warmup {i + 1}/2 took {elapsed:.3f} s", flush=True)
+                logger.debug("[PERF][simulation_context] reset(): render() warmup %s/2 took %s s", i + 1, round(elapsed, 3))
         self._disable_app_control_on_stop_handle = False
 
     def forward(self) -> None:
@@ -619,10 +620,9 @@ class SimulationContext:
         self._step_log_count += 1
         if self._step_log_count <= 3 or self._step_log_count % 100 == 0:
             elapsed = _t.perf_counter() - _t0
-            print(
-                f"[PERF][simulation_context] step(): super().step(render={render}) took {elapsed:.3f} s "
-                f"(call #{self._step_log_count})",
-                flush=True,
+            logger.debug(
+                "[PERF][simulation_context] step(): super().step(render=%s) took %s s (call #%s)",
+                render, round(elapsed, 3), self._step_log_count,
             )
 
         # app.update() may be changing the cuda device in step, so we force it back to our desired device here
@@ -683,9 +683,9 @@ class SimulationContext:
         self._render_log_count += 1
         if self._render_log_count <= 3 or self._render_log_count % 50 == 0:
             elapsed = _t.perf_counter() - _t0
-            print(
-                f"[PERF][simulation_context] render() total took {elapsed:.3f} s (call #{self._render_log_count})",
-                flush=True,
+            logger.debug(
+                "[PERF][simulation_context] render() total took %s s (call #%s)",
+                round(elapsed, 3), self._render_log_count,
             )
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here

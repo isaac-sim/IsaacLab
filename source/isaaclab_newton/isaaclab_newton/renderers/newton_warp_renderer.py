@@ -83,8 +83,6 @@ class RenderData:
         self.sensor = weakref.ref(sensor)
         self.num_cameras = 1
         self._world_count: int | None = _world_count(render_context)
-        self._output_ndim = 4  # 4D (n,nc,H,W); prebundle Newton uses 3D (n,nc,H*W)
-        self._outputs_3d: dict | None = None  # lazy when _output_ndim==3
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
@@ -107,7 +105,7 @@ class RenderData:
             elif output_name == RenderData.OutputNames.RGB:
                 pass
             else:
-                logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+                logger.debug("NewtonWarpRenderer - output type %s is not yet supported", output_name)
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name == RenderData.OutputNames.RGBA:
@@ -121,120 +119,6 @@ class RenderData:
         elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
             return self.outputs.instance_segmentation_image
         return None
-
-    def _ensure_outputs_3d(self):
-        """Allocate 3D buffers (n, nc, H*W) for prebundle Newton and copy 4D -> 3D."""
-        if self._outputs_3d is not None:
-            return
-        n = self._world_count or 1
-        nc = self.num_cameras
-        h, w = self.height, self.width
-        device = getattr(self.render_context, "device", None) or wp.get_device("cuda:0")
-        self._outputs_3d = {}
-        if self.outputs.color_image is not None:
-            self._outputs_3d["color"] = wp.empty((n, nc, h * w), dtype=wp.uint32, device=device)
-        if self.outputs.albedo_image is not None:
-            self._outputs_3d["albedo"] = wp.empty((n, nc, h * w), dtype=wp.uint32, device=device)
-        if self.outputs.depth_image is not None:
-            self._outputs_3d["depth"] = wp.empty((n, nc, h * w), dtype=wp.float32, device=device)
-        if self.outputs.normals_image is not None:
-            self._outputs_3d["normal"] = wp.empty((n, nc, h * w), dtype=wp.vec3f, device=device)
-        if self.outputs.instance_segmentation_image is not None:
-            self._outputs_3d["shape_index"] = wp.empty((n, nc, h * w), dtype=wp.uint32, device=device)
-
-    def _copy_4d_to_3d(self):
-        """Copy 4D outputs to 3D buffers for prebundle render."""
-        n = self._world_count or 1
-        nc = self.num_cameras
-        h, w = self.height, self.width
-        dim = n * nc * h * w
-        inp = [n, nc, w, h]
-        if self.outputs.color_image is not None:
-            wp.launch(
-                RenderData._copy_4d_to_3d_uint32,
-                dim=dim,
-                inputs=[self.outputs.color_image, self._outputs_3d["color"]] + inp,
-                device=self.outputs.color_image.device,
-            )
-        if self.outputs.albedo_image is not None:
-            wp.launch(
-                RenderData._copy_4d_to_3d_uint32,
-                dim=dim,
-                inputs=[self.outputs.albedo_image, self._outputs_3d["albedo"]] + inp,
-                device=self.outputs.albedo_image.device,
-            )
-        if self.outputs.depth_image is not None:
-            wp.launch(
-                RenderData._copy_4d_to_3d_float,
-                dim=dim,
-                inputs=[self.outputs.depth_image, self._outputs_3d["depth"]] + inp,
-                device=self.outputs.depth_image.device,
-            )
-        if self.outputs.normals_image is not None:
-            wp.launch(
-                RenderData._copy_4d_to_3d_vec3,
-                dim=dim,
-                inputs=[self.outputs.normals_image, self._outputs_3d["normal"]] + inp,
-                device=self.outputs.normals_image.device,
-            )
-        if self.outputs.instance_segmentation_image is not None:
-            wp.launch(
-                RenderData._copy_4d_to_3d_uint32,
-                dim=dim,
-                inputs=[
-                    self.outputs.instance_segmentation_image,
-                    self._outputs_3d["shape_index"],
-                ]
-                + inp,
-                device=self.outputs.instance_segmentation_image.device,
-            )
-
-    def _copy_3d_to_4d(self):
-        """Copy 3D buffers back to 4D outputs after prebundle render."""
-        n = self._world_count or 1
-        nc = self.num_cameras
-        h, w = self.height, self.width
-        dim = n * nc * h * w
-        inp = [n, nc, w, h]
-        if self.outputs.color_image is not None:
-            wp.launch(
-                RenderData._copy_3d_to_4d_uint32,
-                dim=dim,
-                inputs=[self._outputs_3d["color"], self.outputs.color_image] + inp,
-                device=self.outputs.color_image.device,
-            )
-        if self.outputs.albedo_image is not None:
-            wp.launch(
-                RenderData._copy_3d_to_4d_uint32,
-                dim=dim,
-                inputs=[self._outputs_3d["albedo"], self.outputs.albedo_image] + inp,
-                device=self.outputs.albedo_image.device,
-            )
-        if self.outputs.depth_image is not None:
-            wp.launch(
-                RenderData._copy_3d_to_4d_float,
-                dim=dim,
-                inputs=[self._outputs_3d["depth"], self.outputs.depth_image] + inp,
-                device=self.outputs.depth_image.device,
-            )
-        if self.outputs.normals_image is not None:
-            wp.launch(
-                RenderData._copy_3d_to_4d_vec3,
-                dim=dim,
-                inputs=[self._outputs_3d["normal"], self.outputs.normals_image] + inp,
-                device=self.outputs.normals_image.device,
-            )
-        if self.outputs.instance_segmentation_image is not None:
-            wp.launch(
-                RenderData._copy_3d_to_4d_uint32,
-                dim=dim,
-                inputs=[
-                    self._outputs_3d["shape_index"],
-                    self.outputs.instance_segmentation_image,
-                ]
-                + inp,
-                device=self.outputs.instance_segmentation_image.device,
-            )
 
     def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
         converted_orientations = convert_camera_frame_orientation_convention(
@@ -278,7 +162,7 @@ class RenderData:
                 copy=False,
             )
 
-        logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
+        logger.debug("NewtonWarpRenderer - torch output array is non-contiguous")
         return wp.zeros(
             (n, self.num_cameras, self.height, self.width),
             dtype=dtype,
@@ -294,114 +178,6 @@ class RenderData:
         tid = wp.tid()
         output[0, tid] = wp.transformf(positions[tid], orientations[tid])
 
-    @staticmethod
-    @wp.kernel
-    def _copy_4d_to_3d_uint32(
-        src: wp.array(dtype=wp.uint32, ndim=4),
-        dst: wp.array(dtype=wp.uint32, ndim=3),
-        n: wp.int32,
-        nc: wp.int32,
-        width: wp.int32,
-        height: wp.int32,
-    ):
-        tid = wp.tid()
-        pixels_per_view = width * height
-        idx = tid % pixels_per_view
-        j = (tid // pixels_per_view) % nc
-        i = tid // (pixels_per_view * nc)
-        py, px = idx // width, idx % width
-        dst[i, j, idx] = src[i, j, py, px]
-
-    @staticmethod
-    @wp.kernel
-    def _copy_3d_to_4d_uint32(
-        src: wp.array(dtype=wp.uint32, ndim=3),
-        dst: wp.array(dtype=wp.uint32, ndim=4),
-        n: wp.int32,
-        nc: wp.int32,
-        width: wp.int32,
-        height: wp.int32,
-    ):
-        tid = wp.tid()
-        pixels_per_view = width * height
-        idx = tid % pixels_per_view
-        j = (tid // pixels_per_view) % nc
-        i = tid // (pixels_per_view * nc)
-        py, px = idx // width, idx % width
-        dst[i, j, py, px] = src[i, j, idx]
-
-    @staticmethod
-    @wp.kernel
-    def _copy_4d_to_3d_float(
-        src: wp.array(dtype=wp.float32, ndim=4),
-        dst: wp.array(dtype=wp.float32, ndim=3),
-        n: wp.int32,
-        nc: wp.int32,
-        width: wp.int32,
-        height: wp.int32,
-    ):
-        tid = wp.tid()
-        pixels_per_view = width * height
-        idx = tid % pixels_per_view
-        j = (tid // pixels_per_view) % nc
-        i = tid // (pixels_per_view * nc)
-        py, px = idx // width, idx % width
-        dst[i, j, idx] = src[i, j, py, px]
-
-    @staticmethod
-    @wp.kernel
-    def _copy_3d_to_4d_float(
-        src: wp.array(dtype=wp.float32, ndim=3),
-        dst: wp.array(dtype=wp.float32, ndim=4),
-        n: wp.int32,
-        nc: wp.int32,
-        width: wp.int32,
-        height: wp.int32,
-    ):
-        tid = wp.tid()
-        pixels_per_view = width * height
-        idx = tid % pixels_per_view
-        j = (tid // pixels_per_view) % nc
-        i = tid // (pixels_per_view * nc)
-        py, px = idx // width, idx % width
-        dst[i, j, py, px] = src[i, j, idx]
-
-    @staticmethod
-    @wp.kernel
-    def _copy_4d_to_3d_vec3(
-        src: wp.array(dtype=wp.vec3f, ndim=4),
-        dst: wp.array(dtype=wp.vec3f, ndim=3),
-        n: wp.int32,
-        nc: wp.int32,
-        width: wp.int32,
-        height: wp.int32,
-    ):
-        tid = wp.tid()
-        pixels_per_view = width * height
-        idx = tid % pixels_per_view
-        j = (tid // pixels_per_view) % nc
-        i = tid // (pixels_per_view * nc)
-        py, px = idx // width, idx % width
-        dst[i, j, idx] = src[i, j, py, px]
-
-    @staticmethod
-    @wp.kernel
-    def _copy_3d_to_4d_vec3(
-        src: wp.array(dtype=wp.vec3f, ndim=3),
-        dst: wp.array(dtype=wp.vec3f, ndim=4),
-        n: wp.int32,
-        nc: wp.int32,
-        width: wp.int32,
-        height: wp.int32,
-    ):
-        tid = wp.tid()
-        pixels_per_view = width * height
-        idx = tid % pixels_per_view
-        j = (tid // pixels_per_view) % nc
-        i = tid // (pixels_per_view * nc)
-        py, px = idx // width, idx % width
-        dst[i, j, py, px] = src[i, j, idx]
-
 
 class NewtonWarpRenderer:
     """Newton Warp backend for tiled camera rendering"""
@@ -411,6 +187,7 @@ class NewtonWarpRenderer:
     def __init__(self, cfg: NewtonWarpRendererCfg):
         self.cfg = cfg
         self._newton_sensor = None  # created lazily in _get_newton_sensor()
+        self._logged_4d_path = False
 
     def _get_newton_sensor(self, width: int, height: int, num_cameras: int = 1):
         """Create Newton SensorTiledCamera once we have width/height. Supports (model) and (model, num_cameras, width, height) APIs."""
@@ -464,60 +241,28 @@ class NewtonWarpRenderer:
         render_data.update(positions, orientations, intrinsics)
 
     def render(self, render_data: RenderData):
-        """Render and write to output buffers. Try 4D first; on Newton conflict fall back to 3D (n, nc, H*W)."""
+        """Render and write to output buffers using 4D API (n, nc, H, W). Requires Newton commit d435c418 or later (e.g. 35657fc)."""
         self._get_newton_sensor(render_data.width, render_data.height)
         provider = self.get_scene_data_provider()
         state = provider.get_newton_state()
         transforms = render_data.camera_transforms
         rays = render_data.camera_rays
 
-        if render_data._output_ndim == 3:
-            render_data._copy_4d_to_3d()
-            self._newton_sensor.render(
-                state,
-                transforms,
-                rays,
-                color_image=render_data._outputs_3d.get("color"),
-                albedo_image=render_data._outputs_3d.get("albedo"),
-                depth_image=render_data._outputs_3d.get("depth"),
-                normal_image=render_data._outputs_3d.get("normal"),
-                shape_index_image=render_data._outputs_3d.get("shape_index"),
+        self._newton_sensor.render(
+            state,
+            transforms,
+            rays,
+            color_image=render_data.outputs.color_image,
+            albedo_image=render_data.outputs.albedo_image,
+            depth_image=render_data.outputs.depth_image,
+            normal_image=render_data.outputs.normals_image,
+            shape_index_image=render_data.outputs.instance_segmentation_image,
+        )
+        if not self._logged_4d_path:
+            logger.info(
+                "NewtonWarpRenderer: using 4D output buffers (n, nc, H, W); Newton commit supports 4D API."
             )
-            render_data._copy_3d_to_4d()
-            return
-
-        try:
-            self._newton_sensor.render(
-                state,
-                transforms,
-                rays,
-                color_image=render_data.outputs.color_image,
-                albedo_image=render_data.outputs.albedo_image,
-                depth_image=render_data.outputs.depth_image,
-                normal_image=render_data.outputs.normals_image,
-                shape_index_image=render_data.outputs.instance_segmentation_image,
-            )
-        except RuntimeError as e:
-            if "3 dimension" in str(e) or "expects an array with 3" in str(e):
-                logger.info(
-                    "NewtonWarpRenderer: Newton expects 3D outputs (prebundle); using 3D buffers (n, nc, H*W)."
-                )
-                render_data._output_ndim = 3
-                render_data._ensure_outputs_3d()
-                render_data._copy_4d_to_3d()
-                self._newton_sensor.render(
-                    state,
-                    transforms,
-                    rays,
-                    color_image=render_data._outputs_3d.get("color"),
-                    albedo_image=render_data._outputs_3d.get("albedo"),
-                    depth_image=render_data._outputs_3d.get("depth"),
-                    normal_image=render_data._outputs_3d.get("normal"),
-                    shape_index_image=render_data._outputs_3d.get("shape_index"),
-                )
-                render_data._copy_3d_to_4d()
-            else:
-                raise
+            self._logged_4d_path = True
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
         """Copy a specific output to the given buffer.

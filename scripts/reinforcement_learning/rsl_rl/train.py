@@ -242,7 +242,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
 
-    # Print average sim/render timing when available; also written to run_artifacts/<timestamp>/timing_summary.txt.
+    # Print average sim/render timing when available.
     # Warp renderer timers (newton_warp_sync_plus_render, etc.) only appear when using the newton_warp backend.
     # TODO: Instrument newton_warp_render_full and newton_warp_kernel_only in the Newton Warp renderer/tiled_camera
     #       (e.g. around _newton_sensor.render() and optionally 4D<->3D copies) so these show data instead of "(no data)".
@@ -266,11 +266,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if lines:
             print("[Timing summary]")
             print("\n".join(lines))
-            _timing_lines = lines  # keep for writing to artifacts
-        else:
-            _timing_lines = None
     except Exception:
-        _timing_lines = None
+        pass
 
 
     # close the simulator

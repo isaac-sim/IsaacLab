@@ -151,9 +151,16 @@ class PhysxSceneDataProvider:
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
-            # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_key)
-            self._articulation_paths = list(self._newton_model.articulation_key)
+            # Extract scene structure from Newton model (single source of truth).
+            # 4D Newton (pip @ 35657fc+) exposes body_label/articulation_label; older/prebundle uses body_key/articulation_key.
+            if hasattr(self._newton_model, "body_label"):
+                self._rigid_body_paths = list(self._newton_model.body_label)
+            else:
+                self._rigid_body_paths = list(self._newton_model.body_key)
+            if hasattr(self._newton_model, "articulation_label"):
+                self._articulation_paths = list(self._newton_model.articulation_label)
+            else:
+                self._articulation_paths = list(self._newton_model.articulation_key)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -193,7 +200,10 @@ class PhysxSceneDataProvider:
             self._filtered_newton_state = self._filtered_newton_model.state()
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            filtered_paths = list(self._filtered_newton_model.body_key)
+            if hasattr(self._filtered_newton_model, "body_label"):
+                filtered_paths = list(self._filtered_newton_model.body_label)
+            else:
+                filtered_paths = list(self._filtered_newton_model.body_key)
             self._filtered_body_indices = []
             missing = []
             for path in filtered_paths:
@@ -510,7 +520,7 @@ class PhysxSceneDataProvider:
             self._set_body_q_kernel = _set_body_q
             return self._set_body_q_kernel
         except Exception as exc:
-            logger.warning(f"[PhysxSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
+            logger.debug("[PhysxSceneDataProvider] Warp unavailable for Newton state sync: %s", exc)
             return None
 
     def _get_set_body_q_subset_kernel(self):
