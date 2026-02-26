@@ -5,25 +5,17 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-logger = logging.getLogger(__name__)
-
-import numpy as np
 import torch
 import warp as wp
-
-
 from pxr import UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import Renderer
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
 from .camera import Camera
@@ -37,7 +29,6 @@ if TYPE_CHECKING:
 
 
 class TiledCamera(Camera):
-    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -213,10 +204,9 @@ class TiledCamera(Camera):
 
     def _update_poses(self, env_ids: Sequence[int]):
         super()._update_poses(env_ids)
-        if self.renderer is not None:
-            self.renderer.update_camera(
-                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
-            )
+        self.renderer.update_camera(
+            self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+        )
 
     def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
@@ -243,7 +233,7 @@ class TiledCamera(Camera):
 
     def _get_effective_renderer_cfg(self):
         """Resolve renderer_cfg from optional renderer_type (Hydra override)."""
-        rt = getattr(self.cfg, "renderer_type", None)
+        rt = getattr(self.cfg, "renderer_type", "isaac_rtx")
         if rt == "isaac_rtx":
             from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -358,17 +348,6 @@ class TiledCamera(Camera):
         self._data.output = data_dict
         self._data.info = dict()
         self.renderer.set_outputs(self.render_data, self._data.output)
-        
-    def _tiled_image_shape(self) -> tuple[int, int]:
-        """Returns a tuple containing the dimension of the tiled image."""
-        cols, rows = self._tiling_grid_shape()
-        return (self.cfg.width * cols, self.cfg.height * rows)
-
-    def _tiling_grid_shape(self) -> tuple[int, int]:
-        """Returns a tuple containing the tiling grid dimension."""
-        cols = math.ceil(math.sqrt(self._view.count))
-        rows = math.ceil(self._view.count / cols)
-        return (cols, rows)
 
     def _create_annotator_data(self):
         # we do not need to create annotator data for the tiled camera sensor

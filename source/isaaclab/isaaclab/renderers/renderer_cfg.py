@@ -23,12 +23,8 @@ class RendererCfg:
     renderer_type: str = "default"
     """Type identifier (e.g. 'isaac_rtx', 'newton_warp')."""
 
-    height: int = 1024
-    width: int = 1024
-    num_envs: int = 1
-    num_cameras: int = 1
     data_types: list[str] = MISSING
-    """List of data types to use for rendering."""
+    """List of data types to use for rendering (synced from camera config when needed)."""
 
     def get_renderer_type(self) -> str:
         return self.renderer_type
