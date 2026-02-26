@@ -242,10 +242,17 @@ container name suffix, which is useful for local development in multi-user envir
 
 * If ``--suffix`` is omitted, Isaac Lab uses a per-user suffix derived from the current username.
   This creates names such as ``isaac-lab-base-<username>`` and isolates Docker Compose projects by user.
+* Passing ``--suffix`` without a value is not supported. Omit the flag to use the default behavior.
 * If ``--suffix ''`` is passed explicitly, Isaac Lab preserves the legacy no-suffix behavior
   (for example, ``isaac-lab-base``).
 * If ``--suffix <value>`` is provided, Isaac Lab inserts a hyphen and uses
   ``isaac-lab-${profile}-${suffix}``.
+
+.. note::
+
+   This is a breaking change from earlier releases where omitting ``--suffix`` produced containers named
+   ``isaac-lab-${profile}``. If you have existing legacy containers created without a suffix, explicitly
+   pass ``--suffix ''`` to target them when running ``stop``/``enter``/``copy``.
 
 ``suffix`` should not be used with cluster deployments.
 
