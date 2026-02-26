@@ -345,11 +345,12 @@ class ContainerInterface:
                 text=True,
                 check=False,
             )
-            if result.returncode == 0:
-                names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
-                return [n for n in names if n != self.container_name]
         except Exception:
-            return []
+            result = None
+
+        if result is not None and result.returncode == 0:
+            names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
+            return [n for n in names if n != self.container_name]
 
         try:
             result = subprocess.run(
@@ -358,9 +359,11 @@ class ContainerInterface:
                 text=True,
                 check=False,
             )
-            names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
         except Exception:
             return []
+        if result.returncode != 0:
+            return []
+        names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
         conflicts: list[str] = []
 
         for n in names:
