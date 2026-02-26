@@ -32,7 +32,7 @@ parser.add_argument(
     "--benchmark_backend",
     type=str,
     default="omniperf",
-    choices=["json", "osmo", "omniperf"],
+    choices=["json", "osmo", "omniperf", "summary"],
     help="Benchmarking backend options, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
@@ -76,11 +76,13 @@ from isaaclab_assets import ANYMAL_D_CFG, G1_MINIMAL_CFG, H1_MINIMAL_CFG  # isor
 imports_time_end = time.perf_counter_ns()
 
 # Create the benchmark
+backend_type = args_cli.benchmark_backend
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_load_robot",
-    backend_type=args_cli.benchmark_backend,
+    backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
+    frametime_recorders=backend_type in ("summary", "omniperf"),
     output_prefix="benchmark_load_robot",
     workflow_metadata={
         "metadata": [

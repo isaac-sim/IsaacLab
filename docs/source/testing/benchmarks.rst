@@ -34,7 +34,7 @@ The benchmarking framework consists of several key components:
 - **Metadata**: Data classes for recording context (hardware, versions, parameters)
 - **TestPhase**: Container for organizing measurements into logical groups
 - **Recorders**: System information collectors (CPU, GPU, memory, versions)
-- **Backends**: Output formatters (JSON, Osmo, OmniPerf)
+- **Backends**: Output formatters (JSON, Osmo, OmniPerf, Summary)
 
 .. seealso::
 
@@ -169,7 +169,7 @@ Common Arguments
      - Description
    * - ``--benchmark_backend``
      - ``json``
-     - Output backend: ``json``, ``osmo``, or ``omniperf``
+     - Output backend: ``json``, ``osmo``, ``omniperf``, or ``summary``
    * - ``--output_path``
      - ``./``
      - Directory for output files
@@ -396,6 +396,20 @@ Output structure:
      }
    }
 
+Summary Backend
+~~~~~~~~~~~~~~~
+
+Human-readable console report plus JSON file. Prints a formatted summary (runtime,
+startup, train, frametime, and system info) to the terminal while also writing
+the same data as JSON. Use when you want a quick readout without opening the JSON:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p ... --benchmark_backend summary --output_path ./results
+
+When ``summary`` is selected, frametime recorders are enabled automatically when
+running with Isaac Sim (Kit).
+
 BenchmarkMonitor
 ----------------
 
@@ -585,7 +599,7 @@ Ensure ``_finalize_impl()`` is called before the script exits:
 Backend Not Recognized
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Valid backend types are: ``json``, ``osmo``, ``omniperf``
+Valid backend types are: ``json``, ``osmo``, ``omniperf``, ``summary``
 
 .. code-block:: bash
 
