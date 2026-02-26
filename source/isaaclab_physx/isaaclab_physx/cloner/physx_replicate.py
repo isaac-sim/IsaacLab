@@ -52,7 +52,7 @@ def physx_replicate(
     num_envs = mapping.size(1)
 
     def attach_fn(_stage_id: int):
-        return ["/World/envs", *sources]
+        return ["/World/template"]
 
     def rename_fn(_replicate_path: str, i: int):
         return current_template.format(current_worlds[i])
@@ -61,8 +61,16 @@ def physx_replicate(
         nonlocal current_template
         rep = get_physx_replicator_interface()
         for i, src in enumerate(sources):
-            current_worlds[:] = env_ids[mapping[i]].tolist()
             current_template = destinations[i]
+            worlds = env_ids[mapping[i]].tolist()
+            # Exclude the world whose destination resolves to the source itself — replicating
+            # a prim onto itself creates a duplicate PhysX body that conflicts with the
+            # USD-parsed original, causing erratic joint behaviour.
+            pre, _, suf = current_template.partition("{}")
+            self_id = src.removeprefix(pre).removesuffix(suf)
+            current_worlds[:] = [w for w in worlds if w != int(self_id)] if self_id.isdigit() else worlds
+            if not current_worlds:
+                continue
             rep.replicate(
                 _stage_id,
                 src,
