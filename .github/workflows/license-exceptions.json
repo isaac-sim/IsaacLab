@@ -463,5 +463,9 @@
     "package": "typing_extensions",
     "license": "PSF-2.0",
     "comment": "PSF-2.0 / OSRB"
+  },
+  {
+    "package": "cuda-bindings",
+    "license": "LicenseRef-NVIDIA-SOFTWARE-LICENSE"
   }
 ]

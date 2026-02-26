@@ -27,6 +27,8 @@ try:
 except ImportError:
     raise ImportError("Rerun is not installed!")
 
+_RR_HAS_TRANSFORM_AXES = hasattr(rr, "TransformAxes3D")
+
 from curobo.types.state import JointState
 
 import isaaclab.utils.math as PoseUtils
@@ -628,15 +630,17 @@ class PlanVisualizer:
 
             # Always update transform (objects may move between calls)
             # NOTE: World scene objects are already in correct world coordinates, no offset needed
-            rr.log(
-                rr_path,
-                rr.Transform3D(
-                    translation=tform[:3, 3],
-                    mat3x3=tform[:3, :3],
-                    axis_length=0.25,
-                ),
-                static=False,
-            )
+            if _RR_HAS_TRANSFORM_AXES:
+                # rerun >= 0.28: axis_length moved to TransformAxes3D
+                rr.log(rr_path, rr.Transform3D(translation=tform[:3, 3], mat3x3=tform[:3, :3]), static=False)
+                rr.log(rr_path, rr.TransformAxes3D(axis_length=0.25), static=False)
+            else:
+                # rerun <= 0.27: axis_length on Transform3D directly
+                rr.log(
+                    rr_path,
+                    rr.Transform3D(translation=tform[:3, 3], mat3x3=tform[:3, :3], axis_length=0.25),
+                    static=False,
+                )
 
             # Geometry: send only once per node to avoid duplicates
             if rr_path not in self._logged_geometry:

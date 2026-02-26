@@ -64,12 +64,6 @@ parser.add_argument(
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -82,11 +76,6 @@ if args_cli.task is None:
 
 app_launcher_args = vars(args_cli)
 
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version
-    # installed by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
@@ -101,6 +90,7 @@ simulation_app = app_launcher.app
 import logging
 import os
 import time
+from collections.abc import Callable
 
 import gymnasium as gym
 import torch
@@ -111,20 +101,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
-
-import isaaclab_mimic.envs  # noqa: F401
-from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
-
-from collections.abc import Callable
-
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
 from isaaclab.managers import DatasetExportMode
+
+import isaaclab_mimic.envs  # noqa: F401
+from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

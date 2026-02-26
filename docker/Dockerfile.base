@@ -36,17 +36,29 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 USER root
 
-# Install dependencies and remove cache
+# Install dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && apt-get install -y --no-install-recommends \
+    apt-get update
+
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
-    # required to build imgui-bundle (use by isaaclab_newton)
-    libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
     libglib2.0-0 \
     ncurses-term \
-    wget && \
+    wget
+
+# Required to build imgui-bundle on arm64 as no prebuilt pip wheel is provided
+RUN --mount=type=cache,target=/var/cache/apt \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        apt-get install -y --no-install-recommends \
+        libgl1-mesa-dev libopengl-dev libglx-dev \
+        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
+    fi
+
+# Cleanup
+RUN --mount=type=cache,target=/var/cache/apt \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 

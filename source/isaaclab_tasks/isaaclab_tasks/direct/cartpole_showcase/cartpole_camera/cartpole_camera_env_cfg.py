@@ -11,7 +11,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
 
 
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> TiledCameraCfg:

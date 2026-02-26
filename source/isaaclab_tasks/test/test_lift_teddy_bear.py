@@ -5,14 +5,6 @@
 
 """Launch Isaac Sim Simulator first."""
 
-import sys
-
-# Import pinocchio in the main script to force the use of the dependencies
-# installed by IsaacLab and not the one installed by Isaac Sim.
-# pinocchio is required by the Pink IK controller
-if sys.platform != "win32":
-    import pinocchio  # noqa: F401
-
 from isaaclab.app import AppLauncher
 
 # launch the simulator with specific settings for teddy bear environment
