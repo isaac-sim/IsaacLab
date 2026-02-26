@@ -146,6 +146,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 value = string_to_callable(value)
 
             # -- 4) simple scalar / explicit None / filling optional (obj_mem is None) ----
+            # obj_mem is None - this could be from passing in a None value for renderer_type
             elif value is None or obj_mem is None or isinstance(value, type(obj_mem)):
                 pass
 

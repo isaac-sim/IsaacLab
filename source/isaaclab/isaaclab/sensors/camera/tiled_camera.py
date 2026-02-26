@@ -180,7 +180,7 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Resolve renderer config from optional renderer_type (Hydra override) or use renderer_cfg
+        # Resolve renderer config from optional renderer_type Hydra override or use renderer_cfg
         renderer_cfg = self._get_effective_renderer_cfg()
 
         # Convert all encapsulated prims to Camera
@@ -232,7 +232,7 @@ class TiledCamera(Camera):
     """
 
     def _get_effective_renderer_cfg(self):
-        """Resolve renderer_cfg from optional renderer_type (Hydra override)."""
+        """Resolve renderer_cfg from optional renderer_type from Hydra override."""
         rt = getattr(self.cfg, "renderer_type", "isaac_rtx")
         if rt == "isaac_rtx":
             from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -348,6 +348,17 @@ class TiledCamera(Camera):
         self._data.output = data_dict
         self._data.info = dict()
         self.renderer.set_outputs(self.render_data, self._data.output)
+    
+    def _tiled_image_shape(self) -> tuple[int, int]:
+        """Returns a tuple containing the dimension of the tiled image."""
+        cols, rows = self._tiling_grid_shape()
+        return (self.cfg.width * cols, self.cfg.height * rows)
+
+    def _tiling_grid_shape(self) -> tuple[int, int]:
+        """Returns a tuple containing the tiling grid dimension."""
+        cols = math.ceil(math.sqrt(self._view.count))
+        rows = math.ceil(self._view.count / cols)
+        return (cols, rows)
 
     def _create_annotator_data(self):
         # we do not need to create annotator data for the tiled camera sensor
