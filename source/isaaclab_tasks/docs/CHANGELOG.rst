@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.1.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Set replicate physics to False for GR1T2 and G1 environments.
+
+
 1.1.1 (2026-02-23)
 ~~~~~~~~~~~~~~~~~~
 

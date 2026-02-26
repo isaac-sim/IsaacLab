@@ -128,9 +128,6 @@ class AppLauncher:
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
 
-        # Internal: Override SimulationApp._start_app method to apply patches after app has started.
-        self.__patch_simulation_start_app(launcher_args)
-
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
         # Load IsaacSim extensions
@@ -1002,97 +999,3 @@ class AppLauncher:
         """Handle the abort/segmentation/kill signals."""
         # close the app
         self._app.close()
-
-    def __patch_simulation_start_app(self, launcher_args: dict):
-        if not launcher_args.get("enable_pinocchio", False):
-            return
-
-        if launcher_args.get("disable_pinocchio_patch", False):
-            return
-
-        original_start_app = SimulationApp._start_app
-
-        def _start_app_patch(sim_app_instance, *args, **kwargs):
-            original_start_app(sim_app_instance, *args, **kwargs)
-            self.__patch_pxr_gf_matrix4d(launcher_args)
-
-        SimulationApp._start_app = _start_app_patch
-
-    def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
-        import traceback
-
-        from pxr import Gf
-
-        logger.warning(
-            "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
-            " into a list of floats."
-        )
-
-        # Store the original Matrix4d constructor
-        original_matrix4d = Gf.Matrix4d.__init__
-
-        # Define a wrapper function to handle different input types
-        def patch_matrix4d(self, *args, **kwargs):
-            try:
-                # Case 1: No arguments (identity matrix)
-                if len(args) == 0:
-                    original_matrix4d(self, *args, **kwargs)
-                    return
-
-                # Case 2: Single argument
-                elif len(args) == 1:
-                    arg = args[0]
-
-                    # Case 2a: Already a Matrix4d
-                    if isinstance(arg, Gf.Matrix4d):
-                        original_matrix4d(self, arg)
-                        return
-
-                    # Case 2b: Tuple of tuples (4x4 matrix) OR List of lists (4x4 matrix)
-                    elif (isinstance(arg, tuple) and len(arg) == 4 and all(isinstance(row, tuple) for row in arg)) or (
-                        isinstance(arg, list) and len(arg) == 4 and all(isinstance(row, list) for row in arg)
-                    ):
-                        float_list = [float(item) for row in arg for item in row]
-                        original_matrix4d(self, *float_list)
-                        return
-
-                    # Case 2c: Flat list of 16 elements
-                    elif isinstance(arg, (list, tuple)) and len(arg) == 16:
-                        float_list = [float(item) for item in arg]
-                        original_matrix4d(self, *float_list)
-                        return
-
-                    # Case 2d: Another matrix-like object with elements accessible via indexing
-                    elif hasattr(arg, "__getitem__") and hasattr(arg, "__len__"):
-                        with contextlib.suppress(IndexError, TypeError):
-                            if len(arg) == 16:
-                                float_list = [float(arg[i]) for i in range(16)]
-                                original_matrix4d(self, *float_list)
-                                return
-                            # Try to extract as 4x4 matrix
-                            elif len(arg) == 4 and all(len(row) == 4 for row in arg):
-                                float_list = [float(arg[i][j]) for i in range(4) for j in range(4)]
-                                original_matrix4d(self, *float_list)
-                                return
-
-                # Case 3: 16 separate arguments (individual matrix elements)
-                elif len(args) == 16:
-                    float_list = [float(arg) for arg in args]
-                    original_matrix4d(self, *float_list)
-                    return
-
-                # Default: Use original constructor
-                original_matrix4d(self, *args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Matrix4d wrapper error: {e}")
-                traceback.print_stack()
-                # Fall back to original constructor as last resort
-                try:
-                    original_matrix4d(self, *args, **kwargs)
-                except Exception as inner_e:
-                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
-                    # Initialize as identity matrix if all else fails
-                    original_matrix4d(self)
-
-        Gf.Matrix4d.__init__ = patch_matrix4d
