@@ -66,6 +66,9 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         self.base_camera.data_types = [self.camera_type]
         self.base_camera.width = self.width
         self.base_camera.height = self.height
+        # Sync renderer_cfg.data_types (scene sets data_types after config build; TiledCameraCfg.__post_init__ runs earlier)
+        if hasattr(self.base_camera, "renderer_cfg") and self.base_camera.renderer_cfg is not None and hasattr(self.base_camera.renderer_cfg, "data_types"):
+            self.base_camera.renderer_cfg.data_types = list(self.base_camera.data_types)
         # Remove so InteractiveScene._add_entities_from_cfg() does not treat them as assets
         del self.camera_type
         del self.width

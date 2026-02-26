@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
@@ -29,3 +30,10 @@ class TiledCameraCfg(CameraCfg):
 
     renderer_type: str | None = None
     """If set, TiledCamera builds renderer_cfg from this in _initialize_impl() so any task works."""
+
+    def __post_init__(self):
+        # So validation passes when Hydra sets only renderer_type (renderer_cfg.data_types is MISSING by default).
+        # Skip when data_types is MISSING (e.g. Kuka scene sets it in scene __post_init__).
+        if hasattr(self, "renderer_cfg") and self.renderer_cfg is not None and hasattr(self.renderer_cfg, "data_types"):
+            if hasattr(self, "data_types") and self.data_types is not None and self.data_types is not MISSING:
+                self.renderer_cfg.data_types = list(self.data_types)
