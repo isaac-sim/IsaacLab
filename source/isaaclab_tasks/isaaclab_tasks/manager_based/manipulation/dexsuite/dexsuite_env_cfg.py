@@ -298,7 +298,7 @@ class EventCfg:
         },
     )
 
-    # Deliberate trick in Remake to accelerate learning.
+    # Note (Octi): This is a deliberate trick in Remake to accelerate learning.
     # By scheduling gravity as a curriculum — starting with no gravity (easy)
     # and gradually introducing full gravity (hard) — the agent learns more smoothly.
     # This removes the need for a special "Lift" reward (often required to push the

@@ -349,6 +349,7 @@ class TiledCamera(Camera):
                     self._data.output["rgb"] = (
                         self._data.output["rgba"][..., [2, 1, 0]] if order == "bgra" else self._data.output["rgba"][..., :3]
                     )
+                # TODO: remove when PR is reviewed
                 # Save flattened color image to /tmp/newton_renders every N frames
                 n = getattr(self, "_warp_save_frame_count", 0)
                 if getattr(self, "_warp_save_interval", 50) and n % getattr(self, "_warp_save_interval", 50) == 0:

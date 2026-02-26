@@ -202,7 +202,7 @@ class Timer(ContextDecorator):
         self.stop()
         # print message
         if self._msg is not None:
-            print(self._msg, f": {self._elapsed_time:0.6f} seconds", flush=True)
+            print(self._msg, f": {self._elapsed_time:0.6f} seconds")
 
     """
     Static Methods
