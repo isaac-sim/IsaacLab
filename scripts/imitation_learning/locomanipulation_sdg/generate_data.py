@@ -371,7 +371,9 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data
     )
 
     env.scene["robot"].write_root_pose_to_sim_index(root_pose=new_robot_pose, env_ids=[0])
-    env.scene["robot"].write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0])
+    env.scene["robot"].write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0]
+    )
     # Update default root pose and velocity for correct state on reset
     default_pose = wp.to_torch(env.scene["robot"].data.default_root_pose).clone()
     default_pose[0] = new_robot_pose[0]
@@ -420,7 +422,9 @@ def project_object_state_into_env(env: LocomanipulationSDGEnv, input_episode_dat
     )
 
     env.scene["object"].write_root_pose_to_sim_index(root_pose=new_object_pose, env_ids=[0])
-    env.scene["object"].write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0])
+    env.scene["object"].write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0]
+    )
     # Update default root pose and velocity for correct state on reset
     default_pose = wp.to_torch(env.scene["object"].data.default_root_pose).clone()
     default_pose[0] = new_object_pose[0]
