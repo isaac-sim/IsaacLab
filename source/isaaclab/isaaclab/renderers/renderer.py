@@ -32,7 +32,6 @@ class Renderer(FactoryBase, BaseRenderer):
             name = type(result).__name__
             bases = type(result).__bases__
             raise TypeError(
-                f"Backend renderer {name!r} must inherit from BaseRenderer, "
-                f"but it inherits from {bases!r}."
+                f"Backend renderer {name!r} must inherit from BaseRenderer, but it inherits from {bases!r}."
             )
         return result
