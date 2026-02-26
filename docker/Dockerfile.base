@@ -37,10 +37,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 USER root
 
 # Install dependencies
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update
-
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -49,18 +46,13 @@ RUN --mount=type=cache,target=/var/cache/apt \
     ncurses-term \
     wget
 
-# Required to build imgui-bundle on arm64 as no prebuilt pip wheel is provided
-RUN --mount=type=cache,target=/var/cache/apt \
-    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+# Install packages needed to build imgui-bundle on arm64 as no prebuilt pip wheel is provided
+RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        apt-get update && \
         apt-get install -y --no-install-recommends \
         libgl1-mesa-dev libopengl-dev libglx-dev \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
-
-# Cleanup
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt -y autoremove && apt clean autoclean && \
-    rm -rf /var/lib/apt/lists/*
 
 # Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
 COPY ../ ${ISAACLAB_PATH}
@@ -78,9 +70,10 @@ RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml
 
 # Install apt dependencies for extensions that declare them in their extension.toml
-RUN --mount=type=cache,target=/var/cache/apt \
-    ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
-    apt -y autoremove && apt clean autoclean && \
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source
+
+# Apt Cleanup
+RUN apt-get -y autoremove && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # for singularity usage, have to create the directories that will binded
