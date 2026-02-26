@@ -56,6 +56,7 @@ Installing dependencies
          .. code-block:: bash
 
             pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
+<<<<<<< spark-docs
 
          .. note::
 
@@ -66,6 +67,8 @@ Installing dependencies
             .. code-block:: bash
 
                sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+=======
+>>>>>>> develop
 
          .. note::
 
