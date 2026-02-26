@@ -19,6 +19,7 @@ import warp as wp
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.visualizers import VisualizerCfg
+from isaaclab.renderers.base_renderer import BaseRenderer
 
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
@@ -140,7 +141,7 @@ class RenderData:
         output[0, tid] = wp.transformf(positions[tid], orientations[tid])
 
 
-class NewtonWarpRenderer:
+class NewtonWarpRenderer(BaseRenderer):
     """Newton Warp backend for tiled camera rendering"""
 
     RenderData = RenderData

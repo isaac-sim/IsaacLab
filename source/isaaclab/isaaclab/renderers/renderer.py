@@ -13,7 +13,7 @@ from .base_renderer import BaseRenderer
 from .renderer_cfg import RendererCfg
 
 # This is mapping of where backends live in the isaaclab_<backend> package.
-_RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton"}
+_RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton", "ov_rtx": "ovrtx"}
 
 
 class Renderer(FactoryBase, BaseRenderer):
