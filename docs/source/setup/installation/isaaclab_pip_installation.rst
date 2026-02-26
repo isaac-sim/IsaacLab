@@ -59,6 +59,16 @@ Installing dependencies
 
          .. note::
 
+            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` must be compiled from source because no
+            pre-built wheel is available. Install the required OpenGL and X11 development packages
+            **before** installing Isaac Lab:
+
+            .. code-block:: bash
+
+               sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+
+         .. note::
+
             After installing Isaac Lab on aarch64, you may encounter warnings such as:
 
             .. code-block:: none
