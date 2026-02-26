@@ -635,6 +635,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">.base_contact_sensor_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseContactSensorData</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_newton.sensors.contact_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensor</span> <span class="k">as</span> <span class="n">NewtonContactSensor</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_newton.sensors.contact_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorData</span> <span class="k">as</span> <span class="n">NewtonContactSensorData</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.sensors.contact_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensor</span> <span class="k">as</span> <span class="n">PhysXContactSensor</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.sensors.contact_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorData</span> <span class="k">as</span> <span class="n">PhysXContactSensorData</span>
 
@@ -642,10 +644,13 @@
 <div class="viewcode-block" id="ContactSensor"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensor">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ContactSensor</span><span class="p">(</span><span class="n">FactoryBase</span><span class="p">,</span> <span class="n">BaseContactSensor</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Factory for creating contact sensor instances.&quot;&quot;&quot;</span>
 
-    <span class="n">data</span><span class="p">:</span> <span class="n">BaseContactSensorData</span> <span class="o">|</span> <span class="n">PhysXContactSensorData</span>
+    <span class="n">data</span><span class="p">:</span> <span class="n">BaseContactSensorData</span> <span class="o">|</span> <span class="n">PhysXContactSensorData</span> <span class="o">|</span> <span class="n">NewtonContactSensorData</span>
 
-<div class="viewcode-block" id="ContactSensor.__new__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensor.__new__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BaseContactSensor</span> <span class="o">|</span> <span class="n">PhysXContactSensor</span><span class="p">:</span>
+<div class="viewcode-block" id="ContactSensor.__new__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensor.__new__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BaseContactSensor</span> <span class="o">|</span> <span class="n">PhysXContactSensor</span> <span class="o">|</span> <span class="n">NewtonContactSensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a new instance of a contact sensor based on the backend.&quot;&quot;&quot;</span>
+        <span class="c1"># The `FactoryBase` __new__ method will handle the logic and return</span>
+        <span class="c1"># an instance of the correct backend-specific contact sensor class,</span>
+        <span class="c1"># which is guaranteed to be a subclass of `BaseContactSensor` by convention.</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
 </pre></div>
 

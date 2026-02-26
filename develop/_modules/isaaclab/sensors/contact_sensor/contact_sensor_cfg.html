@@ -635,7 +635,14 @@
 
 <div class="viewcode-block" id="ContactSensorCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensorCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ContactSensorCfg</span><span class="p">(</span><span class="n">SensorBaseCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the contact sensor.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the contact sensor.</span>
+
+<span class="sd">    Sensing bodies are selected via :attr:`SensorBaseCfg.prim_path`. Filter bodies for</span>
+<span class="sd">    per-partner force reporting are selected via :attr:`filter_prim_paths_expr`.</span>
+
+<span class="sd">    Only body-level sensing and filtering are supported. For shape-level granularity,</span>
+<span class="sd">    see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">ContactSensor</span>
 
@@ -649,9 +656,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to track the friction forces at the contact points. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">max_contact_data_count_per_prim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum number of contacts across all batches of the sensor to keep track of.</span>
-
-<span class="sd">    When set to None, PhysX will use a default value of 4.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum number of contacts across all batches of the sensor to keep track of. Default is 4, where supported.</span>
 
 <span class="sd">    This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number</span>
 <span class="sd">    of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.</span>
@@ -660,45 +665,43 @@
 
 <span class="sd">        If the environment is very contact rich it is suggested to increase this parameter to avoid out of bounds memory</span>
 <span class="sd">        errors and loss of contact data leading to inaccurate measurements.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-
-    <span class="n">history_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of past frames to store in the sensor buffers. Defaults to 0, which means that only</span>
-<span class="sd">    the current data is stored (no history).&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">track_air_time</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to track the air/contact time of the bodies (time between contacts). Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">force_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The threshold on the norm of the contact force that determines whether two bodies are in collision or not.</span>
-
-<span class="sd">    When set to None, PhysX will use a default value of 1.0, and Newton will use a default value of 0.0.</span>
+<span class="sd">    Defaults to None, in which case the sensor backend chooses an appropriate value.</span>
 
 <span class="sd">    This value is only used for tracking the mode duration (the time in contact or in air),</span>
 <span class="sd">    if :attr:`track_air_time` is True.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">filter_prim_paths_expr</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The list of primitive paths (or expressions) to filter contacts with. Defaults to an empty list, in which case</span>
-<span class="sd">    no filtering is applied.</span>
+    <span class="n">history_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of past frames to store in the sensor buffers. Defaults to 0, which means that only</span>
+<span class="sd">    the current data is stored (no history).&quot;&quot;&quot;</span>
 
-<span class="sd">    The contact sensor allows reporting contacts between the primitive specified with :attr:`prim_path` and</span>
-<span class="sd">    other primitives in the scene. For instance, in a scene containing a robot, a ground plane and an object,</span>
-<span class="sd">    you can obtain individual contact reports of the base of the robot with the ground plane and the object.</span>
+    <span class="n">filter_prim_paths_expr</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of body prim path expressions to filter contacts against. Defaults to empty,</span>
+<span class="sd">    meaning contacts with all bodies are aggregated into the net force.</span>
+
+<span class="sd">    If provided, a per-partner force matrix (:attr:`ContactSensorData.force_matrix_w`) is</span>
+<span class="sd">    reported in addition to the net force. Each expression is matched against body prim paths</span>
+<span class="sd">    in the scene.</span>
+
+<span class="sd">    For shape-level filtering, see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.</span>
 
 <span class="sd">    .. note::</span>
-<span class="sd">        The expression in the list can contain the environment namespace regex ``{ENV_REGEX_NS}`` which</span>
-<span class="sd">        will be replaced with the environment namespace.</span>
+<span class="sd">        Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which</span>
+<span class="sd">        is replaced with the environment namespace.</span>
 
-<span class="sd">        Example: ``{ENV_REGEX_NS}/Object`` will be replaced with ``/World/envs/env_.*/Object``.</span>
+<span class="sd">        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_.*/Object``.</span>
 
 <span class="sd">    .. attention::</span>
-<span class="sd">        The reporting of filtered contacts only works when the sensor primitive :attr:`prim_path` corresponds to a</span>
-<span class="sd">        single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the</span>
-<span class="sd">        filtering will not work as expected. Please check :class:`~isaaclab.sensors.contact_sensor.ContactSensor`</span>
-<span class="sd">        for more details.</span>
-<span class="sd">        If track_contact_points is true, then filter_prim_paths_expr cannot be an empty list!</span>
+<span class="sd">        Filtered contact reporting only works when :attr:`SensorBaseCfg.prim_path` matches a</span>
+<span class="sd">        single primitive per environment. For many-to-many filtering, see</span>
+<span class="sd">        ``NewtonContactSensorCfg`` in ``isaaclab_newton``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">visualizer_cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span> <span class="o">=</span> <span class="n">CONTACT_SENSOR_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/ContactSensor&quot;</span><span class="p">)</span>
