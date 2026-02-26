@@ -74,7 +74,7 @@ Isaac Lab sub-packages:
       .. code-block:: bash
 
          # Isaac Lab only
-         pip install isaaclab==3.0.0
+         pip install isaaclab==4.2.0
 
          # Isaac Lab + Isaac Sim
          pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
