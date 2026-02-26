@@ -149,7 +149,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
 
     sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
+        dt=1 / 60,
         render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
@@ -158,13 +158,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
         newton_cfg=newton_cfg,
     )
     # robot
-    robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 1.0),
-            rot=(0.0, 0.0, 1.0, 0.0),
-            joint_pos={".*": 0.0},
-        )
-    )
+    robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+
     actuated_joint_names = [
         "robot0_WRJ1",
         "robot0_WRJ0",
@@ -200,10 +195,10 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            mass_props=sim_utils.MassPropertiesCfg(density=200.0),
+            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
             scale=(0.9, 0.9, 0.9),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.4, 1.05), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.35, 1.03), rot=(1.0, 0.0, 0.0, 0.0)),
         actuators={},
         articulation_root_prim_path="",
     )

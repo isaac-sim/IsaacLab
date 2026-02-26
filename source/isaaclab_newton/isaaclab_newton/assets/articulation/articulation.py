@@ -1074,7 +1074,6 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-
         if isinstance(lower_limits, torch.Tensor):
             if self._temp_joint_vel is None:
                 self._temp_joint_vel = wp.zeros(
@@ -2293,7 +2292,6 @@ class Articulation(BaseArticulation):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
-
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
             actuator: ActuatorBase = actuator_cfg.class_type(
