@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pinocchio as pin
 import scipy.linalg.blas as blas
@@ -87,7 +89,7 @@ class NullSpacePostureTask(Task):
 
     def __init__(
         self,
-        cost: float,
+        cost: float | Any,
         lm_damping: float = 0.0,
         gain: float = 1.0,
         controlled_frames: list[str] | None = None,
@@ -111,6 +113,15 @@ class NullSpacePostureTask(Task):
             controlled_joints: Joint names to control in the posture task. If None or
                 empty, all actuated joints are controlled.
         """
+        # Support class_type(cfg) construction by accepting a config object as first argument.
+        if not isinstance(cost, (int, float)):
+            cfg = cost
+            cost = float(getattr(cfg, "cost"))
+            lm_damping = float(getattr(cfg, "lm_damping", lm_damping))
+            gain = float(getattr(cfg, "gain", gain))
+            controlled_frames = getattr(cfg, "controlled_frames", controlled_frames)
+            controlled_joints = getattr(cfg, "controlled_joints", controlled_joints)
+
         super().__init__(cost=cost, gain=gain, lm_damping=lm_damping)
         self.target_q: np.ndarray | None = None
         self.controlled_frames: list[str] = controlled_frames or []
