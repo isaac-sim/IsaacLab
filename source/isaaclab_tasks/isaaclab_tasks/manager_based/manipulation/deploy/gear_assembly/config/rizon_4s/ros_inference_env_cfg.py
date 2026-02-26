@@ -54,26 +54,26 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
         # Position configured for Rizon 4s workspace
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(0.5, 0.0, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Override gear initial poses (fixed poses for ROS inference)
         # Small gear
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(0.5, 0.0, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Medium gear
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(0.5, 0.0, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Large gear
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(0.5, 0.0, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Fixed asset parameters for ROS inference - derived from configuration
@@ -88,7 +88,7 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
             pose_range["y"][1],  # max value
             pose_range["z"][1],  # max value
         ]
-        # Orientation in degrees (quaternion (-0.70711, 0.0, 0.0, 0.70711) = -90° around Z)
+        # Orientation in degrees (quaternion (0.0, 0.0, 0.70711, -0.70711) = -90° around Z)
         self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
         # Derive orientation range from parent's pose_range (radians to degrees)
         self.fixed_asset_init_orn_deg_range = [
