@@ -18,6 +18,7 @@ import torch
 import warp as wp
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
@@ -47,7 +48,7 @@ class IsaacRtxRenderData:
     sensor: SensorBase | None = None
 
 
-class IsaacRtxRenderer:
+class IsaacRtxRenderer(BaseRenderer):
     """Isaac RTX backend using Omniverse Replicator for tiled camera rendering.
 
     Requires Isaac Sim.
