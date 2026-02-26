@@ -16,7 +16,6 @@ import torch
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv

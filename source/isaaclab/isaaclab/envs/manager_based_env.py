@@ -140,12 +140,6 @@ class ManagerBasedEnv:
                 self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        # Load Newton/Warp renderer stack before sim.reset() so env's warp is used (not Isaac Sim's).
-        # Trigger warp renderer import here so the correct stack is used before sensor init.
-        from isaaclab.renderers import get_renderer_class
-
-        get_renderer_class("warp_renderer")
-
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
@@ -168,7 +162,7 @@ class ManagerBasedEnv:
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...", flush=True)
+            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 # since the reset can trigger callbacks which use the stage,
                 # we need to set the stage context here
