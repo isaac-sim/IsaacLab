@@ -9,7 +9,7 @@ from gymnasium import spaces
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.direct.cartpole.cartpole_env import CartpoleEnvCfg
+from isaaclab_tasks.direct.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 
 ###
 # Observation space as Box

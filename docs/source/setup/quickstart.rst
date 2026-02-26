@@ -70,7 +70,7 @@ Next, install a CUDA-enabled PyTorch build.
 
    .. code-block:: bash
 
-      pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+      pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run

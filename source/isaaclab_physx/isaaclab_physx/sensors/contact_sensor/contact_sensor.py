@@ -136,7 +136,7 @@ class ContactSensor(BaseContactSensor):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies with contact sensors attached."""
-        prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
+        prim_paths = self.body_physx_view.prim_paths[: self.num_sensors]
         return [path.split("/")[-1] for path in prim_paths]
 
     @property

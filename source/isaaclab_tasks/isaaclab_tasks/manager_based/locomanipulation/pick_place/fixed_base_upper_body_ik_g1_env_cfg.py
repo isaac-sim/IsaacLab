@@ -345,7 +345,10 @@ class TerminationsCfg:
         func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
+    success = DoneTerm(
+        func=locomanip_mdp.task_done_pick_place_table_frame,
+        params={"task_link_name": "right_wrist_yaw_link", "table_cfg": SceneEntityCfg("packing_table")},
+    )
 
 
 ##
@@ -384,6 +387,8 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
+        # scene settings
+        self.scene.replicate_physics = False
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501

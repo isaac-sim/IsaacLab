@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+import os
 
 import torch
 
 from isaacsim.core.prims import SingleArticulation
 
 # enable motion generation extensions
-from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 enable_extension("isaacsim.robot_motion.lula")
 enable_extension("isaacsim.robot_motion.motion_generation")
@@ -19,28 +19,27 @@ from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
 from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import retrieve_file_path
 
+from .rmp_flow_cfg import RmpFlowControllerCfg  # noqa: F401
 
-@configclass
-class RmpFlowControllerCfg:
-    """Configuration for RMP-Flow controller (provided through LULA library)."""
+_RMPFLOW_EXT_PREFIX = "rmpflow_ext:"
+_RMPFLOW_EXT_NAME = "isaacsim.robot_motion.motion_generation"
 
-    name: str = "rmp_flow"
-    """Name of the controller. Supported: "rmp_flow", "rmp_flow_smoothed". Defaults to "rmp_flow"."""
-    config_file: str = MISSING
-    """Path to the configuration file for the controller."""
-    urdf_file: str = MISSING
-    """Path to the URDF model of the robot."""
-    collision_file: str = MISSING
-    """Path to collision model description of the robot."""
-    frame_name: str = MISSING
-    """Name of the robot frame for task space (must be present in the URDF)."""
-    evaluations_per_frame: float = MISSING
-    """Number of substeps during Euler integration inside LULA world model."""
-    ignore_robot_state_updates: bool = False
-    """If true, then state of the world model inside controller is rolled out. Defaults to False."""
+
+def _resolve_rmpflow_path(path: str) -> str:
+    """Resolve a sentinel ``rmpflow_ext:`` path to an absolute filesystem path.
+
+    Paths stored in :class:`~isaaclab.controllers.rmp_flow_cfg.RmpFlowControllerCfg`
+    that begin with ``"rmpflow_ext:"`` are relative to the
+    ``isaacsim.robot_motion.motion_generation`` extension directory.  This avoids
+    importing ``isaacsim`` in the cfg file (which is loaded without Kit).
+    """
+    if path.startswith(_RMPFLOW_EXT_PREFIX):
+        rel = path[len(_RMPFLOW_EXT_PREFIX) :]
+        ext_dir = get_extension_path_from_name(_RMPFLOW_EXT_NAME)
+        return os.path.join(ext_dir, rel)
+    return path
 
 
 class RmpFlowController:
@@ -98,9 +97,11 @@ class RmpFlowController:
             robot.initialize()
             # download files if they are not local
 
-            local_urdf_file = retrieve_file_path(self.cfg.urdf_file, force_download=True)
-            local_collision_file = retrieve_file_path(self.cfg.collision_file, force_download=True)
-            local_config_file = retrieve_file_path(self.cfg.config_file, force_download=True)
+            local_urdf_file = retrieve_file_path(_resolve_rmpflow_path(self.cfg.urdf_file), force_download=True)
+            local_collision_file = retrieve_file_path(
+                _resolve_rmpflow_path(self.cfg.collision_file), force_download=True
+            )
+            local_config_file = retrieve_file_path(_resolve_rmpflow_path(self.cfg.config_file), force_download=True)
 
             # add controller
             rmpflow = controller_cls(
