@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .sub_terrain_cfg import SubTerrainBaseCfg
 from .terrain_generator import TerrainGenerator

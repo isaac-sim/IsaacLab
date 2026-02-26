@@ -6,7 +6,7 @@
 import warnings
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .contact_sensor import ContactSensor
 

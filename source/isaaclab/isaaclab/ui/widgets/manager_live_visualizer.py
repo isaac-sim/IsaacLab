@@ -16,7 +16,7 @@ import omni.kit.app
 
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot

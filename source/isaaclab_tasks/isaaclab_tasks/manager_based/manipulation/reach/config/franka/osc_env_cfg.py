@@ -5,7 +5,7 @@
 
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import joint_pos_env_cfg
 

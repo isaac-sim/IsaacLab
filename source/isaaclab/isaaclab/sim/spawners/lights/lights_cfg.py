@@ -10,7 +10,7 @@ from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import lights
 

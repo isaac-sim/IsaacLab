@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .cloner_strategies import random
 

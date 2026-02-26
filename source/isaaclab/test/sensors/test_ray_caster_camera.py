@@ -31,7 +31,7 @@ from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, pat
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
-from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils.dict import convert_dict_to_backend
 from isaaclab.utils.timer import Timer
 
 # sample camera poses

@@ -29,7 +29,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils.dict import convert_dict_to_backend
 from isaaclab.utils.timer import Timer
 
 # sample camera poses

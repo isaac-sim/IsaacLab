@@ -11,7 +11,7 @@ from dataclasses import MISSING
 from pxr import Usd
 
 from isaaclab.sim import schemas
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

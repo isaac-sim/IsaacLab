@@ -17,7 +17,7 @@ from collections.abc import Generator
 import pytest
 import torch
 
-from isaaclab.utils import DelayBuffer
+from isaaclab.utils.buffers import DelayBuffer
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from typing import Literal
 
 import isaaclab.terrains.trimesh.mesh_terrains as mesh_terrains
 import isaaclab.terrains.trimesh.utils as mesh_utils_terrains
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 

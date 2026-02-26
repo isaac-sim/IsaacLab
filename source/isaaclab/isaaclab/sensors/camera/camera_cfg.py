@@ -12,7 +12,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera import Camera

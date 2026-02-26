@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils import to_camel_case
+from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,

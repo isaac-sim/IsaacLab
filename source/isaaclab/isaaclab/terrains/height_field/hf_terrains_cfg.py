@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 from . import hf_terrains

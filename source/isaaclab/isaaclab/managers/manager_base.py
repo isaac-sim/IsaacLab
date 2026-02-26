@@ -14,7 +14,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import isaaclab.utils.string as string_utils
-from isaaclab.utils import class_to_dict, string_to_callable
+from isaaclab.utils.dict import class_to_dict
+from isaaclab.utils.string import string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -40,7 +41,7 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from isaaclab.utils import configclass
+        from isaaclab.utils.configclass import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .drone_pose_command import DroneUniformPoseCommand
 

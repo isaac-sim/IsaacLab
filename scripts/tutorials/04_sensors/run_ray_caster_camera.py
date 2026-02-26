@@ -43,7 +43,7 @@ import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
-from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils.dict import convert_dict_to_backend
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import project_points, unproject_depth
 

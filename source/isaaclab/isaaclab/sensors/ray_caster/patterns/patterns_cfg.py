@@ -13,7 +13,7 @@ from typing import Literal
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import patterns
 

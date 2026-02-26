@@ -74,7 +74,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
-from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils.dict import convert_dict_to_backend
 
 
 def define_sensor() -> Camera:

@@ -11,7 +11,7 @@ from dataclasses import MISSING
 
 from pink.tasks import FrameTask
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

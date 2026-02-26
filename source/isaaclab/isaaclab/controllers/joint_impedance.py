@@ -10,7 +10,7 @@ from dataclasses import MISSING
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

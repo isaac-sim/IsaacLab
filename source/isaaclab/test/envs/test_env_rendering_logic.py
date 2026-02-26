@@ -28,7 +28,7 @@ from isaaclab.envs import (
 )
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.kit_visualizer import KitVisualizer
 from isaaclab.visualizers.kit_visualizer_cfg import KitVisualizerCfg
 

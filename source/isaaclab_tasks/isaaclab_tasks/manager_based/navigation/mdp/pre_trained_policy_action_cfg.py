@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 from isaaclab.managers import ActionTermCfg, ObservationGroupCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .pre_trained_policy_action import PreTrainedPolicyAction
 

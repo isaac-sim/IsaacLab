@@ -50,7 +50,8 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils.configclass import configclass
+from isaaclab.utils.timer import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##

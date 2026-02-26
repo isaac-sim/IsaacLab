@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .xr_cfg import XrCfg
 

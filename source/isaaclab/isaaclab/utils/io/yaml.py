@@ -9,7 +9,7 @@ import os
 
 import yaml
 
-from isaaclab.utils import class_to_dict
+from isaaclab.utils.dict import class_to_dict
 
 
 def load_yaml(filename: str) -> dict:
