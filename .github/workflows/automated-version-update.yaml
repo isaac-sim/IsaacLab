@@ -1,0 +1,71 @@
+name: Automated Version Update
+
+on:
+  schedule:
+    # Runs at midnight (UTC) every Monday
+    - cron: '0 0 * * 1'
+  workflow_dispatch:  # Allow manual trigger if needed for testing
+
+jobs:
+  update_version:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # Only run on the main branch
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for new commits today
+        id: check_commits
+        run: |
+          # Get the latest commit date in 'YYYY-MM-DD' format for 'source' and 'apps' folders
+          LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=short -- source apps)
+          TODAY_DATE=$(date +'%Y-%m-%d')
+          LAST_WEEK_DATE=$(date -d "7 days ago" +'%Y-%m-%d')
+
+          echo "Last commit date: $LAST_COMMIT_DATE"
+          echo "Today's date: $TODAY_DATE"
+          echo "Date one week ago: $LAST_WEEK_DATE"
+
+          # If the last commit is within the past week
+          if [[ "$LAST_COMMIT_DATE" > "$LAST_WEEK_DATE" ]]; then
+            echo "Changes detected in the source or apps folders for this week. Proceeding with version update."
+            echo "has_changes=true" >> $GITHUB_ENV
+          else
+            echo "No changes in the source or apps folders for this week. Skipping version update."
+            echo "has_changes=false" >> $GITHUB_ENV
+          fi
+
+      - name: Read current version
+        if: env.has_changes == 'true'
+        id: read_version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "Current version: $VERSION"
+          if [[ $VERSION =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.post([0-9]+)$ ]]; then
+            # Increment post-release version if the format is already postX
+            BASE_VERSION="${BASH_REMATCH[1]}"
+            POST_VERSION=$((BASH_REMATCH[2] + 1))
+            NEW_VERSION="${BASE_VERSION}.post${POST_VERSION}"
+          else
+            # First nightly update
+            BASE_VERSION=$VERSION
+            NEW_VERSION="${BASE_VERSION}.post1"
+          fi
+          echo "New version: $NEW_VERSION"
+          # Save the new version to an environment variable
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Update VERSION file
+        if: env.has_changes == 'true'
+        run: echo "${{ env.NEW_VERSION }}" > VERSION
+
+      - name: Commit and push changes
+        if: env.has_changes == 'true'
+        uses: EndBug/add-and-commit@v7
+        with:
+          author_name: 'GitHub Actions'
+          author_email: 'actions@github.com'
+          message: "Bumps version to ${{ env.NEW_VERSION }}"
