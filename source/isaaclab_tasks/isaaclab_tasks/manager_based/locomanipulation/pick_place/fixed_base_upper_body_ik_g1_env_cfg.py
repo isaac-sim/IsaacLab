@@ -346,7 +346,7 @@ class TerminationsCfg:
     )
 
     success = DoneTerm(
-        func=manip_mdp.task_done_pick_place,
+        func=locomanip_mdp.task_done_pick_place_table_frame,
         params={"task_link_name": "right_wrist_yaw_link", "table_cfg": SceneEntityCfg("packing_table")},
     )
 

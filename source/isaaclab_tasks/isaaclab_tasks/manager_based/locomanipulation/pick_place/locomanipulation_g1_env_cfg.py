@@ -383,7 +383,7 @@ class TerminationsCfg:
     )
 
     object_too_far = DoneTerm(
-        func=manip_mdp.object_too_far_from_robot,
+        func=locomanip_mdp.object_too_far_from_robot,
         params={
             "robot_cfg": SceneEntityCfg("robot"),
             "object_cfg": SceneEntityCfg("object"),
@@ -392,7 +392,7 @@ class TerminationsCfg:
     )
 
     success = DoneTerm(
-        func=manip_mdp.task_done_pick_place,
+        func=locomanip_mdp.task_done_pick_place_table_frame,
         params={
             "task_link_name": "right_wrist_yaw_link",
             "table_cfg": SceneEntityCfg("packing_table_2"),

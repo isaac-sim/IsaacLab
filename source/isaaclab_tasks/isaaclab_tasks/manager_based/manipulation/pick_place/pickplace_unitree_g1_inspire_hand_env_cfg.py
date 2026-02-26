@@ -496,10 +496,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(
-        func=mdp.task_done_pick_place,
-        params={"task_link_name": "right_wrist_yaw_link", "table_cfg": SceneEntityCfg("packing_table")},
-    )
+    success = DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
 
 
 @configclass
