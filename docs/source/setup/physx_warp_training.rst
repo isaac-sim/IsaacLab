@@ -102,6 +102,13 @@ From the IsaacLab-Physx-Warp root with the conda env activated:
    python -c "import isaacsim; print('Isaac Sim:', isaacsim.__file__)"
    python -c "from isaaclab.app import AppLauncher; print('IsaacLab OK')"
 
+Possible Newton / Warp conflict and fix
+---------------------------------------
+
+Isaac Sim's build includes its own Newton and Warp libraries under ``_build/.../pip_prebundle/``. When you run training, the app can load those first, so the Newton in use may not match the version this repo expects and can cause runtime or API conflicts.
+
+**Fix:** (1) Install Newton from the git repo at the commit in ``source/isaaclab/setup.py`` (e.g. ``pip install "newton @ git+https://github.com/newton-physics/newton.git@35657fc"``). (2) Move or rename the built Isaac Sim prebundle so it is not used: e.g. rename ``pip_prebundle/newton`` to ``newton_prebundle_bak`` (and similarly for ``warp`` if needed) in the Isaac Sim ``_build`` tree so ``import newton`` resolves to the pip-installed package. For the exact path and commands, see ``NEWTON_WARP_4D_SETUP.md`` in the repo root.
+
 6. Run training
 ---------------
 
