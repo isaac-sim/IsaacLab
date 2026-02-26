@@ -98,10 +98,6 @@ class ContainerInterface:
         self.environ = os.environ.copy()
         self.environ["DOCKER_NAME_SUFFIX"] = self.suffix
 
-        # Ensure docker compose operates in a per-user project namespace so multiple users
-        # running `docker compose up` in the same directory won't recreate each other's containers.
-        # Use COMPOSE_PROJECT_NAME to override the project name used by docker compose.
-        # If suffix is empty (legacy behavior), keep the base project name `isaac-lab`.
         project_name = re.sub(r"-+", "-", f"isaac-lab{self.suffix}").rstrip("-")
         self.environ["COMPOSE_PROJECT_NAME"] = project_name
 
@@ -332,22 +328,45 @@ class ContainerInterface:
 
     def _detect_conflicting_containers(self) -> list[str]:
         """Detect existing containers in the same compose project namespace."""
+        project_name = self.environ.get("COMPOSE_PROJECT_NAME", "isaac-lab")
+
         try:
             result = subprocess.run(
-                ["docker", "ps", "-a", "--format", "{{.Names}}"], capture_output=True, text=True, check=False
+                [
+                    "docker",
+                    "ps",
+                    "-a",
+                    "--filter",
+                    f"label=com.docker.compose.project={project_name}",
+                    "--format",
+                    "{{.Names}}",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
+                return [n for n in names if n != self.container_name]
+        except Exception:
+            return []
+
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-a", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
             names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
         except Exception:
             return []
-
-        project_name = self.environ.get("COMPOSE_PROJECT_NAME", "isaac-lab")
         conflicts: list[str] = []
 
         for n in names:
             if n == self.container_name:
                 continue
 
-            # inspect labels to see which compose project this container belongs to
             try:
                 out = subprocess.run(
                     ["docker", "inspect", "--format", "{{json .Config.Labels}}", n],
@@ -361,12 +380,6 @@ class ContainerInterface:
 
             comp_proj = labels.get("com.docker.compose.project")
             if comp_proj == project_name:
-                conflicts.append(n)
-                continue
-
-            # Compatibility: if the container belongs to the legacy 'isaac-lab' project and
-            # we are starting with an explicit empty suffix (legacy mode), treat as conflict.
-            if comp_proj == "isaac-lab" and self.suffix == "":
                 conflicts.append(n)
 
         return conflicts
