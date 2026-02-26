@@ -16,7 +16,7 @@ import warp as wp
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObject
 from isaaclab.managers import CommandTerm
-from isaaclab.markers.visualization_markers import VisualizationMarkers
+from isaaclab.markers import VisualizationMarkers
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

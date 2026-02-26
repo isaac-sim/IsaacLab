@@ -31,7 +31,7 @@ Installing dependencies
 
       pip install isaaclab[isaacsim,all]==3.0.0 --extra-index-url https://pypi.nvidia.com
 
--  Install a CUDA-enabled PyTorch 2.9.0 build that matches your system architecture:
+-  Install a CUDA-enabled PyTorch 2.10.0 build that matches your system architecture:
 
    .. tab-set::
       :sync-group: pip-platform
@@ -41,21 +41,31 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
          .. code-block:: bash
 
-            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
          .. code-block:: bash
 
-            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130
+            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
+
+         .. note::
+
+            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` must be compiled from source because no
+            pre-built wheel is available. Install the required OpenGL and X11 development packages
+            **before** installing Isaac Lab:
+
+            .. code-block:: bash
+
+               sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
          .. note::
 

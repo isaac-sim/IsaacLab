@@ -1,7 +1,7 @@
 Newton Physics Integration
 ===========================
 
-`Newton <https://newton-physics.github.io/newton/guide/overview.html>`_ is a GPU-accelerated, extensible, and differentiable physics simulation engine designed for robotics, research,
+`Newton <https://newton-physics.github.io/newton/latest/guide/overview.html>`_ is a GPU-accelerated, extensible, and differentiable physics simulation engine designed for robotics, research,
 and advanced simulation workflows. Built on top of `NVIDIA Warp <https://nvidia.github.io/warp/>`_ and integrating MuJoCo Warp, Newton provides high-performance
 simulation, modern Python APIs, and a flexible architecture for both users and developers.
 
@@ -19,7 +19,7 @@ a good lens through which to understand how Newton integration works in Isaac La
 We have validated Newton simulation against PhysX by transferring learned policies from Newton to PhysX and vice versa
 Furthermore, we have also successfully deployed a Newton-trained locomotion policy to a G1 robot. Please see :ref:`here <sim2real>` for more information.
 
-Newton can support `multiple solvers <https://newton-physics.github.io/newton/api/newton_solvers.html>`_ for handling different types of physics simulation, but for the moment, the Isaac
+Newton can support `multiple solvers <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for handling different types of physics simulation, but for the moment, the Isaac
 Lab integration focuses primarily on the MuJoCo-Warp solver.
 
 Future updates of this branch and Newton should include both ongoing improvements in performance as well as integration
