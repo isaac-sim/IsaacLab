@@ -161,7 +161,9 @@ class VisualizationMarkers:
         from isaaclab.sim.simulation_context import SimulationContext
 
         sim_context = SimulationContext.instance()
-        self._is_enabled = sim_context is not None and sim_context.has_omniverse_visualizer()
+        viz_str = sim_context.get_setting("/isaaclab/visualizer") or ""
+        available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
+        self._is_enabled = sim_context is not None and ("kit" in available_visualizers)
 
         if not self._is_enabled:
             # Set placeholder values for disabled state

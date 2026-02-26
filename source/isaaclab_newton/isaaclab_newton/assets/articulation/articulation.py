@@ -29,6 +29,7 @@ from isaaclab_newton.kernels import (
     update_wrench_array_with_torque,
     vec13f,
 )
+from isaaclab_newton.physics import NewtonManager
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
 from newton.solvers import SolverMuJoCo, SolverNotifyFlags
@@ -37,20 +38,20 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.helpers import deprecated
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,
     update_array1D_with_value,
+    update_array1D_with_value_indexed,
     update_array1D_with_value_masked,
     update_array2D_with_array1D_indexed,
     update_array2D_with_array2D_masked,
+    update_array2D_with_value_indexed,
     update_array2D_with_value_masked,
 )
 from isaaclab.utils.warp.utils import (
     make_complete_data_from_torch_dual_index,
     make_complete_data_from_torch_single_index,
-    make_mask_from_torch_ids,
 )
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -467,12 +468,7 @@ class Articulation(BaseArticulation):
             root_state = make_complete_data_from_torch_single_index(
                 root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device, out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # split the state into pose and velocity
         pose, velocity = self._split_state(root_state)
         # write the pose and velocity to the simulation
@@ -504,11 +500,7 @@ class Articulation(BaseArticulation):
             root_state = make_complete_data_from_torch_single_index(
                 root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device, out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # split the state into pose and velocity
         pose, velocity = self._split_state(root_state)
         # write the pose and velocity to the simulation
@@ -540,11 +532,7 @@ class Articulation(BaseArticulation):
             root_state = make_complete_data_from_torch_single_index(
                 root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device, out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # split the state into pose and velocity
         pose, velocity = self._split_state(root_state)
         # write the pose and velocity to the simulation
@@ -591,12 +579,7 @@ class Articulation(BaseArticulation):
             pose = make_complete_data_from_torch_single_index(
                 pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device, out=self._temp_root_pose
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # set into simulation
         self._update_array_with_array_masked(pose, self._data.root_link_pose_w, env_mask, self.num_instances)
         # invalidate the root com pose
@@ -623,10 +606,7 @@ class Articulation(BaseArticulation):
             root_pose = make_complete_data_from_torch_single_index(
                 root_pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # Write to Newton using warp
         self._update_array_with_array_masked(root_pose, self._data._root_com_pose_w.data, env_mask, self.num_instances)
         # set link frame poses
@@ -690,12 +670,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_root_velocity,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # set into simulation
         self._update_array_with_array_masked(root_velocity, self._data.root_com_vel_w, env_mask, self.num_instances)
         # invalidate the derived velocities
@@ -728,12 +703,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_root_velocity,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         # update the root link velocity
         self._update_array_with_array_masked(
             root_velocity, self._data._root_link_vel_w.data, env_mask, self.num_instances
@@ -806,16 +776,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_vel,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
@@ -858,16 +820,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
@@ -907,16 +861,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_vel,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
@@ -960,16 +906,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(stiffness, float):
@@ -1016,16 +954,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(damping, float):
@@ -1089,16 +1019,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_vel,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         self._write_joint_position_limit_to_sim(lower_limits, upper_limits, joint_mask, env_mask)
@@ -1147,16 +1069,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(limits, float):
@@ -1206,16 +1120,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(limits, float):
@@ -1265,16 +1171,8 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(
-            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
-        )
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(
-            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
-        )
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(armature, float):
@@ -1330,12 +1228,8 @@ class Articulation(BaseArticulation):
                 dtype=wp.float32,
                 device=self.device,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(joint_friction_coeff, float):
@@ -1401,12 +1295,8 @@ class Articulation(BaseArticulation):
                 dtype=wp.float32,
                 device=self.device,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(joint_dynamic_friction_coeff, float):
@@ -1464,12 +1354,8 @@ class Articulation(BaseArticulation):
                 dtype=wp.float32,
                 device=self.device,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(joint_viscous_friction_coeff, float):
@@ -1570,12 +1456,8 @@ class Articulation(BaseArticulation):
             masses = make_complete_data_from_torch_dual_index(
                 masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
-        if body_mask is None:
-            body_mask = self._data.ALL_BODY_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        body_mask = self._data.resolve_body_mask(body_ids=body_ids, body_mask=body_mask)
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             masses, self._data.body_mass, env_mask, body_mask, (self.num_instances, self.num_bodies)
@@ -1603,12 +1485,8 @@ class Articulation(BaseArticulation):
             coms = make_complete_data_from_torch_dual_index(
                 coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
-        if body_mask is None:
-            body_mask = self._data.ALL_BODY_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        body_mask = self._data.resolve_body_mask(body_ids=body_ids, body_mask=body_mask)
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             coms, self._data.body_com_pos_b, env_mask, body_mask, (self.num_instances, self.num_bodies)
@@ -1636,12 +1514,8 @@ class Articulation(BaseArticulation):
             inertias = make_complete_data_from_torch_dual_index(
                 inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
-        if body_mask is None:
-            body_mask = self._data.ALL_BODY_MASK
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        body_mask = self._data.resolve_body_mask(body_ids=body_ids, body_mask=body_mask)
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             inertias, self._data.body_inertia, env_mask, body_mask, (self.num_instances, self.num_bodies)
@@ -1730,8 +1604,8 @@ class Articulation(BaseArticulation):
             target = make_complete_data_from_torch_dual_index(
                 target, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # set into the actuator target buffer
         wp.launch(
             update_array2D_with_array2D_masked,
@@ -1770,8 +1644,8 @@ class Articulation(BaseArticulation):
             target = make_complete_data_from_torch_dual_index(
                 target, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32, device=self.device
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # set into the actuator target buffer
         self._update_batched_array_with_batched_array_masked(
             target, self._data.actuator_velocity_target, env_mask, joint_mask, (self.num_instances, self.num_joints)
@@ -1802,8 +1676,8 @@ class Articulation(BaseArticulation):
             target = make_complete_data_from_torch_dual_index(
                 target, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32, device=self.device
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        env_mask = self._data.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        joint_mask = self._data.resolve_joint_mask(joint_ids=joint_ids, joint_mask=joint_mask)
         # set into the actuator effort target buffer
         self._update_batched_array_with_batched_array_masked(
             target, self._data.actuator_effort_target, env_mask, joint_mask, (self.num_instances, self.num_joints)
@@ -2141,6 +2015,8 @@ class Articulation(BaseArticulation):
         self._root_view = NewtonArticulationView(
             NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
+        # Register view with NewtonManager
+        NewtonManager.get_physics_sim_view().append(self._root_view)
 
         # container for data access
         self._data = ArticulationData(self._root_view, self.device)
@@ -2252,6 +2128,89 @@ class Articulation(BaseArticulation):
                     wp.array(indices_list, dtype=wp.int32, device=self.device),
                 ],
             )
+        self._process_parameter_override()
+
+    def _process_parameter_override(self):
+        model = NewtonManager.get_model()
+        for param_name, (param_value, param_expr) in self.cfg.model_parameter_override.items():
+            # Check that the parameter exists in the model.
+            if getattr(model, param_name, None) is None:
+                raise ValueError(f"Parameter '{param_name}' is not found in the model.")
+            # Check that there is a frequency for this parameter.
+            frequency = model.attribute_frequency.get(param_name)
+            if frequency is None:
+                # No frequency, so we can't resolve the value.
+                raise ValueError(
+                    f"Parameter '{param_name}' has no frequency, so it cannot be resolved. "
+                    "Please provide a scalar value instead."
+                )
+            # Get the attribute through the selection API
+            # A frequency exists for this field, so we can resolve the indices if an expression is provided.
+            if frequency == Model.AttributeFrequency.BODY:
+                # 1D flattened array
+                param = getattr(NewtonManager.get_model(), param_name)
+                # Search over all bodies as organized in the environment
+                body_subset = NewtonManager.get_model().body_key
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, body_subset, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            elif frequency == Model.AttributeFrequency.JOINT_DOF:
+                # 3D array from selection API
+                param = self.root_view.get_attribute(param_name, NewtonManager.get_model())
+                # Make 2D (for now assume only 1 articulation)
+                param = param.reshape(param.shape[0], param.shape[2])
+                # Search over all joint DOFs as organized in the articulation
+                joint_dof_subset = self.root_view.joint_dof_names
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, joint_dof_subset, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            elif frequency == Model.AttributeFrequency.SHAPE:
+                # 1D flattened array
+                param = getattr(NewtonManager.get_model(), param_name)
+                # Search over all shapes as organized in the environment
+                all_shapes = NewtonManager.get_model().shape_key
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, all_shapes, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            elif frequency == Model.AttributeFrequency.JOINT:
+                # 1D flattened array
+                param = getattr(NewtonManager.get_model(), param_name)
+                # Search over all joints as organized in the environment
+                all_joints = NewtonManager.get_model().joint_key
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, all_joints, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            else:
+                raise ValueError(f"Parameter '{param_name}' has an unsupported frequency: {frequency}.")
+
+            if param.ndim == 1:
+                wp.launch(
+                    update_array1D_with_value_indexed,
+                    dim=(len(indices),),
+                    inputs=[
+                        param_value,
+                        param,
+                        indices,
+                    ],
+                    device=self.device,
+                )
+            elif param.ndim == 2:
+                wp.launch(
+                    update_array2D_with_value_indexed,
+                    dim=(param.shape[0], len(indices)),
+                    inputs=[
+                        param_value,
+                        param,
+                        None,
+                        indices,
+                    ],
+                    device=self.device,
+                )
+            else:
+                raise ValueError(
+                    f"Parameter '{param_name}' has an unsupported number of dimensions: {param.ndim}. "
+                    "Only 1D and 2D arrays are supported."
+                )
 
     """
     Internal simulation callbacks.

@@ -8,7 +8,7 @@ import torch
 from tensordict import TensorDict
 
 import warp as wp
-from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 from rsl_rl.env import VecEnv
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -26,7 +26,11 @@ class RslRlVecEnvWrapper(VecEnv):
         https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/env/vec_env.py
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp, clip_actions: float | None = None):
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp,
+        clip_actions: float | None = None,
+    ):
         """Initializes the wrapper.
 
         Note:
@@ -45,9 +49,11 @@ class RslRlVecEnvWrapper(VecEnv):
             not isinstance(env.unwrapped, ManagerBasedRLEnv)
             and not isinstance(env.unwrapped, DirectRLEnv)
             and not isinstance(env.unwrapped, DirectRLEnvWarp)
+            and not isinstance(env.unwrapped, ManagerBasedRLEnvWarp)
         ):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
                 f" {type(env)}"
             )
 
@@ -110,7 +116,7 @@ class RslRlVecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.

@@ -11,7 +11,6 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
-import builtins
 import contextlib
 import inspect
 import re
@@ -21,19 +20,14 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationContext
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.warp.utils import make_mask_from_torch_ids
 
 from .sensor_base_kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
-
-# import omni.kit.app
-# import omni.timeline
-# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -84,7 +78,11 @@ class SensorBase(ABC):
         # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
+        PhysicsManager.register_callback(
+            lambda _: safe_callback("_initialize_callback", None, obj_ref),
+            PhysicsEvent.PHYSICS_READY,
+            order=10,
+        )
         # # register timeline STOP event callback (lower priority with order=10)
         # self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
         #     int(omni.timeline.TimelineEventType.STOP),
@@ -318,12 +316,8 @@ class SensorBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            try:
-                self._initialize_impl()
-                self._is_initialized = True
-            except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
+            self._initialize_impl()
+            self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
@@ -341,9 +335,6 @@ class SensorBase(ABC):
         Note:
             This function is called when the prim is deleted.
         """
-        # skip callback if required
-        if getattr(SimulationContext.instance(), "_skip_next_prim_deletion_callback_fn", False):
-            return
         if prim_path == "/":
             self._clear_callbacks()
             return

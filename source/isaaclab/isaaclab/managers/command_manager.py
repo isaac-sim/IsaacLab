@@ -108,7 +108,9 @@ class CommandTerm(ManagerTermBase):
             from isaaclab.sim.simulation_context import SimulationContext
 
             sim_context = SimulationContext.instance()
-            if not sim_context.has_omniverse_visualizer():
+            viz_str = sim_context.get_setting("/isaaclab/visualizer") or ""
+            available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
+            if "omniverse" not in available_visualizers:
                 return False
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:

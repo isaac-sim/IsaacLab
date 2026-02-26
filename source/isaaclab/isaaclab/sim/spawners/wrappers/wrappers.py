@@ -32,15 +32,14 @@ def spawn_multi_asset(
     Assets are created in the order they appear in ``cfg.assets_cfg`` using the base name in ``prim_path``,
     which must contain ``.*`` (for example, ``/World/Env_0/asset_.*`` spawns ``asset_0``, ``asset_1``, ...).
     The prefix portion of ``prim_path`` may also include ``.*`` (for example, ``/World/env_.*/asset_.*``);
-    this is only allowed when :attr:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg.enable_clone`
-    is True, in which case assets are spawned under the first match (``env_0``) and that structure is cloned to
-    other matching environments.
+    in this case, assets are spawned under the first match (``env_0``) and that structure is cloned to
+    other matching environments by the scene's cloner.
 
     Args:
         prim_path: The prim path to spawn the assets.
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
-        orientation: The orientation of the spawned assets in (w, x, y, z) order. Default is None.
+        orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
         clone_in_fabric: Whether to clone in fabric. Default is False.
         replicate_physics: Whether to replicate physics. Default is False.
 
@@ -49,14 +48,6 @@ def spawn_multi_asset(
     """
     split_path = prim_path.split("/")
     prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
-    if ".*" in prefix_path and not cfg.enable_clone:
-        raise ValueError(
-            f" Found '.*' in prefix path '{prefix_path}' but enable_clone is False. Set enable_clone=True to allow"
-            f" this pattern, which would replicate all {len(cfg.assets_cfg)} assets into every environment that"
-            " matches the prefix. If you want heterogeneous assets across envs, instead of set enable_clone to True"
-            "spawn them under a single template (e.g., /World/Template/Robot) and use the cloner to place"
-            "them at their final paths."
-        )
     if ".*" not in base_name:
         raise ValueError(
             f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"

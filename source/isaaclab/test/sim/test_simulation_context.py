@@ -15,11 +15,11 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 
 import pytest
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.sim._impl.newton_manager import NewtonManager
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +62,7 @@ def test_initialization():
 
     # check valid settings
     assert sim.get_physics_dt() == cfg.dt
-    assert not sim.has_rtx_sensors()
+    assert not sim._renderer_interface.has_rtx_sensors()
     # check valid paths
     assert prim_utils.is_prim_path_valid("/Physics/PhysX")
     assert prim_utils.is_prim_path_valid("/Physics/PhysX/defaultMaterial")
@@ -95,8 +95,12 @@ def test_carb_setting():
 def test_headless_mode():
     """Test that render mode is headless since we are running in headless mode."""
     sim = SimulationContext()
-    # check default render mode
-    assert sim.render_mode == sim.RenderMode.NO_GUI_OR_RENDERING
+    # check that we're in headless mode using settings
+    has_gui = bool(sim.get_setting("/isaaclab/has_gui"))
+    offscreen_render = bool(sim.get_setting("/isaaclab/render/offscreen"))
+    # In headless mode, we should have no GUI and no offscreen rendering
+    assert not has_gui, "Expected headless mode (no GUI)"
+    assert not offscreen_render, "Expected headless mode (no offscreen rendering)"
 
 
 # def test_boundedness():
@@ -128,7 +132,7 @@ def test_headless_mode():
 #     assert ctypes.c_long.from_address(id(sim)).value == sim_ref_count - 1
 
 
-@pytest.mark.skip(reason="TODO: Gravity setting needs to be fixed in SimulationContext._set_additional_physics_params")
+@pytest.mark.skip(reason="TODO: fix gravity")
 def test_zero_gravity():
     """Test that gravity can be properly disabled."""
     cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))

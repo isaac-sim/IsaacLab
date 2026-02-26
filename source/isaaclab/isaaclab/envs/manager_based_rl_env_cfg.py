@@ -8,7 +8,8 @@ from dataclasses import MISSING
 from isaaclab.utils import configclass
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ManagerBasedRLEnvWindow
+
+# from .ui import ManagerBasedRLEnvWindow
 
 
 @configclass
@@ -16,7 +17,7 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """Configuration for a reinforcement learning environment with the manager-based workflow."""
 
     # ui settings
-    ui_window_class_type: type | None = ManagerBasedRLEnvWindow
+    ui_window_class_type: type | None = None
 
     # general settings
     is_finite_horizon: bool = False

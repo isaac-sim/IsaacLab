@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
@@ -21,34 +21,45 @@ class VisualizerCfg:
 
     Note:
         This is an abstract base class and should not be instantiated directly.
-        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg.
+        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg.
     """
 
     visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'omniverse'). Must be overridden by subclasses."""
-
-    # Note: Partial environment visualization will come later
-    # env_ids: list[Integer] = []
+    """Type identifier (e.g., 'newton', 'rerun', 'kit'). Must be overridden by subclasses."""
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
 
     enable_live_plots: bool = True
-    """Enable live plotting of data.
-
-    When set to True for OVVisualizer:
-    - Automatically checks the checkboxes for all manager visualizers (Actions, Observations, Rewards, etc.)
-    - Keeps the plot frames expanded by default (not collapsed)
-    - Makes the live plots visible immediately in the IsaacLab window (docked to the right of the viewport)
-
-    This provides a better out-of-the-box experience when you want to monitor training metrics.
-    """
+    """Enable live plotting of data."""
 
     camera_position: tuple[float, float, float] = (8.0, 8.0, 3.0)
     """Initial camera position (x, y, z) in world coordinates."""
 
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target/look-at point (x, y, z) in world coordinates."""
+
+    camera_source: Literal["cfg", "usd_path"] = "cfg"
+    """Camera source mode: 'cfg' uses camera_position/target, 'usd_path' follows a USD camera prim."""
+
+    camera_usd_path: str = "/World/envs/env_0/Camera"
+    """Absolute USD path to a camera prim when camera_source='usd_path'."""
+
+    env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
+    """Env filter mode: 'none', 'env_ids', or 'random_n'."""
+
+    env_filter_random_n: int = 64
+    """If env_filter_mode='random_n', number of envs to sample."""
+
+    env_filter_seed: int = 0
+    """Seed for deterministic env sampling."""
+
+    env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
+    """If env_filter_mode='env_ids', only these env indices are shown.
+
+    This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
+    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
+    """
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.
@@ -69,14 +80,18 @@ class VisualizerCfg:
         if self.visualizer_type is None:
             raise ValueError(
                 "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg."
+                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg."
             )
 
         visualizer_class = get_visualizer_class(self.visualizer_type)
         if visualizer_class is None:
+            if self.visualizer_type in ("newton", "rerun"):
+                raise ImportError(
+                    f"Visualizer '{self.visualizer_type}' requires the Newton Python module and its dependencies. "
+                    "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
+                )
             raise ValueError(
-                f"Visualizer type '{self.visualizer_type}' is not registered. "
-                "Valid types: 'newton', 'rerun', 'omniverse'."
+                f"Visualizer type '{self.visualizer_type}' is not registered. Valid types: 'newton', 'rerun', 'kit'."
             )
 
         return visualizer_class(self)

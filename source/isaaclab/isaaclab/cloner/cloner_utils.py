@@ -10,8 +10,7 @@ import math
 import torch
 from typing import TYPE_CHECKING
 
-import warp as wp
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
@@ -68,8 +67,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
         # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
         if torch.all(proto_idx == 0):
-            if cfg.clone_physics:
-                template_clone_cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
+            if cfg.clone_physics and cfg.physics_clone_fn is not None:
+                cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
             if cfg.clone_usd:
                 # parse env_origins directly from clone_path
                 usd_replicate(stage, *replicate_args, positions=positions)
@@ -77,8 +76,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         else:
             selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
             replicate_args = selected_src, dest_paths, world_indices, clone_masking
-            if cfg.clone_physics:
-                template_clone_cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
+            if cfg.clone_physics and cfg.physics_clone_fn is not None:
+                cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
 
@@ -154,7 +153,7 @@ def usd_replicate(
         env_ids: Environment indices.
         mask: Optional per-source or shared mask. ``None`` selects all.
         positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
-        quaternions: Optional orientations (``[E, 4]``) in ``wxyz`` -> ``xformOp:orient``.
+        quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
 
     Returns:
         None
@@ -202,7 +201,8 @@ def usd_replicate(
                             o_attr = ps.GetAttributeAtPath(dp + ".xformOp:orient")
                             if o_attr is None:
                                 o_attr = Sdf.AttributeSpec(ps, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
-                            o_attr.default = Gf.Quatd(float(q[0]), Gf.Vec3d(float(q[1]), float(q[2]), float(q[3])))
+                            # xyzw convention: q[3] is w, q[0:3] is xyz
+                            o_attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(float(q[0]), float(q[1]), float(q[2])))
                             op_names.append("xformOp:orient")
                         # Only author xformOpOrder for the ops we actually authored
                         if op_names:
@@ -210,143 +210,6 @@ def usd_replicate(
                                 ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
                             )
                             op_order.default = Vt.TokenArray(op_names)
-
-
-def physx_replicate(
-    stage: Usd.Stage,
-    sources: list[str],  # e.g. ["/World/Template/A", "/World/Template/B"]
-    destinations: list[str],  # e.g. ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"]
-    env_ids: torch.Tensor,  # env_ids
-    mapping: torch.Tensor,  # (num_sources, num_envs) bool; True -> place sources[i] into world=j
-    use_fabric: bool = False,
-) -> None:
-    """Replicate prims via PhysX replicator with per-row mapping.
-
-    Builds per-source destination lists from ``mapping`` and calls PhysX ``replicate``.
-    Rows covering all environments use ``useEnvIds=True``; partial rows use ``False``.
-    The replicator is registered for the call and then unregistered.
-
-    Args:
-        stage: USD stage.
-        sources: Source prim paths (``S``).
-        destinations: Destination templates (``S``) with ``"{}"`` for env index.
-        env_ids: Environment indices (``[E]``).
-        mapping: Bool/int mask (``[S, E]``) selecting envs per source.
-        use_fabric: Use Fabric for replication.
-
-    Returns:
-        None
-    """
-    from omni.physx import get_physx_replicator_interface
-
-    stage_id = UsdUtils.StageCache.Get().Insert(stage).ToLongInt()
-    current_worlds: list[int] = []
-    current_template: str = ""
-    num_envs = mapping.size(1)
-
-    def attach_fn(_stage_id: int):
-        return ["/World/envs", *sources]
-
-    def rename_fn(_replicate_path: str, i: int):
-        return current_template.format(current_worlds[i])
-
-    def attach_end_fn(_stage_id: int):
-        nonlocal current_template
-        rep = get_physx_replicator_interface()
-        for i, src in enumerate(sources):
-            current_worlds[:] = env_ids[mapping[i]].tolist()
-            current_template = destinations[i]
-            rep.replicate(
-                _stage_id,
-                src,
-                len(current_worlds),
-                useEnvIds=len(current_worlds) == num_envs,
-                useFabricForReplication=use_fabric,
-            )
-        # unregister only AFTER all replicate() calls completed
-        rep.unregister_replicator(_stage_id)
-
-    get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)
-
-
-def newton_replicate(
-    stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    up_axis: str = "Z",
-    simplify_meshes: bool = True,
-):
-    """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
-    from newton import ModelBuilder, solvers
-
-    from isaaclab.sim._impl.newton_manager import NewtonManager
-
-    if positions is None:
-        positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
-    if quaternions is None:
-        quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
-        quaternions[:, 3] = 1.0
-
-    # load empty stage
-    builder = ModelBuilder(up_axis=up_axis)
-    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
-
-    # build a prototype for each source
-    protos: dict[str, ModelBuilder] = {}
-    for src_path in sources:
-        p = ModelBuilder(up_axis=up_axis)
-        solvers.SolverMuJoCo.register_custom_attributes(p)
-        inverse_env_xform = get_inverse_env_xform(stage, src_path)
-        p.add_usd(
-            stage,
-            root_path=src_path,
-            load_visual_shapes=True,
-            skip_mesh_approximation=True,
-            xform=inverse_env_xform,
-        )
-        if simplify_meshes:
-            p.approximate_meshes("convex_hull", keep_visual_shapes=True)
-        protos[src_path] = p
-
-    # create a separate world for each environment (heterogeneous spawning)
-    # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
-    newton_world_to_env_id = {}
-    for col, env_id in enumerate(env_ids.tolist()):
-        # begin a new world context (Newton assigns world ID = col)
-        builder.begin_world()
-        newton_world_to_env_id[col] = env_id
-
-        # add all active sources for this world
-        for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            builder.add_builder(
-                protos[sources[row]],
-                xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
-            )
-
-        # end the world context
-        builder.end_world()
-
-    # per-source, per-world renaming (strict prefix swap), compact style preserved
-    for i, src_path in enumerate(sources):
-        src_prefix_len = len(src_path.rstrip("/"))
-        swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
-        world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
-        # Map Newton world IDs (sequential) to destination paths using env_ids
-        world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
-
-        for t in ("body", "joint", "shape", "articulation"):
-            keys, worlds_arr = getattr(builder, f"{t}_key"), getattr(builder, f"{t}_world")
-            for k, w in enumerate(worlds_arr):
-                if w in world_roots and keys[k].startswith(src_path):
-                    keys[k] = swap(keys[k], world_roots[w])
-
-    NewtonManager.set_builder(builder)
-    NewtonManager._num_envs = mapping.size(1)
-    return builder, stage_info
 
 
 def filter_collisions(
@@ -457,7 +320,8 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
 
     Computes ``(x, y)`` coordinates in a roughly square grid centered at the origin
     with the provided spacing, places the third coordinate according to ``up_axis``,
-    and returns identity orientations (``wxyz``) for each instance.
+    and returns identity orientations. This matches the grid layout used by
+    :class:`isaaclab.terrains.TerrainImporter` for consistent environment positioning.
 
     Args:
         N: Number of instances.
@@ -468,22 +332,28 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     Returns:
         A tuple ``(pos, ori)`` where:
             - ``pos`` is a tensor of shape ``(N, 3)`` with positions.
-            - ``ori`` is a tensor of shape ``(N, 4)`` with identity quaternions in ``(w, x, y, z)``.
+            - ``ori`` is a tensor of shape ``(N, 4)`` with identity quaternions in ``(x, y, z, w)``.
     """
-    # rows/cols
-    rows = int(math.ceil(math.sqrt(N)))
-    cols = int(math.ceil(N / rows))
+    # Match terrain_importer._compute_env_origins_grid layout for consistency
+    num_rows = int(math.ceil(N / math.sqrt(N)))
+    num_cols = int(math.ceil(N / num_rows))
 
-    idx = torch.arange(N, device=device)
-    r = torch.div(idx, cols, rounding_mode="floor")
-    c = idx % cols
+    # Create meshgrid matching terrain's "ij" indexing
+    ii, jj = torch.meshgrid(
+        torch.arange(num_rows, device=device, dtype=torch.float32),
+        torch.arange(num_cols, device=device, dtype=torch.float32),
+        indexing="ij",
+    )
+    # Flatten and take first N elements
+    ii = ii.flatten()[:N]
+    jj = jj.flatten()[:N]
 
-    # centered grid coords
-    x = (c - (cols - 1) * 0.5) * spacing
-    y = ((rows - 1) * 0.5 - r) * spacing
+    # Match terrain's coordinate system: X from rows (negated), Y from cols
+    x = -(ii - (num_rows - 1) / 2) * spacing
+    y = (jj - (num_cols - 1) / 2) * spacing
+    z0 = torch.zeros(N, device=device)
 
     # place on plane based on up_axis
-    z0 = torch.zeros_like(x)
     if up_axis.lower() == "z":
         pos = torch.stack([x, y, z0], dim=1)
     elif up_axis.lower() == "y":
@@ -491,30 +361,7 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     else:  # up_axis == "x"
         pos = torch.stack([z0, x, y], dim=1)
 
-    # identity orientations (w,x,y,z)
+    # identity orientations (x,y,z,w)
     ori = torch.zeros((N, 4), device=device)
-    ori[:, 0] = 1.0
+    ori[:, 3] = 1.0  # w=1 for identity quaternion
     return pos, ori
-
-
-def get_inverse_env_xform(stage, src_path: str):
-    """Get the inverse transform of src_path to convert world→local."""
-    xform_cache = UsdGeom.XformCache()
-    world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(src_path))
-
-    # Get the inverse of the world transform
-    inv_xform = world_xform.GetInverse()
-
-    # Extract translation and rotation from inverse
-    inv_translation = inv_xform.ExtractTranslation()
-    inv_rotation = inv_xform.ExtractRotationQuat()
-
-    inv_pos = (inv_translation[0], inv_translation[1], inv_translation[2])
-    inv_quat = (
-        inv_rotation.GetImaginary()[0],
-        inv_rotation.GetImaginary()[1],
-        inv_rotation.GetImaginary()[2],
-        inv_rotation.GetReal(),
-    )
-
-    return wp.transform(inv_pos, inv_quat)

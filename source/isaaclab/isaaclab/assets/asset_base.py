@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import contextlib
 import inspect
 import re
@@ -19,8 +18,8 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim import SimulationContext
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -103,8 +102,12 @@ class AssetBase(ABC):
         # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # register timeline PLAY event callback (lower priority with order=10)
-        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
+        # register PHYSICS_READY callback (lower priority with order=10)
+        PhysicsManager.register_callback(
+            lambda _: safe_callback("_initialize_callback", None, obj_ref),
+            PhysicsEvent.PHYSICS_READY,
+            order=10,
+        )
         # self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
         #    int(omni.timeline.TimelineEventType.PLAY),
         #    lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
@@ -313,11 +316,7 @@ class AssetBase(ABC):
             # self._device = SimulationManager.get_physics_sim_device()
             self._device = SimulationContext.instance().device
             # initialize the asset
-            try:
-                self._initialize_impl()
-            except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
+            self._initialize_impl()
             # set flag
             self._is_initialized = True
 
@@ -337,9 +336,6 @@ class AssetBase(ABC):
         Note:
             This function is called when the prim is deleted.
         """
-        # skip callback if required
-        if getattr(SimulationContext.instance(), "_skip_next_prim_deletion_callback_fn", False):
-            return
         if prim_path == "/":
             self._clear_callbacks()
             return

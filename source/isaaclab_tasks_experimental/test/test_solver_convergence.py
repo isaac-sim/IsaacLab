@@ -31,11 +31,11 @@ import torch
 import carb
 import omni.usd
 import pytest
+from isaaclab_newton.physics import NewtonManager
 from isaacsim.core.version import get_version
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
-from isaaclab.sim._impl.newton_manager import NewtonManager
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

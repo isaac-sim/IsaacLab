@@ -24,11 +24,6 @@ INSTALL_REQUIRES = [
     "toml",
     # reinforcement learning
     "pyglet>=2.1.6",
-    # testing
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "flatdict==4.0.1",
     # newton
     "mujoco>=3.5.0",
     "mujoco-warp>=3.5.0",

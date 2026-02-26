@@ -8,7 +8,6 @@ from __future__ import annotations
 from isaaclab.utils import configclass
 
 from .cloner_strategies import random
-from .cloner_utils import newton_replicate
 
 
 @configclass
@@ -71,8 +70,8 @@ class TemplateCloneCfg:
     clone_physics: bool = True
     """Enable PhysX replication for the same mapping to speed up physics setup."""
 
-    physics_clone_fn: callable = newton_replicate
-    """Function used to perform physics replication. Default is :func:`newton_replicate`."""
+    physics_clone_fn: callable | None = None
+    """Function used to perform physics replication."""
 
     clone_strategy: callable = random
     """Function used to build prototype-to-environment mapping. Default is :func:`random`."""

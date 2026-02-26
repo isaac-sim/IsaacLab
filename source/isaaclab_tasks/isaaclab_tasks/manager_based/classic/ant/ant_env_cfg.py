@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -12,6 +14,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -149,6 +152,22 @@ class TerminationsCfg:
 class AntEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Ant walking environment."""
 
+    # Simulation settings
+    sim: SimulationCfg = SimulationCfg(
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=38,
+                nconmax=15,
+                ls_iterations=10,
+                cone="pyramidal",
+                ls_parallel=True,
+                impratio=1,
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        )
+    )
+
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
     # Basic settings
@@ -167,12 +186,6 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
-        self.sim.newton_cfg.solver_cfg.njmax = 38
-        self.sim.newton_cfg.solver_cfg.nconmax = 15
-        self.sim.newton_cfg.solver_cfg.ls_iterations = 10
-        self.sim.newton_cfg.solver_cfg.ls_parallel = True
-        self.sim.newton_cfg.solver_cfg.cone = "pyramidal"
-        self.sim.newton_cfg.solver_cfg.impratio = 1
         # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0

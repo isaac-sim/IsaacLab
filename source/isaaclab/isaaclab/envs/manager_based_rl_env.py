@@ -15,10 +15,17 @@ from typing import Any, ClassVar
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.timer import Timer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+# Controls per-section timing inside `step()`.
+TIMER_ENABLED_STEP = False
+
+# Controls per-section timing inside `_reset_idx`.
+TIMER_ENABLED_RESET_IDX = False
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -149,6 +156,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
+    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -169,23 +177,51 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
         # process actions
-        self.action_manager.process_action(action.to(self.device))
+        with Timer(
+            name="action_preprocess",
+            msg="Action preprocessing took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            action_device = action.to(self.device)
+        with Timer(
+            name="action_manager.process_action",
+            msg="ActionManager.process_action took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            self.action_manager.process_action(action_device)
 
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
+            "/isaaclab/render/rtx_sensors"
+        )
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self.action_manager.apply_action()
+            with Timer(
+                name="action_manager.apply_action",
+                msg="ActionManager.apply_action took:",
+                enable=TIMER_ENABLED_STEP,
+                format="us",
+            ):
+                self.action_manager.apply_action()
             # set actions into simulator
-            self.scene.write_data_to_sim()
+            with Timer(
+                name="scene.write_data_to_sim",
+                msg="Scene.write_data_to_sim took:",
+                enable=TIMER_ENABLED_STEP,
+                format="us",
+            ):
+                self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            with Timer(name="simulate", msg="Newton simulation step took:", enable=TIMER_ENABLED_STEP, format="us"):
+                self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
@@ -193,34 +229,72 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
             # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+            with Timer(
+                name="scene.update",
+                msg="Scene.update took:",
+                enable=TIMER_ENABLED_STEP,
+                format="us",
+            ):
+                self.scene.update(dt=self.physics_dt)
 
         # post-step:
         # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
         self.common_step_counter += 1  # total step (common for all envs)
+
         # -- check terminations
-        self.reset_buf = self.termination_manager.compute()
-        self.reset_terminated = self.termination_manager.terminated
-        self.reset_time_outs = self.termination_manager.time_outs
+        with Timer(
+            name="termination_manager.compute",
+            msg="TerminationManager.compute took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            self.reset_buf = self.termination_manager.compute()
+            self.reset_terminated = self.termination_manager.terminated
+            self.reset_time_outs = self.termination_manager.time_outs
+
         # -- reward computation
-        self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+        with Timer(
+            name="reward_manager.compute",
+            msg="RewardManager.compute took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
         if len(self.recorder_manager.active_terms) > 0:
             # update observations for recording if needed
-            self.obs_buf = self.observation_manager.compute()
+            with Timer(
+                name="observation_manager.compute",
+                msg="ObservationManager.compute took:",
+                enable=TIMER_ENABLED_STEP,
+                format="us",
+            ):
+                self.obs_buf = self.observation_manager.compute()
             self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        with Timer(
+            name="reset_selection",
+            msg="Reset selection took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
-            self._reset_idx(reset_env_ids)
+            with Timer(
+                name="reset_idx",
+                msg="Reset idx took:",
+                enable=TIMER_ENABLED_STEP,
+                format="us",
+            ):
+                self._reset_idx(reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -228,13 +302,33 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- update command
-        self.command_manager.compute(dt=self.step_dt)
+        with Timer(
+            name="command_manager.compute",
+            msg="CommandManager.compute took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            self.command_manager.compute(dt=self.step_dt)
+
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="interval", dt=self.step_dt)
+            with Timer(
+                name="event_manager.apply_interval",
+                msg="EventManager.apply (interval) took:",
+                enable=TIMER_ENABLED_STEP,
+                format="us",
+            ):
+                self.event_manager.apply(mode="interval", dt=self.step_dt)
+
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        with Timer(
+            name="observation_manager.compute_update_history",
+            msg="ObservationManager.compute (update_history) took:",
+            enable=TIMER_ENABLED_STEP,
+            format="us",
+        ):
+            self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
@@ -263,19 +357,24 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.has_rtx_sensors() and not recompute:
+        if not self.sim.settings.get("/isaaclab/render/rtx_sensors") and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
+            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
+            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
+
+            if not (has_gui or offscreen_render):
+                render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
-                    f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
-                    f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
-                    " If running headless, make sure --enable_cameras is set."
+                    f" '{render_mode_name}'. Please set the simulation render mode"
+                    " to:'PARTIAL_RENDERING' or"
+                    " 'FULL_RENDERING'. If running headless, make"
+                    " sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):
@@ -352,41 +451,107 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             env_ids: List of environment ids which must be reset
         """
         # update the curriculum for environments that need a reset
-        self.curriculum_manager.compute(env_ids=env_ids)
+        with Timer(
+            name="curriculum_manager.compute_reset",
+            msg="CurriculumManager.compute (reset) took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        with Timer(
+            name="scene.reset",
+            msg="Scene.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            self.scene.reset(env_ids)
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+            with Timer(
+                name="event_manager.apply_reset",
+                msg="EventManager.apply (reset) took:",
+                enable=TIMER_ENABLED_RESET_IDX,
+                format="us",
+            ):
+                self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
         # -- observation manager
-        info = self.observation_manager.reset(env_ids)
+        with Timer(
+            name="observation_manager.reset",
+            msg="ObservationManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.observation_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- action manager
-        info = self.action_manager.reset(env_ids)
+        with Timer(
+            name="action_manager.reset",
+            msg="ActionManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.action_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- rewards manager
-        info = self.reward_manager.reset(env_ids)
+        with Timer(
+            name="reward_manager.reset",
+            msg="RewardManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.reward_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- curriculum manager
-        info = self.curriculum_manager.reset(env_ids)
+        with Timer(
+            name="curriculum_manager.reset",
+            msg="CurriculumManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.curriculum_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- command manager
-        info = self.command_manager.reset(env_ids)
+        with Timer(
+            name="command_manager.reset",
+            msg="CommandManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.command_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- event manager
-        info = self.event_manager.reset(env_ids)
+        with Timer(
+            name="event_manager.reset",
+            msg="EventManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- termination manager
-        info = self.termination_manager.reset(env_ids)
+        with Timer(
+            name="termination_manager.reset",
+            msg="TerminationManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.termination_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
+        with Timer(
+            name="recorder_manager.reset",
+            msg="RecorderManager.reset took:",
+            enable=TIMER_ENABLED_RESET_IDX,
+            format="us",
+        ):
+            info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
         # reset the episode length buffer

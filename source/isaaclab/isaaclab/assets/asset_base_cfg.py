@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Literal
+from typing import Any, Literal
 
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils import configclass
@@ -45,6 +45,23 @@ class AssetBaseCfg:
 
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
+
+    model_parameter_override: dict[str, tuple[Any, str | None]] = {}
+    """Allows to override Newton Model parameters from the asset configuration. Defaults to an empty dictionary.
+
+    dict[str, tuple[Any, str | None]]:
+     - The key, is the name of the Newton Model parameter,
+     - The first value in the tuple, is the value to override the parameter with. It can only be a scalar.
+     - The second value in the tuple is the expression to be used to resolve the value. If None, then we apply that
+     parameter to all the elements in the selected model parameter.
+
+     Example:
+     # Changes the collision stiffness and damping of the asset
+     {
+        "shape_material_ke": (1000.0, "/World/envs/env_*/Cabinet/sektion/collisions/sektion_collision5_visual"),
+        "shape_material_kd": (100.0, None),
+     }
+     """
 
     prim_path: str = MISSING
     """Prim path (or expression) to the asset.

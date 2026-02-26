@@ -11,6 +11,7 @@ import torch
 
 import pytest
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, PhysicsEvent
 from newton import ModelBuilder
 
 import isaaclab.sim as sim_utils
@@ -21,9 +22,6 @@ from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -36,13 +34,18 @@ from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
 # from isaaclab_assets import SHADOW_HAND_CFG  # isort:skip
 
 SOLVER_CFGs = {
-    "anymal": MJWarpSolverCfg(
-        njmax=80,
-        ls_parallel=True,
-        ls_iterations=20,
-        cone="elliptic",
-        impratio=100,
-    )
+    "anymal": SimulationCfg(
+        dt=0.005,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=80,
+                ls_parallel=True,
+                ls_iterations=20,
+                cone="elliptic",
+                impratio=100,
+            )
+        ),
+    ),
 }
 
 
@@ -197,7 +200,7 @@ def generate_articulation(
         NewtonManager.set_builder(builder)
         NewtonManager._num_envs = num_articulations
 
-    NewtonManager.add_on_init_callback(set_builder)
+    NewtonManager.register_callback(lambda _: set_builder(), PhysicsEvent.MODEL_INIT)
 
     return articulation, translations
 

@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import CassieRoughEnvCfg
@@ -14,7 +14,8 @@ from .rough_env_cfg import CassieRoughEnvCfg
 @configclass
 class CassieFlatEnvCfg(CassieRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        dt=1.0 / 200.0,
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=52,
                 nconmax=15,
@@ -26,7 +27,7 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
             ),
             num_substeps=1,
             debug_mode=False,
-        )
+        ),
     )
 
     def __post_init__(self):

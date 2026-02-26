@@ -11,12 +11,13 @@ from collections.abc import Sequence
 from typing import Any
 
 import warp as wp
+from isaaclab_newton.cloner import newton_replicate
 from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
-from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -129,6 +130,7 @@ class InteractiveScene:
             clone_regex=self.env_regex_ns,
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
+            physics_clone_fn=newton_replicate,
         )
 
         # create source prim
@@ -178,7 +180,7 @@ class InteractiveScene:
 
             if not copy_from_source:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
-                cloner.newton_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
+                self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, positions=self._default_env_origins)
             cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
@@ -632,7 +634,10 @@ class InteractiveScene:
                                 contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns)
                             )
                         asset_cfg.filter_shape_paths_expr = updated_contact_partners_shape_expr
-
+                elif isinstance(asset_cfg, FrameTransformerCfg):
+                    if asset_cfg.target_frames is not None:
+                        for target_frame in asset_cfg.target_frames:
+                            target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset

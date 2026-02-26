@@ -24,20 +24,6 @@ from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 
-# import logger
-logger = logging.getLogger(__name__)
-
-# import omni.physx
-# from isaacsim.core.simulation_manager import SimulationManager
-# from isaacsim.core.version import get_version
-
-
-# import omni.physx
-# from isaacsim.core.simulation_manager import SimulationManager
-# from isaacsim.core.version import get_version
-
-
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -146,7 +132,7 @@ class ManagerBasedEnv:
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -155,7 +141,10 @@ class ManagerBasedEnv:
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
+        viz_str = self.sim.get_setting("/isaaclab/visualizer")
+        available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
+        if "kit" in available_visualizers and bool(viz_str):
+            # Set render mode:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -177,7 +166,7 @@ class ManagerBasedEnv:
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.sim.reset()
             # update scene to pre populate data buffers for assets and sensors.
             # this is needed for the observation manager to get valid tensors for initialization.
@@ -189,7 +178,9 @@ class ManagerBasedEnv:
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+        viz_str = self.sim.get_setting("/isaaclab/visualizer") or ""
+        available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
+        if "kit" in available_visualizers and bool(viz_str) and self.cfg.ui_window_class_type is not None:
             # setup live visualizers
             self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
@@ -385,7 +376,7 @@ class ManagerBasedEnv:
         self.scene.write_data_to_sim()
         self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+        if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
@@ -396,7 +387,7 @@ class ManagerBasedEnv:
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # TODO: Fix this
-        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        # if self.cfg.wait_for_textures and self.sim.settings.get("/isaaclab/render/rtx_sensors"):
         #     while SimulationManager.assets_loading():
         #         self.sim.render()
 
@@ -447,7 +438,7 @@ class ManagerBasedEnv:
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+        if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
@@ -482,7 +473,9 @@ class ManagerBasedEnv:
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
+            "/isaaclab/render/rtx_sensors"
+        )
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
