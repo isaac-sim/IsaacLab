@@ -57,7 +57,7 @@ Isaac Lab sub-packages:
       .. code-block:: bash
 
          # Isaac Lab only
-         uv pip install isaaclab
+         uv pip install isaaclab==4.2.0
 
          # Isaac Lab + Isaac Sim
          uv pip install "isaaclab[isaacsim]"
