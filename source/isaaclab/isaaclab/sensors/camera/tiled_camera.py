@@ -204,13 +204,8 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Resolve renderer_cfg from renderer_type so any task can use Hydra env.scene.base_camera.renderer_type=...
-        renderer_type = getattr(self.cfg, "renderer_type", None)
-        if renderer_type is not None:
-            from isaaclab.renderers import renderer_cfg_from_type
-            self.cfg.renderer_cfg = renderer_cfg_from_type(renderer_type)
-            if hasattr(self.cfg.renderer_cfg, "data_types"):
-                self.cfg.renderer_cfg.data_types = list(self.cfg.data_types)
+        # Resolve renderer config from optional renderer_type (Hydra override) or use renderer_cfg
+        renderer_cfg = self._get_effective_renderer_cfg()
 
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
@@ -238,27 +233,14 @@ class TiledCamera(Camera):
             self._warp_save_frame_count = 0
             self._warp_save_interval = 50
         else:
-            # Prefer renderer_cfg; fall back to renderer_type string (e.g. from Hydra).
-            _cfg = getattr(self.cfg, "renderer_cfg", None)
-            _type_str = getattr(self.cfg, "renderer_type", None)
-            use_warp = False
-            if _cfg is not None and _cfg.get_renderer_type() in ("warp_renderer", "newton_warp"):
-                use_warp = True
-            elif _type_str in ("warp_renderer", "newton_warp"):
-                use_warp = True
+            use_warp = renderer_cfg.get_renderer_type() in ("warp_renderer", "newton_warp")
             if use_warp:
                 logger.info(
-                    "TiledCamera %s: using renderer backend warp_renderer (from cfg.renderer_cfg=%s)",
+                    "TiledCamera %s: using renderer backend warp_renderer (from %s)",
                     self.cfg.prim_path,
-                    type(_cfg).__name__ if _cfg else "renderer_type",
+                    type(renderer_cfg).__name__,
                 )
-                # Resolve to renderer instance: either from existing config or from string.
-                # String → config via isaaclab.renderers.renderer_cfg_from_type().
-                if _cfg is not None:
-                    self._renderer = _cfg.create_renderer()
-                else:
-                    from isaaclab.renderers import renderer_cfg_from_type
-                    self._renderer = renderer_cfg_from_type(_type_str).create_renderer()
+                self._renderer = renderer_cfg.create_renderer()
                 self._render_data = self._renderer.create_render_data(self)
                 self.renderer = self._renderer
                 self.render_data = self._render_data
@@ -271,7 +253,7 @@ class TiledCamera(Camera):
                 logger.info(
                     "TiledCamera %s: using renderer backend rtx (default); renderer_cfg=%s",
                     self.cfg.prim_path,
-                    type(_cfg).__name__ if _cfg else _type_str,
+                    type(renderer_cfg).__name__,
                 )
 
         if self._renderer is None:
@@ -453,6 +435,23 @@ class TiledCamera(Camera):
     """
     Private Helpers
     """
+
+    def _get_effective_renderer_cfg(self):
+        """Resolve renderer_cfg from optional renderer_type (Hydra override)."""
+        rt = getattr(self.cfg, "renderer_type", None)
+        if rt == "rtx":
+            from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+            cfg = IsaacRtxRendererCfg()
+        elif rt == "warp_renderer":
+            from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+            cfg = NewtonWarpRendererCfg()
+        else:
+            cfg = self.cfg.renderer_cfg
+        if hasattr(cfg, "data_types"):
+            cfg.data_types = list(self.cfg.data_types)
+        return cfg
 
     def _check_supported_data_types(self, cfg: TiledCameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""

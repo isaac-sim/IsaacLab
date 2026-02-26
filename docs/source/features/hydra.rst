@@ -83,6 +83,37 @@ To set parameters to None, use the ``null`` keyword, which is a special keyword 
 In the above example, we could also disable the ``joint_pos_rel`` observation by setting it to None with
 ``env.observations.policy.joint_pos_rel=null``.
 
+TiledCamera renderer type
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can select the :class:`~isaaclab.sensors.TiledCamera` backend (RTX vs. Warp) at train time via Hydra by
+overriding the camera config's ``renderer_type``.
+
+**Override path:** It must match where the task puts the TiledCamera in the env config:
+
+- **Scene has ``base_camera``:** If the task uses a scene config that exposes the camera as ``scene.base_camera``
+  (e.g. a scene class like ``KukaAllegroSingleTiledCameraSceneCfg`` with a ``base_camera: TiledCameraCfg`` field),
+  use:
+
+  .. code-block:: shell
+
+      env.scene.base_camera.renderer_type=rtx
+      # or
+      env.scene.base_camera.renderer_type=warp_renderer
+
+- **Camera on env config:** If the task puts the camera elsewhere (e.g. ``env.tiled_camera`` on the env config),
+  override that path instead:
+
+  .. code-block:: shell
+
+      env.tiled_camera.renderer_type=rtx
+      # or
+      env.tiled_camera.renderer_type=warp_renderer
+
+**Values:** ``rtx`` selects the Isaac RTX (Replicator) renderer; ``warp_renderer`` selects the Newton Warp renderer
+(when the ``isaaclab_newton`` package is available). No change to env or env_cfg code is required—only the
+config hierarchy must expose the camera at the path you override.
+
 Dictionaries
 ^^^^^^^^^^^^
 Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:
