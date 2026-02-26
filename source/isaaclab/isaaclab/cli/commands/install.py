@@ -121,9 +121,9 @@ def _ensure_cuda_torch() -> None:
     )
 
 
-# Valid "extras" names that can be passed to --install.
-# Each "extra" maps to a source directory named "isaaclab_<extra>" under source/.
-VALID_ISAACLAB_EXTRAS: set[str] = {"assets", "physx", "contrib", "mimic", "newton", "rl", "tasks", "teleop"}
+# Valid sub-package names that can be passed to --install.
+# Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
+VALID_ISAACLAB_SUBPACKAGES: set[str] = {"assets", "physx", "contrib", "mimic", "newton", "rl", "tasks", "teleop"}
 
 # RL framework names accepted.
 # Passing one of these installs all extensions + that framework.
@@ -257,15 +257,15 @@ def command_install(install_type: str = "all") -> None:
         extensions = None
         framework_type = install_type
     else:
-        # Parse comma-separated extras into source directory names.
+        # Parse comma-separated sub-package names into source directory names.
         extensions = ["isaaclab"]  # core is always required
-        for extra in (s.strip() for s in install_type.split(",") if s.strip()):
-            if extra in VALID_ISAACLAB_EXTRAS:
-                extensions.append(f"isaaclab_{extra}")
+        for name in (s.strip() for s in install_type.split(",") if s.strip()):
+            if name in VALID_ISAACLAB_SUBPACKAGES:
+                extensions.append(f"isaaclab_{name}")
             else:
-                valid = sorted(VALID_ISAACLAB_EXTRAS) + sorted(VALID_RL_FRAMEWORKS)
-                print_warning(f"Unknown extra '{extra}'. Valid values: {', '.join(valid)}. Skipping.")
-        framework_type = "none"  # RL framework extras not applied in selective mode
+                valid = sorted(VALID_ISAACLAB_SUBPACKAGES) + sorted(VALID_RL_FRAMEWORKS)
+                print_warning(f"Unknown sub-package '{name}'. Valid values: {', '.join(valid)}. Skipping.")
+        framework_type = "none"  # RL frameworks not applied in selective mode
 
     # if on ARM arch, temporarily clear LD_PRELOAD
     # LD_PRELOAD is restored below, after installation

@@ -36,18 +36,18 @@ def cli() -> None:
         nargs="?",
         const="all",
         help=(
-            "Install the Isaac Lab extras and RL frameworks.\n"
-            "Accepts a comma-separated list of extras, one of the RL frameworks, or a special value.\n"
+            "Install Isaac Lab sub-packages and RL frameworks.\n"
+            "Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.\n"
             "\n"
-            "Extras: assets, physx, contrib, mimic, newton, rl, tasks, teleop.\n"
+            "Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop.\n"
             "RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.\n"
             "\n"
-            "Passing an RL framework name installs all extensions + that framework.\n"
+            "Passing an RL framework name installs all sub-packages + that framework.\n"
             "\n"
             "Special values:\n"
-            "- all  - Install all extensions + all RL frameworks (default).\n"
+            "- all  - Install all sub-packages + all RL frameworks (default).\n"
             "- none - Install only the core 'isaaclab' package.\n"
-            "- <empty> (-i or --install without value) - Install all extensions + all RL frameworks.\n"
+            "- <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.\n"
         ),
     )
     parser.add_argument(
