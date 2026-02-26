@@ -113,8 +113,7 @@ class NewtonManager:
         except ImportError as e:
             raise ImportError(
                 f"Failed to import required packages for Newton: {e}\n"
-                "Please install newton:\n"
-                "  pip install git+https://github.com/newton-physics/newton.git"
+                "Install isaaclab_newton to use Newton physics/rendering: pip install isaaclab_newton"
             ) from e
 
         logger.info(f"[NewtonManager] Initializing Newton model for rendering on device: {device}")

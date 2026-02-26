@@ -167,7 +167,7 @@ class PhysxSceneDataProvider:
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun visualizers."
+                "Install isaaclab_newton to use Newton/Rerun visualizers: pip install isaaclab_newton"
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
@@ -210,7 +210,7 @@ class PhysxSceneDataProvider:
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun visualizers."
+                "Install isaaclab_newton to use Newton/Rerun visualizers: pip install isaaclab_newton"
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None

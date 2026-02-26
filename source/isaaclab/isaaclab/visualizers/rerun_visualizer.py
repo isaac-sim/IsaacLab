@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import rerun as rr
 import rerun.blueprint as rrb
-from newton.viewer import ViewerRerun
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
@@ -24,47 +23,56 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from isaaclab.sim.scene_data_providers import SceneDataProvider
 
+try:
+    from newton.viewer import ViewerRerun as _ViewerRerun
+except ImportError:
+    _ViewerRerun = None  # Newton optional; install isaaclab_newton to use
 
-class NewtonViewerRerun(ViewerRerun):
-    """Isaac Lab wrapper for Newton's ViewerRerun."""
+if _ViewerRerun is not None:
 
-    def __init__(
-        self,
-        app_id: str | None = None,
-        address: str | None = None,
-        web_port: int | None = None,
-        grpc_port: int | None = None,
-        keep_historical_data: bool = False,
-        keep_scalar_history: bool = True,
-        record_to_rrd: str | None = None,
-        metadata: dict | None = None,
-    ):
-        super().__init__(
-            app_id=app_id,
-            address=address,
-            web_port=web_port,
-            grpc_port=grpc_port or 9876,
-            serve_web_viewer=True,
-            keep_historical_data=keep_historical_data,
-            keep_scalar_history=keep_scalar_history,
-            record_to_rrd=record_to_rrd,
-        )
+    class NewtonViewerRerun(_ViewerRerun):
+        """Isaac Lab wrapper for Newton's ViewerRerun."""
 
-        self._metadata = metadata or {}
-        self._log_metadata()
+        def __init__(
+            self,
+            app_id: str | None = None,
+            address: str | None = None,
+            web_port: int | None = None,
+            grpc_port: int | None = None,
+            keep_historical_data: bool = False,
+            keep_scalar_history: bool = True,
+            record_to_rrd: str | None = None,
+            metadata: dict | None = None,
+        ):
+            super().__init__(
+                app_id=app_id,
+                address=address,
+                web_port=web_port,
+                grpc_port=grpc_port or 9876,
+                serve_web_viewer=True,
+                keep_historical_data=keep_historical_data,
+                keep_scalar_history=keep_scalar_history,
+                record_to_rrd=record_to_rrd,
+            )
 
-    def _log_metadata(self) -> None:
-        metadata_text = "# Isaac Lab Scene Metadata\n\n"
-        physics_backend = self._metadata.get("physics_backend", "unknown")
-        metadata_text += f"**Physics Backend:** {physics_backend}\n"
-        num_envs = self._metadata.get("num_envs", 0)
-        metadata_text += f"**Total Environments:** {num_envs}\n"
+            self._metadata = metadata or {}
+            self._log_metadata()
 
-        for key, value in self._metadata.items():
-            if key not in ["physics_backend", "num_envs"]:
-                metadata_text += f"**{key}:** {value}\n"
+        def _log_metadata(self) -> None:
+            metadata_text = "# Isaac Lab Scene Metadata\n\n"
+            physics_backend = self._metadata.get("physics_backend", "unknown")
+            metadata_text += f"**Physics Backend:** {physics_backend}\n"
+            num_envs = self._metadata.get("num_envs", 0)
+            metadata_text += f"**Total Environments:** {num_envs}\n"
 
-        rr.log("metadata", rr.TextDocument(metadata_text, media_type=rr.MediaType.MARKDOWN))
+            for key, value in self._metadata.items():
+                if key not in ["physics_backend", "num_envs"]:
+                    metadata_text += f"**{key}:** {value}\n"
+
+            rr.log("metadata", rr.TextDocument(metadata_text, media_type=rr.MediaType.MARKDOWN))
+
+else:
+    NewtonViewerRerun = None  # type: ignore[misc, assignment]
 
 
 class RerunVisualizer(Visualizer):
@@ -88,6 +96,11 @@ class RerunVisualizer(Visualizer):
         if self._is_initialized:
             logger.debug("[RerunVisualizer] initialize() called while already initialized.")
             return
+        if NewtonViewerRerun is None:
+            raise ImportError(
+                "Newton is not installed. Install isaaclab_newton to use the Rerun visualizer: "
+                "pip install isaaclab_newton (or install from source)."
+            )
         if scene_data_provider is None:
             raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
@@ -197,6 +210,11 @@ class RerunVisualizer(Visualizer):
         self._rerun_address = f"rerun+http://127.0.0.1:{self.cfg.grpc_port}/proxy"
 
     def _create_viewer(self, record_to_rrd: str | None, metadata: dict | None = None, reset_time: bool = True) -> None:
+        if NewtonViewerRerun is None:
+            raise ImportError(
+                "Newton is not installed. Install isaaclab_newton to use the Rerun visualizer: "
+                "pip install isaaclab_newton (or install from source)."
+            )
         self._viewer = NewtonViewerRerun(
             app_id=self.cfg.app_id,
             address=self._rerun_address,
