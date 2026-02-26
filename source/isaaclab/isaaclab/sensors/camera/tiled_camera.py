@@ -258,6 +258,8 @@ class TiledCamera(Camera):
 
         if self._renderer is None:
             # Create replicator tiled render product (RTX path)
+            import omni.replicator.core as rep
+
             rp = rep.create.render_product_tiled(
                 cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
             )
@@ -266,6 +268,7 @@ class TiledCamera(Camera):
             # Define the annotators based on requested data types
             self._annotators = dict()
             for annotator_type in self.cfg.data_types:
+                init_params = None
                 if annotator_type == "rgba" or annotator_type == "rgb":
                     annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
                     self._annotators["rgba"] = annotator
@@ -300,27 +303,19 @@ class TiledCamera(Camera):
                     )
                     self._annotators[annotator_type] = annotator
 
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    annotator_type, init_params, device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
-
         # Attach the annotator to the render product
         for annotator in self._annotators.values():
             annotator.attach(self._render_product_paths)
 
-        # Create internal buffers
-            # Attach the annotator to the render product
-            for annotator in self._annotators.values():
-                annotator.attach(self._render_product_paths)
         # Create internal buffers (both Newton and RTX paths)
         self._create_buffers()
 
     def _update_poses(self, env_ids: Sequence[int]):
         super()._update_poses(env_ids)
-        self.renderer.update_camera(
-            self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
-        )
+        if self.renderer is not None:
+            self.renderer.update_camera(
+                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+            )
 
     def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
