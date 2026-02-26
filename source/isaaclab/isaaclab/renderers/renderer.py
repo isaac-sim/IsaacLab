@@ -12,21 +12,20 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_renderer import BaseRenderer
 from .renderer_cfg import RendererCfg
 
-# Backend package names (isaaclab_physx, isaaclab_newton). Hydra renderer_type e.g. warp_renderer, rtx.
+# Backend package names (isaaclab_physx, isaaclab_newton). renderer_type: isaac_rtx | newton_warp (aligns with develop).
 _RENDERER_TYPE_TO_BACKEND = {
     "isaac_rtx": "physx",
-    "rtx": "physx",
     "newton_warp": "newton",
-    "warp_renderer": "newton",
 }
 
 
 class Renderer(FactoryBase, BaseRenderer):
-    """Factory for creating renderer instances. Use with TiledCamera: Renderer(self.cfg.renderer_cfg)."""
+    """Factory for creating renderer instances."""
 
     @classmethod
     def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
-        return _RENDERER_TYPE_TO_BACKEND.get(getattr(cfg, "renderer_type", None), "physx")
+        rt = getattr(cfg, "renderer_type", None)
+        return _RENDERER_TYPE_TO_BACKEND.get(rt, "physx")
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""

@@ -147,13 +147,13 @@ class CameraCfg(SensorBaseCfg):
 
     """
 
-    renderer_type: Literal["rtx", "warp_renderer"] = "rtx"
+    renderer_type: Literal["isaac_rtx", "newton_warp"] = "isaac_rtx"
     """Hydra-friendly renderer selector. When set, overrides :attr:`renderer_cfg` for the backend.
 
-    - ``"rtx"``: Use Isaac RTX (Replicator) renderer (default).
-    - ``"warp_renderer"``: Use Newton Warp renderer (when available).
+    - ``"isaac_rtx"``: Use Isaac RTX (Replicator) renderer (default).
+    - ``"newton_warp"``: Use Newton Warp renderer (when available).
 
-    Can be overridden at train time via e.g. ``env.scene.base_camera.renderer_type=warp_renderer``.
+    Can be overridden at train time via e.g. ``env.scene.base_camera.renderer_type=newton_warp``.
     """
 
     renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)

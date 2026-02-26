@@ -21,7 +21,7 @@ class RendererCfg:
     """Configuration for a renderer."""
 
     renderer_type: str = "default"
-    """Type identifier (e.g. 'rtx', 'warp_renderer')."""
+    """Type identifier (e.g. 'isaac_rtx', 'newton_warp')."""
 
     height: int = 1024
     width: int = 1024

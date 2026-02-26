@@ -7,7 +7,7 @@
 
 Renderer registry and Hydra:
 - **renderer_cfg_from_type(renderer_type)** maps string → Renderer config instance
-  ("warp_renderer" → NewtonWarpRendererCfg(), "rtx"/None → IsaacRtxRendererCfg()).
+  ("newton_warp" → NewtonWarpRendererCfg(), "isaac_rtx"/None → IsaacRtxRendererCfg()).
 - **get_renderer_class(name_or_cfg)** returns the renderer class for a config or name.
 - TiledCamera uses **Renderer(cfg)** or resolves cfg from renderer_type in _initialize_impl().
 """
@@ -25,17 +25,17 @@ from .renderer_cfg import RendererCfg
 def renderer_cfg_from_type(renderer_type: str | None) -> RendererCfg:
     """Map Hydra/CLI renderer_type string to a renderer config.
 
-    Used so that ``env.scene.base_camera.renderer_type=warp_renderer`` (or ``=rtx``)
+    Used so that ``env.scene.base_camera.renderer_type=newton_warp`` (or ``=isaac_rtx``)
     works: TiledCamera resolves renderer_cfg from this in _initialize_impl().
 
     Args:
-        renderer_type: "warp_renderer" / "newton_warp" → NewtonWarpRendererCfg();
-            "rtx" or None → IsaacRtxRendererCfg().
+        renderer_type: "newton_warp" → NewtonWarpRendererCfg();
+            "isaac_rtx" or None → IsaacRtxRendererCfg().
 
     Returns:
         The corresponding config instance.
     """
-    if renderer_type in ("warp_renderer", "newton_warp"):
+    if renderer_type == "newton_warp":
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
         return NewtonWarpRendererCfg()
     return IsaacRtxRendererCfg()
@@ -54,12 +54,12 @@ def get_renderer_class(name_or_cfg: Union[str, RendererCfg]) -> type[BaseRendere
         if isinstance(name_or_cfg, IsaacRtxRendererCfg):
             from isaaclab_physx.renderers import IsaacRtxRenderer
             return IsaacRtxRenderer
-        name_or_cfg = getattr(name_or_cfg, "renderer_type", None) or "physx"
+        name_or_cfg = getattr(name_or_cfg, "renderer_type", None) or "isaac_rtx"
     name = name_or_cfg
-    if name in ("newton_warp", "warp_renderer"):
+    if name == "newton_warp":
         from isaaclab_newton.renderers import NewtonWarpRenderer
         return NewtonWarpRenderer
-    if name in ("isaac_rtx", "rtx"):
+    if name == "isaac_rtx":
         from isaaclab_physx.renderers import IsaacRtxRenderer
         return IsaacRtxRenderer
     return None

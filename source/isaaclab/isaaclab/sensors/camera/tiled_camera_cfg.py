@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor.
 
-    If :attr:`renderer_type` is set (e.g. via Hydra env.scene.base_camera.renderer_type=warp_renderer),
+    If :attr:`renderer_type` is set (e.g. via Hydra env.scene.base_camera.renderer_type=newton_warp),
     TiledCamera resolves :attr:`~.camera_cfg.CameraCfg.renderer_cfg` in _initialize_impl(); no scene
     __post_init__ logic required.
     """

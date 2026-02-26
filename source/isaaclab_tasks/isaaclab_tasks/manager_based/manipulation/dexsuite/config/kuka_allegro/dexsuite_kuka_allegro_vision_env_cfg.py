@@ -12,8 +12,8 @@ currently registered (see this package's __init__.py). The task name selects sin
 env.scene then picks resolution/camera type for that task.
 
 Renderer: We do not set renderer_type or renderer_cfg in the task. The camera config default
-(rtx) applies; users choose backend at train time via Hydra, e.g.
-  env.scene.base_camera.renderer_type=warp_renderer
+(isaac_rtx) applies; users choose backend at train time via Hydra, e.g.
+  env.scene.base_camera.renderer_type=newton_warp
 See docs (Hydra Configuration System) for override paths.
 """
 
@@ -173,7 +173,7 @@ def _build_scene_variants(scene_cls: type) -> dict:
 def _build_neutral_scene_variants(scene_cls: type) -> dict:
     """Build neutral scene variants: key = <width>x<height><camera_tag> (e.g. 64x64rgb, 64x64depth).
 
-    Renderer defaults to rtx; override with env.scene.base_camera.renderer_type=rtx|warp_renderer.
+    Renderer defaults to isaac_rtx; override with env.scene.base_camera.renderer_type=isaac_rtx|newton_warp.
     """
     out = {}
     for key in _svk.get_neutral_scene_variant_keys():

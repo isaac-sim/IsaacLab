@@ -97,20 +97,20 @@ overriding the camera config's ``renderer_type``.
 
   .. code-block:: shell
 
-      env.scene.base_camera.renderer_type=rtx
+      env.scene.base_camera.renderer_type=isaac_rtx
       # or
-      env.scene.base_camera.renderer_type=warp_renderer
+      env.scene.base_camera.renderer_type=newton_warp
 
 - **Camera on env config:** If the task puts the camera elsewhere (e.g. ``env.tiled_camera`` on the env config),
   override that path instead:
 
   .. code-block:: shell
 
-      env.tiled_camera.renderer_type=rtx
+      env.tiled_camera.renderer_type=isaac_rtx
       # or
-      env.tiled_camera.renderer_type=warp_renderer
+      env.tiled_camera.renderer_type=newton_warp
 
-**Values:** ``rtx`` selects the Isaac RTX (Replicator) renderer; ``warp_renderer`` selects the Newton Warp renderer
+**Values:** ``isaac_rtx`` selects the Isaac RTX (Replicator) renderer; ``newton_warp`` selects the Newton Warp renderer
 (when the ``isaaclab_newton`` package is available). No change to env or env_cfg code is required—only the
 config hierarchy must expose the camera at the path you override.
 

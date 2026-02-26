@@ -12,9 +12,9 @@ Run from the kuka_allegro config directory (so only scene_variant_keys is loaded
   cd .../dexsuite/config/kuka_allegro && python -c "
   from scene_variant_keys import parse_scene_key, get_scene_variant_keys
   p = parse_scene_key('64x64rtx_rgb')
-  assert p == {'width': 64, 'height': 64, 'renderer_type': 'rtx', 'camera_type': 'rgb'}, p
+  assert p == {'width': 64, 'height': 64, 'renderer_type': 'isaac_rtx', 'camera_type': 'rgb'}, p
   p2 = parse_scene_key('128x128warp_depth')
-  assert p2 == {'width': 128, 'height': 128, 'renderer_type': 'warp_renderer', 'camera_type': 'distance_to_image_plane'}, p2
+  assert p2 == {'width': 128, 'height': 128, 'renderer_type': 'newton_warp', 'camera_type': 'distance_to_image_plane'}, p2
   assert parse_scene_key('invalid') is None
   keys = get_scene_variant_keys()
   assert '64x64rtx_rgb' in keys and '64x64warp_rgb' in keys and '256x256warp_albedo' in keys
@@ -35,18 +35,18 @@ if __name__ == "__main__":
 
     # parsing (renderer in key)
     p = parse_scene_key("64x64rtx_rgb")
-    assert p == {"width": 64, "height": 64, "renderer_type": "rtx", "camera_type": "rgb"}, p
+    assert p == {"width": 64, "height": 64, "renderer_type": "isaac_rtx", "camera_type": "rgb"}, p
     p2 = parse_scene_key("128x128warp_depth")
     assert p2 == {
         "width": 128,
         "height": 128,
-        "renderer_type": "warp_renderer",
+        "renderer_type": "newton_warp",
         "camera_type": "distance_to_image_plane",
     }, p2
     assert parse_scene_key("invalid") is None
     # parsing (neutral keys)
     n = parse_neutral_scene_key("64x64rgb")
-    assert n["width"] == 64 and n["height"] == 64 and n["camera_type"] == "rgb" and n["renderer_type"] == "rtx", n
+    assert n["width"] == 64 and n["height"] == 64 and n["camera_type"] == "rgb" and n["renderer_type"] == "isaac_rtx", n
     assert parse_neutral_scene_key("64x64depth")["camera_type"] == "distance_to_image_plane"
     assert parse_neutral_scene_key("64x64rtx_rgb") is None  # neutral pattern does not match full key
     # variant keys (same set as single_camera_variants.keys())

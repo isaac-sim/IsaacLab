@@ -16,7 +16,7 @@ import re
 SCENE_KEY_PATTERN = re.compile(r"^(\d+)x(\d+)(rtx|warp)_(rgb|depth|albedo)$")
 # Neutral keys: <width>x<height><camera_tag> (renderer set via env.scene.base_camera.renderer_type=...)
 NEUTRAL_SCENE_KEY_PATTERN = re.compile(r"^(\d+)x(\d+)(rgb|depth|albedo)$")
-RENDERER_TAG_TO_TYPE = {"rtx": "rtx", "warp": "warp_renderer"}
+RENDERER_TAG_TO_TYPE = {"rtx": "isaac_rtx", "warp": "newton_warp"}
 CAMERA_TAG_TO_TYPE = {"rgb": "rgb", "depth": "distance_to_image_plane", "albedo": "diffuse_albedo"}
 
 RESOLUTIONS = ((64, 64), (128, 128), (256, 256))
@@ -28,16 +28,16 @@ RENDERER_CAMERA_COMBO = (
     ("warp", "rgb"),
     ("warp", "albedo"),
 )
-# For neutral keys: (camera_tag,) only; renderer_type is default "rtx", override via CLI
+# For neutral keys: (camera_tag,) only; renderer_type is default "isaac_rtx", override via CLI
 NEUTRAL_CAMERA_COMBO = ("rgb", "depth", "albedo")
-DEFAULT_NEUTRAL_RENDERER_TYPE = "rtx"
+DEFAULT_NEUTRAL_RENDERER_TYPE = "isaac_rtx"
 
 
 def parse_scene_key(scene_key: str) -> dict | None:
     """Parse env.scene value into width, height, renderer_type, camera_type.
 
     Convention: <width>x<height><renderer_tag>_<camera_tag>
-    E.g. 64x64rtx_rgb or 64x64warp_rgb -> width=64, height=64, renderer_type=rtx or warp_renderer, camera_type=rgb.
+    E.g. 64x64rtx_rgb or 64x64warp_rgb -> width=64, height=64, renderer_type=isaac_rtx or newton_warp, camera_type=rgb.
 
     Returns:
         Dict with keys width, height, renderer_type, camera_type, or None if invalid.
@@ -57,8 +57,8 @@ def parse_scene_key(scene_key: str) -> dict | None:
 def parse_neutral_scene_key(scene_key: str) -> dict | None:
     """Parse neutral env.scene value (no renderer in key): <width>x<height><camera_tag>.
 
-    E.g. 64x64rgb, 64x64depth -> width, height, camera_type; renderer_type defaults to rtx
-    and can be overridden with env.scene.base_camera.renderer_type=rtx|warp_renderer.
+    E.g. 64x64rgb, 64x64depth -> width, height, camera_type; renderer_type defaults to isaac_rtx
+    and can be overridden with env.scene.base_camera.renderer_type=isaac_rtx|newton_warp.
 
     Returns:
         Dict with keys width, height, renderer_type (default), camera_type, or None if invalid.

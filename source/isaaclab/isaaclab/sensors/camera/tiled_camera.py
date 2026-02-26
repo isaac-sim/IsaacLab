@@ -64,7 +64,7 @@ class TiledCamera(Camera):
     - ``"instance_segmentation_fast"``: The instance segmentation data.
     - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
-    When ``renderer_type == "warp_renderer"`` (see :class:`~.tiled_camera_cfg.TiledCameraCfg`), rendering uses the
+    When ``renderer_type == "newton_warp"`` (see :class:`~.tiled_camera_cfg.TiledCameraCfg`), rendering uses the
     Newton Warp backend: PhysX runs simulation and Newton/Warp perform ray tracing; PhysX→Newton
     state sync runs before each render. The combined sync+render is timed as ``newton_warp_sync_plus_render``.
 
@@ -233,10 +233,10 @@ class TiledCamera(Camera):
             self._warp_save_frame_count = 0
             self._warp_save_interval = 50
         else:
-            use_warp = renderer_cfg.get_renderer_type() in ("warp_renderer", "newton_warp")
+            use_warp = renderer_cfg.get_renderer_type() == "newton_warp"
             if use_warp:
                 logger.info(
-                    "TiledCamera %s: using renderer backend warp_renderer (from %s)",
+                    "TiledCamera %s: using renderer backend newton_warp (from %s)",
                     self.cfg.prim_path,
                     type(renderer_cfg).__name__,
                 )
@@ -251,7 +251,7 @@ class TiledCamera(Camera):
             else:
                 self._renderer = None
                 logger.info(
-                    "TiledCamera %s: using renderer backend rtx (default); renderer_cfg=%s",
+                    "TiledCamera %s: using renderer backend isaac_rtx (default); renderer_cfg=%s",
                     self.cfg.prim_path,
                     type(renderer_cfg).__name__,
                 )
@@ -435,11 +435,11 @@ class TiledCamera(Camera):
     def _get_effective_renderer_cfg(self):
         """Resolve renderer_cfg from optional renderer_type (Hydra override)."""
         rt = getattr(self.cfg, "renderer_type", None)
-        if rt == "rtx":
+        if rt == "isaac_rtx":
             from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
             cfg = IsaacRtxRendererCfg()
-        elif rt == "warp_renderer":
+        elif rt == "newton_warp":
             from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
             cfg = NewtonWarpRendererCfg()
