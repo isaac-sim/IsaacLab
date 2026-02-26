@@ -10,15 +10,18 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import hid
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
 
-from ..device_base import DeviceBase, DeviceCfg
+from ..device_base import DeviceBase
 from .utils import convert_buffer
+
+if TYPE_CHECKING:
+    from .se3_spacemouse_cfg import Se3SpaceMouseCfg
 
 
 class Se3SpaceMouse(DeviceBase):
@@ -203,14 +206,3 @@ class Se3SpaceMouse(DeviceBase):
                             self._additional_callbacks["R"]()
                     if data[1] == 3:
                         self._read_rotation = not self._read_rotation
-
-
-@dataclass
-class Se3SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE3 space mouse devices."""
-
-    gripper_term: bool = True
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
-    class_type: type[DeviceBase] = Se3SpaceMouse

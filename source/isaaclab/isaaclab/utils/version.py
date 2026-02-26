@@ -20,13 +20,21 @@ def has_kit() -> bool:
 
     Not cached with ``lru_cache`` because this may be called before ``AppLauncher``
     finishes starting Kit, which would permanently lock in a ``False`` result.
-    The underlying ``import`` is already cached by Python and ``get_app()`` is cheap.
-    """
-    try:
-        import omni.kit.app
+    The underlying ``get_app()`` call is cheap once the module is loaded.
 
-        return omni.kit.app.get_app() is not None
-    except (ImportError, ModuleNotFoundError, RuntimeError):
+    This function deliberately avoids triggering a fresh ``import omni.kit.app``
+    when called before Kit has started. If ``omni.kit.app`` is not already present
+    in ``sys.modules``, Kit is not running and we return ``False`` immediately without
+    performing any import (which would be a forbidden side-effect during cfg-only loading).
+    """
+    import sys
+
+    mod = sys.modules.get("omni.kit.app")
+    if mod is None:
+        return False
+    try:
+        return mod.get_app() is not None
+    except Exception:
         return False
 
 

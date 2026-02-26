@@ -14,8 +14,6 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
-from .utils import sample_object_point_cloud
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -138,6 +136,8 @@ class object_point_cloud_b(ManagerTermBase):
             ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
             ray_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(ray_cfg)
+        from .utils import sample_object_point_cloud
+
         self.points_local = sample_object_point_cloud(
             env.num_envs, num_points, self.object.cfg.prim_path, device=env.device
         )

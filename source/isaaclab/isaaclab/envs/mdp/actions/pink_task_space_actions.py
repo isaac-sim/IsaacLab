@@ -319,7 +319,9 @@ class PinkInverseKinematicsAction(ActionTerm):
             self._apply_gravity_compensation()
 
         # Apply joint position targets
-        self._asset.set_joint_position_target(self._processed_actions, self._controlled_joint_ids)
+        self._asset.set_joint_position_target_index(
+            target=self._processed_actions, joint_ids=self._controlled_joint_ids
+        )
 
     def _apply_gravity_compensation(self) -> None:
         """Apply gravity compensation to arm joints if not disabled in props."""
@@ -338,7 +340,7 @@ class PinkInverseKinematicsAction(ActionTerm):
                 ]
 
             # Apply gravity compensation to arm joints
-            self._asset.set_joint_effort_target(gravity, self._controlled_joint_ids)
+            self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._controlled_joint_ids)
 
     def _compute_ik_solutions(self) -> torch.Tensor:
         """Compute IK solutions for all environments.

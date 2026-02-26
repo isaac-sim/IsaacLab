@@ -57,4 +57,5 @@ def reset_joints_around_default(
     joint_pos = sample_uniform(joint_min_pos, joint_max_pos, joint_min_pos.shape, joint_min_pos.device)
     joint_vel = sample_uniform(joint_min_vel, joint_max_vel, joint_min_vel.shape, joint_min_vel.device)
     # set into the physics simulation
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+    asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)

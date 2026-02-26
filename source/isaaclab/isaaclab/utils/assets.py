@@ -13,15 +13,11 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
-import asyncio
 import io
 import logging
 import os
 import tempfile
-import time
 from typing import Literal
-
-import omni.client
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +64,10 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
+    import omni.client
+
     # we need to convert backslash to forward slash on Windows for omni.client API
-    elif omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+    if omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
         return 2
     else:
         return 0
@@ -110,6 +108,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         # create download directory if it does not exist
         if not os.path.exists(download_dir):
             os.makedirs(download_dir)
+        import omni.client
+
         # download file in temp directory using os
         file_name = os.path.basename(omni.client.break_url(path.replace(os.sep, "/")).path)
         target_path = os.path.join(download_dir, file_name)
@@ -142,6 +142,8 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
+        import omni.client
+
         file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
@@ -171,6 +173,9 @@ def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interva
     Returns:
         Whether the given USD path is available on the server.
     """
+    import asyncio
+    import time
+
     start_time = time.time()
     loop = asyncio.get_event_loop()
 
@@ -213,6 +218,10 @@ async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
     Returns:
         Whether the given USD path is available on the server.
     """
+    import asyncio
+
+    import omni.client
+
     try:
         result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
         return result == omni.client.Result.OK

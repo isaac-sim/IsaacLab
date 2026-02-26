@@ -594,6 +594,8 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
+        # scene settings
+        self.scene.replicate_physics = False
 
         # Convert USD to URDF and change revolute joints to fixed
         temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(

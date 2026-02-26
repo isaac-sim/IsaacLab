@@ -172,8 +172,7 @@ There are two options to run the CloudXR Runtime Docker container:
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device handtracking \
-             --enable_pinocchio
+             --teleop_device handtracking
 
    #. You'll want to leave the container running for the next steps. But once you are finished, you can
       stop the containers with:
@@ -256,8 +255,7 @@ There are two options to run the CloudXR Runtime Docker container:
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device handtracking \
-             --enable_pinocchio
+             --teleop_device handtracking
 
 With Isaac Lab and the CloudXR Runtime running:
 
@@ -373,8 +371,7 @@ On your Isaac Lab workstation:
 
       ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
           --task Isaac-PickPlace-GR1T2-Abs-v0 \
-          --teleop_device handtracking \
-          --enable_pinocchio
+          --teleop_device handtracking
 
    .. note::
       Recall that the script above should either be run within the Isaac Lab Docker container
@@ -513,8 +510,7 @@ Once the plugin is installed, run the teleoperation example:
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
        --task Isaac-PickPlace-GR1T2-Abs-v0 \
        --teleop_device manusvive \
-       --xr \
-       --enable_pinocchio
+       --xr
 
 The recommended workflow, is to start Isaac Lab, click **Start AR**, and then put on the Manus gloves, vive trackers, and
 headset. Once you are ready to begin the session, use voice commands to launch the Isaac XR teleop sample client and
