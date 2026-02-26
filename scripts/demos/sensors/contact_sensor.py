@@ -30,7 +30,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs

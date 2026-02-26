@@ -10,7 +10,7 @@ from typing import Dict, Literal, TypeVar  # noqa: UP035
 import gymnasium as gym
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Configuration.

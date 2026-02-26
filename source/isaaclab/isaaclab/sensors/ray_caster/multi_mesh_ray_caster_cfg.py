@@ -8,7 +8,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .ray_caster_cfg import RayCasterCfg

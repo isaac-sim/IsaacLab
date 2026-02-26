@@ -16,7 +16,7 @@ except ImportError:
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,

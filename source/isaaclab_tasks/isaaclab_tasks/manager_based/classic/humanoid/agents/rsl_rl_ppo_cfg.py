@@ -13,7 +13,7 @@ Ensure that the configurations for the other RL libraries are updated if this on
 ====================================================================================================
 """
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 

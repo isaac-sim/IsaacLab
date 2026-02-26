@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pxr import Sdf, Usd
 
 from isaaclab.sim.utils import change_prim_property, clone, create_prim, get_current_stage
-from isaaclab.utils import to_camel_case
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import sensors_cfg

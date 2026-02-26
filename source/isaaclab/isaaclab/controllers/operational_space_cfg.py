@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .operational_space import OperationalSpaceController
 

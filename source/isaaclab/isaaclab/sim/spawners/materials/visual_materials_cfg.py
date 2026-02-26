@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import visual_materials
 

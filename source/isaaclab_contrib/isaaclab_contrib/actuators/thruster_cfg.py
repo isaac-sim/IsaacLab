@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .thruster import Thruster
 

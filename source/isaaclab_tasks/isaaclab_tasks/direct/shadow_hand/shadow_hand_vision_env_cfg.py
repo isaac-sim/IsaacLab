@@ -8,7 +8,7 @@ from __future__ import annotations
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_env_cfg import ShadowHandEnvCfg

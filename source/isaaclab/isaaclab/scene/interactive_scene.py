@@ -73,7 +73,7 @@ class InteractiveScene:
     .. code-block:: python
 
         from isaaclab.scene import InteractiveSceneCfg
-        from isaaclab.utils import configclass
+        from isaaclab.utils.configclass import configclass
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 

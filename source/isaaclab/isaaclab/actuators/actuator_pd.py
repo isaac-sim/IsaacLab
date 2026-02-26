@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils import DelayBuffer, LinearInterpolation
+from isaaclab.utils.buffers import DelayBuffer
+from isaaclab.utils.interpolation import LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
 from .actuator_base import ActuatorBase

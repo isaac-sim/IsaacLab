@@ -15,8 +15,9 @@ import numpy as np
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.utils import class_to_dict, modifiers, noise
+from isaaclab.utils import modifiers, noise
 from isaaclab.utils.buffers import CircularBuffer
+from isaaclab.utils.dict import class_to_dict
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg

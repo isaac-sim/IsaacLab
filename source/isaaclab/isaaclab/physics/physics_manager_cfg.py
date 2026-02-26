@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager

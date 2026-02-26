@@ -6,7 +6,7 @@
 """Configuration for Newton Warp Renderer."""
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

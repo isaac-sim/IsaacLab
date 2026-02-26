@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 
-from isaaclab.utils import CircularBuffer
+from isaaclab.utils.buffers import CircularBuffer
 
 
 @pytest.fixture

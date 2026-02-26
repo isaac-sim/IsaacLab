@@ -9,7 +9,7 @@ from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

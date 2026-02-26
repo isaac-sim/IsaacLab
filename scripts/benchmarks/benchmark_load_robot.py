@@ -64,7 +64,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs

@@ -9,7 +9,7 @@ from dataclasses import MISSING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import (
     binary_joint_actions,

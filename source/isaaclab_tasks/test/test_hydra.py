@@ -23,7 +23,7 @@ import hydra
 from hydra import compose, initialize
 from omegaconf import OmegaConf
 
-from isaaclab.utils import replace_strings_with_slices
+from isaaclab.utils.dict import replace_strings_with_slices
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import register_task_to_hydra

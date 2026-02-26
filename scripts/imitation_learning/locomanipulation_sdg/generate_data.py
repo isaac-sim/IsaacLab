@@ -151,7 +151,7 @@ import omni.kit
 import omni.usd
 
 from isaaclab.managers import DatasetExportMode
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 from isaaclab.utils.seed import configure_seed

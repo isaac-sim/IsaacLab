@@ -11,7 +11,7 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 class FeatureExtractorNetwork(nn.Module):

@@ -9,7 +9,7 @@ from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.sim import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .asset_base import AssetBase
 

@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 from isaaclab.assets.rigid_object import RigidObjectCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .rigid_object_collection import RigidObjectCollection
 

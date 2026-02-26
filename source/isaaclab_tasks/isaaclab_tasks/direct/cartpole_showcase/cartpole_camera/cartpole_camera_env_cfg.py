@@ -9,7 +9,7 @@ from gymnasium import spaces
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import TiledCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
 

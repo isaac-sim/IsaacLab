@@ -54,8 +54,9 @@ from isaaclab.assets import (
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
+from isaaclab.utils.timer import Timer
 
 ##
 # Pre-defined Configuration

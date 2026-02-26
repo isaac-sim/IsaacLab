@@ -66,8 +66,8 @@ from isaaclab.controllers import DifferentialIKController, DifferentialIKControl
 from isaaclab.devices import HaplyDevice, HaplyDeviceCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
