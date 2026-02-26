@@ -68,8 +68,8 @@ from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.timer import Timer
 from isaaclab.utils.assets import check_file_path
+from isaaclab.utils.timer import Timer
 
 
 def main():
