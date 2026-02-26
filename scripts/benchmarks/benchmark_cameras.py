@@ -774,7 +774,7 @@ def main():
         backend_type=backend_type,
         output_path=args_cli.output_path,
         use_recorders=True,
-        frametime_recorders=backend_type == "summary",
+        frametime_recorders=backend_type in ("summary", "omniperf"),
         output_prefix="benchmark_cameras",
         workflow_metadata={
             "metadata": [
