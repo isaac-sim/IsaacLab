@@ -40,7 +40,7 @@ class CartpoleShowcaseEnv(CartpoleEnv):
             raise NotImplementedError(f"Action space {type(self.single_action_space)} not implemented")
 
         # set target
-        self.cartpole.set_joint_effort_target(target, joint_ids=self._cart_dof_idx)
+        self.cartpole.set_joint_effort_target_index(target=target, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
         # fundamental spaces

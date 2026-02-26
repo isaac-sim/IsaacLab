@@ -154,7 +154,7 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.robot_dof_targets[:] = torch.clamp(targets, self.robot_dof_lower_limits, self.robot_dof_upper_limits)
 
     def _apply_action(self):
-        self._robot.set_joint_position_target(self.robot_dof_targets)
+        self._robot.set_joint_position_target_index(target=self.robot_dof_targets)
 
     # post-physics step calls
 
@@ -202,12 +202,14 @@ class FrankaCabinetEnv(DirectRLEnv):
         )
         joint_pos = torch.clamp(joint_pos, self.robot_dof_lower_limits, self.robot_dof_upper_limits)
         joint_vel = torch.zeros_like(joint_pos)
-        self._robot.set_joint_position_target(joint_pos, env_ids=env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.set_joint_position_target_index(target=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         # cabinet state
         zeros = torch.zeros((len(env_ids), self._cabinet.num_joints), device=self.device)
-        self._cabinet.write_joint_state_to_sim(zeros, zeros, env_ids=env_ids)
+        self._cabinet.write_joint_position_to_sim_index(position=zeros, env_ids=env_ids)
+        self._cabinet.write_joint_velocity_to_sim_index(velocity=zeros, env_ids=env_ids)
 
         # Need to refresh the intermediate values so that _get_observations() can use the latest values
         self._compute_intermediate_values(env_ids)

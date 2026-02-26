@@ -516,8 +516,8 @@ class AssemblyEnv(DirectRLEnv):
         self.ctrl_target_joint_pos[:, 7:9] = self.ctrl_target_gripper_dof_pos
         self.joint_torque[:, 7:9] = 0.0
 
-        self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
-        self._robot.set_joint_effort_target(self.joint_torque)
+        self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
+        self._robot.set_joint_effort_target_index(target=self.joint_torque)
 
     def _get_dones(self):
         """Update intermediate values used for rewards and observations."""
@@ -649,18 +649,27 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_assets_to_default_pose(self, env_ids):
         """Move assets to default pose before randomization."""
-        held_state = wp.to_torch(self._held_asset.data.default_root_state).clone()[env_ids]
+        held_state = torch.cat(
+            [wp.to_torch(self._held_asset.data.default_root_pose), wp.to_torch(self._held_asset.data.default_root_vel)],
+            dim=-1,
+        )[env_ids].clone()
         held_state[:, 0:3] += self.scene.env_origins[env_ids]
         held_state[:, 7:] = 0.0
-        self._held_asset.write_root_pose_to_sim(held_state[:, 0:7], env_ids=env_ids)
-        self._held_asset.write_root_velocity_to_sim(held_state[:, 7:], env_ids=env_ids)
+        self._held_asset.write_root_pose_to_sim_index(root_pose=held_state[:, 0:7], env_ids=env_ids)
+        self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_state[:, 7:], env_ids=env_ids)
         self._held_asset.reset()
 
-        fixed_state = wp.to_torch(self._fixed_asset.data.default_root_state).clone()[env_ids]
+        fixed_state = torch.cat(
+            [
+                wp.to_torch(self._fixed_asset.data.default_root_pose),
+                wp.to_torch(self._fixed_asset.data.default_root_vel),
+            ],
+            dim=-1,
+        )[env_ids].clone()
         fixed_state[:, 0:3] += self.scene.env_origins[env_ids]
         fixed_state[:, 7:] = 0.0
-        self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
-        self._fixed_asset.write_root_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim_index(root_pose=fixed_state[:, 0:7], env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim_index(root_velocity=fixed_state[:, 7:], env_ids=env_ids)
         self._fixed_asset.reset()
 
     def _move_gripper_to_grasp_pose(self, env_ids):
@@ -717,9 +726,10 @@ class AssemblyEnv(DirectRLEnv):
 
             self.ctrl_target_joint_pos[env_ids, 0:7] = self.joint_pos[env_ids, 0:7]
             # Update dof state.
-            self._robot.write_joint_state_to_sim(self.joint_pos, self.joint_vel)
+            self._robot.write_joint_position_to_sim_index(position=self.joint_pos)
+            self._robot.write_joint_velocity_to_sim_index(velocity=self.joint_vel)
             self._robot.reset()
-            self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
+            self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
 
             # Simulate and update tensors.
             self.step_sim_no_action()
@@ -736,10 +746,11 @@ class AssemblyEnv(DirectRLEnv):
         joint_vel = torch.zeros_like(joint_pos)
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
-        self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
         self._robot.reset()
-        self._robot.set_joint_effort_target(joint_effort, env_ids=env_ids)
+        self._robot.set_joint_effort_target_index(target=joint_effort, env_ids=env_ids)
 
         self.step_sim_no_action()
 
@@ -752,7 +763,13 @@ class AssemblyEnv(DirectRLEnv):
 
     def randomize_fixed_initial_state(self, env_ids):
         # (1.) Randomize fixed asset pose.
-        fixed_state = wp.to_torch(self._fixed_asset.data.default_root_state).clone()[env_ids]
+        fixed_state = torch.cat(
+            [
+                wp.to_torch(self._fixed_asset.data.default_root_pose),
+                wp.to_torch(self._fixed_asset.data.default_root_vel),
+            ],
+            dim=-1,
+        )[env_ids].clone()
         # (1.a.) Position
         rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
         fixed_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
@@ -774,7 +791,8 @@ class AssemblyEnv(DirectRLEnv):
         # (1.c.) Velocity
         fixed_state[:, 7:] = 0.0  # vel
         # (1.d.) Update values.
-        self._fixed_asset.write_root_state_to_sim(fixed_state, env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim_index(root_pose=fixed_state[:, 0:7], env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim_index(root_velocity=fixed_state[:, 7:], env_ids=env_ids)
         self._fixed_asset.reset()
 
         # (1.e.) Noisy position observation.
@@ -801,7 +819,10 @@ class AssemblyEnv(DirectRLEnv):
 
         # Set plug pos to assembled state, but offset plug Z-coordinate by height of socket,
         # minus curriculum displacement
-        held_state = wp.to_torch(self._held_asset.data.default_root_state).clone()
+        held_state = torch.cat(
+            [wp.to_torch(self._held_asset.data.default_root_pose), wp.to_torch(self._held_asset.data.default_root_vel)],
+            dim=-1,
+        ).clone()
         held_state[env_ids, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
         held_state[env_ids, 3:7] = self.fixed_quat[env_ids].clone()
         held_state[env_ids, 7:] = 0.0
@@ -811,7 +832,8 @@ class AssemblyEnv(DirectRLEnv):
         plug_in_freespace_idx = torch.argwhere(self.curriculum_disp > self.disassembly_dists)
         held_state[plug_in_freespace_idx, :2] += self.held_pos_init_rand[plug_in_freespace_idx, :2]
 
-        self._held_asset.write_root_state_to_sim(held_state)
+        self._held_asset.write_root_pose_to_sim_index(root_pose=held_state[:, 0:7])
+        self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_state[:, 7:])
         self._held_asset.reset()
 
         self.step_sim_no_action()

@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+4.2.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all MDP action terms to use new ``_index`` write/set APIs with keyword-only arguments.
+
+* Migrated all MDP event terms to use new ``_index`` write/set APIs (mass, inertia, COM,
+  joint properties, root state resets, fixed tendon parameters).
+
+* Updated ``InteractiveScene.set_state`` to use new ``_index`` APIs for root pose/velocity
+  and joint state writes.
+
+* Updated ``SceneEntityCfg`` body resolution to use ``find_sensors``/``num_sensors`` for
+  ContactSensor entities.
+
+
 4.2.0 (2026-02-24)
 ~~~~~~~~~~~~~~~~~~
 

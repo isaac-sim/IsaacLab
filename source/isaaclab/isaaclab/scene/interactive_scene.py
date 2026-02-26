@@ -460,16 +460,17 @@ class InteractiveScene:
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
             root_velocity = asset_state["root_velocity"].clone().to(self.device)
-            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
             # joint state
             joint_position = asset_state["joint_position"].clone().to(self.device)
             joint_velocity = asset_state["joint_velocity"].clone().to(self.device)
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            articulation.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)
+            articulation.write_joint_velocity_to_sim_index(velocity=joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
-            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
-            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
+            articulation.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
+            articulation.set_joint_velocity_target_index(target=joint_velocity, env_ids=env_ids)
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
@@ -486,8 +487,8 @@ class InteractiveScene:
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
             root_velocity = asset_state["root_velocity"].clone().to(self.device)
-            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            rigid_object.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
         # surface grippers
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]

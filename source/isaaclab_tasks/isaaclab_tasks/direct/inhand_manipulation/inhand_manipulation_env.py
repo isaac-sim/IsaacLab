@@ -59,7 +59,7 @@ class InHandManipulationEnv(DirectRLEnv):
         # track goal resets
         self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         # used to compare object position
-        self.in_hand_pos = wp.to_torch(self.object.data.default_root_state)[:, 0:3].clone()
+        self.in_hand_pos = wp.to_torch(self.object.data.default_root_pose)[:, 0:3].clone()
         self.in_hand_pos[:, 2] -= 0.04
         # default goal positions
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
@@ -114,8 +114,8 @@ class InHandManipulationEnv(DirectRLEnv):
 
         self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
 
-        self.hand.set_joint_position_target(
-            self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices
+        self.hand.set_joint_position_target_index(
+            target=self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices
         )
 
     def _get_observations(self) -> dict:
@@ -210,21 +210,22 @@ class InHandManipulationEnv(DirectRLEnv):
         self._reset_target_pose(env_ids)
 
         # reset object
-        object_default_state = wp.to_torch(self.object.data.default_root_state).clone()[env_ids]
+        object_default_pose = wp.to_torch(self.object.data.default_root_pose).clone()[env_ids]
+        object_default_vel = wp.to_torch(self.object.data.default_root_vel).clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
         # global object positions
-        object_default_state[:, 0:3] = (
-            object_default_state[:, 0:3] + self.cfg.reset_position_noise * pos_noise + self.scene.env_origins[env_ids]
+        object_default_pose[:, 0:3] = (
+            object_default_pose[:, 0:3] + self.cfg.reset_position_noise * pos_noise + self.scene.env_origins[env_ids]
         )
 
         rot_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 2), device=self.device)  # noise for X and Y rotation
-        object_default_state[:, 3:7] = randomize_rotation(
+        object_default_pose[:, 3:7] = randomize_rotation(
             rot_noise[:, 0], rot_noise[:, 1], self.x_unit_tensor[env_ids], self.y_unit_tensor[env_ids]
         )
 
-        object_default_state[:, 7:] = torch.zeros_like(wp.to_torch(self.object.data.default_root_state)[env_ids, 7:])
-        self.object.write_root_pose_to_sim(object_default_state[:, :7], env_ids)
-        self.object.write_root_velocity_to_sim(object_default_state[:, 7:], env_ids)
+        object_default_vel[:] = 0.0
+        self.object.write_root_pose_to_sim_index(root_pose=object_default_pose, env_ids=env_ids)
+        self.object.write_root_velocity_to_sim_index(root_velocity=object_default_vel, env_ids=env_ids)
 
         # reset hand
         delta_max = self.hand_dof_upper_limits[env_ids] - wp.to_torch(self.hand.data.default_joint_pos)[env_ids]
@@ -241,8 +242,9 @@ class InHandManipulationEnv(DirectRLEnv):
         self.cur_targets[env_ids] = dof_pos
         self.hand_dof_targets[env_ids] = dof_pos
 
-        self.hand.set_joint_position_target(dof_pos, env_ids=env_ids)
-        self.hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
+        self.hand.set_joint_position_target_index(target=dof_pos, env_ids=env_ids)
+        self.hand.write_joint_position_to_sim_index(position=dof_pos, env_ids=env_ids)
+        self.hand.write_joint_velocity_to_sim_index(velocity=dof_vel, env_ids=env_ids)
 
         self.successes[env_ids] = 0
         self._compute_intermediate_values()
