@@ -456,15 +456,15 @@ class InteractiveScene:
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
             # root state
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
             articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
             # joint state
-            joint_position = asset_state["joint_position"].clone()
-            joint_velocity = asset_state["joint_velocity"].clone()
+            joint_position = asset_state["joint_position"].clone().to(self.device)
+            joint_velocity = asset_state["joint_velocity"].clone().to(self.device)
             articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
@@ -473,19 +473,19 @@ class InteractiveScene:
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
-            nodal_position = asset_state["nodal_position"].clone()
+            nodal_position = asset_state["nodal_position"].clone().to(self.device)
             if is_relative:
                 nodal_position[:, :3] += self.env_origins[env_ids]
-            nodal_velocity = asset_state["nodal_velocity"].clone()
+            nodal_velocity = asset_state["nodal_velocity"].clone().to(self.device)
             deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
             deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
         # rigid objects
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = state["rigid_object"][asset_name]
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
             rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
         # surface grippers
