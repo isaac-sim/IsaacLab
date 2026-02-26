@@ -467,7 +467,9 @@ def test_clone_from_template(sim):
         ),
     ],
 )
-def test_clone_decorator_wildcard_patterns(sim, parent_paths, spawn_pattern, expected_child_paths, bad_path, match_expr):
+def test_clone_decorator_wildcard_patterns(
+    sim, parent_paths, spawn_pattern, expected_child_paths, bad_path, match_expr
+):
     """The @clone decorator handles two distinct wildcard patterns correctly.
 
     Case A – ``.*`` in root_path (parent is a regex): the child prim is spawned at
@@ -492,8 +494,7 @@ def test_clone_decorator_wildcard_patterns(sim, parent_paths, spawn_pattern, exp
     # Every expected child path must exist
     for child_path in expected_child_paths:
         assert stage.GetPrimAtPath(child_path).IsValid(), (
-            f"Prim was not spawned at '{child_path}'. "
-            "The @clone decorator may have used the wrong spawn path."
+            f"Prim was not spawned at '{child_path}'. The @clone decorator may have used the wrong spawn path."
         )
 
     # The spurious path from the old replace(".*", "0") must NOT exist
