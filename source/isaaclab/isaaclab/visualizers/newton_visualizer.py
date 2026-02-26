@@ -162,6 +162,15 @@ class NewtonViewerGL(ViewerGL):
                     show_com = self.show_com
                     changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
 
+                    show_collision = self.show_collision
+                    changed, self.show_collision = imgui.checkbox("Show Collision", show_collision)
+
+                    show_visual = self.show_visual
+                    changed, self.show_visual = imgui.checkbox("Show Visual", show_visual)
+
+                    show_inertia_boxes = self.show_inertia_boxes
+                    changed, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", show_inertia_boxes)
+
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Rendering Options"):
                 imgui.separator()

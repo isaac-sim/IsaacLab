@@ -277,7 +277,7 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase_mode=BroadPhaseMode.EXPLICIT)
+                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -363,6 +363,8 @@ class NewtonManager(PhysicsManager):
                     cls._simulate()
                 cls._graph = capture.graph
 
+    _debug_step_count: int = 0
+
     @classmethod
     def _simulate(cls) -> None:
         """Run one simulation step with substeps."""
@@ -371,6 +373,12 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls._state_0, cls._contacts)
             contacts = cls._contacts
+            if cls._debug_step_count < 5:
+                import warp as wp
+                wp.synchronize()
+                n = contacts.rigid_contact_count.numpy() if hasattr(contacts, 'rigid_contact_count') and contacts.rigid_contact_count is not None else "N/A"
+                print(f"[DEBUG step {cls._debug_step_count}] collision pipeline: contact_count={n}")
+                print(f"[DEBUG] state_0 joint_q[:5] = {cls._state_0.joint_q.numpy()[:5]}")
         else:
             contacts = None
 
@@ -381,6 +389,10 @@ class NewtonManager(PhysicsManager):
             for i in range(cls._num_substeps):
                 step_fn(cls._state_0, cls._state_0)
                 cls._state_0.clear_forces()
+                if cls._debug_step_count < 5:
+                    import warp as wp
+                    wp.synchronize()
+                    print(f"[DEBUG step {cls._debug_step_count}] after solver: joint_q[:5] = {cls._state_0.joint_q.numpy()[:5]}")
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last_substep = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
@@ -401,6 +413,8 @@ class NewtonManager(PhysicsManager):
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.eval(eval_contacts)
+
+        cls._debug_step_count += 1
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
