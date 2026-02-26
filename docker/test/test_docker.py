@@ -21,7 +21,7 @@ def start_stop_docker(profile, suffix):
         suffix_args = ["--suffix", suffix]
     else:
         container_name = f"isaac-lab-{profile}"
-        suffix_args = []
+        suffix_args = ["--suffix", ""]
 
     run_kwargs = {
         "check": False,
