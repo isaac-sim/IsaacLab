@@ -38,6 +38,12 @@ parser.add_argument(
     default=False,
     help="Enable Isaac Lab timers (use --no-timer to disable).",
 )
+parser.add_argument(
+    "--manager_call_config",
+    type=str,
+    default=None,
+    help='Manager mode JSON only: \'{"RewardManager": 0, "ActionManager": 2, "default": 2}\'.',
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -155,6 +161,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # set the IO descriptors export flag if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+        # experimental manager-based Warp env reads this runtime switch from env cfg
+        env_cfg.manager_call_config = args_cli.manager_call_config
     else:
         logger.warning(
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
