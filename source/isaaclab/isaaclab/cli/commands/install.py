@@ -121,8 +121,25 @@ def _ensure_cuda_torch() -> None:
     )
 
 
-def _install_isaaclab_extensions() -> None:
-    """check if input directory is a python extension and install the module"""
+# Valid "extras" names that can be passed to --install.
+# Each "extra" maps to a source directory named "isaaclab_<extra>" under source/.
+VALID_ISAACLAB_EXTRAS: set[str] = {"assets", "physx", "contrib", "mimic", "newton", "rl", "tasks", "teleop"}
+
+# RL framework names accepted.
+# Passing one of these installs all extensions + that framework.
+VALID_RL_FRAMEWORKS: set[str] = {"rl_games", "rsl_rl", "sb3", "skrl", "robomimic"}
+
+
+def _install_isaaclab_extensions(extensions: list[str] | None = None) -> None:
+    """Install Isaac Lab extensions from the source directory.
+
+    Scans ``source/`` for sub-directories that contain a ``setup.py`` and
+    installs each one as an editable pip package.
+
+    Args:
+        extensions: Optional, list of source directory names to install
+        If ``None`` is provided, every extension found under ``source/`` is installed.
+    """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
 
@@ -135,6 +152,9 @@ def _install_isaaclab_extensions() -> None:
     # source directory
     for item in source_dir.iterdir():
         if item.is_dir() and (item / "setup.py").exists():
+            # Skip extensions not in the requested list.
+            if extensions is not None and item.name not in extensions:
+                continue
             print_info(f"Installing extension: {item.name}")
             # If the directory contains setup.py then install the python module.
             run_command(
@@ -192,12 +212,20 @@ def _install_extra_frameworks(framework_name: str = "all") -> None:
 
 
 def command_install(install_type: str = "all") -> None:
-    """
-    Install stuff
+    """Install Isaac Lab extensions and optional sub-packages.
 
     Args:
-        install_type (str): The RL framework to install ('all', 'none', or specific name).
+        install_type: Comma-separated list of extras to install, or one of the
+            special values ``"all"`` / ``"none"``. Extra names match the keys
+            in ``source/isaaclab/setup.py``'s ``extras_require``:
+            * ``"all"`` (default) — install every extension found under
+              ``source/``, plus all RL frameworks.
+            * ``"none"`` — install only the "core" ``isaaclab`` package and skip
+              RL frameworks.
+            * Comma-separated extras, e.g. ``"mimic,assets"`` — install
+              only the "core" ``isaaclab`` package plus the listed sub-packages.
     """
+
     # Install system dependencies first.
     _install_system_deps()
 
@@ -212,6 +240,32 @@ def command_install(install_type: str = "all") -> None:
         print_info(f"Using conda environment: {os.environ['CONDA_PREFIX']}")
 
     print_info(f"Python executable: {python_exe}")
+
+    # Decide which source directories (source/isaaclab/*) to install.
+    # "all"        : install everything + all RL frameworks
+    # "none"       : core isaaclab only, no RL frameworks
+    # RL framework : install everything + only that RL framework (e.g. "skrl")
+    # "a,b"        : core + selected sub-package directories, no RL frameworks
+    if install_type == "all":
+        extensions = None
+        framework_type = "all"
+    elif install_type == "none":
+        extensions = ["isaaclab"]
+        framework_type = "none"
+    elif install_type in VALID_RL_FRAMEWORKS:
+        # Single RL framework name: install all extensions + only that framework.
+        extensions = None
+        framework_type = install_type
+    else:
+        # Parse comma-separated extras into source directory names.
+        extensions = ["isaaclab"]  # core is always required
+        for extra in (s.strip() for s in install_type.split(",") if s.strip()):
+            if extra in VALID_ISAACLAB_EXTRAS:
+                extensions.append(f"isaaclab_{extra}")
+            else:
+                valid = sorted(VALID_ISAACLAB_EXTRAS) + sorted(VALID_RL_FRAMEWORKS)
+                print_warning(f"Unknown extra '{extra}'. Valid values: {', '.join(valid)}. Skipping.")
+        framework_type = "none"  # RL framework extras not applied in selective mode
 
     # if on ARM arch, temporarily clear LD_PRELOAD
     # LD_PRELOAD is restored below, after installation
@@ -229,11 +283,11 @@ def command_install(install_type: str = "all") -> None:
         _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        _install_isaaclab_extensions()
+        _install_isaaclab_extensions(extensions)
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")
-        _install_extra_frameworks(install_type)
+        _install_extra_frameworks(framework_type)
 
         # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
         # Can prevent that from happening.
