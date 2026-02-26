@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton.viewer import ViewerGL
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .visualizer import Visualizer
@@ -21,192 +22,183 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from isaaclab.sim.scene_data_providers import SceneDataProvider
 
-try:
-    from newton.viewer import ViewerGL as _ViewerGL
-except ImportError:
-    _ViewerGL = None  # Newton optional; install isaaclab_newton to use
 
-if _ViewerGL is not None:
+class NewtonViewerGL(ViewerGL):
+    """Wrapper around Newton's ViewerGL with training/rendering pause controls."""
 
-    class NewtonViewerGL(_ViewerGL):
-        """Wrapper around Newton's ViewerGL with training/rendering pause controls."""
+    def __init__(
+        self,
+        *args,
+        metadata: dict | None = None,
+        update_frequency: int = 1,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._paused_training = False
+        self._paused_rendering = False
+        self._metadata = metadata or {}
+        self._fallback_draw_controls = False
+        self._update_frequency = update_frequency
 
-        def __init__(
-            self,
-            *args,
-            metadata: dict | None = None,
-            update_frequency: int = 1,
-            **kwargs,
-        ):
-            super().__init__(*args, **kwargs)
-            self._paused_training = False
-            self._paused_rendering = False
-            self._metadata = metadata or {}
-            self._fallback_draw_controls = False
-            self._update_frequency = update_frequency
+        try:
+            self.register_ui_callback(self._render_training_controls, position="side")
+        except AttributeError:
+            self._fallback_draw_controls = True
 
-            try:
-                self.register_ui_callback(self._render_training_controls, position="side")
-            except AttributeError:
-                self._fallback_draw_controls = True
+    def is_training_paused(self) -> bool:
+        return self._paused_training
 
-        def is_training_paused(self) -> bool:
-            return self._paused_training
+    def is_rendering_paused(self) -> bool:
+        return self._paused_rendering
 
-        def is_rendering_paused(self) -> bool:
-            return self._paused_rendering
+    def _render_training_controls(self, imgui):
+        imgui.separator()
+        imgui.text("IsaacLab Controls")
 
-        def _render_training_controls(self, imgui):
-            imgui.separator()
-            imgui.text("IsaacLab Controls")
+        pause_label = "Resume Training" if self._paused_training else "Pause Training"
+        if imgui.button(pause_label):
+            self._paused_training = not self._paused_training
 
-            pause_label = "Resume Training" if self._paused_training else "Pause Training"
-            if imgui.button(pause_label):
-                self._paused_training = not self._paused_training
+        rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+        if imgui.button(rendering_label):
+            self._paused_rendering = not self._paused_rendering
+            self._paused = self._paused_rendering
 
-            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
-            if imgui.button(rendering_label):
-                self._paused_rendering = not self._paused_rendering
-                self._paused = self._paused_rendering
+        imgui.text("Visualizer Update Frequency")
+        current_frequency = self._update_frequency
+        changed, new_frequency = imgui.slider_int(
+            "##VisualizerUpdateFreq", current_frequency, 1, 20, f"Every {current_frequency} frames"
+        )
+        if changed:
+            self._update_frequency = new_frequency
 
-            imgui.text("Visualizer Update Frequency")
-            current_frequency = self._update_frequency
-            changed, new_frequency = imgui.slider_int(
-                "##VisualizerUpdateFreq", current_frequency, 1, 20, f"Every {current_frequency} frames"
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
+                " training\nhigher values -> less responsive visualizer but faster training"
             )
-            if changed:
-                self._update_frequency = new_frequency
 
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
-                    " training\nhigher values -> less responsive visualizer but faster training"
-                )
-
-        def on_key_press(self, symbol, modifiers):
-            if self.ui.is_capturing():
-                return
-
-            try:
-                import pyglet  # noqa: PLC0415
-            except Exception:
-                return
-
-            if symbol == pyglet.window.key.SPACE:
-                self._paused_rendering = not self._paused_rendering
-                self._paused = self._paused_rendering
-                return
-
-            super().on_key_press(symbol, modifiers)
-
-        def _render_ui(self):
-            if not self._fallback_draw_controls:
-                return super()._render_ui()
-
-            super()._render_ui()
-            imgui = self.ui.imgui
-            from contextlib import suppress
-
-            with suppress(Exception):
-                imgui.set_next_window_pos(imgui.ImVec2(320, 10))
-
-            flags = 0
-            if imgui.begin("Training Controls", flags=flags):
-                self._render_training_controls(imgui)
-            imgui.end()
-            return None
-
-        def _render_left_panel(self):
-            """Override the left panel to remove the base pause checkbox."""
-            import newton as nt
-
-            imgui = self.ui.imgui
-            nav_highlight_color = self.ui.get_theme_color(imgui.Col_.nav_cursor, (1.0, 1.0, 1.0, 1.0))
-
-            io = self.ui.io
-            imgui.set_next_window_pos(imgui.ImVec2(10, 10))
-            imgui.set_next_window_size(imgui.ImVec2(300, io.display_size[1] - 20))
-
-            flags = imgui.WindowFlags_.no_resize.value
-
-            if imgui.begin(f"Newton Viewer v{nt.__version__}", flags=flags):
-                imgui.separator()
-
-                header_flags = 0
-
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("IsaacLab Options"):
-                    for callback in self._ui_callbacks["side"]:
-                        callback(self.ui.imgui)
-
-                if self.model is not None:
-                    imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                    if imgui.collapsing_header("Model Information", flags=header_flags):
-                        imgui.separator()
-                        num_envs = self._metadata.get("num_envs", 0)
-                        imgui.text(f"Environments: {num_envs}")
-                        axis_names = ["X", "Y", "Z"]
-                        imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
-                        gravity = wp.to_torch(self.model.gravity)[0]
-                        gravity_text = f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
-                        imgui.text(gravity_text)
-
-                    imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                    if imgui.collapsing_header("Visualization", flags=header_flags):
-                        imgui.separator()
-
-                        show_joints = self.show_joints
-                        changed, self.show_joints = imgui.checkbox("Show Joints", show_joints)
-
-                        show_contacts = self.show_contacts
-                        changed, self.show_contacts = imgui.checkbox("Show Contacts", show_contacts)
-
-                        show_springs = self.show_springs
-                        changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
-
-                        show_com = self.show_com
-                        changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
-
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Rendering Options"):
-                    imgui.separator()
-
-                    changed, self.renderer.draw_sky = imgui.checkbox("Sky", self.renderer.draw_sky)
-                    changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
-                    changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
-
-                    changed, self.renderer._light_color = imgui.color_edit3("Light Color", self.renderer._light_color)
-                    changed, self.renderer.sky_upper = imgui.color_edit3("Upper Sky Color", self.renderer.sky_upper)
-                    changed, self.renderer.sky_lower = imgui.color_edit3("Lower Sky Color", self.renderer.sky_lower)
-
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Camera"):
-                    imgui.separator()
-
-                    pos = self.camera.pos
-                    pos_text = f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})"
-                    imgui.text(pos_text)
-                    imgui.text(f"FOV: {self.camera.fov:.1f}°")
-                    imgui.text(f"Yaw: {self.camera.yaw:.1f}°")
-                    imgui.text(f"Pitch: {self.camera.pitch:.1f}°")
-
-                    imgui.separator()
-                    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
-                    imgui.text("Controls:")
-                    imgui.pop_style_color()
-                    imgui.text("WASD - Forward/Left/Back/Right")
-                    imgui.text("QE - Down/Up")
-                    imgui.text("Left Click - Look around")
-                    imgui.text("Scroll - Zoom")
-                    imgui.text("Space - Pause/Resume Rendering")
-                    imgui.text("H - Toggle UI")
-                    imgui.text("ESC - Exit")
-
-            imgui.end()
+    def on_key_press(self, symbol, modifiers):
+        if self.ui.is_capturing():
             return
 
-else:
-    NewtonViewerGL = None  # type: ignore[misc, assignment]
+        try:
+            import pyglet  # noqa: PLC0415
+        except Exception:
+            return
+
+        if symbol == pyglet.window.key.SPACE:
+            self._paused_rendering = not self._paused_rendering
+            self._paused = self._paused_rendering
+            return
+
+        super().on_key_press(symbol, modifiers)
+
+    def _render_ui(self):
+        if not self._fallback_draw_controls:
+            return super()._render_ui()
+
+        super()._render_ui()
+        imgui = self.ui.imgui
+        from contextlib import suppress
+
+        with suppress(Exception):
+            imgui.set_next_window_pos(imgui.ImVec2(320, 10))
+
+        flags = 0
+        if imgui.begin("Training Controls", flags=flags):
+            self._render_training_controls(imgui)
+        imgui.end()
+        return None
+
+    def _render_left_panel(self):
+        """Override the left panel to remove the base pause checkbox."""
+        import newton as nt
+
+        imgui = self.ui.imgui
+        nav_highlight_color = self.ui.get_theme_color(imgui.Col_.nav_cursor, (1.0, 1.0, 1.0, 1.0))
+
+        io = self.ui.io
+        imgui.set_next_window_pos(imgui.ImVec2(10, 10))
+        imgui.set_next_window_size(imgui.ImVec2(300, io.display_size[1] - 20))
+
+        flags = imgui.WindowFlags_.no_resize.value
+
+        if imgui.begin(f"Newton Viewer v{nt.__version__}", flags=flags):
+            imgui.separator()
+
+            header_flags = 0
+
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("IsaacLab Options"):
+                for callback in self._ui_callbacks["side"]:
+                    callback(self.ui.imgui)
+
+            if self.model is not None:
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.collapsing_header("Model Information", flags=header_flags):
+                    imgui.separator()
+                    num_envs = self._metadata.get("num_envs", 0)
+                    imgui.text(f"Environments: {num_envs}")
+                    axis_names = ["X", "Y", "Z"]
+                    imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
+                    gravity = wp.to_torch(self.model.gravity)[0]
+                    gravity_text = f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
+                    imgui.text(gravity_text)
+
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.collapsing_header("Visualization", flags=header_flags):
+                    imgui.separator()
+
+                    show_joints = self.show_joints
+                    changed, self.show_joints = imgui.checkbox("Show Joints", show_joints)
+
+                    show_contacts = self.show_contacts
+                    changed, self.show_contacts = imgui.checkbox("Show Contacts", show_contacts)
+
+                    show_springs = self.show_springs
+                    changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
+
+                    show_com = self.show_com
+                    changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
+
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Rendering Options"):
+                imgui.separator()
+
+                changed, self.renderer.draw_sky = imgui.checkbox("Sky", self.renderer.draw_sky)
+                changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
+                changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
+
+                changed, self.renderer._light_color = imgui.color_edit3("Light Color", self.renderer._light_color)
+                changed, self.renderer.sky_upper = imgui.color_edit3("Upper Sky Color", self.renderer.sky_upper)
+                changed, self.renderer.sky_lower = imgui.color_edit3("Lower Sky Color", self.renderer.sky_lower)
+
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Camera"):
+                imgui.separator()
+
+                pos = self.camera.pos
+                pos_text = f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})"
+                imgui.text(pos_text)
+                imgui.text(f"FOV: {self.camera.fov:.1f}°")
+                imgui.text(f"Yaw: {self.camera.yaw:.1f}°")
+                imgui.text(f"Pitch: {self.camera.pitch:.1f}°")
+
+                imgui.separator()
+                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
+                imgui.text("Controls:")
+                imgui.pop_style_color()
+                imgui.text("WASD - Forward/Left/Back/Right")
+                imgui.text("QE - Down/Up")
+                imgui.text("Left Click - Look around")
+                imgui.text("Scroll - Zoom")
+                imgui.text("Space - Pause/Resume Rendering")
+                imgui.text("H - Toggle UI")
+                imgui.text("ESC - Exit")
+
+        imgui.end()
+        return
 
 
 class NewtonVisualizer(Visualizer):
@@ -228,11 +220,6 @@ class NewtonVisualizer(Visualizer):
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
-        if NewtonViewerGL is None:
-            raise ImportError(
-                "Newton is not installed. Install isaaclab_newton to use the Newton visualizer: "
-                "pip install isaaclab_newton (or install from source)."
-            )
         if scene_data_provider is None:
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 

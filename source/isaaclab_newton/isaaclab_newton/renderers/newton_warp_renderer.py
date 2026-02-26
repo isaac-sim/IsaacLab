@@ -80,6 +80,11 @@ class RenderData:
 
     def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, sensor: SensorBase):
         self.render_context = render_context
+
+        # Currently camera owns the renderer and render data. By holding full
+        # reference of the sensor, we create a circular reference between the
+        # sensor and the render data. Weak reference ensures proper garbage
+        # collection.
         self.sensor = weakref.ref(sensor)
         self.num_cameras = 1
         self._world_count: int | None = _world_count(render_context)
@@ -105,7 +110,7 @@ class RenderData:
             elif output_name == RenderData.OutputNames.RGB:
                 pass
             else:
-                logger.debug("NewtonWarpRenderer - output type %s is not yet supported", output_name)
+                logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name == RenderData.OutputNames.RGBA:
@@ -241,7 +246,7 @@ class NewtonWarpRenderer:
         render_data.update(positions, orientations, intrinsics)
 
     def render(self, render_data: RenderData):
-        """Render and write to output buffers using 4D API (n, nc, H, W). Requires Newton commit d435c418 or later (e.g. 35657fc)."""
+        """Render and write to output buffers (n, nc, H, W)."""
         self._get_newton_sensor(render_data.width, render_data.height)
         provider = self.get_scene_data_provider()
         state = provider.get_newton_state()
@@ -259,9 +264,7 @@ class NewtonWarpRenderer:
             shape_index_image=render_data.outputs.instance_segmentation_image,
         )
         if not self._logged_4d_path:
-            logger.info(
-                "NewtonWarpRenderer: using 4D output buffers (n, nc, H, W); Newton commit supports 4D API."
-            )
+            logger.info("NewtonWarpRenderer: using 4D output buffers (n, nc, H, W).")
             self._logged_4d_path = True
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
