@@ -46,23 +46,15 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "coverage==7.6.1",
-<<<<<<< HEAD
     "flatdict==4.0.0",
-=======
-    "flatdict>=3.4.0,<4.0.1", # suggested by greptile; 
->>>>>>> 6508a09b6b0 (flatdict greptile suggestion)
     "flaky",
     "packaging",
-<<<<<<< HEAD
     # visualizers
     "newton @ git+https://github.com/newton-physics/newton.git@35657fc",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
-=======
-    "newton @ git+https://github.com/newton-physics/newton.git@35657fc",
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers

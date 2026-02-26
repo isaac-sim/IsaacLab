@@ -75,10 +75,7 @@ class PhysxSceneDataProvider:
         self._xform_views: dict[str, Any] = {}
         self._xform_view_failures: set[str] = set()
         self._view_body_index_map: dict[str, list[int]] = {}
-<<<<<<< HEAD
         self._warned_once: set[str] = set()
-=======
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
         # Discovered from stage and cached once available.
         self._num_envs: int | None = None
@@ -154,18 +151,9 @@ class PhysxSceneDataProvider:
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
-<<<<<<< HEAD
             # Extract scene structure from Newton model (single source of truth)
-<<<<<<< HEAD
-            self._rigid_body_paths = list(self._newton_model.body_label)
-            self._articulation_paths = list(self._newton_model.articulation_label)
-=======
-=======
-            # Extract scene structure from Newton model
->>>>>>> cf9e41a50f5 (Incorporate passing of renderer config classes to tiled camera from PR 4704)
             self._rigid_body_paths = list(self._newton_model.body_key)
             self._articulation_paths = list(self._newton_model.articulation_key)
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -279,7 +267,6 @@ class PhysxSceneDataProvider:
 
     # ---- Pose/velocity read pipeline ------------------------------------------------------
 
-<<<<<<< HEAD
     def _warn_once(self, key: str, message: str, *args) -> None:
         """Log a warning only once for a given key."""
         if key in self._warned_once:
@@ -306,24 +293,6 @@ class PhysxSceneDataProvider:
 
         result_t = wp.to_torch(result)
         return result_t[:, :3], result_t[:, 3:7]
-=======
-    def _get_view_world_poses(self, view):
-        """Read world poses from a PhysX view.
-
-        Returns (positions, orientations) or (None, None). The returned tensors
-        are expected to be shaped [..., 3] and [..., 4].
-        """
-        if view is None:
-            return None, None
-        try:
-            # Canonical API for PhysX tensor views.
-            transforms = view.get_transforms()
-            if hasattr(transforms, "shape") and transforms.shape[-1] == 7:
-                return transforms[..., :3], transforms[..., 3:7]
-        except (AttributeError, RuntimeError, TypeError) as exc:
-            logger.debug("[PhysxSceneDataProvider] get_transforms() unavailable/failed for %s: %s", type(view), exc)
-        return None, None
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
     def _cache_view_index_map(self, view, key: str) -> None:
         """Map PhysX view indices to Newton body_key ordering."""
@@ -374,10 +343,7 @@ class PhysxSceneDataProvider:
     def _apply_view_poses(self, view: Any, view_key: str, positions: Any, orientations: Any, covered: Any) -> int:
         """Fill poses from a PhysX view for bodies not yet covered."""
         import torch
-<<<<<<< HEAD
         import warp as wp
-=======
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
         if view is None:
             return 0
@@ -388,7 +354,6 @@ class PhysxSceneDataProvider:
 
         order = self._view_body_index_map.get(view_key)
         if not order:
-<<<<<<< HEAD
             self._warn_once(
                 f"missing-index-map-{view_key}",
                 "[PhysxSceneDataProvider] Missing index map for %s; cannot scatter transforms.",
@@ -408,10 +373,6 @@ class PhysxSceneDataProvider:
             except Exception:
                 quat = torch.as_tensor(quat)
 
-=======
-            return 0
-
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
         pos = pos.to(device=self._device, dtype=torch.float32)
         quat = quat.to(device=self._device, dtype=torch.float32)
 
@@ -443,11 +404,8 @@ class PhysxSceneDataProvider:
         count = 0
         for idx in uncovered:
             path = self._rigid_body_paths[idx]
-<<<<<<< HEAD
-=======
             if path in self._xform_view_failures:
                 continue
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
             try:
                 if path not in self._xform_views:
                     self._xform_views[path] = XformPrimView(
@@ -465,15 +423,12 @@ class PhysxSceneDataProvider:
                 self._xform_view_failures.add(path)
                 continue
 
-<<<<<<< HEAD
         if len(self._xform_view_failures) > 0:
             self._warn_once(
                 "xform-fallback-failures",
                 "[PhysxSceneDataProvider] Xform fallback failed for %d body paths.",
                 len(self._xform_view_failures),
             )
-=======
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
         return count
 
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
@@ -509,14 +464,11 @@ class PhysxSceneDataProvider:
         )
         rigid_count = self._apply_view_poses(self._rigid_body_view, "rigid_body_view", positions, orientations, covered)
         xform_count = self._apply_xform_poses(positions, orientations, covered, xform_mask)
-<<<<<<< HEAD
         if rigid_count == 0:
             self._warn_once(
                 "rigid-source-unused",
                 "[PhysxSceneDataProvider] RigidBodyView did not provide any body transforms; using fallback sources.",
             )
-=======
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
         if not covered.all():
             logger.warning(f"Failed to read {(~covered).sum().item()}/{num_bodies} body poses")
@@ -649,15 +601,11 @@ class PhysxSceneDataProvider:
                     device=self._device,
                 )
         except Exception as exc:
-<<<<<<< HEAD
             self._warn_once(
                 "newton-sync-update-failed",
                 "[PhysxSceneDataProvider] Failed to sync transforms to Newton state: %s",
                 exc,
             )
-=======
-            logger.debug(f"Failed to sync transforms to Newton: {exc}")
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
     def get_newton_model(self) -> Any | None:
         """Return Newton model when sync is enabled."""
@@ -837,16 +785,12 @@ class PhysxSceneDataProvider:
             positions, orientations, _, xform_mask = result
             orientations_xyzw = self._convert_xform_quats(orientations, xform_mask)
             return {"positions": positions, "orientations": orientations_xyzw}
-<<<<<<< HEAD
         except Exception as exc:
             self._warn_once(
                 "get-transforms-failed",
                 "[PhysxSceneDataProvider] get_transforms() failed: %s",
                 exc,
             )
-=======
-        except Exception:
->>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
             return None
 
     def get_velocities(self) -> dict[str, Any] | None:

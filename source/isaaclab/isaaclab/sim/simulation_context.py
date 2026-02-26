@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import enum
 import gc
 import logging
 import os
@@ -32,7 +33,42 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 logger = logging.getLogger(__name__)
 
 
+class SettingsHelper:
+    """Helper for typed settings access via SettingsManager."""
+
+    def __init__(self, settings: SettingsManager):
+        self._settings = settings
+
+    def set(self, name: str, value: Any) -> None:
+        """Set a setting with automatic type routing."""
+        if isinstance(value, bool):
+            self._settings.set_bool(name, value)
+        elif isinstance(value, int):
+            self._settings.set_int(name, value)
+        elif isinstance(value, float):
+            self._settings.set_float(name, value)
+        elif isinstance(value, str):
+            self._settings.set_string(name, value)
+        elif isinstance(value, (list, tuple)):
+            self._settings.set(name, value)
+        else:
+            raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
+
+    def get(self, name: str) -> Any:
+        """Get a setting value."""
+        return self._settings.get(name)
+
+
+try:
+    from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
+except ImportError:
+    class _SimulationContext:
+        _instance = None  # so SimulationContext.instance() can access cls._instance when base is this stub
+
+
 class SimulationContext(_SimulationContext):
+    _instance = None  # singleton; ensure attribute exists for instance() and __init__
+
     """A class to control simulation-related events such as physics stepping and rendering.
 
     The simulation context helps control various simulation aspects. This includes:
@@ -495,6 +531,12 @@ class SimulationContext:
 
     # SINGLETON PATTERN
 
+    def reset(self, soft: bool = False) -> None:
+        """Reset the simulation.
+
+        Args:
+            soft: If True, skip full reinitialization.
+        """
         self._disable_app_control_on_stop_handle = True
         # check if we need to raise an exception that was raised in a callback
         if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
@@ -692,7 +734,7 @@ class SimulationContext:
     @classmethod
     def instance(cls) -> SimulationContext | None:
         """Get the singleton instance, or None if not created."""
-        return cls._instance
+        return getattr(cls, "_instance", None)
 
     def __init__(self, cfg: SimulationCfg | None = None):
         """Initialize the simulation context.
@@ -700,7 +742,7 @@ class SimulationContext:
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
         """
-        if type(self)._instance is not None:
+        if getattr(type(self), "_instance", None) is not None:
             return  # Already initialized
 
         # Store config
@@ -773,7 +815,11 @@ class SimulationContext:
         # Monotonic physics-step counter used by camera sensors for
         self._physics_step_count: int = 0
 
-        type(self)._instance = self  # Mark as valid singleton only after successful init
+        setattr(type(self), "_instance", self)  # Mark as valid singleton only after successful init
+
+    def get_initial_stage(self) -> Usd.Stage:
+        """Return the current USD stage used by this context."""
+        return self.stage
 
     def _apply_render_cfg_settings(self) -> None:
         """Apply render preset and overrides from SimulationCfg.render."""
@@ -1199,29 +1245,30 @@ class SimulationContext:
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
-        if cls._instance is not None:
+        inst = getattr(cls, "_instance", None)
+        if inst is not None:
             # Close physics manager FIRST to detach PhysX from the stage
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
-            cls._instance.physics_manager.close()
+            inst.physics_manager.close()
 
             # Now safe to clear stage contents (PhysX is detached)
             cls.clear_stage()
 
             # Close all visualizers
-            for viz in cls._instance._visualizers:
+            for viz in inst._visualizers:
                 viz.close()
-            cls._instance._visualizers.clear()
-            if cls._instance._scene_data_provider is not None:
-                close_provider = getattr(cls._instance._scene_data_provider, "close", None)
+            inst._visualizers.clear()
+            if inst._scene_data_provider is not None:
+                close_provider = getattr(inst._scene_data_provider, "close", None)
                 if callable(close_provider):
                     close_provider()
-                cls._instance._scene_data_provider = None
+                inst._scene_data_provider = None
 
             # Close the stage (clears cache, thread-local context, and Kit USD context)
             stage_utils.close_stage()
 
             # Clear instance
-            cls._instance = None
+            setattr(cls, "_instance", None)
 
             gc.collect()
             logger.info("SimulationContext cleared")
@@ -1233,7 +1280,7 @@ class SimulationContext:
         Uses a predicate that preserves /World and PhysicsScene while also
         respecting the default deletability checks (ancestral prims, etc.).
         """
-        if cls._instance is None:
+        if getattr(cls, "_instance", None) is None:
             return
 
         def _predicate(prim: Usd.Prim) -> bool:

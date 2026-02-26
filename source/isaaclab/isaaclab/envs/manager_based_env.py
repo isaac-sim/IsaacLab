@@ -142,7 +142,7 @@ class ManagerBasedEnv:
 
         # Load Newton/Warp renderer stack before sim.reset() so env's warp is used (not Isaac Sim's).
         # Trigger warp renderer import here so the correct stack is used before sensor init.
-        from isaaclab.renderer import get_renderer_class
+        from isaaclab.renderers import get_renderer_class
 
         get_renderer_class("warp_renderer")
 

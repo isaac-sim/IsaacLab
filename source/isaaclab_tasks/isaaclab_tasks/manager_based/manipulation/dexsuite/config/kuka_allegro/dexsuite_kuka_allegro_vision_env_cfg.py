@@ -75,9 +75,18 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         self.base_camera.width = self.width
         self.base_camera.height = self.height
         # renderer_type; Hydra may override via env.scene.base_camera.renderer_type=.
-        # We do NOT set base_camera.renderer_cfg here (so validation and Hydra override work).
-        # TiledCamera resolves the string to NewtonWarpRendererCfg/IsaacRtxRendererCfg at runtime.
         renderer_type_str = getattr(self.base_camera, "renderer_type", None) or self.renderer_type
+        if renderer_type_str in ("warp_renderer", "newton_warp"):
+            from isaaclab.renderers import renderer_cfg_from_type
+            self.base_camera.renderer_cfg = renderer_cfg_from_type(renderer_type_str)
+        if hasattr(self.base_camera.renderer_cfg, "data_types"):
+            self.base_camera.renderer_cfg.data_types = list(self.base_camera.data_types)
+        if hasattr(self.base_camera.renderer_cfg, "width"):
+            self.base_camera.renderer_cfg.width = self.base_camera.width
+        if hasattr(self.base_camera.renderer_cfg, "height"):
+            self.base_camera.renderer_cfg.height = self.base_camera.height
+        if hasattr(self.base_camera.renderer_cfg, "num_cameras"):
+            self.base_camera.renderer_cfg.num_cameras = 1
         self.base_camera.renderer_type = None if renderer_type_str == "rtx" else renderer_type_str
         # Remove so InteractiveScene._add_entities_from_cfg() does not treat them as assets
         del self.camera_type

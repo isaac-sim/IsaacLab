@@ -6,7 +6,7 @@
 """Configuration for Isaac RTX (Replicator) renderer.
 
 When used as TiledCamera's renderer_cfg, the camera uses the built-in Omniverse RTX
-tiled rendering path (Replicator annotators). No separate renderer instance is created.
+tiled rendering path (Replicator annotators).
 """
 
 from isaaclab.utils import configclass
@@ -19,8 +19,7 @@ class IsaacRtxRendererCfg(RendererCfg):
     """Configuration for the built-in Isaac RTX (Replicator) tiled renderer.
 
     Use with ``TiledCameraCfg(renderer_cfg=IsaacRtxRendererCfg(), ...)`` for the
-    default Omniverse RTX path. No renderer instance is created; TiledCamera uses
-    Replicator annotators directly.
+    default Omniverse RTX path.
     """
 
     renderer_type: str = "rtx"

@@ -204,6 +204,14 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
+        # Resolve renderer_cfg from renderer_type so any task can use Hydra env.scene.base_camera.renderer_type=...
+        renderer_type = getattr(self.cfg, "renderer_type", None)
+        if renderer_type is not None:
+            from isaaclab.renderers import renderer_cfg_from_type
+            self.cfg.renderer_cfg = renderer_cfg_from_type(renderer_type)
+            if hasattr(self.cfg.renderer_cfg, "data_types"):
+                self.cfg.renderer_cfg.data_types = list(self.cfg.data_types)
+
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
             # Get camera prim
@@ -223,6 +231,8 @@ class TiledCamera(Camera):
             )
             self._renderer = self._renderer_passed
             self._render_data = self._renderer.create_render_data(self)
+            self.renderer = self._renderer
+            self.render_data = self._render_data
             self._render_product_paths = []  # Not used with Newton Warp
             self._annotators = dict()  # Not used with Newton Warp
             self._warp_save_frame_count = 0
@@ -232,9 +242,9 @@ class TiledCamera(Camera):
             _cfg = getattr(self.cfg, "renderer_cfg", None)
             _type_str = getattr(self.cfg, "renderer_type", None)
             use_warp = False
-            if _cfg is not None and _cfg.get_renderer_type() == "warp_renderer":
+            if _cfg is not None and _cfg.get_renderer_type() in ("warp_renderer", "newton_warp"):
                 use_warp = True
-            elif _type_str == "warp_renderer":
+            elif _type_str in ("warp_renderer", "newton_warp"):
                 use_warp = True
             if use_warp:
                 logger.info(
@@ -243,15 +253,15 @@ class TiledCamera(Camera):
                     type(_cfg).__name__ if _cfg else "renderer_type",
                 )
                 # Resolve to renderer instance: either from existing config or from string.
-                # String → config is resolved in isaaclab.renderer.renderer_cfg_from_type()
-                # ("warp_renderer" → NewtonWarpRendererCfg, "rtx"/None → IsaacRtxRendererCfg).
-                # Config → instance uses config.create_renderer() → get_renderer_class(renderer_type).
+                # String → config via isaaclab.renderers.renderer_cfg_from_type().
                 if _cfg is not None:
                     self._renderer = _cfg.create_renderer()
                 else:
-                    from isaaclab.renderer import renderer_cfg_from_type
+                    from isaaclab.renderers import renderer_cfg_from_type
                     self._renderer = renderer_cfg_from_type(_type_str).create_renderer()
                 self._render_data = self._renderer.create_render_data(self)
+                self.renderer = self._renderer
+                self.render_data = self._render_data
                 self._render_product_paths = []
                 self._annotators = dict()
                 self._warp_save_frame_count = 0
@@ -360,8 +370,11 @@ class TiledCamera(Camera):
                 # Save flattened color image to /tmp/newton_renders every N frames
                 n = getattr(self, "_warp_save_frame_count", 0)
                 if getattr(self, "_warp_save_interval", 50) and n % getattr(self, "_warp_save_interval", 50) == 0:
-                    from isaaclab.renderer.newton_warp_renderer import save_data
-                    save_data(self, f"/tmp/newton_renders/frame_{n:06d}/rgb_tiled.png")
+                    try:
+                        from isaaclab_newton.renderers.newton_warp_renderer import save_data
+                        save_data(self, f"/tmp/newton_renders/frame_{n:06d}/rgb_tiled.png")
+                    except ImportError:
+                        pass
                 self._warp_save_frame_count = n + 1
             return
 

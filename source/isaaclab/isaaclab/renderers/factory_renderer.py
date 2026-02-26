@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory for creating renderer instances."""
+"""Factory for creating renderer instances (develop/Main_Fork style).
+
+TiledCamera uses Renderer(cfg) to get either IsaacRtxRenderer (physx) or NewtonWarpRenderer (newton).
+Hydra/task sets cfg via renderer_cfg on the camera (e.g. from renderer_type string).
+"""
 
 from __future__ import annotations
 
@@ -12,10 +16,9 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_renderer import BaseRenderer
 from .renderer_cfg import RendererCfg
 
-# Backend package names (isaaclab_physx, isaaclab_newton). Hydra renderer_type e.g. warp_renderer, rtx.
+# Backend package names for dynamic loading (isaaclab_physx, isaaclab_newton).
 _RENDERER_TYPE_TO_BACKEND = {
     "isaac_rtx": "physx",
-    "rtx": "physx",
     "newton_warp": "newton",
     "warp_renderer": "newton",
 }
@@ -30,7 +33,4 @@ class Renderer(FactoryBase, BaseRenderer):
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""
-        # The `FactoryBase` __new__ method will handle the logic and return
-        # an instance of the correct backend-specific renderer class,
-        # which is guaranteed to be a subclass of `BaseRenderer` by convention.
         return super().__new__(cls, cfg, *args, **kwargs)
