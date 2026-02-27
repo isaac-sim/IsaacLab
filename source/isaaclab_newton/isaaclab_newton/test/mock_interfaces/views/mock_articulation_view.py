@@ -330,9 +330,7 @@ class MockNewtonArticulationView:
             return
         expected = self._ensure_root_transforms()
         if transforms.shape != expected.shape:
-            raise ValueError(
-                f"Root transforms shape mismatch: expected {expected.shape}, got {transforms.shape}"
-            )
+            raise ValueError(f"Root transforms shape mismatch: expected {expected.shape}, got {transforms.shape}")
         expected.assign(transforms)
 
     def set_root_velocities(self, state, velocities: wp.array) -> None:
