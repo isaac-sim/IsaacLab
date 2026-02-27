@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
-# All rights reserved.
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Parity tests for Warp-first action term classes.
 
 Tests all 10 experimental action classes: process_actions, apply_actions, reset.

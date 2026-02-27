@@ -323,7 +323,7 @@ class EventManager(ManagerBase):
             self._apply_reset(env_mask_wp, global_env_step_count)
             return
 
-        # other modes keep the stable convention (env_ids forwarded)
+        # other modes (startup, prestartup, custom) — env_mask forwarded
         for term_cfg in self._mode_term_cfgs[mode]:
             term_cfg.func(self._env, env_mask_wp, **term_cfg.params)
 

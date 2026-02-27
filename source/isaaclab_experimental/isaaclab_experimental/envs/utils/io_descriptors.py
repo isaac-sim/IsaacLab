@@ -65,7 +65,6 @@ def _make_descriptor(**kwargs: Any) -> GenericObservationIODescriptor:
     return desc
 
 
-# TODO(jichuanh): The exact usage is unclear and this need revisit
 # Decorator factory for Warp-first IO descriptors.
 def generic_io_descriptor_warp(
     _func: Callable[Concatenate[ManagerBasedEnv, P], R] | None = None,

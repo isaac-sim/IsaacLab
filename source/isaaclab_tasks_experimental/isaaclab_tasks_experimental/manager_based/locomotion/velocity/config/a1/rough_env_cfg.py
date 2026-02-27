@@ -14,8 +14,6 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.unitree import UNITREE_A1_CFG  # isort: skip
 
-# reviewed(jichuanh): file roughly reviewed
-
 
 class TerminationsCfg_A1(TerminationsCfg):
     base_too_low = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})

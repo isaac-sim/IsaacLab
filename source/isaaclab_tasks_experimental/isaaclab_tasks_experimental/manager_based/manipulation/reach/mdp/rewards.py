@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-# Review(jichuanh): Needs revisit.
 # ---------------------------------------------------------------------------
 # position_command_error
 # ---------------------------------------------------------------------------
@@ -140,7 +139,6 @@ def _orientation_command_error_kernel(
     i = wp.tid()
     # desired quat in body frame -> world frame: q_des_w = q_root * q_des_b
     des_b = wp.quatf(cmd[i, 3], cmd[i, 4], cmd[i, 5], cmd[i, 6])
-    des_w = wp.quat_inverse(root_quat_w[i]) * des_b  # TODO: verify if mul order matches stable
     des_w = root_quat_w[i] * des_b
     # current ee orientation
     cur_w = body_quat_w[i, body_idx]

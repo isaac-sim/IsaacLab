@@ -90,13 +90,13 @@ class ManagerCallSwitch:
         self._wp_graphs: dict[str, Any] = {}
         self._cfg = self._load_cfg(cfg_source)
         self._max_modes = self._validate_max_modes(max_modes)
-        print("[INFO] ManagerCallSwitch configuration:")
-        print(f"  - {self.DEFAULT_KEY}: {self._cfg[self.DEFAULT_KEY]}")
+        logger.info("ManagerCallSwitch configuration:")
+        logger.info(f"  - {self.DEFAULT_KEY}: {self._cfg[self.DEFAULT_KEY]}")
         for manager_name in self.MANAGER_NAMES:
             mode = int(self.get_mode_for_manager(manager_name))
             cap = self._max_modes.get(manager_name)
             cap_str = f" (cap={cap})" if cap is not None else ""
-            print(f"  - {manager_name}: {mode}{cap_str}")
+            logger.info(f"  - {manager_name}: {mode}{cap_str}")
 
     def invalidate_graphs(self) -> None:
         """Invalidate cached capture graphs."""

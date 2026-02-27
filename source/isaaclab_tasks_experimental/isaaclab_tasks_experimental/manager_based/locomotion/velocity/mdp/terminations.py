@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-# Review(jichuanh): Needs revisit.
 @wp.kernel
 def _terrain_out_of_bounds_kernel(
     root_pos_w: wp.array(dtype=wp.vec3f),

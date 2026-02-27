@@ -24,20 +24,11 @@ Notes:
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp import warp_capturable
 
 from isaaclab.assets import Articulation
-
-if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
-logger = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass
@@ -563,5 +554,3 @@ def reset_joints_by_offset(
         ],
         device=env.device,
     )
-
-

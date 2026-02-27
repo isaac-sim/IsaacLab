@@ -25,7 +25,6 @@ class SceneEntityCfg(_SceneEntityCfg):
     - `joint_mask` is intended for Warp kernels only.
     """
 
-    # TODO(jichuanh): review the necessity of these two attributes.
     joint_mask: wp.array | None = None
     joint_ids_wp: wp.array | None = (
         None  # Needed for subset-sized outputs/gathers (len(selected)); mask can't map k→joint/order.

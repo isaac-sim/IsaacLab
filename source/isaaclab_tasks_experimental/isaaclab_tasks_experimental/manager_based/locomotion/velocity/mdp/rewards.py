@@ -22,8 +22,6 @@ from isaaclab.sensors import ContactSensor
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-# Review(jichuanh): Needs revisit.
-
 # ---------------------------------------------------------------------------
 # feet_air_time
 # ---------------------------------------------------------------------------
