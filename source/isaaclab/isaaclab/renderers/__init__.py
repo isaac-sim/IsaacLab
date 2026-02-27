@@ -8,7 +8,7 @@
 Renderer registry and config resolution:
 - **renderer_cfg_from_type(renderer_type)** maps string → Renderer config instance (used by Hydra and TiledCamera fallback).
 - When using Hydra (e.g. train.py), renderer_cfg is instantiated in isaaclab_tasks.utils.hydra before env creation.
-- TiledCamera uses **Renderer(cfg)**; for non-Hydra paths it builds cfg from renderer_type in _initialize_impl().
+- TiledCamera uses **Renderer(cfg)**; for non-Hydra paths it uses cfg.renderer_cfg or isaac_rtx fallback.
 """
 
 from __future__ import annotations

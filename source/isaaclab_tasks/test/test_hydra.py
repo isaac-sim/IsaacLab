@@ -26,12 +26,7 @@ from omegaconf import OmegaConf
 from isaaclab.utils import replace_strings_with_slices
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import (
-    _normalize_renderer_type_in_dict,
-    instantiate_renderer_cfg_in_env,
-    register_task_to_hydra,
-    resolve_hydra_group_runtime_override,
-)
+from isaaclab_tasks.utils.hydra import register_task_to_hydra
 
 
 def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
@@ -52,17 +47,26 @@ def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callab
                 hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
                 # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
-                # normalize renderer_type (Hydra group can leave it as dict; flatten to string)
-                _normalize_renderer_type_in_dict(hydra_env_cfg["env"])
-                # apply group overrides to mutate cfg objects before from_dict
-                resolve_hydra_group_runtime_override(env_cfg, agent_cfg, hydra_env_cfg, hydra_env_cfg["hydra"])
-                # update the configs with the Hydra command line arguments (strict=False: skip keys from replaced group nodes)
-                env_cfg.from_dict(hydra_env_cfg["env"], strict=False)
-                instantiate_renderer_cfg_in_env(env_cfg)
-                if isinstance(agent_cfg, dict):
+                # apply renderer preset to all cameras (mirror hydra_main)
+                if "renderer" in hydra_env_cfg and hydra_env_cfg["renderer"]:
+                    renderer_dict = hydra_env_cfg["renderer"]
+                    if isinstance(renderer_dict, dict):
+                        env_dict = hydra_env_cfg.get("env", {})
+
+                        def apply_to_cameras(d):
+                            for v in d.values():
+                                if isinstance(v, dict):
+                                    if "renderer_cfg" in v:
+                                        v["renderer_cfg"] = renderer_dict
+                                    apply_to_cameras(v)
+
+                        apply_to_cameras(env_dict)
+                # update the configs with the Hydra command line arguments
+                env_cfg.from_dict(hydra_env_cfg["env"])
+                if isinstance(agent_cfg, dict) or agent_cfg is None:
                     agent_cfg = hydra_env_cfg["agent"]
                 else:
-                    agent_cfg.from_dict(hydra_env_cfg["agent"], strict=False)
+                    agent_cfg.from_dict(hydra_env_cfg["agent"])
                 # call the original function
                 func(env_cfg, agent_cfg, *args, **kwargs)
 
@@ -115,58 +119,17 @@ def test_nested_iterable_dict():
     hydra.core.global_hydra.GlobalHydra.instance().clear()
 
 
-def test_hydra_group_override():
-    """Test the hydra configuration system for group overriding behavior"""
-
-    # set hardcoded command line arguments
+def test_renderer_override_and_instantiation():
+    """Test that top-level renderer=newton_warp sets renderer_type on cameras."""
     sys.argv = [
         sys.argv[0],
-        "env.observations=noise_less",
-        "env.actions.arm_action=relative_joint_position",
-        "agent.policy=large_network",
+        "renderer=newton_warp",
     ]
 
-    @hydra_task_config_test("Isaac-Reach-Franka-v0", "rsl_rl_cfg_entry_point")
+    @hydra_task_config_test("Isaac-Cartpole-RGB-Camera-Direct-v0", None)
     def main(env_cfg, agent_cfg):
-        # env
-        assert env_cfg.observations.policy.joint_pos.noise is None
-        assert not env_cfg.observations.policy.enable_corruption
-        assert agent_cfg.policy.actor_hidden_dims == [512, 256, 128, 64]
-
-    main()
-    # clean up
-    sys.argv = [sys.argv[0]]
-    hydra.core.global_hydra.GlobalHydra.instance().clear()
-
-
-def test_normalize_renderer_type_in_dict():
-    """Test that renderer_type dict from Hydra config group is flattened to a string."""
-    env = {
-        "scene": {
-            "base_camera": {"renderer_type": {"newton_warp": "newton_warp"}},
-            "tiled_camera": {"renderer_type": {"isaac_rtx": "isaac_rtx"}},
-        },
-        "tiled_camera": {"renderer_type": {"newton_warp": "newton_warp"}},
-    }
-    _normalize_renderer_type_in_dict(env)
-    assert env["scene"]["base_camera"]["renderer_type"] == "newton_warp"
-    assert env["scene"]["tiled_camera"]["renderer_type"] == "isaac_rtx"
-    assert env["tiled_camera"]["renderer_type"] == "newton_warp"
-
-
-def test_renderer_type_override_and_instantiation():
-    """Test that env.scene.base_camera.renderer_type override yields concrete NewtonWarpRendererCfg."""
-    sys.argv = [
-        sys.argv[0],
-        "env.scene=64x64rgb",
-        "env.scene.base_camera.renderer_type=newton_warp",
-    ]
-
-    @hydra_task_config_test("Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0", "rsl_rl_cfg_entry_point")
-    def main(env_cfg, agent_cfg):
-        assert env_cfg.scene.base_camera.renderer_cfg is not None
-        assert type(env_cfg.scene.base_camera.renderer_cfg).__name__ == "NewtonWarpRendererCfg"
-        assert env_cfg.scene.base_camera.renderer_cfg.renderer_type == "newton_warp"
+        assert env_cfg.tiled_camera.renderer_cfg is not None
+        assert env_cfg.tiled_camera.renderer_cfg.renderer_type == "newton_warp"
 
     main()
     sys.argv = [sys.argv[0]]

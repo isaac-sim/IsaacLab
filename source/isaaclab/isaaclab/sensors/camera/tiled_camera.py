@@ -11,7 +11,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
-import warp as wp
 from pxr import UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
@@ -173,7 +172,6 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
             # Get camera prim
@@ -185,7 +183,7 @@ class TiledCamera(Camera):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # Create renderer after scene is ready (post-cloning) so world_count is correct
-        # Hydra sets renderer config before env creation; else fallback from renderer_type
+        # Hydra sets renderer_cfg via renderer= preset; else use cfg.renderer_cfg or isaac_rtx fallback
         self.renderer = Renderer(self._get_effective_renderer_cfg())
         logger.info("Using renderer: %s", type(self.renderer).__name__)
 
@@ -224,7 +222,7 @@ class TiledCamera(Camera):
     """
 
     def _get_effective_renderer_cfg(self):
-        """Use renderer_cfg set by Hydra (instantiate_renderer_cfg_in_env). If None, resolve to isaac_rtx."""
+        """Use renderer_cfg set by Hydra (renderer= preset applied to cameras). If None, resolve to isaac_rtx."""
         cfg = self.cfg.renderer_cfg
         if cfg is None:
             from isaaclab.renderers import renderer_cfg_from_type

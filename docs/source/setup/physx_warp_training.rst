@@ -127,12 +127,10 @@ From the **IsaacLab-Physx-Warp** repo root, with the conda env activated:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
      --task=Isaac-Cartpole-RGB-Camera-Direct-v0 \
      --enable_cameras \
      --headless \
-     --num_envs=2 \
-     --max_iterations=2 \
      renderer=isaac_rtx
 
 Use ``renderer=newton_warp`` to use the Newton Warp renderer instead. For longer training runs, increase ``--num_envs`` and ``--max_iterations`` (e.g. ``--num_envs=2048 --max_iterations=32``); redirect stdout/stderr if desired, e.g. ``2>&1 | tee train.log``.

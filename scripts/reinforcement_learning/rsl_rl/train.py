@@ -5,13 +5,7 @@
 
 """Script to train RL agent with RSL-RL."""
 
-"""Launch Isaac Sim Simulator first.
-This script is the main entry point for RSL-RL training. The renderer backend is chosen by
-``env.scene=``: use an RTX variant (e.g. ``64x64rtx_rgb``) or a warp variant
-(e.g. ``64x64warp_rgb``) for Warp. TiledCameraCfg is used for both. When using Warp, the
-end-of-run timing summary includes timers such as ``newton_warp_sync_plus_render`` and
-``newton_warp_render_full``. Launch Isaac Sim first (see AppLauncher below).
-"""
+"""Launch Isaac Sim Simulator first."""
 
 import argparse
 import sys
@@ -50,15 +44,8 @@ args_cli, hydra_args = parser.parse_known_args()
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# env.scene= and optional env.scene.base_camera.renderer_type= are passed via hydra_args.
-# Ensure env.scene=... is applied before nested overrides (e.g. env.scene.base_camera.renderer_type=...)
-# so that the scene variant is selected first, then the renderer override is merged.
-def _hydra_arg_priority(arg: str) -> tuple[int, str]:
-    key = arg.split("=", 1)[0].strip()
-    return (0 if key == "env.scene" else 1, arg)
-
-hydra_args_sorted = sorted(hydra_args, key=_hydra_arg_priority)
-sys.argv = [sys.argv[0]] + hydra_args_sorted
+# hydra_args (e.g. renderer=newton_warp) are passed through to Hydra.
+sys.argv = [sys.argv[0]] + hydra_args
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
