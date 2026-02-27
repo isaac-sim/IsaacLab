@@ -81,6 +81,33 @@ class TeleopSessionLifecycle:
         except (ImportError, ModuleNotFoundError):
             logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
 
+        try:
+            import carb.settings
+
+            # Subscribe to the setting (may not fire when Kit closes; see pre-shutdown below)
+            self._xr_enabled_subscription = carb.settings.get_settings().subscribe_to_node_change_events(
+                "/xr/enabled",
+                self._on_xr_enabled_changed,
+            )
+        except (ImportError, ModuleNotFoundError):
+            logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
+
+        try:
+            import omni.kit.app
+            from carb.eventdispatcher import get_eventdispatcher
+
+            # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
+            # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
+            # The /xr/enabled setting often does not fire on close, so this is required.
+            self._pre_shutdown_subscription = get_eventdispatcher().observe_event(
+                event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
+                on_event=self._on_pre_shutdown,
+                observer_name="IsaacTeleop session lifecycle",
+                order=-100,
+            )
+        except (ImportError, ModuleNotFoundError):
+            logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
+
     @property
     def is_active(self) -> bool:
         """Whether the teleop session is currently running."""
@@ -189,6 +216,22 @@ class TeleopSessionLifecycle:
 
         logger.info(f"Required extensions: {required_extensions}")
         return required_extensions
+
+    def _on_xr_enabled_changed(self, item, event_type):
+        import carb.settings
+
+        enabled = carb.settings.get_settings().get("/xr/enabled")
+        logger.info(f"XR enabled changed to: {enabled}")
+
+        if not enabled:
+            self._teardown_dead_session()
+
+    def _on_pre_shutdown(self, _event):
+        """Called when Kit is closing; run full cleanup since the app is exiting."""
+        logger.info("Shutting down IsaacTeleop session due to Kit close")
+        self._pre_shutdown_subscription.unsubscribe()
+        self._pre_shutdown_subscription = None
+        self.stop()
 
     # ------------------------------------------------------------------
     # Deferred session creation

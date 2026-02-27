@@ -222,7 +222,7 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None) -> Any:
         return tuple(_wrap_resolvable_strings(item, module_dir=module_dir) for item in value)
     if isinstance(value, dict):
         return {key: _wrap_resolvable_strings(item, module_dir=module_dir) for key, item in value.items()}
-    if hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__"):
+    if isinstance(getattr(value, "__dataclass_fields__", None), dict) and hasattr(value, "__dict__"):
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)
             setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir))
