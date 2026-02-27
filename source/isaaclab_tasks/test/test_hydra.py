@@ -25,6 +25,7 @@ from hydra import compose, initialize
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import process_hydra_config, register_task_to_hydra
+from isaaclab_tasks.utils.render_config_store import NEWTON_WARP_AVAILABLE
 
 
 def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
@@ -123,6 +124,7 @@ def test_render_config_override():
     hydra.core.global_hydra.GlobalHydra.instance().clear()
 
 
+@pytest.mark.skipif(not NEWTON_WARP_AVAILABLE, reason="isaaclab_newton not installed")
 def test_render_config_override_newton_warp():
     """Test that render=newton_warp override is applied to cameras (requires isaaclab_newton)."""
 

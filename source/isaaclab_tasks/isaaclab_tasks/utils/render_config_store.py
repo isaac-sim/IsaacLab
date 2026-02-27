@@ -15,8 +15,11 @@ from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
 try:
     from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    NEWTON_WARP_AVAILABLE = True
 except ImportError:
     NewtonWarpRendererCfg = None
+    NEWTON_WARP_AVAILABLE = False
 
 
 def register_render_configs() -> None:
