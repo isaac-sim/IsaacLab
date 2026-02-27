@@ -146,8 +146,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (0.0, 0.0),
+            "dynamic_friction_range": (0.0, 0.0),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -179,16 +179,20 @@ class EventCfg:
         params={
             "pose_range": {
                 "x": [-0.1, 0.1],
-                "y": [-0.25, 0.25],
+                # "y": [-0.25, 0.25],
+                "y": [-0.1, 0.1],
                 "z": [-0.1, 0.1],
                 "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
                 "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
                 "yaw": [-math.pi / 6, math.pi / 6],  # 30 degree
             },
             "gear_pos_range": {
-                "x": [-0.02, 0.02],
-                "y": [-0.02, 0.02],
-                "z": [0.0575, 0.0775],  # 0.045 + 0.0225
+                # "x": [-0.02, 0.02],
+                # "y": [-0.02, 0.02],
+                # "z": [0.0575, 0.0775],  # 0.045 + 0.0225
+                "x": [-0.0, 0.0],
+                "y": [-0.0, 0.0],
+                "z": [0.0675, 0.0675],  # 0.045 + 0.0225
             },
             "velocity_range": {},
         },
@@ -199,7 +203,8 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
+            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
+            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
         },
     )
 
@@ -326,7 +331,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # Grav gripper actuator configuration for gear manipulation
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=200.0,
+            effort_limit_sim=2.0,
             velocity_limit_sim=1.0,
             stiffness=2e3,
             damping=1e1,
