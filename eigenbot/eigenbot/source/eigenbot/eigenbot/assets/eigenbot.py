@@ -6,6 +6,7 @@ import os
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+from isaaclab.sim.converters.urdf_converter_cfg import UrdfConverterCfg
 
 # Path to the URDF file
 EIGENBOT_URDF_PATH = os.path.join(os.path.dirname(__file__), "eigenbot", "urdf", "eigenbot_hexapod.urdf")
@@ -15,6 +16,14 @@ EIGENBOT_CFG = ArticulationCfg(
         asset_path=EIGENBOT_URDF_PATH,
         fix_base=True,
         merge_fixed_joints=True,
+        joint_drive=UrdfConverterCfg.JointDriveCfg(
+            drive_type="force",
+            target_type="position",
+            gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+                stiffness=20.0,
+                damping=0.5,
+            ),
+        ),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=1000.0,
