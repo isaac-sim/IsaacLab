@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.11.14 (2026-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refactored automation scripts (``run_w_id.py`` and ``run_disassembly_w_id.py``) to use list-based command execution
+  via ``subprocess.run``. This avoids potential command injection risks by disabling shell execution and
+  properly handling environment variables.
+
+
 0.11.13 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~~
 
