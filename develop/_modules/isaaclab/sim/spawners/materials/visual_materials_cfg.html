@@ -632,8 +632,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">visual_materials</span>
-
 
 <div class="viewcode-block" id="VisualMaterialCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.VisualMaterialCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">VisualMaterialCfg</span><span class="p">:</span>
@@ -650,7 +648,7 @@
 <span class="sd">    See :meth:`spawn_preview_surface` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">visual_materials</span><span class="o">.</span><span class="n">spawn_preview_surface</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.visual_materials:spawn_preview_surface&quot;</span>
 
     <span class="n">diffuse_color</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.18</span><span class="p">,</span> <span class="mf">0.18</span><span class="p">,</span> <span class="mf">0.18</span><span class="p">)</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The RGB diffusion color. This is the base color of the surface. Defaults to a dark gray.&quot;&quot;&quot;</span>
@@ -675,7 +673,7 @@
 <span class="sd">    See :meth:`spawn_from_mdl_file` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">visual_materials</span><span class="o">.</span><span class="n">spawn_from_mdl_file</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.visual_materials:spawn_from_mdl_file&quot;</span>
 
     <span class="n">mdl_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The path to the MDL material.</span>
@@ -717,7 +715,7 @@
 <span class="sd">        The default values are taken from the glass material in the NVIDIA Nucleus.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">visual_materials</span><span class="o">.</span><span class="n">spawn_from_mdl_file</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.visual_materials:spawn_from_mdl_file&quot;</span>
 
     <span class="n">mdl_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;OmniGlass.mdl&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The path to the MDL material. Defaults to the glass material in the NVIDIA Nucleus.&quot;&quot;&quot;</span>

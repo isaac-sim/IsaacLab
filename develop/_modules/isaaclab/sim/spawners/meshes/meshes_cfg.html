@@ -635,8 +635,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.spawner_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObjectSpawnerCfg</span><span class="p">,</span> <span class="n">RigidObjectSpawnerCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">meshes</span>
-
 
 <div class="viewcode-block" id="MeshCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.meshes.MeshCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshCfg</span><span class="p">(</span><span class="n">RigidObjectSpawnerCfg</span><span class="p">,</span> <span class="n">DeformableObjectSpawnerCfg</span><span class="p">):</span>
@@ -696,7 +694,7 @@
 <span class="sd">    See :meth:`spawn_mesh_sphere` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">meshes</span><span class="o">.</span><span class="n">spawn_mesh_sphere</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.meshes:spawn_mesh_sphere&quot;</span>
 
     <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Radius of the sphere (in m).&quot;&quot;&quot;</span></div>
@@ -709,7 +707,7 @@
 <span class="sd">    See :meth:`spawn_mesh_cuboid` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">meshes</span><span class="o">.</span><span class="n">spawn_mesh_cuboid</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.meshes:spawn_mesh_cuboid&quot;</span>
 
     <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of the cuboid (in m).&quot;&quot;&quot;</span></div>
@@ -722,7 +720,7 @@
 <span class="sd">    See :meth:`spawn_cylinder` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">meshes</span><span class="o">.</span><span class="n">spawn_mesh_cylinder</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.meshes:spawn_mesh_cylinder&quot;</span>
 
     <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Radius of the cylinder (in m).&quot;&quot;&quot;</span>
@@ -739,7 +737,7 @@
 <span class="sd">    See :meth:`spawn_capsule` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">meshes</span><span class="o">.</span><span class="n">spawn_mesh_capsule</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.meshes:spawn_mesh_capsule&quot;</span>
 
     <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Radius of the capsule (in m).&quot;&quot;&quot;</span>
@@ -756,7 +754,7 @@
 <span class="sd">    See :meth:`spawn_cone` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">meshes</span><span class="o">.</span><span class="n">spawn_mesh_cone</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.meshes:spawn_mesh_cone&quot;</span>
 
     <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Radius of the cone (in m).&quot;&quot;&quot;</span>

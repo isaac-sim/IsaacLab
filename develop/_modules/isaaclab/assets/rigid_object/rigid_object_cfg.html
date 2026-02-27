@@ -625,10 +625,14 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..asset_base_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.rigid_object</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.rigid_object</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span>
 
 
 <div class="viewcode-block" id="RigidObjectCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCfg">[docs]</a><span class="nd">@configclass</span>
@@ -648,7 +652,7 @@
     <span class="c1"># Initialize configurations.</span>
     <span class="c1">##</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">RigidObject</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;RigidObject&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.rigid_object:RigidObject&quot;</span>
 
     <span class="n">init_state</span><span class="p">:</span> <span class="n">InitialStateCfg</span> <span class="o">=</span> <span class="n">InitialStateCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Initial state of the rigid object. Defaults to identity pose with zero velocity.&quot;&quot;&quot;</span></div>

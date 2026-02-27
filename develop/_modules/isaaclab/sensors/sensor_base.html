@@ -641,7 +641,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span><span class="p">,</span> <span class="n">PhysxManager</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsEvent</span>
@@ -679,7 +678,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="c1"># flag for whether the sensor is in visualization mode</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_visualizing</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="c1"># get stage handle</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
 
         <span class="c1"># register various callback functions</span>
@@ -909,6 +907,8 @@
         <span class="c1"># note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.</span>
         <span class="n">obj_ref</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
+        <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span><span class="p">,</span> <span class="n">PhysxManager</span>  <span class="c1"># noqa: PLC0415</span>
+
         <span class="c1"># Register PHYSICS_READY callback for initialization (order=10 for lower priority)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span> <span class="o">=</span> <span class="n">PhysxManager</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
             <span class="k">lambda</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
@@ -940,6 +940,8 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="c1"># Store exception to be raised after callback completes</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxManager</span>  <span class="c1"># noqa: PLC0415</span>
+
                 <span class="n">PhysxManager</span><span class="o">.</span><span class="n">store_callback_exception</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_invalidate_initialize_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>

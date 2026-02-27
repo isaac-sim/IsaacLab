@@ -634,8 +634,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.spawner_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">sensors</span>
-
 
 <div class="viewcode-block" id="PinholeCameraCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.PinholeCameraCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PinholeCameraCfg</span><span class="p">(</span><span class="n">SpawnerCfg</span><span class="p">):</span>
@@ -648,7 +646,7 @@
 <span class="sd">        world unit is Meter s.t. all of these values are set in cm.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">sensors</span><span class="o">.</span><span class="n">spawn_camera</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.sensors:spawn_camera&quot;</span>
 
     <span class="n">projection_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pinhole&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Type of projection to use for the camera. Defaults to &quot;pinhole&quot;.</span>
@@ -794,7 +792,7 @@
 <span class="sd">    .. _fish-eye camera: https://en.wikipedia.org/wiki/Fisheye_lens</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">sensors</span><span class="o">.</span><span class="n">spawn_camera</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.sensors:spawn_camera&quot;</span>
 
     <span class="n">projection_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
         <span class="s2">&quot;fisheyePolynomial&quot;</span><span class="p">,</span>

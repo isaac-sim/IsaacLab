@@ -633,17 +633,16 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_importer</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporter</span>
-
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainGeneratorCfg</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_importer</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporter</span>
 
 
 <div class="viewcode-block" id="TerrainImporterCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">TerrainImporterCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the terrain manager.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">TerrainImporter</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">TerrainImporter</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.terrain_importer:TerrainImporter&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The class to use for the terrain importer.</span>
 
 <span class="sd">    Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.</span>

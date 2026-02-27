@@ -632,7 +632,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_based_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnvCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnvWindow</span>
 
 
 <div class="viewcode-block" id="ManagerBasedRLEnvCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg">[docs]</a><span class="nd">@configclass</span>
@@ -640,7 +639,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a reinforcement learning environment with the manager-based workflow.&quot;&quot;&quot;</span>
 
     <span class="c1"># ui settings</span>
-    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnvWindow</span>
+    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="s2">&quot;isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow&quot;</span>
 
     <span class="c1"># general settings</span>
     <span class="n">is_finite_horizon</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>

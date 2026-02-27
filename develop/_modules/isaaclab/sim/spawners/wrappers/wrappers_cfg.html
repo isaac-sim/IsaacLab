@@ -631,8 +631,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.spawner_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObjectSpawnerCfg</span><span class="p">,</span> <span class="n">RigidObjectSpawnerCfg</span><span class="p">,</span> <span class="n">SpawnerCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">wrappers</span>
-
 
 <div class="viewcode-block" id="MultiAssetSpawnerCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MultiAssetSpawnerCfg</span><span class="p">(</span><span class="n">RigidObjectSpawnerCfg</span><span class="p">,</span> <span class="n">DeformableObjectSpawnerCfg</span><span class="p">):</span>
@@ -651,7 +649,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span> <span class="o">=</span> <span class="n">wrappers</span><span class="o">.</span><span class="n">spawn_multi_asset</span>
+    <span class="n">func</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.wrappers:spawn_multi_asset&quot;</span>
 
     <span class="n">assets_cfg</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SpawnerCfg</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List of asset configurations to spawn.&quot;&quot;&quot;</span>
@@ -679,7 +677,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span> <span class="o">=</span> <span class="n">wrappers</span><span class="o">.</span><span class="n">spawn_multi_usd_file</span>
+    <span class="n">func</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.wrappers:spawn_multi_usd_file&quot;</span>
 
     <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Path or a list of paths to the USD files to spawn asset from.&quot;&quot;&quot;</span>

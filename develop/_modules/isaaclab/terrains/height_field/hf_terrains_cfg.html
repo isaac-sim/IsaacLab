@@ -630,7 +630,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sub_terrain_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">hf_terrains</span>
 
 
 <div class="viewcode-block" id="HfTerrainBaseCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg">[docs]</a><span class="nd">@configclass</span>
@@ -664,7 +663,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">HfRandomUniformTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a random uniform height field terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">random_uniform_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.hf_terrains:random_uniform_terrain&quot;</span>
 
     <span class="n">noise_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height noise (i.e. along z) of the terrain (in m).&quot;&quot;&quot;</span>
@@ -685,7 +684,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">HfPyramidSlopedTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid sloped height field terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">pyramid_sloped_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.hf_terrains:pyramid_sloped_terrain&quot;</span>
 
     <span class="n">slope_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The slope of the terrain (in radians).&quot;&quot;&quot;</span>
@@ -717,7 +716,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">HfPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid stairs height field terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">pyramid_stairs_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.hf_terrains:pyramid_stairs_terrain&quot;</span>
 
     <span class="n">step_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the steps (in m).&quot;&quot;&quot;</span>
@@ -752,7 +751,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">HfDiscreteObstaclesTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a discrete obstacles height field terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">discrete_obstacles_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.hf_terrains:discrete_obstacles_terrain&quot;</span>
 
     <span class="n">obstacle_height_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;choice&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The mode to use for the obstacle height. Defaults to &quot;choice&quot;.</span>
@@ -777,7 +776,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">HfWaveTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a wave height field terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">wave_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.hf_terrains:wave_terrain&quot;</span>
 
     <span class="n">amplitude_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum amplitude of the wave (in m).&quot;&quot;&quot;</span>
@@ -790,7 +789,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">HfSteppingStonesTerrainCfg</span><span class="p">(</span><span class="n">HfTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a stepping stones height field terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">hf_terrains</span><span class="o">.</span><span class="n">stepping_stones_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.hf_terrains:stepping_stones_terrain&quot;</span>
 
     <span class="n">stone_height_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum height of the stones (in m).&quot;&quot;&quot;</span>

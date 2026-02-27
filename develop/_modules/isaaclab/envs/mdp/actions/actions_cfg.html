@@ -628,19 +628,19 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">DifferentialIKControllerCfg</span><span class="p">,</span> <span class="n">OperationalSpaceControllerCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers.action_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionTerm</span><span class="p">,</span> <span class="n">ActionTermCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers.action_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionTermCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">binary_joint_actions</span><span class="p">,</span>
-    <span class="n">joint_actions</span><span class="p">,</span>
-    <span class="n">joint_actions_to_limits</span><span class="p">,</span>
-    <span class="n">non_holonomic_actions</span><span class="p">,</span>
-    <span class="n">surface_gripper_actions</span><span class="p">,</span>
-    <span class="n">task_space_actions</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.binary_joint_actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbsBinaryJointPositionAction</span><span class="p">,</span> <span class="n">BinaryJointPositionAction</span><span class="p">,</span> <span class="n">BinaryJointVelocityAction</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.joint_actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">JointEffortAction</span><span class="p">,</span> <span class="n">JointPositionAction</span><span class="p">,</span> <span class="n">JointVelocityAction</span><span class="p">,</span> <span class="n">RelativeJointPositionAction</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.joint_actions_to_limits</span><span class="w"> </span><span class="kn">import</span> <span class="n">EMAJointPositionToLimitsAction</span><span class="p">,</span> <span class="n">JointPositionToLimitsAction</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.non_holonomic_actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonHolonomicAction</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.surface_gripper_actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">SurfaceGripperBinaryAction</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.task_space_actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">DifferentialInverseKinematicsAction</span><span class="p">,</span> <span class="n">OperationalSpaceControllerAction</span>
 
 <span class="c1">##</span>
 <span class="c1"># Joint actions.</span>
@@ -671,7 +671,7 @@
 <span class="sd">    See :class:`JointPositionAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_actions</span><span class="o">.</span><span class="n">JointPositionAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">JointPositionAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.joint_actions:JointPositionAction&quot;</span>
 
     <span class="n">use_default_offset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use default joint positions configured in the articulation asset as offset.</span>
@@ -689,7 +689,7 @@
 <span class="sd">    See :class:`RelativeJointPositionAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_actions</span><span class="o">.</span><span class="n">RelativeJointPositionAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">RelativeJointPositionAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.joint_actions:RelativeJointPositionAction&quot;</span>
 
     <span class="n">use_zero_offset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to ignore the offset defined in articulation asset. Defaults to True.</span>
@@ -705,7 +705,7 @@
 <span class="sd">    See :class:`JointVelocityAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_actions</span><span class="o">.</span><span class="n">JointVelocityAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">JointVelocityAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.joint_actions:JointVelocityAction&quot;</span>
 
     <span class="n">use_default_offset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use default joint velocities configured in the articulation asset as offset.</span>
@@ -722,7 +722,7 @@
 <span class="sd">    See :class:`JointEffortAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_actions</span><span class="o">.</span><span class="n">JointEffortAction</span></div>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">JointEffortAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.joint_actions:JointEffortAction&quot;</span></div>
 
 
 <span class="c1">##</span>
@@ -737,7 +737,7 @@
 <span class="sd">    See :class:`JointPositionToLimitsAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_actions_to_limits</span><span class="o">.</span><span class="n">JointPositionToLimitsAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">JointPositionToLimitsAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.joint_actions_to_limits:JointPositionToLimitsAction&quot;</span>
 
     <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List of joint names or regex expressions that the action will be mapped to.&quot;&quot;&quot;</span>
@@ -766,7 +766,9 @@
 <span class="sd">    See :class:`EMAJointPositionToLimitsAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_actions_to_limits</span><span class="o">.</span><span class="n">EMAJointPositionToLimitsAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">EMAJointPositionToLimitsAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.joint_actions_to_limits:EMAJointPositionToLimitsAction&quot;</span>
+    <span class="p">)</span>
 
     <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.</span>
@@ -802,7 +804,7 @@
 <span class="sd">    See :class:`BinaryJointPositionAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">binary_joint_actions</span><span class="o">.</span><span class="n">BinaryJointPositionAction</span></div>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">BinaryJointPositionAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.binary_joint_actions:BinaryJointPositionAction&quot;</span></div>
 
 
 <div class="viewcode-block" id="BinaryJointVelocityActionCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg">[docs]</a><span class="nd">@configclass</span>
@@ -812,7 +814,7 @@
 <span class="sd">    See :class:`BinaryJointVelocityAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">binary_joint_actions</span><span class="o">.</span><span class="n">BinaryJointVelocityAction</span></div>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">BinaryJointVelocityAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.binary_joint_actions:BinaryJointVelocityAction&quot;</span></div>
 
 
 <div class="viewcode-block" id="AbsBinaryJointPositionActionCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg">[docs]</a><span class="nd">@configclass</span>
@@ -847,7 +849,7 @@
     <span class="n">positive_threshold</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use positive (Open actions &gt; Close actions) threshold. Defaults to True.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">binary_joint_actions</span><span class="o">.</span><span class="n">AbsBinaryJointPositionAction</span></div>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">AbsBinaryJointPositionAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.binary_joint_actions:AbsBinaryJointPositionAction&quot;</span></div>
 
 
 <span class="c1">##</span>
@@ -862,7 +864,7 @@
 <span class="sd">    See :class:`NonHolonomicAction` for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">non_holonomic_actions</span><span class="o">.</span><span class="n">NonHolonomicAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">NonHolonomicAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.non_holonomic_actions:NonHolonomicAction&quot;</span>
 
     <span class="n">body_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the body which has the dummy mechanism connected to.&quot;&quot;&quot;</span>
@@ -905,7 +907,9 @@
         <span class="n">rot</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0).&quot;&quot;&quot;</span></div>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">task_space_actions</span><span class="o">.</span><span class="n">DifferentialInverseKinematicsAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">DifferentialInverseKinematicsAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.task_space_actions:DifferentialInverseKinematicsAction&quot;</span>
+    <span class="p">)</span>
 
     <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List of joint names or regex expressions that the action will be mapped to.&quot;&quot;&quot;</span>
@@ -941,7 +945,9 @@
         <span class="n">rot</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0).&quot;&quot;&quot;</span></div>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">task_space_actions</span><span class="o">.</span><span class="n">OperationalSpaceControllerAction</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">OperationalSpaceControllerAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.task_space_actions:OperationalSpaceControllerAction&quot;</span>
+    <span class="p">)</span>
 
     <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List of joint names or regex expressions that the action will be mapped to.&quot;&quot;&quot;</span>
@@ -1000,7 +1006,7 @@
     <span class="n">close_command</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The command value to close the gripper. Defaults to 1.0.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">surface_gripper_actions</span><span class="o">.</span><span class="n">SurfaceGripperBinaryAction</span></div>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">SurfaceGripperBinaryAction</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.surface_gripper_actions:SurfaceGripperBinaryAction&quot;</span></div>
 </pre></div>
 
                 </article>

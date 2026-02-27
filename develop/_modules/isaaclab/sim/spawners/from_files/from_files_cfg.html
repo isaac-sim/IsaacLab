@@ -636,8 +636,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_files</span>
-
 
 <span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">FileCfg</span><span class="p">(</span><span class="n">RigidObjectSpawnerCfg</span><span class="p">,</span> <span class="n">DeformableObjectSpawnerCfg</span><span class="p">):</span>
@@ -718,7 +716,7 @@
 <span class="sd">        This is done by calling the respective function with the specified properties.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_from_usd</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.from_files:spawn_from_usd&quot;</span>
 
     <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the USD file to spawn asset from.&quot;&quot;&quot;</span>
@@ -751,7 +749,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_from_urdf</span></div>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.from_files:spawn_from_urdf&quot;</span></div>
 
 
 <span class="nd">@configclass</span>
@@ -773,7 +771,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_from_mjcf</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.from_files:spawn_from_mjcf&quot;</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -791,7 +789,7 @@
 <span class="sd">    material application.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_from_usd_with_compliant_contact_material</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.from_files:spawn_from_usd_with_compliant_contact_material&quot;</span>
 
     <span class="n">compliant_contact_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Stiffness of the compliant contact. Defaults to None.</span>
@@ -823,7 +821,7 @@
 <span class="sd">    This uses the USD for the standard grid-world ground plane from Isaac Sim by default.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_ground_plane</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.from_files:spawn_ground_plane&quot;</span>
 
     <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Environments/Grid/default_environment.usd&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the USD file to spawn asset from. Defaults to the grid-world ground plane.&quot;&quot;&quot;</span>

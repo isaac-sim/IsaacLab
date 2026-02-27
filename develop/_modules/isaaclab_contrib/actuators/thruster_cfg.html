@@ -626,11 +626,12 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.thruster</span><span class="w"> </span><span class="kn">import</span> <span class="n">Thruster</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.thruster</span><span class="w"> </span><span class="kn">import</span> <span class="n">Thruster</span>
 
 
 <div class="viewcode-block" id="ThrusterCfg"><a class="viewcode-back" href="../../../source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg">[docs]</a><span class="nd">@configclass</span>
@@ -643,7 +644,7 @@
 <span class="sd">    and must be provided by the user configuration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Thruster</span><span class="p">]</span> <span class="o">=</span> <span class="n">Thruster</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;Thruster&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.thruster:Thruster&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Concrete Python class that consumes this config.&quot;&quot;&quot;</span>
 
     <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>

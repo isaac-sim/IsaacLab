@@ -628,7 +628,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span><span class="p">,</span> <span class="n">field</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.renderers</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacRtxRendererCfg</span>
 
@@ -637,7 +637,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">Camera</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">Camera</span>
 
 
 <div class="viewcode-block" id="CameraCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg">[docs]</a><span class="nd">@configclass</span>
@@ -664,7 +666,7 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Camera</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Camera</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.camera:Camera&quot;</span>
 
     <span class="n">offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">=</span> <span class="n">OffsetCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame. Defaults to identity.</span>

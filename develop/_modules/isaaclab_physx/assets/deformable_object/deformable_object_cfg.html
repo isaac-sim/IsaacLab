@@ -627,19 +627,22 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.asset_base_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFORMABLE_TARGET_MARKER_CFG</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.deformable_object</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObject</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.deformable_object</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObject</span>
 
 
 <div class="viewcode-block" id="DeformableObjectCfg"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.DeformableObjectCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">DeformableObjectCfg</span><span class="p">(</span><span class="n">AssetBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for a deformable object.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">DeformableObject</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">DeformableObject</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.deformable_object:DeformableObject&quot;</span>
 
     <span class="n">visualizer_cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span> <span class="o">=</span> <span class="n">DEFORMABLE_TARGET_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/DeformableTarget&quot;</span>

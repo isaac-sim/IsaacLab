@@ -628,12 +628,15 @@
 <span class="sd">&quot;&quot;&quot;Configuration for the ray-cast camera sensor.&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.multi_mesh_ray_caster_camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiMeshRayCasterCamera</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.multi_mesh_ray_caster_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiMeshRayCasterCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_camera_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterCameraCfg</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.multi_mesh_ray_caster_camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiMeshRayCasterCamera</span>
 
 <span class="c1"># import logger</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -643,7 +646,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MultiMeshRayCasterCameraCfg</span><span class="p">(</span><span class="n">RayCasterCameraCfg</span><span class="p">,</span> <span class="n">MultiMeshRayCasterCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the multi-mesh ray-cast camera sensor.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">MultiMeshRayCasterCamera</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;MultiMeshRayCasterCamera&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.multi_mesh_ray_caster_camera:MultiMeshRayCasterCamera&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>

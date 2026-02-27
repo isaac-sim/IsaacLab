@@ -626,18 +626,20 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.rigid_object</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObjectCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.rigid_object_collection</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObjectCollection</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.rigid_object_collection</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObjectCollection</span>
 
 
 <div class="viewcode-block" id="RigidObjectCollectionCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">RigidObjectCollectionCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for a rigid object collection.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">RigidObjectCollection</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;RigidObjectCollection&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.rigid_object_collection:RigidObjectCollection&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The associated asset class.</span>
 
 <span class="sd">    The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.</span>

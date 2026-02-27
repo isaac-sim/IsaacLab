@@ -628,13 +628,15 @@
 <span class="sd">&quot;&quot;&quot;Configuration for the ray-cast camera sensor.&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.patterns</span><span class="w"> </span><span class="kn">import</span> <span class="n">PinholeCameraPatternCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterCamera</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterCfg</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterCamera</span>
 
 
 <div class="viewcode-block" id="RayCasterCameraCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCameraCfg">[docs]</a><span class="nd">@configclass</span>
@@ -661,7 +663,7 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">RayCasterCamera</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;RayCasterCamera&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.ray_caster_camera:RayCasterCamera&quot;</span>
 
     <span class="n">offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">=</span> <span class="n">OffsetCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame. Defaults to identity.&quot;&quot;&quot;</span>

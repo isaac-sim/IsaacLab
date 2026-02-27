@@ -627,23 +627,25 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CommandTermCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BLUE_ARROW_X_MARKER_CFG</span><span class="p">,</span> <span class="n">FRAME_MARKER_CFG</span><span class="p">,</span> <span class="n">GREEN_ARROW_X_MARKER_CFG</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.null_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">NullCommand</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.pose_2d_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainBasedPose2dCommand</span><span class="p">,</span> <span class="n">UniformPose2dCommand</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.pose_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">UniformPoseCommand</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.velocity_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">NormalVelocityCommand</span><span class="p">,</span> <span class="n">UniformVelocityCommand</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.null_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">NullCommand</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.pose_2d_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainBasedPose2dCommand</span><span class="p">,</span> <span class="n">UniformPose2dCommand</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.pose_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">UniformPoseCommand</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.velocity_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">NormalVelocityCommand</span><span class="p">,</span> <span class="n">UniformVelocityCommand</span>
 
 
 <div class="viewcode-block" id="NullCommandCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.NullCommandCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">NullCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the null command generator.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">NullCommand</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;NullCommand&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.null_command:NullCommand&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
@@ -655,7 +657,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">UniformVelocityCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the uniform velocity command generator.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">UniformVelocityCommand</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;UniformVelocityCommand&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.velocity_command:UniformVelocityCommand&quot;</span>
 
     <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the asset in the environment for which the commands are generated.&quot;&quot;&quot;</span>
@@ -722,7 +724,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">NormalVelocityCommandCfg</span><span class="p">(</span><span class="n">UniformVelocityCommandCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the normal velocity command generator.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">NormalVelocityCommand</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;NormalVelocityCommand&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.velocity_command:NormalVelocityCommand&quot;</span>
     <span class="n">heading_command</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># --&gt; we don&#39;t use heading command for normal velocity command.</span>
 
 <div class="viewcode-block" id="NormalVelocityCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
@@ -755,7 +757,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">UniformPoseCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for uniform pose command generator.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">UniformPoseCommand</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;UniformPoseCommand&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.pose_command:UniformPoseCommand&quot;</span>
 
     <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the asset in the environment for which the commands are generated.&quot;&quot;&quot;</span>
@@ -811,7 +813,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">UniformPose2dCommandCfg</span><span class="p">(</span><span class="n">CommandTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the uniform 2D-pose command generator.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">UniformPose2dCommand</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;UniformPose2dCommand&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.pose_2d_command:UniformPose2dCommand&quot;</span>
 
     <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the asset in the environment for which the commands are generated.&quot;&quot;&quot;</span>
@@ -854,7 +856,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">TerrainBasedPose2dCommandCfg</span><span class="p">(</span><span class="n">UniformPose2dCommandCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the terrain-based position command generator.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span> <span class="o">=</span> <span class="n">TerrainBasedPose2dCommand</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;TerrainBasedPose2dCommand&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.pose_2d_command:TerrainBasedPose2dCommand&quot;</span>
 
 <div class="viewcode-block" id="TerrainBasedPose2dCommandCfg.Ranges"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.Ranges">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">Ranges</span><span class="p">:</span>

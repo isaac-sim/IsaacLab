@@ -630,6 +630,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">VISUO_TACTILE_SENSOR_MARKER_CFG</span>
@@ -637,7 +638,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAACLAB_NUCLEUS_DIR</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensor</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensor</span>
 
 <span class="c1">##</span>
 <span class="c1"># GelSight Render Configuration</span>
@@ -731,7 +733,7 @@
 <span class="sd">    It can capture tactile RGB/depth images and compute penalty-based contact forces.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">VisuoTactileSensor</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">VisuoTactileSensor</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.visuotactile_sensor:VisuoTactileSensor&quot;</span>
 
     <span class="c1"># Sensor type and capabilities</span>
     <span class="n">render_cfg</span><span class="p">:</span> <span class="n">GelSightRenderCfg</span> <span class="o">=</span> <span class="n">MISSING</span>

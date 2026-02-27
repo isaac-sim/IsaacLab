@@ -1714,61 +1714,55 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.terrains.</span></span><span class="sig-name descname"><span class="pre">TerrainGeneratorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/terrains/terrain_generator_cfg.html#TerrainGeneratorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for the terrain generator.</p>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type" title="isaaclab.terrains.TerrainGeneratorCfg.class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_type</span></code></a></p></td>
-<td><p>alias of <a class="reference internal" href="#isaaclab.terrains.TerrainGenerator" title="isaaclab.terrains.terrain_generator.TerrainGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainGenerator</span></code></a></p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.seed" title="isaaclab.terrains.TerrainGeneratorCfg.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type" title="isaaclab.terrains.TerrainGeneratorCfg.class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_type</span></code></a></p></td>
+<td><p>The class to use for the terrain generator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.seed" title="isaaclab.terrains.TerrainGeneratorCfg.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
 <td><p>The seed for the random number generator.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.curriculum" title="isaaclab.terrains.TerrainGeneratorCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.curriculum" title="isaaclab.terrains.TerrainGeneratorCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
 <td><p>Whether to use the curriculum mode.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.size" title="isaaclab.terrains.TerrainGeneratorCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.size" title="isaaclab.terrains.TerrainGeneratorCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
 <td><p>The width (along x) and length (along y) of each sub-terrain (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.border_width" title="isaaclab.terrains.TerrainGeneratorCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.border_width" title="isaaclab.terrains.TerrainGeneratorCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
 <td><p>The width of the border around the terrain (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.border_height" title="isaaclab.terrains.TerrainGeneratorCfg.border_height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_height</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.border_height" title="isaaclab.terrains.TerrainGeneratorCfg.border_height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_height</span></code></a></p></td>
 <td><p>The height of the border around the terrain (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.num_rows" title="isaaclab.terrains.TerrainGeneratorCfg.num_rows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rows</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.num_rows" title="isaaclab.terrains.TerrainGeneratorCfg.num_rows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rows</span></code></a></p></td>
 <td><p>Number of rows of sub-terrains to generate.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.num_cols" title="isaaclab.terrains.TerrainGeneratorCfg.num_cols"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_cols</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.num_cols" title="isaaclab.terrains.TerrainGeneratorCfg.num_cols"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_cols</span></code></a></p></td>
 <td><p>Number of columns of sub-terrains to generate.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.color_scheme" title="isaaclab.terrains.TerrainGeneratorCfg.color_scheme"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_scheme</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.color_scheme" title="isaaclab.terrains.TerrainGeneratorCfg.color_scheme"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_scheme</span></code></a></p></td>
 <td><p>Color scheme to use for the terrain.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.horizontal_scale" title="isaaclab.terrains.TerrainGeneratorCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.horizontal_scale" title="isaaclab.terrains.TerrainGeneratorCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
 <td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.vertical_scale" title="isaaclab.terrains.TerrainGeneratorCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.vertical_scale" title="isaaclab.terrains.TerrainGeneratorCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
 <td><p>The discretization of the terrain along the z axis (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.slope_threshold" title="isaaclab.terrains.TerrainGeneratorCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.slope_threshold" title="isaaclab.terrains.TerrainGeneratorCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
 <td><p>The slope threshold above which surfaces are made vertical.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains" title="isaaclab.terrains.TerrainGeneratorCfg.sub_terrains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sub_terrains</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains" title="isaaclab.terrains.TerrainGeneratorCfg.sub_terrains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sub_terrains</span></code></a></p></td>
 <td><p>Dictionary of sub-terrain configurations.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.difficulty_range" title="isaaclab.terrains.TerrainGeneratorCfg.difficulty_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">difficulty_range</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.difficulty_range" title="isaaclab.terrains.TerrainGeneratorCfg.difficulty_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">difficulty_range</span></code></a></p></td>
 <td><p>The range of difficulty values for the sub-terrains.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.use_cache" title="isaaclab.terrains.TerrainGeneratorCfg.use_cache"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_cache</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.use_cache" title="isaaclab.terrains.TerrainGeneratorCfg.use_cache"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_cache</span></code></a></p></td>
 <td><p>Whether to load the sub-terrain from cache if it exists.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.cache_dir" title="isaaclab.terrains.TerrainGeneratorCfg.cache_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cache_dir</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainGeneratorCfg.cache_dir" title="isaaclab.terrains.TerrainGeneratorCfg.cache_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cache_dir</span></code></a></p></td>
 <td><p>The directory where the terrain cache is stored.</p></td>
 </tr>
 </tbody>
@@ -1776,8 +1770,9 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg.class_type">
-<span class="sig-name descname"><span class="pre">class_type</span></span><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type" title="Permalink to this definition">#</a></dt>
-<dd><p>alias of <a class="reference internal" href="#isaaclab.terrains.TerrainGenerator" title="isaaclab.terrains.terrain_generator.TerrainGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainGenerator</span></code></a></p>
+<span class="sig-name descname"><span class="pre">class_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><span class="pre">type</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#isaaclab.terrains.TerrainGenerator" title="isaaclab.terrains.TerrainGenerator"><span class="pre">TerrainGenerator</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.class_type" title="Permalink to this definition">#</a></dt>
+<dd><p>The class to use for the terrain generator.</p>
+<p>Defaults to <a class="reference internal" href="#isaaclab.terrains.TerrainGenerator" title="isaaclab.terrains.terrain_generator.TerrainGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.terrains.terrain_generator.TerrainGenerator</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1840,7 +1835,7 @@ choose a negative value.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg.color_scheme">
-<span class="sig-name descname"><span class="pre">color_scheme</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'height'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'random'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.color_scheme" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">color_scheme</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'height'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'random'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.color_scheme" title="Permalink to this definition">#</a></dt>
 <dd><p>Color scheme to use for the terrain. Defaults to “none”.</p>
 <p>The available color schemes are:</p>
 <ul class="simple">
@@ -1874,7 +1869,7 @@ choose a negative value.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.TerrainGeneratorCfg.sub_terrains">
-<span class="sig-name descname"><span class="pre">sub_terrains</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg"><span class="pre">isaaclab.terrains.sub_terrain_cfg.SubTerrainBaseCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">sub_terrains</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.terrains.SubTerrainBaseCfg" title="isaaclab.terrains.SubTerrainBaseCfg"><span class="pre">SubTerrainBaseCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains" title="Permalink to this definition">#</a></dt>
 <dd><p>Dictionary of sub-terrain configurations.</p>
 <p>The keys correspond to the name of the sub-terrain configuration and the values are the corresponding
 configurations.</p>
@@ -4671,7 +4666,7 @@ which is no noise.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_type">
-<span class="sig-name descname"><span class="pre">object_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'cylinder'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'box'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cone'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">callable</span></em><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_type" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">object_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_type" title="Permalink to this definition">#</a></dt>
 <dd><p>The type of object to generate.</p>
 <p>The type can be a string or a callable. If it is a string, the function will look for a function called
 <code class="docutils literal notranslate"><span class="pre">make_{object_type}</span></code> in the current module scope. If it is a callable, the function will
@@ -4865,7 +4860,7 @@ which is no noise.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_type">
-<span class="sig-name descname"><span class="pre">object_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'cylinder'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'box'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cone'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">callable</span></em><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_type" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">object_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_type" title="Permalink to this definition">#</a></dt>
 <dd><p>The type of object to generate.</p>
 <p>The type can be a string or a callable. If it is a string, the function will look for a function called
 <code class="docutils literal notranslate"><span class="pre">make_{object_type}</span></code> in the current module scope. If it is a callable, the function will
@@ -5059,7 +5054,7 @@ which is no noise.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_type">
-<span class="sig-name descname"><span class="pre">object_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'cylinder'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'box'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cone'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">callable</span></em><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_type" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">object_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_type" title="Permalink to this definition">#</a></dt>
 <dd><p>The type of object to generate.</p>
 <p>The type can be a string or a callable. If it is a string, the function will look for a function called
 <code class="docutils literal notranslate"><span class="pre">make_{object_type}</span></code> in the current module scope. If it is a callable, the function will

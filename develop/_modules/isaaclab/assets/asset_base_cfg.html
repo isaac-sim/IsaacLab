@@ -633,8 +633,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.asset_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBase</span>
-
 
 <div class="viewcode-block" id="AssetBaseCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.AssetBaseCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">AssetBaseCfg</span><span class="p">:</span>
@@ -663,7 +661,7 @@
 <span class="sd">        Defaults to (0.0, 0.0, 0.0, 1.0).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">AssetBase</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The associated asset class. Defaults to None, which means that the asset will be spawned</span>
 <span class="sd">    but cannot be interacted with via the asset class.</span>
 

@@ -639,7 +639,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoiseModelCfg</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentID</span><span class="p">,</span> <span class="n">SpaceType</span><span class="p">,</span> <span class="n">ViewerCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseEnvWindow</span>
 
 
 <div class="viewcode-block" id="DirectMARLEnvCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg">[docs]</a><span class="nd">@configclass</span>
@@ -657,7 +656,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Physics simulation configuration. Default is SimulationCfg().&quot;&quot;&quot;</span>
 
     <span class="c1"># ui settings</span>
-    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">BaseEnvWindow</span>
+    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="s2">&quot;isaaclab.envs.ui.base_env_window:BaseEnvWindow&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The class type of the UI window. Default is None.</span>
 
 <span class="sd">    If None, then no UI window is created.</span>

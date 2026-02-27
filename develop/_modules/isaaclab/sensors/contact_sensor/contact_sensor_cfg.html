@@ -625,12 +625,16 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">CONTACT_SENSOR_MARKER_CFG</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.contact_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensor</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.contact_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensor</span>
 
 
 <div class="viewcode-block" id="ContactSensorCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensorCfg">[docs]</a><span class="nd">@configclass</span>
@@ -644,7 +648,7 @@
 <span class="sd">    see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">ContactSensor</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;ContactSensor&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.contact_sensor:ContactSensor&quot;</span>
 
     <span class="n">track_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to track the pose of the sensor&#39;s origin. Defaults to False.&quot;&quot;&quot;</span>

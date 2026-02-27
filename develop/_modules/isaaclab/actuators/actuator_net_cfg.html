@@ -627,19 +627,21 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">actuator_net</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.actuator_pd_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">DCMotorCfg</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.actuator_net</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActuatorNetLSTM</span><span class="p">,</span> <span class="n">ActuatorNetMLP</span>
 
 
 <div class="viewcode-block" id="ActuatorNetLSTMCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorNetLSTMCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ActuatorNetLSTMCfg</span><span class="p">(</span><span class="n">DCMotorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for LSTM-based actuator model.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_net</span><span class="o">.</span><span class="n">ActuatorNetLSTM</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;ActuatorNetLSTM&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.actuator_net:ActuatorNetLSTM&quot;</span>
     <span class="c1"># we don&#39;t use stiffness and damping for actuator net</span>
     <span class="n">stiffness</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">damping</span> <span class="o">=</span> <span class="kc">None</span>
@@ -652,7 +654,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">ActuatorNetMLPCfg</span><span class="p">(</span><span class="n">DCMotorCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for MLP-based actuator model.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_net</span><span class="o">.</span><span class="n">ActuatorNetMLP</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;ActuatorNetMLP&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.actuator_net:ActuatorNetMLP&quot;</span>
     <span class="c1"># we don&#39;t use stiffness and damping for actuator net</span>
 
     <span class="n">stiffness</span> <span class="o">=</span> <span class="kc">None</span>

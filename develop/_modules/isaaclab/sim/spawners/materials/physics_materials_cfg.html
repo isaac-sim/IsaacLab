@@ -633,8 +633,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">physics_materials</span>
-
 
 <div class="viewcode-block" id="PhysicsMaterialCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.PhysicsMaterialCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PhysicsMaterialCfg</span><span class="p">:</span>
@@ -657,7 +655,7 @@
 <span class="sd">    See :meth:`spawn_rigid_body_material` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">physics_materials</span><span class="o">.</span><span class="n">spawn_rigid_body_material</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.physics_materials:spawn_rigid_body_material&quot;</span>
 
     <span class="n">static_friction</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The static friction coefficient. Defaults to 0.5.&quot;&quot;&quot;</span>
@@ -711,7 +709,7 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">physics_materials</span><span class="o">.</span><span class="n">spawn_deformable_body_material</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.physics_materials:spawn_deformable_body_material&quot;</span>
 
     <span class="n">density</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The material density. Defaults to None, in which case the simulation decides the default density.&quot;&quot;&quot;</span>

@@ -629,8 +629,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.mesh_terrains</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mesh_terrains</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mesh_utils_terrains</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sub_terrain_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubTerrainBaseCfg</span>
@@ -644,14 +642,14 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshPlaneTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a plane mesh terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">flat_terrain</span></div>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:flat_terrain&quot;</span></div>
 
 
 <div class="viewcode-block" id="MeshPyramidStairsTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshPyramidStairsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a pyramid stair mesh terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">pyramid_stairs_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:pyramid_stairs_terrain&quot;</span>
 
     <span class="n">border_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the border around the terrain (in m). Defaults to 0.0.</span>
@@ -685,14 +683,14 @@
 <span class="sd">        This is the same as :class:`MeshPyramidStairsTerrainCfg` except that the steps are inverted.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">inverted_pyramid_stairs_terrain</span></div>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:inverted_pyramid_stairs_terrain&quot;</span></div>
 
 
 <div class="viewcode-block" id="MeshRandomGridTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshRandomGridTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a random grid mesh terrain.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">random_grid_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:random_grid_terrain&quot;</span>
 
     <span class="n">grid_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the grid cells (in m).&quot;&quot;&quot;</span>
@@ -715,7 +713,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshRailsTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with box rails as extrusions.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">rails_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:rails_terrain&quot;</span>
 
     <span class="n">rail_thickness_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The thickness of the inner and outer rails (in m).&quot;&quot;&quot;</span>
@@ -731,7 +729,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshPitTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a pit that leads out of the pit.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">pit_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:pit_terrain&quot;</span>
 
     <span class="n">pit_depth_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the pit (in m).&quot;&quot;&quot;</span>
@@ -747,7 +745,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshBoxTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with boxes (similar to a pyramid).&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">box_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:box_terrain&quot;</span>
 
     <span class="n">box_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the box (in m).&quot;&quot;&quot;</span>
@@ -763,7 +761,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshGapTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a gap around the platform.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">gap_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:gap_terrain&quot;</span>
 
     <span class="n">gap_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the gap (in m).&quot;&quot;&quot;</span>
@@ -776,7 +774,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshFloatingRingTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a floating ring around the center.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">floating_ring_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:floating_ring_terrain&quot;</span>
 
     <span class="n">ring_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the ring (in m).&quot;&quot;&quot;</span>
@@ -795,7 +793,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MeshStarTerrainCfg</span><span class="p">(</span><span class="n">SubTerrainBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a terrain with a star pattern.&quot;&quot;&quot;</span>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">star_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:star_terrain&quot;</span>
 
     <span class="n">num_bars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of bars per-side the star. Must be greater than 2.&quot;&quot;&quot;</span>
@@ -823,7 +821,7 @@
         <span class="n">height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The height (along z) of the object (in m).&quot;&quot;&quot;</span></div>
 
-    <span class="n">function</span> <span class="o">=</span> <span class="n">mesh_terrains</span><span class="o">.</span><span class="n">repeated_objects_terrain</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.mesh_terrains:repeated_objects_terrain&quot;</span>
 
     <span class="n">object_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;cylinder&quot;</span><span class="p">,</span> <span class="s2">&quot;box&quot;</span><span class="p">,</span> <span class="s2">&quot;cone&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of object to generate.</span>
@@ -885,7 +883,7 @@
         <span class="n">degrees</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the angle is in degrees. Defaults to True.&quot;&quot;&quot;</span></div>
 
-    <span class="n">object_type</span> <span class="o">=</span> <span class="n">mesh_utils_terrains</span><span class="o">.</span><span class="n">make_cone</span>
+    <span class="n">object_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.utils:make_cone&quot;</span>
 
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
@@ -909,7 +907,7 @@
         <span class="n">degrees</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the angle is in degrees. Defaults to True.&quot;&quot;&quot;</span></div>
 
-    <span class="n">object_type</span> <span class="o">=</span> <span class="n">mesh_utils_terrains</span><span class="o">.</span><span class="n">make_box</span>
+    <span class="n">object_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.utils:make_box&quot;</span>
 
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
@@ -933,7 +931,7 @@
         <span class="n">degrees</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the angle is in degrees. Defaults to True.&quot;&quot;&quot;</span></div>
 
-    <span class="n">object_type</span> <span class="o">=</span> <span class="n">mesh_utils_terrains</span><span class="o">.</span><span class="n">make_cylinder</span>
+    <span class="n">object_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.utils:make_cylinder&quot;</span>
 
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
