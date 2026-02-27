@@ -11,6 +11,7 @@ a more user-friendly way.
 """
 
 import argparse
+import contextlib
 import logging
 import os
 import random
@@ -35,6 +36,8 @@ from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_t
 logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 SKRL_VERSION = "1.4.3"
 
