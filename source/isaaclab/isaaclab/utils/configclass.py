@@ -89,6 +89,11 @@ def configclass(cls, **kwargs):
 
     .. _dataclass: https://docs.python.org/3/library/dataclasses.html
     """
+    # snapshot field names declared in *this* class body before configclass
+    # merges parent fields — used by _field_module_dir to resolve {DIR} correctly.
+    _own_ann = set(cls.__dict__.get("__annotations__", {}).keys())
+    _own_body = {k for k in cls.__dict__ if not k.startswith("__")}
+    cls.__configclass_own_fields__ = frozenset(_own_ann | _own_body)
     # add type annotations
     _add_annotation_types(cls)
     # add field factory
@@ -184,10 +189,19 @@ def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
     cls = type(obj)
     if key is not None:
         # Use nearest declaration in MRO (subclass override wins).
+        # We prefer __configclass_own_fields__ (the snapshot taken before
+        # _process_mutable_types copies parent fields into every subclass's
+        # __dict__) so that {DIR} resolves relative to the class that
+        # *originally* declared the field, not the subclass that inherited it.
         for mro_cls in cls.__mro__:
             if mro_cls is object:
                 continue
-            if key in mro_cls.__dict__:
+            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+            if own_fields is not None:
+                if key in own_fields:
+                    cls = mro_cls
+                    break
+            elif key in mro_cls.__dict__:
                 cls = mro_cls
                 break
     module_name = getattr(cls, "__module__", "")
