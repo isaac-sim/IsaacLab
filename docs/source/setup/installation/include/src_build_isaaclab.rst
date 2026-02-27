@@ -72,7 +72,7 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh --install mimic,assets  # or "./isaaclab.sh -i mimic,assets"
+            ./isaaclab.sh --install physx,assets,rl,tasks  # or "./isaaclab.sh -i physx,assets,rl,tasks"
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
