@@ -6,7 +6,10 @@
 """Sub-module with utilities for the hydra configuration system."""
 
 import functools
+import logging
 from collections.abc import Callable, Mapping
+
+logger = logging.getLogger(__name__)
 
 try:
     import hydra
@@ -21,6 +24,87 @@ from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, repl
 from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+# Renderer type options for Hydra config groups; default when missing.
+RENDERER_TYPE_OPTIONS = ("isaac_rtx", "newton_warp")
+DEFAULT_RENDERER_TYPE = "isaac_rtx"
+
+
+def _normalize_renderer_type_in_dict(d: dict) -> None:
+    """In-place: where renderer_type is a dict from a Hydra group (single key isaac_rtx/newton_warp), replace with that string."""
+    for key, value in list(d.items()):
+        if key == "renderer_type" and isinstance(value, Mapping):
+            keys_in = [k for k in value.keys() if k in RENDERER_TYPE_OPTIONS]
+            if len(keys_in) == 1:
+                d["renderer_type"] = keys_in[0]
+                continue
+        if isinstance(value, Mapping) and not isinstance(value, type):
+            _normalize_renderer_type_in_dict(value)
+
+
+def _instantiate_renderer_cfg_at(obj: object, _seen: set | None = None) -> None:
+    """Recursively walk config and replace renderer_cfg with an instance; default to RTX when renderer_type missing."""
+    _seen = _seen or set()
+    obj_id = id(obj)
+    if obj_id in _seen:
+        return
+    _seen.add(obj_id)
+
+    if not hasattr(obj, "renderer_cfg"):
+        pass
+    else:
+        from isaaclab.renderers import renderer_cfg_from_type
+
+        rt = getattr(obj, "renderer_type", None) or DEFAULT_RENDERER_TYPE
+        cfg = renderer_cfg_from_type(rt)
+        if hasattr(obj, "data_types") and getattr(obj, "data_types", None) is not None:
+            cfg.data_types = list(obj.data_types)
+        setattr(obj, "renderer_cfg", cfg)
+        logger.info(
+            "Env config: passing concrete renderer config (not string) — %s for renderer_type=%s",
+            type(cfg).__name__,
+            rt,
+        )
+
+    def recurse(v):
+        if isinstance(v, Mapping):
+            for val in v.values():
+                _instantiate_renderer_cfg_at(val, _seen)
+        elif hasattr(v, "__dict__") and not callable(v) and not isinstance(v, type):
+            _instantiate_renderer_cfg_at(v, _seen)
+
+    if isinstance(obj, Mapping):
+        for val in obj.values():
+            recurse(val)
+    else:
+        fields = getattr(obj, "__dataclass_fields__", None)
+        keys = list(fields.keys()) if fields is not None else (list(vars(obj).keys()) if hasattr(obj, "__dict__") else ())
+        for key in keys:
+            if key.startswith("_"):
+                continue
+            try:
+                v = getattr(obj, key)
+            except (AttributeError, KeyError):
+                continue
+            if isinstance(v, (list, tuple)):
+                for item in v:
+                    if isinstance(item, Mapping) or (hasattr(item, "__dict__") and not callable(item) and not isinstance(item, type)):
+                        recurse(item)
+            else:
+                recurse(v)
+
+
+def instantiate_renderer_cfg_in_env(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> None:
+    """Replace renderer_type with instantiated renderer_cfg everywhere in env config.
+
+    After Hydra applies overrides (e.g. env.scene.base_camera.renderer_type=newton_warp),
+    call this so that env_cfg.scene.base_camera.renderer_cfg is a concrete RendererCfg instance
+    (e.g. NewtonWarpRendererCfg) instead of relying on string resolution later in TiledCamera.
+    """
+    logger.info(
+        "Instantiating renderer config in env: replacing renderer_type strings with concrete RendererCfg instances."
+    )
+    _instantiate_renderer_cfg_at(env_cfg)
 
 
 def register_task_to_hydra(
@@ -85,15 +169,25 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
             # define the new Hydra main function
             @hydra.main(config_path=None, config_name=task_name.split(":")[-1], version_base="1.3")
             def hydra_main(hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg):
+                # log Hydra overrides that set renderer (e.g. env.scene.base_camera.renderer_type=newton_warp)
+                hydra_cfg = HydraConfig.get()
+                overrides_list = getattr(getattr(hydra_cfg, "overrides", None), "task", None) or []
+                renderer_overrides = [o for o in overrides_list if "renderer_type" in o]
+                if renderer_overrides:
+                    logger.info("Hydra overrides overriding renderer config: %s", renderer_overrides)
                 # convert to a native dictionary
                 hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
                 # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
+                # normalize renderer_type: Hydra config groups can leave it as a dict {option: node}; flatten to string
+                _normalize_renderer_type_in_dict(hydra_env_cfg["env"])
                 # update the group configs with Hydra command line arguments
-                runtime_choice = HydraConfig.get().runtime.choices
+                runtime_choice = hydra_cfg.runtime.choices
                 resolve_hydra_group_runtime_override(env_cfg, agent_cfg, hydra_env_cfg, runtime_choice)
                 # update the configs with the Hydra command line arguments
                 env_cfg.from_dict(hydra_env_cfg["env"])
+                # instantiate renderer_cfg from renderer_type so cameras get a concrete RendererCfg
+                instantiate_renderer_cfg_in_env(env_cfg)
                 # replace strings that represent gymnasium spaces because OmegaConf does not support them.
                 # this must be done after converting the env configs from dictionary to avoid internal reinterpretations
                 env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
@@ -113,15 +207,34 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     return decorator
 
 
+def _register_renderer_type_groups(cfg_dict: dict, cs: ConfigStore) -> list[dict]:
+    """Register Hydra config groups for renderer_type (isaac_rtx, newton_warp); return default entries for defaults list."""
+    default_entries: list[dict] = []
+
+    def add_group(group_path: str) -> None:
+        for opt in RENDERER_TYPE_OPTIONS:
+            cs.store(group=group_path, name=opt, node=opt)
+        default_entries.append({group_path: DEFAULT_RENDERER_TYPE})
+
+    try:
+        scene = getattr_nested(cfg_dict, "env.scene")
+    except (KeyError, AttributeError):
+        scene = None
+    if isinstance(scene, Mapping):
+        for camera_key in ("base_camera", "tiled_camera"):
+            if camera_key in scene:
+                add_group(f"env.scene.{camera_key}.renderer_type")
+    if "tiled_camera" in cfg_dict.get("env", {}):
+        add_group("env.tiled_camera.renderer_type")
+    return default_entries
+
+
 def register_hydra_group(cfg_dict: dict) -> None:
     """Register Hydra config groups for variant entries and prime defaults.
 
-    The helper inspects the ``env`` and ``agent`` sections of ``cfg_dict`` for ``variants`` mappings,
-    registers each group/variant pair with Hydra's :class:`~hydra.core.config_store.ConfigStore`, and
-    records a ``defaults`` list so Hydra selects the ``default`` variant unless overridden.
-
-    Args:
-        cfg_dict: Mutable configuration dictionary generated for Hydra consumption.
+    Also registers config groups for renderer type (env.scene.base_camera.renderer_type, etc.)
+    with options isaac_rtx and newton_warp. Composed group output is normalized to a string
+    before from_dict via _normalize_renderer_type_in_dict().
     """
     cs = ConfigStore.instance()
     default_groups: list[str] = []
@@ -132,13 +245,12 @@ def register_hydra_group(cfg_dict: dict) -> None:
             for root_name, root_dict in section_dict["variants"].items():
                 group_path = f"{section}.{root_name}"
                 default_groups.append(group_path)
-                # register the default node pointing at cfg_dict[section][root_name]
                 cs.store(group=group_path, name="default", node=getattr_nested(cfg_dict, group_path))
-                # register each variant under that group
                 for variant_name, variant_node in root_dict.items():
                     cs.store(group=group_path, name=variant_name, node=variant_node)
 
-    cfg_dict["defaults"] = ["_self_"] + [{g: "default"} for g in default_groups]
+    renderer_defaults = _register_renderer_type_groups(cfg_dict, cs)
+    cfg_dict["defaults"] = ["_self_"] + [{g: "default"} for g in default_groups] + renderer_defaults
 
 
 def resolve_hydra_group_runtime_override(

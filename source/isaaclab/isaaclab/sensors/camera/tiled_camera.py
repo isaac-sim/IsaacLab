@@ -180,7 +180,7 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Resolve renderer config from optional renderer_type Hydra override or use renderer_cfg
+        # Use renderer_cfg (Hydra sets it before env creation; else fallback from renderer_type)
         renderer_cfg = self._get_effective_renderer_cfg()
 
         # Convert all encapsulated prims to Camera
@@ -194,7 +194,7 @@ class TiledCamera(Camera):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # Create renderer after scene is ready (post-cloning) so world_count is correct
-        self.renderer = Renderer(self.cfg.renderer_cfg)
+        self.renderer = Renderer(renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
 
         self.render_data = self.renderer.create_render_data(self)
@@ -232,18 +232,11 @@ class TiledCamera(Camera):
     """
 
     def _get_effective_renderer_cfg(self):
-        """Resolve renderer_cfg from optional renderer_type from Hydra override."""
-        rt = getattr(self.cfg, "renderer_type", "isaac_rtx")
-        if rt == "isaac_rtx":
-            from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-            cfg = IsaacRtxRendererCfg()
-        elif rt == "newton_warp":
-            from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-            cfg = NewtonWarpRendererCfg()
-        else:
-            cfg = self.cfg.renderer_cfg
+        """Use renderer_cfg set by Hydra (instantiate_renderer_cfg_in_env). If None, resolve to isaac_rtx."""
+        cfg = self.cfg.renderer_cfg
+        if cfg is None:
+            from isaaclab.renderers import renderer_cfg_from_type
+            cfg = renderer_cfg_from_type("isaac_rtx")
         if hasattr(cfg, "data_types"):
             cfg.data_types = list(self.cfg.data_types)
         return cfg

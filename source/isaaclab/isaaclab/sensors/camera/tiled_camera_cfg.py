@@ -21,15 +21,15 @@ if TYPE_CHECKING:
 class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor.
 
-    If :attr:`renderer_type` is set (e.g. via Hydra env.scene.base_camera.renderer_type=newton_warp),
-    TiledCamera resolves :attr:`~.camera_cfg.CameraCfg.renderer_cfg` in _initialize_impl(); no scene
-    __post_init__ logic required.
+    When using Hydra (e.g. train.py), :attr:`renderer_cfg` is instantiated from :attr:`renderer_type`
+    in isaaclab_tasks.utils.hydra before env creation. For non-Hydra paths, TiledCamera builds
+    renderer_cfg from renderer_type in _initialize_impl().
     """
 
     class_type: type = TiledCamera
 
     renderer_type: str | None = None
-    """If set, TiledCamera builds renderer_cfg from this in _initialize_impl() so any task works."""
+    """Renderer backend selector (isaac_rtx, newton_warp). Hydra instantiates renderer_cfg from this; otherwise TiledCamera does in _initialize_impl()."""
 
     def __post_init__(self):
         # So validation passes when Hydra sets only renderer_type (renderer_cfg.data_types is MISSING by default).
