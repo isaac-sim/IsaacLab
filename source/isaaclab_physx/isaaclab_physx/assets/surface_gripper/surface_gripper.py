@@ -165,6 +165,10 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        if full_data:
+            self.assert_shape_and_dtype(states, (self.num_instances,), wp.float32, "states")
+        else:
+            self.assert_shape_and_dtype(states, (env_ids.shape[0],), wp.float32, "states")
 
         # Convert torch input to warp
         if isinstance(states, torch.Tensor):
@@ -226,13 +230,17 @@ class SurfaceGripper(AssetBase):
         if env_ids is None:
             env_ids = self._ALL_INDICES
 
-        for prop_data, prop_buf in [
-            (max_grip_distance, self._max_grip_distance),
-            (coaxial_force_limit, self._coaxial_force_limit),
-            (shear_force_limit, self._shear_force_limit),
-            (retry_interval, self._retry_interval),
+        for prop_name, prop_data, prop_buf in [
+            ("max_grip_distance", max_grip_distance, self._max_grip_distance),
+            ("coaxial_force_limit", coaxial_force_limit, self._coaxial_force_limit),
+            ("shear_force_limit", shear_force_limit, self._shear_force_limit),
+            ("retry_interval", retry_interval, self._retry_interval),
         ]:
             if prop_data is not None:
+                if full_data:
+                    self.assert_shape_and_dtype(prop_data, (self.num_instances,), wp.float32, prop_name)
+                else:
+                    self.assert_shape_and_dtype(prop_data, (env_ids.shape[0],), wp.float32, prop_name)
                 wp.launch(
                     write_scalar_at_indices,
                     dim=env_ids.shape[0],
