@@ -11,12 +11,17 @@ is applied to all cameras in the scene.
 """
 
 from hydra.core.config_store import ConfigStore
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+try:
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+except ImportError:
+    NewtonWarpRendererCfg = None
 
 
 def register_render_configs() -> None:
     """Register renderer config presets in Hydra ConfigStore."""
     cs = ConfigStore.instance()
     cs.store(name="isaac_rtx", group="render", node=IsaacRtxRendererCfg)
-    cs.store(name="newton_warp", group="render", node=NewtonWarpRendererCfg)
+    if NewtonWarpRendererCfg is not None:
+        cs.store(name="newton_warp", group="render", node=NewtonWarpRendererCfg)
