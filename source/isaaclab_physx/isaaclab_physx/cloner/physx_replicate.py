@@ -75,7 +75,7 @@ def physx_replicate(
                 _stage_id,
                 src,
                 len(current_worlds),
-                useEnvIds=(len(current_worlds) == num_envs) and device != "cpu",
+                useEnvIds=(len(worlds) == num_envs) and device != "cpu",
                 useFabricForReplication=use_fabric,
             )
         # unregister only AFTER all replicate() calls completed
