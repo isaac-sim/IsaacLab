@@ -610,7 +610,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])
         # Masses: view returns (B*I, 1) in view order. _reshape_view_to_data gives (I, B) in instance order.
         self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape(
-            (self.num_instances, self.num_bodies, 1)
+            (self.num_instances, self.num_bodies)
         )
         # Inertias: view returns (B*I, 9) in view order. Need (I, B, 9) in instance order.
         # _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.

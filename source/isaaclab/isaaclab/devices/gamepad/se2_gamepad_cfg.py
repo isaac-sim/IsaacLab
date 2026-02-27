@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..device_base import DeviceCfg
-from .se2_gamepad import Se2Gamepad
+
+if TYPE_CHECKING:
+    from .se2_gamepad import Se2Gamepad
 
 
 @dataclass
@@ -21,4 +24,4 @@ class Se2GamepadCfg(DeviceCfg):
     v_y_sensitivity: float = 1.0
     omega_z_sensitivity: float = 1.0
     dead_zone: float = 0.01
-    class_type: type | str = Se2Gamepad
+    class_type: type[Se2Gamepad] | str = "{DIR}.se2_gamepad:Se2Gamepad"

@@ -13,9 +13,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
 
@@ -236,6 +237,76 @@ class AssetBase(ABC):
         raise NotImplementedError
 
     """
+    Validation.
+    """
+
+    # Mapping from warp dtype to the trailing dimensions that a torch.Tensor
+    # would have for the same data.  Subclasses may extend this (e.g. custom
+    # ``vec6f`` in deformable objects) by updating the dict in their ``__init__``.
+    _DTYPE_TO_TORCH_TRAILING_DIMS: dict[type, tuple[int, ...]] = {
+        wp.float32: (),
+        wp.int32: (),
+        wp.vec2f: (2,),
+        wp.vec3f: (3,),
+        wp.vec4f: (4,),
+        wp.transformf: (7,),
+        wp.spatial_vectorf: (6,),
+    }
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
+            dtype: The expected warp dtype.
+            name: Optional parameter name for error messages.
+        """
+        if __debug__:
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, (int, float)):
+                return
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                offset = self._DTYPE_TO_TORCH_TRAILING_DIMS.get(dtype)
+                if offset is None:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), (
+                    f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                )
+
+    def assert_shape_and_dtype_mask(
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        masks: tuple[wp.array, ...],
+        dtype: type,
+        name: str = "",
+        trailing_dims: tuple[int, ...] = (),
+    ) -> None:
+        """Assert the shape of a tensor or warp array against mask dimensions.
+
+        Mask-based write methods expect **full-sized** data — one element per entry in each mask
+        dimension, regardless of how many entries are ``True``. The expected leading shape is therefore
+        ``(mask_0.shape[0], mask_1.shape[0], ...)`` (i.e. the *total* size of each dimension, not the
+        number of selected entries).
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            masks: Tuple of mask arrays whose ``shape[0]`` dimensions form the expected leading shape.
+            dtype: The expected warp dtype.
+            name: Optional parameter name for error messages.
+            trailing_dims: Extra trailing dimensions to append (e.g. ``(9,)`` for inertias with ``wp.float32``).
+        """
+        if __debug__:
+            shape = (*tuple(m.shape[0] for m in masks), *trailing_dims)
+            self.assert_shape_and_dtype(tensor, shape, dtype, name)
+
+    """
     Implementation specific.
     """
 
@@ -310,8 +381,8 @@ class AssetBase(ABC):
             :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            self._backend = PhysicsManager.get_backend()
-            self._device = PhysicsManager.get_device()
+            self._backend = SimulationContext.instance().physics_manager.get_backend()
+            self._device = SimulationContext.instance().physics_manager.get_device()
             try:
                 self._initialize_impl()
             except Exception as e:

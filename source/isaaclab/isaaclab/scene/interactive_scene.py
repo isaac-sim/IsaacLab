@@ -456,38 +456,39 @@ class InteractiveScene:
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
             # root state
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
+            articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
             # joint state
-            joint_position = asset_state["joint_position"].clone()
-            joint_velocity = asset_state["joint_velocity"].clone()
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            joint_position = asset_state["joint_position"].clone().to(self.device)
+            joint_velocity = asset_state["joint_velocity"].clone().to(self.device)
+            articulation.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)
+            articulation.write_joint_velocity_to_sim_index(velocity=joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
-            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
-            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
+            articulation.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
+            articulation.set_joint_velocity_target_index(target=joint_velocity, env_ids=env_ids)
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
-            nodal_position = asset_state["nodal_position"].clone()
+            nodal_position = asset_state["nodal_position"].clone().to(self.device)
             if is_relative:
                 nodal_position[:, :3] += self.env_origins[env_ids]
-            nodal_velocity = asset_state["nodal_velocity"].clone()
+            nodal_velocity = asset_state["nodal_velocity"].clone().to(self.device)
             deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
             deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
         # rigid objects
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = state["rigid_object"][asset_name]
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
+            rigid_object.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
         # surface grippers
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
@@ -732,10 +733,9 @@ class InteractiveScene:
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                    asset_cfg.filter_prim_paths_expr = [
+                        p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
+                    ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(

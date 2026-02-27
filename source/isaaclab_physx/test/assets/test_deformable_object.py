@@ -328,7 +328,7 @@ def test_set_kinematic_targets(sim, num_cubes):
         nodal_kinematic_targets[0, :, 3] = 0.0
         nodal_kinematic_targets[0, :, :3] = wp.to_torch(cube_object.data.default_nodal_state_w)[0, :, :3]
         cube_object.write_nodal_kinematic_target_to_sim_index(
-            nodal_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
+            nodal_kinematic_targets[0].unsqueeze(0), env_ids=torch.tensor([0], device=sim.device)
         )
 
         for _ in range(20):
