@@ -11,6 +11,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
@@ -21,6 +22,7 @@ from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDG
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
 from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, SceneFixture
 
+from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
     LocomanipulationG1SceneCfg,
@@ -150,6 +152,16 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
+
+        # Override success condition: check placement relative to the drop-off table (packing_table_2),
+        # since this env has two tables: packing_table (pick-up) and packing_table_2 (drop-off).
+        self.terminations.success = DoneTerm(
+            func=locomanip_mdp.task_done_pick_place_table_frame,
+            params={
+                "task_link_name": "right_wrist_yaw_link",
+                "table_cfg": SceneEntityCfg("packing_table_2"),
+            },
+        )
 
 
 class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
