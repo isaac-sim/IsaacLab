@@ -85,19 +85,13 @@ This document gives step-by-step instructions to set up the environment and run 
       mv pip_prebundle/newton pip_prebundle/newton_bak   # or remove
       mv pip_prebundle/warp pip_prebundle/warp_bak     # if needed
 
-   Replace ``/path/to/omni_isaac_sim`` with your clone path. For the exact location and alternatives, see ``NEWTON_WARP_4D_SETUP.md`` in the repo root.
+   Replace ``/path/to/omni_isaac_sim`` with your clone path.
 
 #. Install Newton via pip (required for the Newton Warp renderer). Either from the Git commit in ``source/isaaclab/setup.py``:
 
    .. code-block:: bash
 
       pip install "newton @ git+https://github.com/newton-physics/newton.git@35657fc"
-
-   or, if you use a local Newton clone:
-
-   .. code-block:: bash
-
-      pip install -e ~/git/newton
 
 5. Verify installation
 ----------------------
@@ -113,7 +107,7 @@ From the IsaacLab-Physx-Warp root with the conda env activated:
 Possible Newton / Warp conflict
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Sim's build ships its own Newton and Warp under ``_build/.../pip_prebundle/``. If you skip the steps in section 4 (removing those folders and pip-installing Newton), the app may load the prebundle and you can see version or API conflicts. Follow the steps in section 4 to remove or rename the ``newton`` and ``warp`` folders in the Isaac Sim build and install Newton via pip. For more detail, see ``NEWTON_WARP_4D_SETUP.md`` in the repo root.
+Isaac Sim's build ships its own Newton and Warp under ``_build/.../pip_prebundle/``. If you skip the steps in section 4 (removing those folders and pip-installing Newton), the app may load the prebundle and you can see version or API conflicts. Follow the steps in section 4 to remove or rename the ``newton`` and ``warp`` folders in the Isaac Sim build and install Newton via pip.
 
 6. Run training
 ---------------
