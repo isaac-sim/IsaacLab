@@ -652,6 +652,7 @@ the ego-centric camera view to MP4. If you use ``--high_res_video`` during data 
 dimension(540x960) in the command below.
 
 .. code:: bash
+
    ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
       --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
       --output_dir <DATASET_FOLDER>/ \
