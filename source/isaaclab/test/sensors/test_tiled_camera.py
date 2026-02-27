@@ -30,7 +30,7 @@ from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
+from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import get_isaac_sim_version
@@ -38,12 +38,12 @@ from isaaclab_physx.renderers.isaac_rtx_renderer_utils import RTX_DISABLE_COLOR_
 
 
 @pytest.fixture(scope="function")
-def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, float]:
+def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     """Fixture to set up and tear down the camera simulation environment."""
-    camera_cfg = TiledCameraCfg(
+    camera_cfg = CameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -75,7 +75,7 @@ def test_single_camera_init(setup_camera, device):
     """Test single camera initialization."""
     sim, camera_cfg, dt = setup_camera
     # Create camera
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -123,9 +123,9 @@ def test_depth_clipping_max(setup_camera, device):
     """Test depth max clipping."""
     sim, _, dt = setup_camera
     # get camera cfgs
-    camera_cfg = TiledCameraCfg(
+    camera_cfg = CameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -138,7 +138,7 @@ def test_depth_clipping_max(setup_camera, device):
         data_types=["depth"],
         depth_clipping_behavior="max",
     )
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
 
     # Play sim
     sim.reset()
@@ -163,9 +163,9 @@ def test_depth_clipping_none(setup_camera, device):
     """Test depth none clipping."""
     sim, _, dt = setup_camera
     # get camera cfgs
-    camera_cfg = TiledCameraCfg(
+    camera_cfg = CameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -178,7 +178,7 @@ def test_depth_clipping_none(setup_camera, device):
         data_types=["depth"],
         depth_clipping_behavior="none",
     )
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
 
     # Play sim
     sim.reset()
@@ -207,9 +207,9 @@ def test_depth_clipping_zero(setup_camera, device):
     """Test depth zero clipping."""
     sim, _, dt = setup_camera
     # get camera cfgs
-    camera_cfg = TiledCameraCfg(
+    camera_cfg = CameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -222,7 +222,7 @@ def test_depth_clipping_zero(setup_camera, device):
         data_types=["depth"],
         depth_clipping_behavior="zero",
     )
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
 
     # Play sim
     sim.reset()
@@ -254,7 +254,7 @@ def test_multi_camera_init(setup_camera, device):
     # Create camera
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -311,7 +311,7 @@ def test_rgb_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgb"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -361,15 +361,15 @@ def test_data_types(setup_camera, device):
     camera_cfg_distance = copy.deepcopy(camera_cfg)
     camera_cfg_distance.data_types = ["distance_to_camera"]
     camera_cfg_distance.prim_path = "/World/CameraDistance"
-    camera_distance = TiledCamera(camera_cfg_distance)
+    camera_distance = Camera(camera_cfg_distance)
     camera_cfg_depth = copy.deepcopy(camera_cfg)
     camera_cfg_depth.data_types = ["depth"]
     camera_cfg_depth.prim_path = "/World/CameraDepth"
-    camera_depth = TiledCamera(camera_cfg_depth)
+    camera_depth = Camera(camera_cfg_depth)
     camera_cfg_both = copy.deepcopy(camera_cfg)
     camera_cfg_both.data_types = ["distance_to_camera", "depth"]
     camera_cfg_both.prim_path = "/World/CameraBoth"
-    camera_both = TiledCamera(camera_cfg_both)
+    camera_both = Camera(camera_cfg_both)
 
     # Play sim
     sim.reset()
@@ -413,7 +413,7 @@ def test_depth_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["distance_to_camera"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -467,7 +467,7 @@ def test_rgba_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgba"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -521,7 +521,7 @@ def test_albedo_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["albedo"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -579,7 +579,7 @@ def test_simple_shading_only_camera(setup_camera, device, data_type):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = [data_type]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -633,7 +633,7 @@ def test_distance_to_camera_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["distance_to_camera"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -695,7 +695,7 @@ def test_rtx_disable_color_render_when_only_depth_types(setup_camera, device, da
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = data_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     sim.reset()
 
     if get_isaac_sim_version().major >= 6:
@@ -714,7 +714,7 @@ def test_rtx_disable_color_render_not_set_when_rgb_requested(setup_camera, devic
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgb", "distance_to_camera"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     sim.reset()
 
     if get_isaac_sim_version().major >= 6:
@@ -726,7 +726,7 @@ def test_rtx_disable_color_render_not_set_when_rgb_requested(setup_camera, devic
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.isaacsim_ci
 def test_camera_tiled_camera_parity(device):
-    """Check Camera and TiledCamera produce equivalent output for same config and scene."""
+    """Verify Camera produces valid output (Camera and TiledCamera now share the same implementation)."""
     data_type = "depth"
     height, width = 64, 64
 
@@ -767,7 +767,7 @@ def test_camera_tiled_camera_parity(device):
         return output
 
     out_camera = _create_scene_and_capture(Camera, CameraCfg)
-    out_tiled = _create_scene_and_capture(TiledCamera, TiledCameraCfg)
+    out_tiled = _create_scene_and_capture(Camera, CameraCfg)
 
     def _save_debug_outputs():
         debug_dir = os.path.join(
@@ -799,7 +799,7 @@ def test_camera_tiled_camera_parity(device):
                 # Shared colorbar on the right so both subplots stay same size
                 fig.colorbar(im1, ax=axes, shrink=0.6, aspect=20)
             axes[0].set_title(f"Camera: {key}")
-            axes[1].set_title(f"TiledCamera: {key}")
+            axes[1].set_title(f"Camera (tiled): {key}")
             for ax in axes:
                 ax.set_aspect("equal")
             img_path = os.path.join(debug_dir, f"camera_parity_{timestamp}_{key}.png")
@@ -812,7 +812,7 @@ def test_camera_tiled_camera_parity(device):
         for key in out_camera:
             # Check frames have meaningful content (not all black)
             assert out_camera[key].max() > 0, f"Camera output '{key}' is all black"
-            assert out_tiled[key].max() > 0, f"TiledCamera output '{key}' is all black"
+            assert out_tiled[key].max() > 0, f"Camera output '{key}' is all black"
             torch.testing.assert_close(
                 out_camera[key], out_tiled[key], rtol=1e-3, atol=1e-2
             )
@@ -836,7 +836,7 @@ def test_distance_to_image_plane_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["distance_to_image_plane"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -890,7 +890,7 @@ def test_normals_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["normals"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -947,7 +947,7 @@ def test_motion_vectors_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["motion_vectors"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1001,7 +1001,7 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1056,7 +1056,7 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["instance_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1111,7 +1111,7 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera, device
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1167,7 +1167,7 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera, device):
     camera_cfg.data_types = ["semantic_segmentation"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.colorize_semantic_segmentation = False
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1224,7 +1224,7 @@ def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera, devic
     camera_cfg.data_types = ["instance_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.colorize_instance_segmentation = False
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1279,7 +1279,7 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera, de
     camera_cfg.data_types = ["instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.colorize_instance_id_segmentation = False
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1348,7 +1348,7 @@ def test_all_annotators_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1453,7 +1453,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     camera_cfg.width = 40
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1556,7 +1556,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1683,7 +1683,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.offset.pos = (0.0, 0.0, 5.5)
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
     # Play sim
     sim.reset()
     # Check simulation parameter is set correctly
@@ -1796,7 +1796,7 @@ def test_throughput(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.height = 480
     camera_cfg.width = 640
-    camera = TiledCamera(camera_cfg)
+    camera = Camera(camera_cfg)
 
     # Play simulator
     sim.reset()
@@ -1839,9 +1839,9 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
     intrinsics = [380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0]
     # get camera cfgs
     # TODO: add clipping range back, once correctly supported by tiled camera
-    camera_tiled_cfg = TiledCameraCfg(
+    camera_tiled_cfg = CameraCfg(
         prim_path="/World/Camera_tiled",
-        offset=TiledCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
         spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsics,
             height=540,
@@ -1870,7 +1870,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
     camera_usd_cfg.spawn.horizontal_aperture_offset = 0
     camera_usd_cfg.spawn.vertical_aperture_offset = 0
     # init cameras
-    camera_tiled = TiledCamera(camera_tiled_cfg)
+    camera_tiled = Camera(camera_tiled_cfg)
     camera_usd = Camera(camera_usd_cfg)
 
     # play sim
@@ -1924,7 +1924,7 @@ def test_sensor_print(setup_camera, device):
     """Test sensor print is working correctly."""
     sim, camera_cfg, _ = setup_camera
     # Create sensor
-    sensor = TiledCamera(cfg=camera_cfg)
+    sensor = Camera(cfg=camera_cfg)
     # Play sim
     sim.reset()
     # print info
@@ -1944,7 +1944,7 @@ def test_frame_offset_small_resolution(setup_camera, device):
     # settled objects rest at z=1.0 (center) with top at z=2.0.  Place the camera
     # above the objects so they are fully visible from above.
     camera_cfg.offset.pos = (0.0, 0.0, 3.0)
-    tiled_camera = TiledCamera(camera_cfg)
+    tiled_camera = Camera(camera_cfg)
     # play sim
     sim.reset()
     # simulate some steps first to make sure objects are settled
@@ -1987,7 +1987,7 @@ def test_frame_offset_large_resolution(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.height = 480
     camera_cfg.width = 480
-    tiled_camera = TiledCamera(camera_cfg)
+    tiled_camera = Camera(camera_cfg)
 
     # modify scene to be less stochastic
     stage = sim_utils.get_current_stage()
