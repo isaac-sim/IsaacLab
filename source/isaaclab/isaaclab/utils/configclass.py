@@ -208,7 +208,7 @@ def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
     return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
 
 
-def _wrap_resolvable_strings(value: Any, module_dir: str | None = None) -> Any:
+def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: set[int] | None = None) -> Any:
     """Recursively wrap callable-like strings with :class:`ResolvableString`."""
     if isinstance(value, str) and (_CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value)):
         if "{DIR}" in value:
@@ -216,25 +216,36 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None) -> Any:
                 raise ValueError(f"Cannot resolve '{{DIR}}' in '{value}' because no module context is available.")
             value = value.replace("{DIR}", module_dir)
         return ResolvableString(value)
+    is_dataclass_instance = hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
+    is_container = isinstance(value, (list, tuple, dict))
+    if is_dataclass_instance or is_container:
+        if _seen is None:
+            _seen = set()
+        value_id = id(value)
+        if value_id in _seen:
+            return value
+        _seen.add(value_id)
     if isinstance(value, list):
-        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir) for item in value]
+        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value]
         if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
             return value
         return wrapped
     if isinstance(value, tuple):
-        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir) for item in value)
+        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value)
         if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
             return value
         return wrapped
     if isinstance(value, dict):
-        wrapped = {key: _wrap_resolvable_strings(item, module_dir=module_dir) for key, item in value.items()}
+        wrapped = {
+            key: _wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for key, item in value.items()
+        }
         if len(wrapped) == len(value) and all(wrapped[key] is value[key] for key in value):
             return value
         return wrapped
-    if hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__"):
+    if is_dataclass_instance:
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)
-            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir))
+            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
     return value
 
 
