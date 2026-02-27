@@ -115,10 +115,10 @@ Isaac Sim's build ships its own Newton and Warp under ``_build/.../pip_prebundle
 Renderer selection
 ~~~~~~~~~~~~~~~~~~
 
-Camera renderer is chosen via the Hydra ``renderer`` config group. Supported values are ``isaac_rtx`` (default) and ``newton_warp``.
-The selected preset is applied to all cameras; each camera's ``data_types`` are set at use time (see ``isaaclab_tasks.utils.render_config_store`` and ``instantiate_renderer_cfg_in_env`` in ``isaaclab_tasks.utils.hydra``).
+Camera renderer is chosen via the Hydra ``render`` config group. Supported values are ``isaac_rtx`` (default) and ``newton_warp``.
+The selected preset is applied to all cameras (see ``isaaclab_tasks.utils.render_config_store`` and ``process_hydra_config`` in ``isaaclab_tasks.utils.hydra``).
 
-Use the top-level override ``renderer=isaac_rtx`` or ``renderer=newton_warp``. If omitted, it defaults to ``isaac_rtx``.
+Use the top-level override ``render=isaac_rtx`` or ``render=newton_warp``. If omitted, it defaults to ``isaac_rtx``.
 
 Example command
 ~~~~~~~~~~~~~~~
@@ -131,9 +131,9 @@ From the **IsaacLab-Physx-Warp** repo root, with the conda env activated:
      --task=Isaac-Cartpole-RGB-Camera-Direct-v0 \
      --enable_cameras \
      --headless \
-     renderer=isaac_rtx
+     render=isaac_rtx
 
-Use ``renderer=newton_warp`` to use the Newton Warp renderer instead. For longer training runs, increase ``--num_envs`` and ``--max_iterations`` (e.g. ``--num_envs=2048 --max_iterations=32``); redirect stdout/stderr if desired, e.g. ``2>&1 | tee train.log``.
+Use ``render=newton_warp`` to use the Newton Warp renderer instead. For longer training runs, increase ``--num_envs`` and ``--max_iterations`` (e.g. ``--num_envs=2048 --max_iterations=32``); redirect stdout/stderr if desired, e.g. ``2>&1 | tee train.log``.
 
 Summary
 ------
@@ -151,5 +151,5 @@ Summary
 +------+----------------------------------------------------------------------------------------------------------------------------------+
 | 5    | Run the verification commands                                                                                                     |
 +------+----------------------------------------------------------------------------------------------------------------------------------+
-| 6    | Run ``./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --enable_cameras --headless ... renderer=isaac_rtx`` as above |
+| 6    | Run ``./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --enable_cameras --headless ... render=isaac_rtx`` as above |
 +------+----------------------------------------------------------------------------------------------------------------------------------+

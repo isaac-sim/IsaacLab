@@ -24,8 +24,9 @@ The Tiled Rendering APIs provide a vectorized interface for collecting data from
 Isaac Lab provides tiled rendering APIs for RGB, depth, along with other annotators through the :class:`~sensors.TiledCamera` class. Configurations for the tiled rendering APIs can be defined through the :class:`~sensors.TiledCameraCfg` class, specifying parameters such as the regex expression for all camera paths, the transform for the cameras, the desired data type, the type of cameras to add to the scene, and the camera resolution.
 
 The renderer backend (Isaac RTX vs. Newton Warp) can be selected at run time via the config's ``renderer_type``
-(``"isaac_rtx"`` or ``"newton_warp"``). When using Hydra (e.g. in ``train.py``), override the camera config path your
-task uses—e.g. ``env.scene.base_camera.renderer_type=isaac_rtx`` when the scene exposes ``base_camera``, or
+(``"isaac_rtx"`` or ``"newton_warp"``). When using Hydra (e.g. in ``train.py``), use the top-level override
+``render=isaac_rtx`` or ``render=newton_warp`` to apply the selected preset to all cameras; or override a specific
+camera—e.g. ``env.scene.base_camera.renderer_type=isaac_rtx`` when the scene exposes ``base_camera``, or
 ``env.tiled_camera.renderer_type=isaac_rtx`` when the camera is on the env config. See **Hydra Configuration System** (Features) for override paths and examples.
 
 Renderer backends
