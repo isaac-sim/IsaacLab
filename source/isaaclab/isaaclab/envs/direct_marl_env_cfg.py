@@ -17,7 +17,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import AgentID, SpaceType, ViewerCfg
-from .ui import BaseEnvWindow
 
 
 @configclass
@@ -35,7 +34,7 @@ class DirectMARLEnvCfg:
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | None = BaseEnvWindow
+    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.
