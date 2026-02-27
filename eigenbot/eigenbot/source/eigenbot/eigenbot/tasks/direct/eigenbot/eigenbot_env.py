@@ -51,7 +51,9 @@ class EigenbotEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        self.robot.set_joint_effort_target(self.actions * self.cfg.action_scale)
+        # Position control: target = action_scale * action + default_joint_pos
+        targets = self.cfg.action_scale * self.actions + self.robot.data.default_joint_pos
+        self.robot.set_joint_position_target(targets)
 
     def _get_observations(self) -> dict:
         self.joint_pos = self.robot.data.joint_pos

@@ -1,17 +1,20 @@
-"""Configuration for the Eigenbot modular robot."""
+"""Configuration for the Eigenbot hexapod modular robot."""
 
+import math
 import os
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 
-# Path to the USDZ file (co-located in this assets directory)
-EIGENBOT_USD_PATH = os.path.join(os.path.dirname(__file__), "eigenbot_new.usdz")
+# Path to the URDF file
+EIGENBOT_URDF_PATH = os.path.join(os.path.dirname(__file__), "eigenbot", "urdf", "eigenbot_hexapod.urdf")
 
 EIGENBOT_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=EIGENBOT_USD_PATH,
+    spawn=sim_utils.UrdfFileCfg(
+        asset_path=EIGENBOT_URDF_PATH,
+        fix_base=True,
+        merge_fixed_joints=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=1000.0,
@@ -26,28 +29,35 @@ EIGENBOT_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.3),
-        joint_pos={".*": 0.0},
+        pos=(0.0, 0.0, 0.42),
+        joint_pos={
+            "bendy_joint_M1_S1": -math.pi / 4,
+            "bendy_joint_M2_S2": 0.0,
+            "bendy_joint_M3_S3": math.pi / 4,
+            "bendy_joint_M4_S4": -math.pi / 4,
+            "bendy_joint_M5_S5": 0.0,
+            "bendy_joint_M6_S6": math.pi / 4,
+            "bendy_joint_M7_S7": math.pi / 4,
+            "bendy_joint_M8_S8": math.pi / 4,
+            "bendy_joint_M9_S9": math.pi / 4,
+            "bendy_joint_M10_S10": math.pi / 4,
+            "bendy_joint_M11_S11": math.pi / 4,
+            "bendy_joint_M12_S12": math.pi / 4,
+            "bendy_joint_M13_S13": math.pi / 4,
+            "bendy_joint_M14_S14": math.pi / 4,
+            "bendy_joint_M15_S15": math.pi / 4,
+            "bendy_joint_M16_S16": math.pi / 4,
+            "bendy_joint_M17_S17": math.pi / 4,
+            "bendy_joint_M18_S18": math.pi / 4,
+        },
         joint_vel={".*": 0.0},
     ),
     actuators={
         "bendy_joints": ImplicitActuatorCfg(
             joint_names_expr=["bendy_joint_.*"],
             effort_limit_sim=100.0,
-            stiffness=40.0,
-            damping=5.0,
-        ),
-        "wheel_joints": ImplicitActuatorCfg(
-            joint_names_expr=["wheel_joint_.*"],
-            effort_limit_sim=100.0,
-            stiffness=0.0,
-            damping=10.0,
-        ),
-        "gripper_joints": ImplicitActuatorCfg(
-            joint_names_expr=["gripper_joint_.*"],
-            effort_limit_sim=100.0,
-            stiffness=40.0,
-            damping=5.0,
+            stiffness=20.0,
+            damping=0.5,
         ),
     },
 )

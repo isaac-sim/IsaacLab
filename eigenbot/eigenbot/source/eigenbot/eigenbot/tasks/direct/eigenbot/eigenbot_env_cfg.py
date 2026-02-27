@@ -11,18 +11,17 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-# Number of actuated joints in the eigenbot:
-# 12 bendy joints + 2 wheel joints + 1 gripper joint = 15
-NUM_JOINTS = 15
+# Number of actuated joints in the eigenbot hexapod: 18 bendy joints
+NUM_JOINTS = 18
 
 
 @configclass
 class EigenbotEnvCfg(DirectRLEnvCfg):
     # env
-    decimation = 2
-    episode_length_s = 5.0
+    decimation = 4
+    episode_length_s = 20.0
     # - spaces definition
-    # actions: one per actuated joint
+    # actions: one per actuated joint (position targets)
     action_space = NUM_JOINTS
     # observations: joint positions + joint velocities
     observation_space = NUM_JOINTS * 2
@@ -37,5 +36,5 @@ class EigenbotEnvCfg(DirectRLEnvCfg):
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
-    # action scale
-    action_scale = 10.0  # [Nm]
+    # action scale: target angle = action_scale * action + default_joint_pos
+    action_scale = 0.25
