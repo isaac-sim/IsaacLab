@@ -55,6 +55,20 @@ def newton_replicate(
             xform=inverse_env_xform,
         )
         if simplify_meshes:
+            # Check if SDF patterns are configured — skip approximation for matching shapes
+            import re
+            from isaaclab.physics import PhysicsManager
+
+            sdf_patterns = None
+            cfg = PhysicsManager._cfg
+            if cfg is not None:
+                sdf_pats = getattr(cfg, "sdf_shape_patterns", None)
+                if sdf_pats is not None and (
+                    getattr(cfg, "sdf_max_resolution", None) is not None
+                    or getattr(cfg, "sdf_target_voxel_size", None) is not None
+                ):
+                    sdf_patterns = [re.compile(pat) for pat in sdf_pats]
+
             # Split shapes by USD collision approximation: convexDecomposition → coacd, everything else → convex_hull
             decomp_indices = []
             hull_indices = []
@@ -62,6 +76,9 @@ def newton_replicate(
                 if p.shape_type[i] != newton.GeoType.MESH:
                     continue
                 key = p.shape_key[i] if i < len(p.shape_key) else ""
+                # Skip shapes matching SDF patterns — SDF uses original mesh, no convex approx needed
+                if sdf_patterns is not None and any(pat.search(key) for pat in sdf_patterns):
+                    continue
                 prim = stage.GetPrimAtPath(key)
                 approx = ""
                 if prim and prim.IsValid():
