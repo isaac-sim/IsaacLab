@@ -179,6 +179,13 @@ class MockArticulationViewWarp:
         """USD prim paths for each instance."""
         return self._prim_paths
 
+    @property
+    def dof_paths(self) -> list[list[str]]:
+        """DOF paths for each instance."""
+        dof_names = self._shared_metatype.dof_names or [f"joint_{i}" for i in range(self._num_dofs)]
+        single_instance_paths = [f"{self._prim_paths[0]}/{name}" for name in dof_names]
+        return [single_instance_paths] * self._count
+
     # -- Root Getters --
 
     def get_root_transforms(self) -> wp.array:
@@ -1020,6 +1027,95 @@ class MockArticulationViewWarp:
             inertias: Warp array of shape (N, L, 9) with dtype=wp.float32.
         """
         self._inertias = wp.clone(inertias)
+
+    # -- Actions (no-op for testing) --
+
+    def apply_forces_and_torques_at_position(
+        self,
+        force_data: wp.array | None = None,
+        torque_data: wp.array | None = None,
+        position_data: wp.array | None = None,
+        indices: wp.array | None = None,
+        is_global: bool = True,
+    ) -> None:
+        """Apply forces and torques at positions (no-op in mock).
+
+        Args:
+            force_data: Forces to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            torque_data: Torques to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            position_data: Positions to apply forces at, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            indices: Optional indices of articulations to apply to.
+            is_global: Whether forces/torques are in global frame.
+        """
+        pass  # No-op for mock
+
+    # -- Tendon Getters (stubs) --
+
+    def get_fixed_tendon_stiffnesses(self) -> wp.array:
+        """Get fixed tendon stiffnesses. Returns zeros of shape (N, max_fixed_tendons)."""
+        return wp.zeros((self._count, self._max_fixed_tendons), dtype=wp.float32, device="cpu")
+
+    def get_fixed_tendon_dampings(self) -> wp.array:
+        """Get fixed tendon dampings. Returns zeros of shape (N, max_fixed_tendons)."""
+        return wp.zeros((self._count, self._max_fixed_tendons), dtype=wp.float32, device="cpu")
+
+    def get_fixed_tendon_limit_stiffnesses(self) -> wp.array:
+        """Get fixed tendon limit stiffnesses. Returns zeros of shape (N, max_fixed_tendons)."""
+        return wp.zeros((self._count, self._max_fixed_tendons), dtype=wp.float32, device="cpu")
+
+    def get_fixed_tendon_rest_lengths(self) -> wp.array:
+        """Get fixed tendon rest lengths. Returns zeros of shape (N, max_fixed_tendons)."""
+        return wp.zeros((self._count, self._max_fixed_tendons), dtype=wp.float32, device="cpu")
+
+    def get_fixed_tendon_offsets(self) -> wp.array:
+        """Get fixed tendon offsets. Returns zeros of shape (N, max_fixed_tendons)."""
+        return wp.zeros((self._count, self._max_fixed_tendons), dtype=wp.float32, device="cpu")
+
+    def get_fixed_tendon_limits(self) -> wp.array:
+        """Get fixed tendon limits. Returns zeros of shape (N, max_fixed_tendons, 2)."""
+        return wp.zeros((self._count, self._max_fixed_tendons, 2), dtype=wp.float32, device="cpu")
+
+    def get_spatial_tendon_stiffnesses(self) -> wp.array:
+        """Get spatial tendon stiffnesses. Returns zeros of shape (N, max_spatial_tendons)."""
+        return wp.zeros((self._count, self._max_spatial_tendons), dtype=wp.float32, device="cpu")
+
+    def get_spatial_tendon_dampings(self) -> wp.array:
+        """Get spatial tendon dampings. Returns zeros of shape (N, max_spatial_tendons)."""
+        return wp.zeros((self._count, self._max_spatial_tendons), dtype=wp.float32, device="cpu")
+
+    def get_spatial_tendon_limit_stiffnesses(self) -> wp.array:
+        """Get spatial tendon limit stiffnesses. Returns zeros of shape (N, max_spatial_tendons)."""
+        return wp.zeros((self._count, self._max_spatial_tendons), dtype=wp.float32, device="cpu")
+
+    def get_spatial_tendon_offsets(self) -> wp.array:
+        """Get spatial tendon offsets. Returns zeros of shape (N, max_spatial_tendons)."""
+        return wp.zeros((self._count, self._max_spatial_tendons), dtype=wp.float32, device="cpu")
+
+    # -- Tendon Setters (no-op stubs) --
+
+    def set_fixed_tendon_properties(
+        self,
+        stiffness: wp.array | None = None,
+        damping: wp.array | None = None,
+        limit_stiffness: wp.array | None = None,
+        pos_limits: wp.array | None = None,
+        rest_length: wp.array | None = None,
+        offset: wp.array | None = None,
+        indices: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon properties (no-op in mock)."""
+        pass  # No-op for mock
+
+    def set_spatial_tendon_properties(
+        self,
+        stiffness: wp.array | None = None,
+        damping: wp.array | None = None,
+        limit_stiffness: wp.array | None = None,
+        offset: wp.array | None = None,
+        indices: wp.array | None = None,
+    ) -> None:
+        """Set spatial tendon properties (no-op in mock)."""
+        pass  # No-op for mock
 
     # -- Benchmark Utilities --
 

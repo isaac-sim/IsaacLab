@@ -373,8 +373,6 @@ Below is an explanation of the different settings used for evaluation:
       - Maximum value of the action space normalization factor.
     * - ``--disable_fabric``
       - Whether to disable fabric and use USD I/O operations.
-    * - ``--enable_pinocchio``
-      - Whether to enable Pinocchio for IK controllers.
 
 .. note::
     The evaluation results will help you understand if the visual augmentation has improved the policy's performance and robustness. Compare these results with evaluations on the original dataset to measure the impact of augmentation.

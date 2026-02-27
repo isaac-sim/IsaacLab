@@ -3,5 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Sub-package for renderer configurations and implementations.
+
+This sub-package contains configuration classes and implementations for
+different renderer backends that can be used with Isaac Lab.
+"""
+
+from __future__ import annotations
+
+from .base_renderer import BaseRenderer
 from .renderer import Renderer
-from .newton_warp_renderer import NewtonWarpRenderer
+from .renderer_cfg import RendererCfg
+
+__all__ = [
+    "BaseRenderer",
+    "Renderer",
+    "RendererCfg",
+]

@@ -604,12 +604,12 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> wp.array:
-        """Body inertias. Shape: (N, num_bodies, 3, 3)."""
+        """Body inertias (flattened 3x3). Shape: (N, num_bodies, 9)."""
         if self._body_inertia is None:
-            np_inertia = np.zeros((self._num_instances, self._num_bodies, 3, 3), dtype=np.float32)
-            np_inertia[..., 0, 0] = 1.0
-            np_inertia[..., 1, 1] = 1.0
-            np_inertia[..., 2, 2] = 1.0
+            np_inertia = np.zeros((self._num_instances, self._num_bodies, 9), dtype=np.float32)
+            np_inertia[..., 0] = 1.0  # Ixx
+            np_inertia[..., 4] = 1.0  # Iyy
+            np_inertia[..., 8] = 1.0  # Izz
             return wp.array(np_inertia, dtype=wp.float32, device=self.device)
         return self._body_inertia
 
@@ -655,15 +655,8 @@ class MockArticulationData(BaseArticulationData):
         """Root CoM angular velocity in body frame. Shape: (N, 3)."""
         return wp.clone(self.root_com_ang_vel_w, self.device)
 
-    @property
-    def com_pos_b(self) -> wp.array:
-        """Convenience alias for root_com_pos_w. Shape: (N, 3)."""
-        return wp.clone(self.root_com_pos_w, self.device)
-
-    @property
-    def com_quat_b(self) -> wp.array:
-        """Convenience alias for root_com_quat_w. Shape: (N, 4)."""
-        return wp.clone(self.root_com_quat_w, self.device)
+    # com_pos_b and com_quat_b are inherited from BaseArticulationData
+    # (they delegate to body_com_pos_b and body_com_quat_b respectively)
 
     # -- Fixed tendon properties --
 
@@ -1070,7 +1063,11 @@ class MockArticulation:
 
     # -- Core methods --
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Reset articulation state for specified environments."""
         pass
 
@@ -1091,47 +1088,50 @@ class MockArticulation:
     def find_joints(
         self,
         name_keys: str | Sequence[str],
-        joint_subset: list[int] | None = None,
+        joint_subset: list[str] | None = None,
         preserve_order: bool = False,
     ) -> tuple[list[int], list[str]]:
         """Find joints by name regex patterns."""
         names = self._joint_names
         if joint_subset is not None:
-            names = [names[i] for i in joint_subset]
-        indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
-        if joint_subset is not None:
-            indices = [joint_subset[i] for i in indices]
-        return indices, matched_names
+            subset_indices = [self._joint_names.index(n) for n in joint_subset]
+            names = joint_subset
+            indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
+            indices = [subset_indices[i] for i in indices]
+            return indices, matched_names
+        return self._find_by_regex(names, name_keys, preserve_order)
 
     def find_fixed_tendons(
         self,
         name_keys: str | Sequence[str],
-        tendon_subsets: list[int] | None = None,
+        tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
     ) -> tuple[list[int], list[str]]:
         """Find fixed tendons by name regex patterns."""
         names = self._fixed_tendon_names
         if tendon_subsets is not None:
-            names = [names[i] for i in tendon_subsets]
-        indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
-        if tendon_subsets is not None:
-            indices = [tendon_subsets[i] for i in indices]
-        return indices, matched_names
+            subset_indices = [self._fixed_tendon_names.index(n) for n in tendon_subsets]
+            names = tendon_subsets
+            indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
+            indices = [subset_indices[i] for i in indices]
+            return indices, matched_names
+        return self._find_by_regex(names, name_keys, preserve_order)
 
     def find_spatial_tendons(
         self,
         name_keys: str | Sequence[str],
-        tendon_subsets: list[int] | None = None,
+        tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
     ) -> tuple[list[int], list[str]]:
         """Find spatial tendons by name regex patterns."""
         names = self._spatial_tendon_names
         if tendon_subsets is not None:
-            names = [names[i] for i in tendon_subsets]
-        indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
-        if tendon_subsets is not None:
-            indices = [tendon_subsets[i] for i in indices]
-        return indices, matched_names
+            subset_indices = [self._spatial_tendon_names.index(n) for n in tendon_subsets]
+            names = tendon_subsets
+            indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
+            indices = [subset_indices[i] for i in indices]
+            return indices, matched_names
+        return self._find_by_regex(names, name_keys, preserve_order)
 
     def _find_by_regex(
         self, names: list[str], name_keys: str | Sequence[str], preserve_order: bool
@@ -1165,127 +1165,127 @@ class MockArticulation:
 
     def write_root_state_to_sim(
         self,
-        root_state: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root state to simulation."""
         pass
 
     def write_root_com_state_to_sim(
         self,
-        root_state: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root CoM state to simulation."""
         pass
 
     def write_root_link_state_to_sim(
         self,
-        root_state: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root link state to simulation."""
         pass
 
     def write_root_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root pose to simulation."""
         pass
 
     def write_root_link_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root link pose to simulation."""
         pass
 
     def write_root_com_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root CoM pose to simulation."""
         pass
 
     def write_root_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root velocity to simulation."""
         pass
 
     def write_root_com_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root CoM velocity to simulation."""
         pass
 
     def write_root_link_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root link velocity to simulation."""
         pass
 
     def write_joint_state_to_sim(
         self,
-        position: torch.Tensor,
-        velocity: torch.Tensor,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint state to simulation."""
         pass
 
     def write_joint_position_to_sim(
         self,
-        position: torch.Tensor,
+        position: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint positions to simulation."""
         pass
 
     def write_joint_velocity_to_sim(
         self,
-        velocity: torch.Tensor,
+        velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint velocities to simulation."""
         pass
 
     def write_joint_stiffness_to_sim(
         self,
-        stiffness: torch.Tensor | float,
+        stiffness: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint stiffness to simulation."""
         pass
 
     def write_joint_damping_to_sim(
         self,
-        damping: torch.Tensor | float,
+        damping: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint damping to simulation."""
         pass
 
     def write_joint_position_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
         """Write joint position limits to simulation."""
@@ -1293,36 +1293,36 @@ class MockArticulation:
 
     def write_joint_velocity_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint velocity limits to simulation."""
         pass
 
     def write_joint_effort_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint effort limits to simulation."""
         pass
 
     def write_joint_armature_to_sim(
         self,
-        armature: torch.Tensor | float,
+        armature: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint armature to simulation."""
         pass
 
     def write_joint_friction_coefficient_to_sim(
         self,
-        coeff: torch.Tensor | float,
+        coeff: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint friction coefficient to simulation."""
         pass
@@ -1330,7 +1330,7 @@ class MockArticulation:
     def write_joint_friction_to_sim(
         self,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint friction to simulation."""
         pass
@@ -1338,7 +1338,7 @@ class MockArticulation:
     def write_joint_limits_to_sim(
         self,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint limits to simulation."""
         pass
@@ -1347,39 +1347,39 @@ class MockArticulation:
 
     def set_masses(
         self,
-        masses: torch.Tensor,
+        masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body masses."""
         pass
 
     def set_coms(
         self,
-        coms: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body centers of mass."""
         pass
 
     def set_inertias(
         self,
-        inertias: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body inertias."""
         pass
 
     def set_external_force_and_torque(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        positions: torch.Tensor | None = None,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        is_global: bool = True,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        is_global: bool = False,
     ) -> None:
         """Set external forces and torques."""
         pass
@@ -1566,6 +1566,7 @@ class MockArticulation:
 
     def write_root_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1573,6 +1574,7 @@ class MockArticulation:
 
     def write_root_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -1580,6 +1582,7 @@ class MockArticulation:
 
     def write_root_link_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1587,6 +1590,7 @@ class MockArticulation:
 
     def write_root_link_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -1594,6 +1598,7 @@ class MockArticulation:
 
     def write_root_com_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1601,6 +1606,7 @@ class MockArticulation:
 
     def write_root_com_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -1608,6 +1614,7 @@ class MockArticulation:
 
     def write_root_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1615,6 +1622,7 @@ class MockArticulation:
 
     def write_root_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -1622,6 +1630,7 @@ class MockArticulation:
 
     def write_root_com_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1629,6 +1638,7 @@ class MockArticulation:
 
     def write_root_com_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -1636,6 +1646,7 @@ class MockArticulation:
 
     def write_root_link_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1643,6 +1654,7 @@ class MockArticulation:
 
     def write_root_link_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -1652,72 +1664,81 @@ class MockArticulation:
 
     def write_joint_position_to_sim_index(
         self,
+        *,
         position: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_position_to_sim_mask(
         self,
+        *,
         position: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_velocity_to_sim_index(
         self,
+        *,
         velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_velocity_to_sim_mask(
         self,
+        *,
         velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_stiffness_to_sim_index(
         self,
+        *,
         stiffness: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_stiffness_to_sim_mask(
         self,
+        *,
         stiffness: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_damping_to_sim_index(
         self,
+        *,
         damping: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_damping_to_sim_mask(
         self,
+        *,
         damping: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_position_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
@@ -1725,74 +1746,83 @@ class MockArticulation:
 
     def write_joint_position_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | float | wp.array,
         warn_limit_violation: bool = True,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_velocity_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_effort_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_effort_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_armature_to_sim_index(
         self,
+        *,
         armature: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_armature_to_sim_mask(
         self,
+        *,
         armature: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
+        *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
+        *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
@@ -1800,49 +1830,55 @@ class MockArticulation:
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
@@ -1850,49 +1886,55 @@ class MockArticulation:
 
     def set_joint_position_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_joint_position_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_joint_velocity_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_joint_velocity_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_joint_effort_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_joint_effort_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
@@ -1900,111 +1942,125 @@ class MockArticulation:
 
     def set_fixed_tendon_stiffness_index(
         self,
-        stiffness: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_stiffness_mask(
         self,
-        stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_damping_index(
         self,
-        damping: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_damping_mask(
         self,
-        damping: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        damping: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
-        limit_stiffness: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
-        limit_stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_position_limit_index(
         self,
-        limit: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        limit: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_position_limit_mask(
         self,
-        limit: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_rest_length_index(
         self,
-        rest_length: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        rest_length: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_rest_length_mask(
         self,
-        rest_length: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        rest_length: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_offset_index(
         self,
-        offset: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_fixed_tendon_offset_mask(
         self,
-        offset: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        offset: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
-        env_mask: wp.array | None = None,
+        *,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
@@ -2012,78 +2068,88 @@ class MockArticulation:
 
     def set_spatial_tendon_stiffness_index(
         self,
-        stiffness: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_stiffness_mask(
         self,
-        stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_damping_index(
         self,
-        damping: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_damping_mask(
         self,
-        damping: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        damping: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_limit_stiffness_index(
         self,
-        limit_stiffness: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_limit_stiffness_mask(
         self,
-        limit_stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_offset_index(
         self,
-        offset: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_spatial_tendon_offset_mask(
         self,
-        offset: torch.Tensor,
-        env_mask: wp.array | None = None,
+        *,
+        offset: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def write_spatial_tendon_properties_to_sim_index(
         self,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        *,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def write_spatial_tendon_properties_to_sim_mask(
         self,
-        env_mask: wp.array | None = None,
+        *,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass

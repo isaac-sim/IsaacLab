@@ -13,14 +13,12 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
-from packaging.version import Version
 
 import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.fixture
@@ -67,15 +65,12 @@ def test_spawn_usd_fails(sim):
 @pytest.mark.isaacsim_ci
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
-    # pin the urdf importer extension to the older version
+    # enable the URDF importer extension
     manager = omni.kit.app.get_app().get_extension_manager()
-    if get_isaac_sim_version() == Version("5.1"):
-        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
-    else:
-        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
-    manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
+    if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
+        manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
     # retrieve path to urdf importer extension
-    extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
+    extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
     extension_path = manager.get_extension_path(extension_id)
     # Spawn franka from URDF
     cfg = sim_utils.UrdfFileCfg(

@@ -162,14 +162,14 @@ class VisuoTactileSensor(SensorBase):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets the sensor internals."""
         # reset the timestamps
-        super().reset(env_ids)
+        super().reset(env_ids, env_mask)
 
         # Reset camera sensor if enabled
         if self._camera_sensor:
-            self._camera_sensor.reset(env_ids)
+            self._camera_sensor.reset(env_ids, env_mask)
 
     """
     Implementation
@@ -533,16 +533,15 @@ class VisuoTactileSensor(SensorBase):
         if self.cfg.visualizer_cfg:
             self._visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data.
 
         This method updates both camera-based and force field tactile sensing data
         for the specified environments.
-
-        Args:
-            env_ids: Sequence of environment indices to update. If length equals
-                    total number of environments, all environments are updated.
         """
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         # Convert to proper indices for internal methods
         if len(env_ids) == self._num_envs:
             internal_env_ids = slice(None)

@@ -20,40 +20,25 @@ import functools
 from collections.abc import Callable
 
 import hydra
+import pytest
 from hydra import compose, initialize
-from omegaconf import OmegaConf
-
-from isaaclab.utils import replace_strings_with_slices
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import register_task_to_hydra
+from isaaclab_tasks.utils.hydra import process_hydra_config, register_task_to_hydra
+from isaaclab_tasks.utils.render_config_store import NEWTON_WARP_AVAILABLE
 
 
 def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
-    """Copied from hydra.py hydra_task_config, since hydra.main requires a single point of entry,
-    which will not work with multiple tests. Here, we replace hydra.main with hydra initialize
-    and compose."""
+    """Uses compose() instead of hydra.main (single entry point). Reuses process_hydra_config."""
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # register the task to Hydra
             env_cfg, agent_cfg = register_task_to_hydra(task_name, agent_cfg_entry_point)
 
-            # replace hydra.main with initialize and compose
             with initialize(config_path=None, version_base="1.3"):
                 hydra_env_cfg = compose(config_name=task_name, overrides=sys.argv[1:])
-                # convert to a native dictionary
-                hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
-                # replace string with slices because OmegaConf does not support slices
-                hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
-                # update the configs with the Hydra command line arguments
-                env_cfg.from_dict(hydra_env_cfg["env"])
-                if isinstance(agent_cfg, dict):
-                    agent_cfg = hydra_env_cfg["agent"]
-                else:
-                    agent_cfg.from_dict(hydra_env_cfg["agent"])
-                # call the original function
+                env_cfg, agent_cfg = process_hydra_config(hydra_env_cfg, env_cfg, agent_cfg)
                 func(env_cfg, agent_cfg, *args, **kwargs)
 
         return wrapper
@@ -101,5 +86,72 @@ def test_nested_iterable_dict():
 
     main()
     # clean up
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
+
+
+def test_render_config_default():
+    """Test that render config defaults to isaac_rtx when no override is passed."""
+
+    sys.argv = [sys.argv[0]]
+
+    @hydra_task_config_test("Isaac-Cartpole-RGB-Camera-Direct-v0", "rl_games_cfg_entry_point")
+    def main(env_cfg, agent_cfg):
+        assert hasattr(env_cfg, "tiled_camera")
+        assert env_cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
+
+    main()
+
+    # cleanup
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
+
+
+def test_render_config_override():
+    """Test that render config group override is applied to cameras."""
+
+    sys.argv = [sys.argv[0], "render=isaac_rtx"]
+
+    @hydra_task_config_test("Isaac-Cartpole-RGB-Camera-Direct-v0", "rl_games_cfg_entry_point")
+    def main(env_cfg, agent_cfg):
+        assert hasattr(env_cfg, "tiled_camera")
+        assert env_cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
+
+    main()
+
+    # cleanup
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
+
+
+@pytest.mark.skipif(not NEWTON_WARP_AVAILABLE, reason="isaaclab_newton not installed")
+def test_render_config_override_newton_warp():
+    """Test that render=newton_warp override is applied to cameras (requires isaaclab_newton)."""
+
+    sys.argv = [sys.argv[0], "render=newton_warp"]
+
+    @hydra_task_config_test("Isaac-Cartpole-RGB-Camera-Direct-v0", "rl_games_cfg_entry_point")
+    def main(env_cfg, agent_cfg):
+        assert hasattr(env_cfg, "tiled_camera")
+        assert env_cfg.tiled_camera.renderer_cfg.renderer_type == "newton_warp"
+
+    main()
+
+    # cleanup
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
+
+
+def test_render_config_invalid_raises():
+    """Test that invalid render config raises an error."""
+
+    sys.argv = [sys.argv[0], "render=invalid_renderer"]
+
+    with pytest.raises(Exception, match="invalid_renderer|Could not find|No match"):
+        env_cfg, agent_cfg = register_task_to_hydra("Isaac-Cartpole-RGB-Camera-Direct-v0", "rl_games_cfg_entry_point")
+        with initialize(config_path=None, version_base="1.3"):
+            compose(config_name="Isaac-Cartpole-RGB-Camera-Direct-v0", overrides=sys.argv[1:])
+
+    # cleanup
     sys.argv = [sys.argv[0]]
     hydra.core.global_hydra.GlobalHydra.instance().clear()

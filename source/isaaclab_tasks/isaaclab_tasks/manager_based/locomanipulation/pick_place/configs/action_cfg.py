@@ -4,18 +4,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
-from ..mdp.actions import AgileBasedLowerBodyAction
+if TYPE_CHECKING:
+    from ..mdp.actions import AgileBasedLowerBodyAction
 
 
 @configclass
 class AgileBasedLowerBodyActionCfg(ActionTermCfg):
     """Configuration for the lower body action term that is based on Agile lower body RL policy."""
 
-    class_type: type[ActionTerm] = AgileBasedLowerBodyAction
+    class_type: type["AgileBasedLowerBodyAction"] | str = (
+        "isaaclab_tasks.manager_based.locomanipulation.pick_place.mdp.actions:AgileBasedLowerBodyAction"
+    )
     """The class type for the lower body action term."""
 
     joint_names: list[str] = MISSING

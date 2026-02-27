@@ -1,6 +1,142 @@
 Changelog
 ---------
 
+
+4.3.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed inconsistent ``body_mass`` shape in :class:`~isaaclab.assets.BaseRigidObjectData`
+  from ``(num_instances, 1, 1)`` to ``(num_instances, 1)`` to align with the articulation
+  convention.
+
+* Unified inertia scaling in :func:`~isaaclab.envs.mdp.events.randomize_rigid_body_mass`
+  to use a single code path for both articulations and rigid objects.
+
+Changed
+^^^^^^^
+
+* Reworked mock interfaces for assets and sensors to align with updated data shapes and
+  remove stale convenience aliases.
+
+
+4.3.1 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype` and
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype_mask` validation methods to
+  :class:`~isaaclab.assets.AssetBase` for runtime shape and dtype checking of write method
+  inputs. Checks are only active in debug mode (``__debug__``), adding zero overhead in
+  optimized builds.
+
+Changed
+^^^^^^^
+
+* Fixed tendon setter signatures in :class:`~isaaclab.assets.BaseArticulation`
+  (``set_fixed_tendon_*`` and ``set_spatial_tendon_*``) now accept ``float`` values in
+  addition to tensors and warp arrays.
+
+
+4.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added lazy callable-string resolution for config fields through
+  :class:`~isaaclab.utils.string.ResolvableString` in :mod:`isaaclab.utils.configclass`.
+  Config values such as ``class_type``/``func`` can now remain as strings until first
+  use and then resolve/cached automatically.
+
+* Added ``{DIR}`` callable-string shorthand support in :mod:`isaaclab.utils.configclass`
+  for config defaults. ``"{DIR}.module:Symbol"`` now expands to the declaring config
+  module directory before resolution.
+
+
+4.2.2 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype` and
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype_mask` validation methods to
+  :class:`~isaaclab.assets.AssetBase` for runtime shape and dtype checking of write method
+  inputs. Checks are only active in debug mode (``__debug__``), adding zero overhead in
+  optimized builds.
+
+Changed
+^^^^^^^
+
+* Fixed tendon setter signatures in :class:`~isaaclab.assets.BaseArticulation`
+  (``set_fixed_tendon_*`` and ``set_spatial_tendon_*``) now accept ``float`` values in
+  addition to tensors and warp arrays.
+
+
+4.2.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all MDP action terms to use new ``_index`` write/set APIs with keyword-only arguments.
+
+* Migrated all MDP event terms to use new ``_index`` write/set APIs (mass, inertia, COM,
+  joint properties, root state resets, fixed tendon parameters).
+
+* Updated ``InteractiveScene.set_state`` to use new ``_index`` APIs for root pose/velocity
+  and joint state writes.
+
+* Updated ``SceneEntityCfg`` body resolution to use ``find_sensors``/``num_sensors`` for
+  ContactSensor entities.
+
+
+4.2.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refined base asset class abstractions (:class:`~isaaclab.assets.BaseArticulation`,
+  :class:`~isaaclab.assets.BaseRigidObject`) to better support multiple backends.
+  Removed abstract method requirements that forced unnecessary boilerplate in backend
+  implementations, making it easier to add new physics backends.
+
+* Unified docstrings across all base asset classes with precise shape and dtype annotations
+  for warp array properties and write methods, ensuring consistent documentation between
+  PhysX and Newton backend implementations.
+
+
+4.1.0 (2026-02-18)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed hard dependency on the Isaac Sim Cloner for scene replication. Replication now uses internal utilities
+  :func:`~isaaclab.scene.cloner.usd_replicate` and :func:`~isaaclab.scene.cloner.physx_replicate`, reducing coupling
+  to Isaac Sim. Public APIs in :class:`~isaaclab.scene.interactive_scene.InteractiveScene` remain unchanged; code
+  directly importing the external Cloner should migrate to these utilities.
+
+Added
+^^^^^
+
+* Added optional random prototype selection during environment cloning in
+  :class:`~isaaclab.scene.interactive_scene.InteractiveScene` via
+  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning`.
+  Defaults to ``True``; round-robin (modulo) mapping remains available by setting it to ``False``.
+
+* Added flexible per-object cloning path in
+  :class:`~isaaclab.scene.interactive_scene.InteractiveScene`: when environments are heterogeneous
+  (different prototypes across envs), replication switches to per-object instead of whole-env cloning.
+  This reduces PhysX cloning time in heterogeneous scenes.
+
+
 4.0.0 (2026-02-22)
 ~~~~~~~~~~~~~~~~~~
 

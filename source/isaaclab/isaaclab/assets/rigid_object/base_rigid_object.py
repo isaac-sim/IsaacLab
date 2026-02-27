@@ -99,13 +99,24 @@ class BaseRigidObject(AssetBase):
     @property
     @abstractmethod
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the rigid object."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the rigid object."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         raise NotImplementedError()
 
     """
@@ -123,7 +134,7 @@ class BaseRigidObject(AssetBase):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -173,6 +184,7 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -188,7 +200,8 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or
+                (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -196,10 +209,11 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root pose over selected environment indices into the simulation.
+        """Set the root pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -211,14 +225,16 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or
+                (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_link_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -234,7 +250,8 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or
+                (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -242,10 +259,11 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_link_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link pose over selected environment indices into the simulation.
+        """Set the root link pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -257,21 +275,23 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root link poses in simulation frame. Shape is (num_instances, 7) or
+                (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_com_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -281,7 +301,8 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or
+                (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -289,13 +310,14 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_com_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass pose over selected environment indices into the simulation.
+        """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -305,14 +327,16 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7) or
+                (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -321,7 +345,7 @@ class BaseRigidObject(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -331,7 +355,8 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -339,15 +364,16 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
@@ -357,14 +383,16 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_com_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -373,7 +401,7 @@ class BaseRigidObject(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -383,7 +411,8 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -391,15 +420,16 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_com_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
@@ -409,14 +439,16 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_link_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -425,7 +457,7 @@ class BaseRigidObject(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's frame rather than the roots center of mass.
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects partial data.
@@ -435,7 +467,8 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -443,15 +476,16 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def write_root_link_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link velocity over selected environment indices into the simulation.
+        """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's frame rather than the roots center of mass.
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects full data.
@@ -461,8 +495,9 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -473,8 +508,9 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
@@ -496,9 +532,10 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
 
@@ -511,16 +548,17 @@ class BaseRigidObject(AssetBase):
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
@@ -543,9 +581,10 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
 
@@ -557,17 +596,19 @@ class BaseRigidObject(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
+                or (num_instances, num_bodies) with dtype wp.vec3f.
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
@@ -589,9 +630,10 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
 
@@ -604,8 +646,8 @@ class BaseRigidObject(AssetBase):
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -679,7 +721,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_link_pose_to_sim(
         self,
@@ -693,7 +735,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_com_pose_to_sim(
         self,
@@ -707,7 +749,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_velocity_to_sim(
         self,
@@ -721,7 +763,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(
         self,
@@ -735,7 +777,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_link_velocity_to_sim(
         self,
@@ -749,7 +791,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def set_masses(
         self,
@@ -763,7 +805,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids)
+        self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
 
     def set_coms(
         self,
@@ -777,7 +819,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids)
+        self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
     def set_inertias(
         self,
@@ -792,7 +834,7 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids)
+        self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
     def set_external_force_and_torque(
         self,
