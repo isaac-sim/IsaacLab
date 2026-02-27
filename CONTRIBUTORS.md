@@ -56,6 +56,7 @@ Guidelines for modifications:
 * Bingjie Tang
 * Brayden Zhang
 * Brian Bingham
+* Brian Dilinila
 * Brian McCann
 * Calvin Yu
 * Cameron Upright
