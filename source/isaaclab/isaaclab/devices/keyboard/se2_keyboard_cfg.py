@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from isaaclab.utils import configclass
 
 from ..device_base import DeviceCfg
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from .se2_keyboard import Se2Keyboard
 
 
-@dataclass
+@configclass
 class Se2KeyboardCfg(DeviceCfg):
     """Configuration for SE2 keyboard devices."""
 

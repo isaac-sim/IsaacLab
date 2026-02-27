@@ -12,7 +12,7 @@ import json
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from isaaclab.utils import configclass
 
 import numpy as np
 import torch
@@ -377,7 +377,7 @@ class HaplyDevice(DeviceBase):
                     break
 
 
-@dataclass
+@configclass
 class HaplyDeviceCfg(DeviceCfg):
     """Configuration for Haply device.
 
