@@ -5,7 +5,7 @@ Setting up Isaac Teleop with CloudXR
 
 .. currentmodule:: isaaclab
 
-`Isaac Teleop <ISAAC_TELEOP_REPO_PLACEHOLDER>`_ is the unified framework for high-fidelity
+`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ is the unified framework for high-fidelity
 teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
 pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
 
@@ -261,6 +261,16 @@ served by Docker containers included with Isaac Teleop.
 
    Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.
 
+#. Download the CloudXR Web SDK. From the ``isaacteleop/`` directory:
+
+   .. code-block:: bash
+
+      ./scripts/download_cloudxr_sdk.sh
+
+   Alternatively, place a local tarball in ``deps/cloudxr/``:
+   ``cloudxr-web-sdk-<version>.tar.gz``. The expected version is defined by
+   ``CXR_WEB_SDK_VERSION`` in ``deps/cloudxr/.env.default``.
+
 #. Ensure the CloudXR runtime is running (see :ref:`start-cloudxr-runtime`).
 
 #. Open the browser on your headset and navigate to:
@@ -300,7 +310,7 @@ API as headset-based optical hand tracking in Isaac Teleop, so the same retarget
 work with both input sources.
 
 For plugin configuration details, see the `Manus plugin documentation
-<ISAAC_TELEOP_REPO_PLACEHOLDER/src/plugins/manus/README.md>`_.
+<https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/manus/README.md>`_.
 
 The recommended workflow:
 

@@ -1112,7 +1112,7 @@ XR Teleoperation: Isaac Teleop Integration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
-by `Isaac Teleop <ISAAC_TELEOP_REPO_PLACEHOLDER>`_, integrated via the ``isaaclab_teleop``
+by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
 extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
 plugin support is now in Isaac Teleop.
 

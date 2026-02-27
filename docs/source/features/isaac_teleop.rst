@@ -5,7 +5,7 @@ Isaac Teleop
 
 .. currentmodule:: isaaclab
 
-`Isaac Teleop <ISAAC_TELEOP_REPO_PLACEHOLDER>`_ is the unified framework for high-fidelity
+`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ is the unified framework for high-fidelity
 egocentric and robot data collection. It provides a standardized device interface, a flexible
 graph-based retargeting pipeline, and works seamlessly across simulated and real-world robots.
 
@@ -412,7 +412,7 @@ Add a New Retargeter
 --------------------
 
 If the built-in retargeters do not cover your use case, you can implement a custom one in the
-`Isaac Teleop repository <ISAAC_TELEOP_REPO_PLACEHOLDER>`_:
+`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_:
 
 #. Inherit from ``BaseRetargeter`` and implement ``input_spec()``, ``output_spec()``, and
    ``compute()``.
@@ -421,8 +421,8 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `Retargeting Engine README <ISAAC_TELEOP_REPO_PLACEHOLDER/src/core/retargeting_engine/python/retargeters/README.md>`_
-and `Contributing Guide <ISAAC_TELEOP_REPO_PLACEHOLDER/CONTRIBUTING.md>`_ for details.
+See the `Retargeting Engine README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/retargeting_engine/python/retargeters/README.md>`_
+and `Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_ for details.
 
 
 .. _isaac-teleop-new-device:
@@ -438,7 +438,7 @@ There are two levels of device integration:
    and foot pedals. After creating the plugin, update the retargeting pipeline config to consume
    data from the new plugin's source node.
 
-   See the `Plugins directory <ISAAC_TELEOP_REPO_PLACEHOLDER/src/plugins/>`_ for examples.
+   See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_ for examples.
 
 **Pipeline configuration only**
    For devices already supported by Isaac Teleop (or whose data is available as hand / controller
