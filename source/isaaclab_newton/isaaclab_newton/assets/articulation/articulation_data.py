@@ -18,7 +18,6 @@ from isaaclab_newton.kernels import (
     compute_heading,
     derive_body_acceleration_from_velocity_batched,
     derive_joint_acceleration_from_velocity,
-    generate_mask_from_ids,
     generate_pose_from_position_with_unit_quaternion_batched,
     make_joint_pos_limits_from_lower_and_upper_limits,
     project_com_velocity_to_link_frame_batch,
@@ -42,9 +41,17 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+from isaaclab.utils.warp.utils import capture_unsafe, resolve_1d_mask
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_LAZY_CAPTURE_REASON = (
+    "This is a lazily-computed derived property guarded by a Python timestamp check "
+    "that is invisible during graph replay.  Use Tier 1 base data (root_link_pose_w, "
+    "root_com_vel_w, body_link_pose_w, body_com_vel_w, joint_pos, joint_vel) and "
+    "inline the computation in your warp kernel.  See GRAPH_CAPTURE_MIGRATION.md."
+)
 
 
 class ArticulationData(BaseArticulationData):
@@ -129,71 +136,6 @@ class ArticulationData(BaseArticulationData):
     # Mask resolvers (ids -> wp.bool mask).
     ##
 
-    def _resolve_1d_mask(
-        self,
-        *,
-        ids: Sequence[int] | slice | wp.array | torch.Tensor | None,
-        mask: wp.array | torch.Tensor | None,
-        all_mask: wp.array,
-        scratch_mask: wp.array,
-    ) -> wp.array:
-        """Resolve ids/mask into a warp boolean mask.
-
-        Notes:
-        - Returns ``all_mask`` when both ids and mask are None (or ids is slice(None)).
-        - If ids are provided and mask is None, this populates ``scratch_mask`` in-place using Warp kernels.
-        - Torch inputs are supported for compatibility, but are generally not CUDA-graph-capture friendly.
-        - Not re-entrant: ``scratch_mask`` is shared. Safe under single-stream CUDA execution
-          (kernel launches serialize on the same stream), but callers must not hold a reference
-          to the returned mask across a second ``_resolve_1d_mask`` call with different ids.
-        """
-        # Fast path: explicit mask provided.
-        if mask is not None:
-            if isinstance(mask, torch.Tensor):
-                # Ensure boolean + correct device, then wrap for Warp.
-                if mask.dtype != torch.bool:
-                    mask = mask.to(dtype=torch.bool)
-                if str(mask.device) != self.device:
-                    mask = mask.to(self.device)
-                return wp.from_torch(mask, dtype=wp.bool)
-            return mask
-
-        # Fast path: ids == all / not specified.
-        if ids is None:
-            return all_mask
-        if isinstance(ids, slice) and ids == slice(None):
-            return all_mask
-
-        # Normalize ids into a 1D wp.int32 array.
-        if isinstance(ids, slice):
-            # Convert to explicit indices (supports partial slices).
-            # We infer the valid range from the scratch mask length.
-            start, stop, step = ids.indices(scratch_mask.shape[0])
-            ids = list(range(start, stop, step))
-
-        if isinstance(ids, wp.array):
-            ids_wp = ids
-        elif isinstance(ids, torch.Tensor):
-            if ids.dtype != torch.int32:
-                ids = ids.to(dtype=torch.int32)
-            if str(ids.device) != self.device:
-                ids = ids.to(self.device)
-            ids_wp = wp.from_torch(ids, dtype=wp.int32)
-        else:
-            ids_list = list(ids)
-            ids_wp = wp.array(ids_list, dtype=wp.int32, device=self.device) if len(ids_list) > 0 else None
-
-        # Populate scratch mask.
-        scratch_mask.fill_(False)
-        if ids_wp is not None:
-            wp.launch(
-                kernel=generate_mask_from_ids,
-                dim=ids_wp.shape[0],
-                inputs=[scratch_mask, ids_wp],
-                device=self.device,
-            )
-        return scratch_mask
-
     def resolve_env_mask(
         self,
         *,
@@ -201,7 +143,9 @@ class ArticulationData(BaseArticulationData):
         env_mask: wp.array | torch.Tensor | None = None,
     ) -> wp.array:
         """Resolve environment ids/mask into a warp boolean mask of shape (num_instances,)."""
-        return self._resolve_1d_mask(ids=env_ids, mask=env_mask, all_mask=self.ALL_ENV_MASK, scratch_mask=self.ENV_MASK)
+        return resolve_1d_mask(
+            ids=env_ids, mask=env_mask, all_mask=self.ALL_ENV_MASK, scratch_mask=self.ENV_MASK, device=self.device
+        )
 
     def resolve_body_mask(
         self,
@@ -210,8 +154,8 @@ class ArticulationData(BaseArticulationData):
         body_mask: wp.array | torch.Tensor | None = None,
     ) -> wp.array:
         """Resolve body ids/mask into a warp boolean mask of shape (num_bodies,)."""
-        return self._resolve_1d_mask(
-            ids=body_ids, mask=body_mask, all_mask=self.ALL_BODY_MASK, scratch_mask=self.BODY_MASK
+        return resolve_1d_mask(
+            ids=body_ids, mask=body_mask, all_mask=self.ALL_BODY_MASK, scratch_mask=self.BODY_MASK, device=self.device
         )
 
     def resolve_joint_mask(
@@ -221,8 +165,12 @@ class ArticulationData(BaseArticulationData):
         joint_mask: wp.array | torch.Tensor | None = None,
     ) -> wp.array:
         """Resolve joint ids/mask into a warp boolean mask of shape (num_joints,)."""
-        return self._resolve_1d_mask(
-            ids=joint_ids, mask=joint_mask, all_mask=self.ALL_JOINT_MASK, scratch_mask=self.JOINT_MASK
+        return resolve_1d_mask(
+            ids=joint_ids,
+            mask=joint_mask,
+            all_mask=self.ALL_JOINT_MASK,
+            scratch_mask=self.JOINT_MASK,
+            device=self.device,
         )
 
     ##
@@ -636,6 +584,7 @@ class ArticulationData(BaseArticulationData):
         return self._sim_bind_root_link_pose_w
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_link_vel_w(self) -> wp.array(dtype=wp.spatial_vectorf):
         """Root link velocity ``wp.spatial_vectorf`` in simulation world frame.
 
@@ -661,6 +610,7 @@ class ArticulationData(BaseArticulationData):
         return self._root_link_vel_w.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_com_pose_w(self) -> wp.array(dtype=wp.transformf):
         """Root center of mass pose ``wp.transformf`` in simulation world frame.
 
@@ -809,6 +759,7 @@ class ArticulationData(BaseArticulationData):
         return self._sim_bind_body_link_pose_w
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def body_link_vel_w(self) -> wp.array(dtype=wp.spatial_vectorf):
         """Body link velocity ``wp.spatial_vectorf`` in simulation world frame.
 
@@ -834,6 +785,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_vel_w.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def body_com_pose_w(self) -> wp.array(dtype=wp.transformf):
         """Body center of mass pose ``wp.transformf`` in simulation world frame.
 
@@ -1055,6 +1007,7 @@ class ArticulationData(BaseArticulationData):
     ##
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def projected_gravity_b(self) -> wp.array(dtype=wp.vec3f):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
@@ -1073,6 +1026,7 @@ class ArticulationData(BaseArticulationData):
         return self._projected_gravity_b.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def heading_w(self) -> wp.array(dtype=wp.float32):
         """Yaw heading of the base frame (in radians). Shape is (num_instances,).
 
@@ -1096,6 +1050,7 @@ class ArticulationData(BaseArticulationData):
         return self._heading_w.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_link_vel_b(self) -> wp.array(dtype=wp.spatial_vectorf):
         """Root link velocity ``wp.spatial_vectorf`` in base frame. Shape is (num_instances).
 
@@ -1117,6 +1072,7 @@ class ArticulationData(BaseArticulationData):
         return self._root_link_vel_b.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_com_vel_b(self) -> wp.array(dtype=wp.spatial_vectorf):
         """Root center of mass velocity ``wp.spatial_vectorf`` in base frame. Shape is (num_instances).
 

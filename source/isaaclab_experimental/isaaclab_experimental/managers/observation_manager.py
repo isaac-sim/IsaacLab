@@ -525,6 +525,12 @@ class ObservationManager(ManagerBase):
             # TODO(jichuanh): This is not migrated yet. Need revisit.
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
+                # circular buffer is not capture safe
+                if wp.get_device().is_capturing:
+                    raise RuntimeError(
+                        "ObservationManager.reset requires env_mask(wp.array[bool]) during capture. "
+                        "Do not pass env_ids on captured paths."
+                    )
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
                 if update_history:
                     circular_buffer.append(wp.to_torch(term_cfg.out_wp))

@@ -139,6 +139,19 @@ wp.overload(
 
 
 @wp.func
+def _com_pose_from_link(link_pose_w: wp.transformf, com_pos_b: wp.vec3f) -> wp.transformf:
+    """Compute the world-frame COM pose from a link pose and a body-frame COM offset.
+
+    The COM frame shares the link's orientation; only the position is offset.
+    Equivalent to ``combine_frame_transforms(link_pose_w, com_pos_b, identity_quat)``
+    but avoids the full transform multiply.
+    """
+    q = wp.transform_get_rotation(link_pose_w)
+    p = wp.transform_get_translation(link_pose_w) + wp.quat_rotate(q, com_pos_b)
+    return wp.transformf(p, q)
+
+
+@wp.func
 def cast_to_com_frame(position: wp.vec3f, com_pose_w: wp.transformf, is_global: bool) -> wp.vec3f:
     """Casts a position to the com frame of the body. In Newton, the com frame and the link frame are aligned.
 
@@ -198,7 +211,8 @@ def add_forces_and_torques_at_position(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
-    com_poses: wp.array2d(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
@@ -214,7 +228,8 @@ def add_forces_and_torques_at_position(
         forces: The forces.
         torques: The torques.
         positions: The positions.
-        com_poses: The com poses.
+        body_link_pose_w: Body link poses in world frame (Tier 1 sim-bind).
+        body_com_pos_b: Body COM offsets in link frame (static).
         composed_forces_b: The composed forces.
         composed_torques_b: The composed torques.
         is_global: Whether the forces and torques are applied in the global frame.
@@ -224,20 +239,21 @@ def add_forces_and_torques_at_position(
 
     if env_mask[tid_env] and body_mask[tid_body]:
         # add the forces to the composed force, if the positions are provided, also adds a torque to the composed torque.
+        com_pose = _com_pose_from_link(body_link_pose_w[tid_env, tid_body], body_com_pos_b[tid_env, tid_body])
         if forces:
             # add the forces to the composed force
             composed_forces_b[tid_env, tid_body] += cast_force_to_com_frame(
-                forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+                forces[tid_env, tid_body], com_pose, is_global
             )
             # if there is a position offset, add a torque to the composed torque.
             if positions:
                 composed_torques_b[tid_env, tid_body] += wp.cross(
-                    cast_to_com_frame(positions[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
-                    cast_force_to_com_frame(forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                    cast_to_com_frame(positions[tid_env, tid_body], com_pose, is_global),
+                    cast_force_to_com_frame(forces[tid_env, tid_body], com_pose, is_global),
                 )
         if torques:
             composed_torques_b[tid_env, tid_body] += cast_torque_to_com_frame(
-                torques[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+                torques[tid_env, tid_body], com_pose, is_global
             )
 
 
@@ -248,7 +264,8 @@ def set_forces_and_torques_at_position(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
-    com_poses: wp.array2d(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
@@ -264,7 +281,8 @@ def set_forces_and_torques_at_position(
         forces: The forces.
         torques: The torques.
         positions: The positions.
-        com_poses: The com poses.
+        body_link_pose_w: Body link poses in world frame (Tier 1 sim-bind).
+        body_com_pos_b: Body COM offsets in link frame (static).
         composed_forces_b: The composed forces.
         composed_torques_b: The composed torques.
         is_global: Whether the forces and torques are applied in the global frame.
@@ -274,20 +292,21 @@ def set_forces_and_torques_at_position(
 
     if env_mask[tid_env] and body_mask[tid_body]:
         # set the torques to the composed torque
+        com_pose = _com_pose_from_link(body_link_pose_w[tid_env, tid_body], body_com_pos_b[tid_env, tid_body])
         if torques:
             composed_torques_b[tid_env, tid_body] = cast_torque_to_com_frame(
-                torques[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+                torques[tid_env, tid_body], com_pose, is_global
             )
         # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque
         # from the force at that position.
         if forces:
             # set the forces to the composed force
             composed_forces_b[tid_env, tid_body] = cast_force_to_com_frame(
-                forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+                forces[tid_env, tid_body], com_pose, is_global
             )
             # if there is a position offset, set the torque from the force at that position.
             if positions:
                 composed_torques_b[tid_env, tid_body] = wp.cross(
-                    cast_to_com_frame(positions[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
-                    cast_force_to_com_frame(forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                    cast_to_com_frame(positions[tid_env, tid_body], com_pose, is_global),
+                    cast_force_to_com_frame(forces[tid_env, tid_body], com_pose, is_global),
                 )
