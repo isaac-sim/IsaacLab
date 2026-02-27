@@ -94,7 +94,7 @@ class QuadcopterEnv(DirectRLEnv):
         self._moment[:, 0, :] = self.cfg.moment_scale * self._actions[:, 1:]
 
     def _apply_action(self):
-        self._robot.permanent_wrench_composer.set_forces_and_torques(
+        self._robot.permanent_wrench_composer.set_forces_and_torques_index(
             body_ids=self._body_id, forces=self._thrust, torques=self._moment
         )
 
@@ -172,11 +172,13 @@ class QuadcopterEnv(DirectRLEnv):
         # Reset robot state
         joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
         joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
-        default_root_state = wp.to_torch(self._robot.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self._terrain.env_origins[env_ids]
-        self._robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
+        default_root_vel = wp.to_torch(self._robot.data.default_root_vel)[env_ids]
+        default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first time

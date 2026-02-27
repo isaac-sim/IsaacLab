@@ -91,7 +91,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.actions = self.action_scale * actions.clone()
 
     def _apply_action(self) -> None:
-        self._cartpole.set_joint_effort_target(self.actions, joint_ids=self._cart_dof_idx)
+        self._cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.tiled_camera.data_types[0]
@@ -158,15 +158,17 @@ class CartpoleCameraEnv(DirectRLEnv):
         )
         joint_vel = wp.to_torch(self._cartpole.data.default_joint_vel)[env_ids]
 
-        default_root_state = wp.to_torch(self._cartpole.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(self._cartpole.data.default_root_pose)[env_ids]
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = wp.to_torch(self._cartpole.data.default_root_vel)[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self._cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self._cartpole.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self._cartpole.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self._cartpole.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._cartpole.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 @torch.jit.script

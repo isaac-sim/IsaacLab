@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from pxr import Usd
-
-from isaaclab.sim import schemas
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.sim import schemas
 
 
 @configclass

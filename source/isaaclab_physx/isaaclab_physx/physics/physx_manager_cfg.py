@@ -12,10 +12,8 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
-from .physx_manager import PhysxManager
-
 if TYPE_CHECKING:
-    from isaaclab.physics import PhysicsManager
+    from .physx_manager import PhysxManager
 
 
 @configclass
@@ -41,7 +39,7 @@ class PhysxCfg(PhysicsCfg):
     # PhysX Scene Settings
     # ------------------------------------------------------------------
 
-    class_type: type[PhysicsManager] = PhysxManager
+    class_type: type[PhysxManager] | str = "{DIR}.physx_manager:PhysxManager"
     """The class type of the PhysxManager."""
 
     # ------------------------------------------------------------------

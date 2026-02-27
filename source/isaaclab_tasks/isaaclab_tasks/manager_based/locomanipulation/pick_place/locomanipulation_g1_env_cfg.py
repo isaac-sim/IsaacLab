@@ -382,7 +382,21 @@ class TerminationsCfg:
         func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
+    object_too_far = DoneTerm(
+        func=locomanip_mdp.object_too_far_from_robot,
+        params={
+            "robot_cfg": SceneEntityCfg("robot"),
+            "object_cfg": SceneEntityCfg("object"),
+            "max_distance": 1.0,
+        },
+    )
+
+    success = DoneTerm(
+        func=manip_mdp.task_done_pick_place,
+        params={
+            "task_link_name": "right_wrist_yaw_link",
+        },
+    )
 
 
 ##

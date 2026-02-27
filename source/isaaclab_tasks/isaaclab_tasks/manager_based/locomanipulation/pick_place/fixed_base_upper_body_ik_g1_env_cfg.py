@@ -345,7 +345,10 @@ class TerminationsCfg:
         func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
+    success = DoneTerm(
+        func=locomanip_mdp.task_done_pick_place_table_frame,
+        params={"task_link_name": "right_wrist_yaw_link", "table_cfg": SceneEntityCfg("packing_table")},
+    )
 
 
 ##

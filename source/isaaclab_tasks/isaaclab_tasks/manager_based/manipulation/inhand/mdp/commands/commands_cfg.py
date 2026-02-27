@@ -11,8 +11,6 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from .orientation_command import InHandReOrientationCommand
-
 
 @configclass
 class InHandReOrientationCommandCfg(CommandTermCfg):
@@ -21,7 +19,8 @@ class InHandReOrientationCommandCfg(CommandTermCfg):
     Please refer to the :class:`InHandReOrientationCommand` class for more details.
     """
 
-    class_type: type = InHandReOrientationCommand
+    class_type: type | str = "{DIR}.orientation_command:InHandReOrientationCommand"
+
     resampling_time_range: tuple[float, float] = (1e6, 1e6)  # no resampling based on time
 
     asset_name: str = MISSING
