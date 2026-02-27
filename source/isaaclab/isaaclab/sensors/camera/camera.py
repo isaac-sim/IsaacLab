@@ -431,14 +431,6 @@ class Camera(SensorBase):
                 " rendering."
             )
 
-        import omni.replicator.core as rep
-        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
-
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_disable_color_render
-
-        # Set RTX fast path (disable color render) when only depth/albedo requested
-        apply_rtx_disable_color_render(list(self.cfg.data_types))
-
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
@@ -457,11 +449,28 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Attach the sensor data types to render node
-        self._render_product_paths: list[str] = list()
-        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
+        # Create replicator render products and annotators
+        self._setup_replicator_annotators()
 
-        # Convert all encapsulated prims to Camera
+        # Create internal buffers
+        self._create_buffers()
+        self._update_intrinsic_matrices(self._ALL_INDICES)
+
+    def _setup_replicator_annotators(self) -> None:
+        """Create replicator render products and annotators for the camera data types."""
+        import omni.replicator.core as rep
+        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
+
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_disable_color_render
+
+        # Set RTX fast path (disable color render) when only depth/albedo requested
+        apply_rtx_disable_color_render(list(self.cfg.data_types))
+
+        self._render_product_paths = []
+        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {
+            name: list() for name in self.cfg.data_types
+        }
+
         for cam_prim in self._view.prims:
             # Obtain the prim path
             cam_prim_path = cam_prim.GetPath().pathString
@@ -543,10 +552,6 @@ class Camera(SensorBase):
                 rep_annotator.attach(render_prod_path)
                 # add to registry
                 self._rep_registry[name].append(rep_annotator)
-
-        # Create internal buffers
-        self._create_buffers()
-        self._update_intrinsic_matrices(self._ALL_INDICES)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
