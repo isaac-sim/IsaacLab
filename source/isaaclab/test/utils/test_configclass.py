@@ -29,6 +29,7 @@ import torch
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
+from isaaclab.utils.string import ResolvableString
 
 """
 Mock classes and functions.
@@ -641,6 +642,47 @@ def test_config_update_nested_dict():
     assert isinstance(cfg.list_1[1], EnvCfg)
     assert isinstance(cfg.list_1[0].viewer, ViewerCfg)
     assert isinstance(cfg.list_1[1].viewer, ViewerCfg)
+
+
+def test_wrap_resolvable_strings_handles_cyclic_containers():
+    """Cyclic container graphs in config values should not recurse forever."""
+
+    @configclass
+    class CyclicContainerCfg:
+        payload: dict[str, Any] = field(default_factory=dict)
+
+        def __post_init__(self):
+            cycle = {}
+            cycle["self"] = cycle
+            cycle["tuple"] = (cycle, {"back": cycle})
+            self.payload = cycle
+
+    cfg = CyclicContainerCfg()
+
+    assert cfg.payload["self"] is cfg.payload
+    assert cfg.payload["tuple"][0] is cfg.payload
+    assert cfg.payload["tuple"][1]["back"] is cfg.payload
+
+
+def test_dir_resolution_uses_declaring_class_for_inherited_field():
+    """{DIR} expansion should use the field declaring class, not subclass module."""
+
+    @configclass
+    class _BaseCfg:
+        class_type: type | str = "{DIR}.base_mod:BaseSymbol"
+
+    @configclass
+    class _ChildCfg(_BaseCfg):
+        pass
+
+    # Simulate subclass declared in a different package than the parent config.
+    _BaseCfg.__module__ = "test_pkg.parent.base_cfg"
+    _ChildCfg.__module__ = "other_pkg.child.child_cfg"
+
+    cfg = _ChildCfg()
+
+    assert isinstance(cfg.class_type, ResolvableString)
+    assert str(cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
 
 
 def test_config_update_different_iterable_lengths():
