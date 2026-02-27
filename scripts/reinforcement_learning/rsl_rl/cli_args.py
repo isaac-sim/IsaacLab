@@ -322,8 +322,8 @@ def _validate_old_stochastic_cfg(model_cfg):
 
 def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
     if model_cfg.distribution_cfg is not None:
-        return  # new distribution configuration is used, no need to handle deprecated configurations
-    if model_cfg.stochastic is True:  # distribution config is None but stochastic output is requested
+        pass  # new distribution configuration is used, no need to handle deprecated configurations
+    elif model_cfg.stochastic is True:  # distribution config is None but stochastic output is requested
         print(
             "[WARNING]: The `distribution_cfg` configuration is now used to specify the output distribution for"
             " stochastic policies. Consider updating the configuration to use `distribution_cfg` instead of"
