@@ -158,6 +158,31 @@ def test_create_teleop_device_basic(mock_environment, mocker):
     assert device.rot_sensitivity == 1.2
 
 
+def test_create_teleop_device_from_devices_cfg(mock_environment, mocker):
+    """Test creating a keyboard device via DevicesCfg, mirroring the env config pattern."""
+    from isaaclab.devices.device_base import DevicesCfg
+
+    devices_cfg_obj = DevicesCfg(
+        devices={
+            "keyboard": Se3KeyboardCfg(
+                pos_sensitivity=0.02,
+                rot_sensitivity=0.05,
+            ),
+        }
+    )
+
+    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
+    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
+    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
+
+    device = create_teleop_device("keyboard", devices_cfg_obj.devices)
+
+    assert isinstance(device, Se3Keyboard)
+    assert device.pos_sensitivity == 0.02
+    assert device.rot_sensitivity == 0.05
+
+
 def test_create_teleop_device_with_callbacks(mock_environment, mocker):
     """Test creating device with callbacks."""
     xr_cfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(0.0, 0.0, 0.0, 1.0), near_plane=0.15)

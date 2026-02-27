@@ -20,9 +20,44 @@ from typing import cast
 
 from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.utils.string import string_to_callable
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _resolve_class_ref(ref: type | str, cfg_instance: object, field_name: str = "class_type") -> type:
+    """Resolve a class reference that may be a ``{DIR}.module:Class`` string.
+
+    When config classes use ``@dataclass`` instead of ``@configclass``, the
+    ``{DIR}`` placeholder is not automatically resolved.  This helper performs
+    the resolution so the factory works with both decorator styles.
+
+    To handle inherited fields correctly, the MRO is walked to find the class
+    that originally declared *field_name*, mirroring the ``@configclass``
+    ``_field_module_dir`` logic.
+    """
+    if isinstance(ref, type):
+        return ref
+    if not isinstance(ref, str):
+        return ref
+    if "{DIR}" in ref:
+        declaring_cls = type(cfg_instance)
+        for mro_cls in declaring_cls.__mro__:
+            if mro_cls is object:
+                continue
+            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+            if own_fields is not None:
+                if field_name in own_fields:
+                    declaring_cls = mro_cls
+                    break
+            elif field_name in mro_cls.__dict__:
+                declaring_cls = mro_cls
+                break
+        module_name = getattr(declaring_cls, "__module__", "")
+        module_dir = module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or "")
+        ref = ref.replace("{DIR}", module_dir)
+    return string_to_callable(ref)
 
 
 def create_teleop_device(
@@ -64,6 +99,7 @@ def create_teleop_device(
             f"Device configuration '{device_name}' does not declare class_type. "
             "Set cfg.class_type to the concrete DeviceBase subclass."
         )
+    device_constructor = _resolve_class_ref(device_constructor, device_cfg)
     if not issubclass(device_constructor, DeviceBase):
         raise TypeError(f"class_type for '{device_name}' must be a subclass of DeviceBase; got {device_constructor}")
 
@@ -79,6 +115,7 @@ def create_teleop_device(
                         f"Retargeter configuration {type(retargeter_cfg).__name__} does not declare retargeter_type. "
                         "Set cfg.retargeter_type to the concrete RetargeterBase subclass."
                     )
+                retargeter_constructor = _resolve_class_ref(retargeter_constructor, retargeter_cfg, "retargeter_type")
                 if not issubclass(retargeter_constructor, RetargeterBase):
                     raise TypeError(
                         f"retargeter_type for {type(retargeter_cfg).__name__} must be a subclass of RetargeterBase; got"
