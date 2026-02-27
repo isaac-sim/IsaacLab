@@ -5,8 +5,6 @@
 
 """Base configuration for renderers."""
 
-from __future__ import annotations
-
 from isaaclab.utils import configclass
 
 
