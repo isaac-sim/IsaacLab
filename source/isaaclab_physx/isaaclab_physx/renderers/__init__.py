@@ -7,11 +7,14 @@
 
 from .isaac_rtx_renderer import IsaacRtxRenderer
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+from .isaac_rtx_renderer_utils import IsaacRTXSpecific, SIMPLE_SHADING_MODES
 
 Renderer = IsaacRtxRenderer
 
 __all__ = [
     "IsaacRtxRenderer",
     "IsaacRtxRendererCfg",
+    "IsaacRTXSpecific",
     "Renderer",
+    "SIMPLE_SHADING_MODES",
 ]

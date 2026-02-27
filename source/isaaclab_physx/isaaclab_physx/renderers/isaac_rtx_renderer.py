@@ -17,26 +17,21 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from .isaac_rtx_renderer_utils import apply_rtx_disable_color_render, ensure_isaac_rtx_render_update
+from .isaac_rtx_renderer_utils import (
+    SIMPLE_SHADING_AOV,
+    SIMPLE_SHADING_MODES,
+    apply_rtx_disable_color_render,
+    apply_simple_shading_mode,
+    ensure_isaac_rtx_render_update,
+)
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-
-# Constants from Camera (SIMPLE_SHADING_MODES, etc.) - avoid circular import
-SIMPLE_SHADING_AOV = "SimpleShadingSD"
-SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 0,
-    "simple_shading_diffuse_mdl": 1,
-    "simple_shading_full_mdl": 2,
-}
-SIMPLE_SHADING_MODE_SETTING = "/rtx/sdg/simpleShading/mode"
-
 
 @dataclass
 class IsaacRtxRenderData:
@@ -63,6 +58,11 @@ class IsaacRtxRenderer(BaseRenderer):
         import omni.replicator.core as rep
         from pxr import UsdGeom
 
+        # RTX setup (simple shading mode, disable color render)
+        data_types = list(sensor.cfg.data_types)
+        apply_simple_shading_mode(data_types)
+        apply_rtx_disable_color_render(data_types)
+
         # Get camera prim paths from sensor view
         view = sensor._view
         cam_prim_paths = []
@@ -78,18 +78,11 @@ class IsaacRtxRenderer(BaseRenderer):
         )
         render_product_paths = [rp.path]
 
-        # Set RTX fast path (disable color render) when only depth/albedo requested
-        apply_rtx_disable_color_render(sensor.cfg.data_types)
-
         # Register simple shading if needed
         if any(data_type in SIMPLE_SHADING_MODES for data_type in sensor.cfg.data_types):
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
-            # Set simple shading mode (if requested) before rendering
-            simple_shading_mode = self._resolve_simple_shading_mode(sensor)
-            if simple_shading_mode is not None:
-                get_settings_manager().set_int(SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # Define annotators based on requested data types
         annotators = {}
@@ -151,13 +144,6 @@ class IsaacRtxRenderer(BaseRenderer):
             render_product_paths=render_product_paths,
             sensor=weakref.ref(sensor),
         )
-
-    def _resolve_simple_shading_mode(self, sensor: SensorBase) -> int | None:
-        """Resolve the requested simple shading mode from data types."""
-        requested = [dt for dt in sensor.cfg.data_types if dt in SIMPLE_SHADING_MODES]
-        if not requested:
-            return None
-        return SIMPLE_SHADING_MODES[requested[0]]
 
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
         """Store reference to output buffers for writing during render.

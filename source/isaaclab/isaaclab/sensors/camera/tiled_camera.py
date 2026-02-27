@@ -18,6 +18,7 @@ from pxr import UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import Renderer
 from isaaclab.sim.views import XformPrimView
+from isaaclab_physx.renderers import SIMPLE_SHADING_MODES
 
 from ..sensor_base import SensorBase
 from .camera import Camera
@@ -31,7 +32,6 @@ if TYPE_CHECKING:
 
 
 class TiledCamera(Camera):
-    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -266,7 +266,7 @@ class TiledCamera(Camera):
             data_dict["albedo"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
             ).contiguous()
-        for data_type in self.SIMPLE_SHADING_MODES:
+        for data_type in SIMPLE_SHADING_MODES:
             if data_type in self.cfg.data_types:
                 data_dict[data_type] = torch.zeros(
                     (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8

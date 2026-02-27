@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
@@ -35,6 +34,9 @@ from .camera_data import CameraData
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
+
+from isaaclab_physx.renderers import IsaacRTXSpecific
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_sensors_setup
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -96,14 +98,6 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
-    SIMPLE_SHADING_MODES: dict[str, int] = {
-        "simple_shading_constant_diffuse": 0,
-        "simple_shading_diffuse_mdl": 1,
-        "simple_shading_full_mdl": 2,
-    }
-    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
-    SIMPLE_SHADING_MODE_SETTING: str = "/rtx/sdg/simpleShading/mode"
-
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
 
@@ -119,30 +113,8 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-        # toggle rendering of rtx sensors as True
-        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/render/rtx_sensors", True)
-
-        # This is only introduced in isaac sim 6.0
-        isaac_sim_version = get_isaac_sim_version()
-        if isaac_sim_version.major >= 6:
-            pass  # disableColorRender is set by Isaac RTX renderer / apply_rtx_disable_color_render
-        else:
-            if "albedo" in self.cfg.data_types:
-                logger.warning(
-                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                )
-            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-                logger.warning(
-                    "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
-                    " will be ignored."
-                )
-
-        # Set simple shading mode (if requested) before rendering
-        simple_shading_mode = self._resolve_simple_shading_mode()
-        if simple_shading_mode is not None:
-            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+        # Set RTX sensors flag (must be at init so sim.is_rendering is correct before reset)
+        apply_rtx_sensors_setup(list(cfg.data_types))
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -179,6 +151,8 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = CameraData()
+        # Isaac RTX backend (created in _initialize_impl)
+        self._isaac_rtx: IsaacRTXSpecific | None = None
 
         # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
@@ -198,11 +172,10 @@ class Camera(SensorBase):
         """Unsubscribes from callbacks and detach from the replicator registry."""
         # unsubscribe callbacks
         super().__del__()
-        # delete from replicator registry
-        for _, annotators in self._rep_registry.items():
-            for annotator, render_product_path in zip(annotators, self._render_product_paths):
-                annotator.detach([render_product_path])
-                annotator = None
+        # cleanup Isaac RTX backend
+        if self._isaac_rtx is not None:
+            self._isaac_rtx.cleanup()
+            self._isaac_rtx = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -245,7 +218,9 @@ class Camera(SensorBase):
 
         This can be used via replicator interfaces to attach to writes or external annotator registry.
         """
-        return self._render_product_paths
+        if self._isaac_rtx is None:
+            return []
+        return self._isaac_rtx.render_product_paths
 
     @property
     def image_shape(self) -> tuple[int, int]:
@@ -449,8 +424,14 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Create replicator render products and annotators
-        self._isaac_rtx_renderer_setup_replicator_annotators()
+        # Create replicator render products and annotators via Isaac RTX backend
+        self._isaac_rtx = IsaacRTXSpecific(
+            cfg=self.cfg,
+            device=self._device,
+            view=self._view,
+            sensor_prims=self._sensor_prims,
+        )
+        self._isaac_rtx.setup()
 
         # Create internal buffers
         self._create_buffers()
@@ -465,217 +446,12 @@ class Camera(SensorBase):
         # -- pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
-        self._isaac_rtx_renderer_update_annotator_buffers(env_ids)
-
-    def _isaac_rtx_renderer_setup_replicator_annotators(self) -> None:
-        """Create replicator render products and annotators for the camera data types."""
-        import omni.replicator.core as rep
-        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
-
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_disable_color_render
-
-        # Set RTX fast path (disable color render) when only depth/albedo requested
-        apply_rtx_disable_color_render(list(self.cfg.data_types))
-
-        self._render_product_paths = []
-        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {
-            name: list() for name in self.cfg.data_types
-        }
-
-        for cam_prim in self._view.prims:
-            # Obtain the prim path
-            cam_prim_path = cam_prim.GetPath().pathString
-            # Check if prim is a camera
-            if not cam_prim.IsA(UsdGeom.Camera):
-                raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
-            # Add to list
-            sensor_prim = UsdGeom.Camera(cam_prim)
-            self._sensor_prims.append(sensor_prim)
-
-            # Get render product
-            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
-            render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
-            if not isinstance(render_prod_path, str):
-                render_prod_path = render_prod_path.path
-            self._render_product_paths.append(render_prod_path)
-
-            # Check if semantic types or semantic filter predicate is provided
-            if isinstance(self.cfg.semantic_filter, list):
-                semantic_filter_predicate = ":*; ".join(self.cfg.semantic_filter) + ":*"
-            elif isinstance(self.cfg.semantic_filter, str):
-                semantic_filter_predicate = self.cfg.semantic_filter
-            else:
-                raise ValueError(f"Semantic types must be a list or a string. Received: {self.cfg.semantic_filter}.")
-            # set the semantic filter predicate
-            # copied from rep.scripts.writes_default.basic_writer.py
-            SyntheticData.Get().set_instance_mapping_semantic_filter(semantic_filter_predicate)
-
-            # Iterate over each data type and create annotator
-            # TODO: This will move out of the loop once Replicator supports multiple render products within a single
-            #  annotator, i.e.: rep_annotator.attach(self._render_product_paths)
-            for name in self.cfg.data_types:
-                # note: we are verbose here to make it easier to understand the code.
-                #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-                #   if colorize is false, the data is returned as a uint32 image with ids as values.
-                if name == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif name == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif name == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
-                else:
-                    init_params = None
-
-                # Resolve device name
-                if "cuda" in self._device:
-                    device_name = self._device.split(":")[0]
-                else:
-                    device_name = "cpu"
-
-                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
-                # once it's exposed, we can remove this
-                if name == "albedo":
-                    rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
-                    )
-                if name in self.SIMPLE_SHADING_MODES:
-                    rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
-                    )
-
-                # Map special cases to their corresponding annotator names
-                simple_shading_cases = {key: self.SIMPLE_SHADING_AOV for key in self.SIMPLE_SHADING_MODES}
-                special_cases = {
-                    "rgba": "rgb",
-                    "depth": "distance_to_image_plane",
-                    "albedo": "DiffuseAlbedoSD",
-                    **simple_shading_cases,
-                }
-                # Get the annotator name, falling back to the original name if not a special case
-                annotator_name = special_cases.get(name, name)
-                # Create the annotator node
-                rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_name, init_params, device=device_name)
-
-                # attach annotator to render product
-                rep_annotator.attach(render_prod_path)
-                # add to registry
-                self._rep_registry[name].append(rep_annotator)
-
-
-    def _isaac_rtx_renderer_update_annotator_buffers(self, env_ids: torch.Tensor) -> None:
-        """Pump RTX renderer and read annotator data into camera buffers."""
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
-
-        ensure_isaac_rtx_render_update()
-
-        if len(self._data.output) == 0:
-            self._isaac_rtx_renderer_create_annotator_data()
-        else:
-            for name, annotators in self._rep_registry.items():
-                for index in env_ids:
-                    output = annotators[index].get_data()
-                    data, info = self._isaac_rtx_renderer_process_annotator_output(name, output)
-                    self._data.output[name][index] = data
-                    self._data.info[index][name] = info
-                if name == "distance_to_camera":
-                    self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-                if (
-                    name == "distance_to_camera" or name == "distance_to_image_plane"
-                ) and self.cfg.depth_clipping_behavior != "none":
-                    self._data.output[name][torch.isinf(self._data.output[name])] = (
-                        0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
-                    )
-
-    def _isaac_rtx_renderer_create_annotator_data(self) -> None:
-        """Create the buffers to store the annotator data.
-
-        We create a buffer for each annotator and store the data in a dictionary. Since the data
-        shape is not known beforehand, we create a list of buffers and concatenate them later.
-
-        This is an expensive operation and should be called only once.
-        """
-        # add data from the annotators
-        for name, annotators in self._rep_registry.items():
-            # create a list to store the data for each annotator
-            data_all_cameras = list()
-            # iterate over all the annotators
-            for index in self._ALL_INDICES:
-                # get the output
-                output = annotators[index].get_data()
-                # process the output
-                data, info = self._isaac_rtx_renderer_process_annotator_output(name, output)
-                # append the data
-                data_all_cameras.append(data)
-                # store the info
-                self._data.info[index][name] = info
-            # concatenate the data along the batch dimension
-            self._data.output[name] = torch.stack(data_all_cameras, dim=0)
-            # NOTE: `distance_to_camera` and `distance_to_image_plane` are not both clipped to the maximum defined
-            #       in the clipping range. The clipping is applied only to `distance_to_image_plane` and then both
-            #       outputs are only clipped where the values in `distance_to_image_plane` exceed the threshold. To
-            #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
-            if name == "distance_to_camera":
-                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-            # clip the data if needed
-            if (
-                name == "distance_to_camera" or name == "distance_to_image_plane"
-            ) and self.cfg.depth_clipping_behavior != "none":
-                self._data.output[name][torch.isinf(self._data.output[name])] = (
-                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
-                )
-
-    def _isaac_rtx_renderer_process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
-        """Process the annotator output.
-
-        This function is called after the data has been collected from all the cameras.
-        """
-        # extract info and data from the output
-        if isinstance(output, dict):
-            data = output["data"]
-            info = output["info"]
-        else:
-            data = output
-            info = None
-        # convert data into torch tensor
-        data = convert_to_torch(data, device=self.device)
-
-        # process data for different segmentation types
-        # Note: Replicator returns raw buffers of dtype int32 for segmentation types
-        #   so we need to convert them to uint8 4 channel images for colorized types
-        height, width = self.image_shape
-        if name == "semantic_segmentation":
-            if self.cfg.colorize_semantic_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        elif name == "instance_segmentation_fast":
-            if self.cfg.colorize_instance_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        elif name == "instance_id_segmentation_fast":
-            if self.cfg.colorize_instance_id_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        # make sure buffer dimensions are consistent as (H, W, C)
-        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth":
-            data = data.view(height, width, 1)
-        # we only return the RGB channels from the RGBA output if rgb is required
-        # normals return (x, y, z) in first 3 channels, 4th channel is unused
-        elif name == "rgb" or name == "normals":
-            data = data[..., :3]
-        # motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused
-        elif name == "motion_vectors":
-            data = data[..., :2]
-        elif name in self.SIMPLE_SHADING_MODES:
-            data = data[..., :3]
-
-        # return the data and info
-        return data, info
+        self._isaac_rtx.update_annotator_buffers(
+            env_ids=env_ids,
+            all_indices=self._ALL_INDICES,
+            data_output=self._data.output,
+            data_info=self._data.info,
+        )
 
     """
     Private Helpers
@@ -769,19 +545,6 @@ class Camera(SensorBase):
             quat, origin="opengl", target="world"
         )
 
-    def _resolve_simple_shading_mode(self) -> int | None:
-        """Resolve the requested simple shading mode from data types."""
-        requested = [data_type for data_type in self.cfg.data_types if data_type in self.SIMPLE_SHADING_MODES]
-        if not requested:
-            return None
-        if len(requested) > 1:
-            logger.warning(
-                "Multiple simple shading modes requested (%s). Using '%s' only.",
-                requested,
-                requested[0],
-            )
-        return self.SIMPLE_SHADING_MODES[requested[0]]
-
     """
     Internal simulation callbacks.
     """
@@ -790,5 +553,9 @@ class Camera(SensorBase):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
+        # cleanup Isaac RTX backend before invalidation
+        if self._isaac_rtx is not None:
+            self._isaac_rtx.cleanup()
+            self._isaac_rtx = None
         # set all existing views to None to invalidate them
         self._view = None
