@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import field
 
 from isaaclab.utils import configclass
 
@@ -19,8 +19,5 @@ class RendererCfg:
     renderer_type: str = "default"
     """Type identifier (e.g. 'isaac_rtx', 'newton_warp')."""
 
-    # required by Hydra overrides
-    # Overrides like env.scene.base_camera.renderer_type=newton_warp 
-    #   only work if the composed config has that attribute.
-    data_types: list[str] = MISSING
-    """List of data types to use for rendering (synced from camera config when needed)."""
+    data_types: list[str] = field(default_factory=list)
+    """Data types to render (e.g. 'rgb', 'depth'). Set by the camera at use time; default empty."""

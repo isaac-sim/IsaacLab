@@ -3,7 +3,7 @@
 PhysX + Warp Training (Isaac Sim 6.0)
 =====================================
 
-This document gives step-by-step instructions to set up the environment and run vision-based RL training (Dexsuite Kuka-Allegro, single camera) using PhysX simulation and the Newton Warp renderer.
+This document gives step-by-step instructions to set up the environment and run RL training (e.g., Cartpole RGB Camera, Direct) using PhysX simulation and the Isaac RTX or Newton Warp renderer.
 
 1. Isaac Sim (6.0) from source
 ------------------------------
@@ -115,59 +115,27 @@ Isaac Sim's build ships its own Newton and Warp under ``_build/.../pip_prebundle
 Renderer selection
 ~~~~~~~~~~~~~~~~~~
 
-Camera renderer is chosen via Hydra overrides. Supported values are ``isaac_rtx`` (default) and ``newton_warp``.
-They are registered as Hydra config groups; the composed value is normalized to a string and then turned into a
-concrete ``RendererCfg`` before env creation (see ``instantiate_renderer_cfg_in_env`` in ``isaaclab_tasks.utils.hydra``).
+Camera renderer is chosen via the Hydra ``renderer`` config group. Supported values are ``isaac_rtx`` (default) and ``newton_warp``.
+The selected preset is applied to all cameras; each camera's ``data_types`` are set at use time (see ``isaaclab_tasks.utils.render_config_store`` and ``instantiate_renderer_cfg_in_env`` in ``isaaclab_tasks.utils.hydra``).
 
-- **Kuka (manager-based)**: camera is under the scene, use ``env.scene.base_camera.renderer_type=newton_warp``
-  (and pick a scene variant with ``env.scene=64x64rgb`` etc.).
-- **Cartpole (direct)**: camera is top-level under env, use ``env.tiled_camera.renderer_type=newton_warp``.
+Use the top-level override ``renderer=isaac_rtx`` or ``renderer=newton_warp``. If omitted, it defaults to ``isaac_rtx``.
 
-If ``renderer_type`` is omitted, it defaults to ``isaac_rtx``. TiledCamera uses the instantiated ``renderer_cfg``;
-if it is never set (e.g. no Hydra), it falls back to ``isaac_rtx``.
-
-Example commands
-~~~~~~~~~~~~~~~~
+Example command
+~~~~~~~~~~~~~~~
 
 From the **IsaacLab-Physx-Warp** repo root, with the conda env activated:
 
 .. code-block:: bash
 
-   cd /path/to/IsaacLab-Physx-Warp
-   source "$(conda info --base)/etc/profile.d/conda.sh"
-   conda activate physx_dextrah
-   export WANDB_USERNAME="${USERNAME:-$USER}"
-
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-     --task=Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0 \
-     --enable_cameras \
-     --headless \
-     --num_envs=2048 \
-     --max_iterations=32 \
-     --logger=tensorboard \
-     env.scene=64x64rgb \
-     env.scene.base_camera.renderer_type=newton_warp
-
-.. code-block:: bash
-
-   cd /path/to/IsaacLab-Physx-Warp
-   source "$(conda info --base)/etc/profile.d/conda.sh"
-   conda activate physx_dextrah
-   export WANDB_USERNAME="${USERNAME:-$USER}"
-
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task=Isaac-Cartpole-RGB-Camera-Direct-v0 \
      --enable_cameras \
      --headless \
-     --num_envs=2048 \
-     --max_iterations=32 \
-     --logger=tensorboard \
-     env.scene=64x64rgb \
-     env.tiled_camera.renderer_type=isaac_rtx
+     --num_envs=2 \
+     --max_iterations=2 \
+     renderer=isaac_rtx
 
-.. note::
-
-   2048 environments will lead to a simulation startup time of ~30 minutes before training begins. Redirect stdout/stderr if desired, e.g. ``2>&1 | tee train.log``.
+Use ``renderer=newton_warp`` to use the Newton Warp renderer instead. For longer training runs, increase ``--num_envs`` and ``--max_iterations`` (e.g. ``--num_envs=2048 --max_iterations=32``); redirect stdout/stderr if desired, e.g. ``2>&1 | tee train.log``.
 
 Summary
 ------
@@ -185,5 +153,5 @@ Summary
 +------+----------------------------------------------------------------------------------------------------------------------------------+
 | 5    | Run the verification commands                                                                                                     |
 +------+----------------------------------------------------------------------------------------------------------------------------------+
-| 6    | Run ``./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py ...`` as above                                                 |
+| 6    | Run ``./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --enable_cameras --headless ... renderer=isaac_rtx`` as above |
 +------+----------------------------------------------------------------------------------------------------------------------------------+
