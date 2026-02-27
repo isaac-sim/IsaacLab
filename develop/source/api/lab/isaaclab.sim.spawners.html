@@ -5959,12 +5959,19 @@ Defaults to 0.0.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.merge_fixed_joints">
 <span class="sig-name descname"><span class="pre">merge_fixed_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.merge_fixed_joints" title="Permalink to this definition">#</a></dt>
 <dd><p>Consolidate links that are connected by fixed joints. Defaults to True.</p>
+<p>When enabled, a URDF XML pre-processing step removes all fixed joints and merges each
+child link’s visual, collision, and inertial elements into the parent link before USD
+conversion. Downstream joints are re-parented with composed transforms. Chains of
+consecutive fixed joints are handled automatically.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.convert_mimic_joints_to_normal_joints">
 <span class="sig-name descname"><span class="pre">convert_mimic_joints_to_normal_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.convert_mimic_joints_to_normal_joints" title="Permalink to this definition">#</a></dt>
 <dd><p>Convert mimic joints to normal joints. Defaults to False.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version This: </span>option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5995,6 +6002,9 @@ Defaults to 0.0.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.replace_cylinders_with_capsules">
 <span class="sig-name descname"><span class="pre">replace_cylinders_with_capsules</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.replace_cylinders_with_capsules" title="Permalink to this definition">#</a></dt>
 <dd><p>Replace cylinder shapes with capsule shapes. Defaults to False.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version This: </span>option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">

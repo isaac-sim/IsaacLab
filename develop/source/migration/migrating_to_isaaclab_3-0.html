@@ -721,12 +721,18 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#warp-backend-for-asset-and-sensor-data">Warp Backend for Asset and Sensor Data</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#write-method-index-mask-split">Write Method Index/Mask Split</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#timestampedbufferwarp">TimestampedBufferWarp</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#urdf-importer">URDF Importer</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#deprecated-settings">Deprecated Settings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-cli-tool">Updated CLI Tool</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-python-api">Updated Python API</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mjcf-importer">MJCF Importer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#removed-settings">Removed Settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-settings">New Settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renamed-settings">Renamed Settings</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-cli-tool">Updated CLI Tool</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-python-api">Updated Python API</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Updated CLI Tool</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Updated Python API</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#need-help">Need Help?</a></li>
@@ -1433,8 +1439,8 @@ access with <code class="docutils literal notranslate"><span class="pre">wp.to_t
 <span class="n">torch</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_close</span><span class="p">(</span><span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">),</span> <span class="n">expected</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="pst-scrollable-table-container"><table class="table" id="id1">
-<caption><span class="caption-text">Affected classes</span><a class="headerlink" href="#id1" title="Permalink to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id3">
+<caption><span class="caption-text">Affected classes</span><a class="headerlink" href="#id3" title="Permalink to this table">#</a></caption>
 <colgroup>
 <col style="width: 40.0%" />
 <col style="width: 60.0%" />
@@ -1506,8 +1512,8 @@ boolean mask selecting which environments to update. The <code class="docutils l
 <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim_mask</span><span class="p">(</span><span class="n">root_pose</span><span class="o">=</span><span class="n">pose_data</span><span class="p">,</span> <span class="n">env_mask</span><span class="o">=</span><span class="n">env_mask</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="pst-scrollable-table-container"><table class="table" id="id2">
-<caption><span class="caption-text">Affected write methods (RigidObject / Articulation)</span><a class="headerlink" href="#id2" title="Permalink to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id4">
+<caption><span class="caption-text">Affected write methods (RigidObject / Articulation)</span><a class="headerlink" href="#id4" title="Permalink to this table">#</a></caption>
 <colgroup>
 <col style="width: 50.0%" />
 <col style="width: 50.0%" />
@@ -1539,8 +1545,8 @@ boolean mask selecting which environments to update. The <code class="docutils l
 </tbody>
 </table>
 </div>
-<div class="pst-scrollable-table-container"><table class="table" id="id3">
-<caption><span class="caption-text">Additional Articulation-specific write methods</span><a class="headerlink" href="#id3" title="Permalink to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id5">
+<caption><span class="caption-text">Additional Articulation-specific write methods</span><a class="headerlink" href="#id5" title="Permalink to this table">#</a></caption>
 <colgroup>
 <col style="width: 50.0%" />
 <col style="width: 50.0%" />
@@ -1581,8 +1587,8 @@ boolean mask selecting which environments to update. The <code class="docutils l
 </tbody>
 </table>
 </div>
-<div class="pst-scrollable-table-container"><table class="table" id="id4">
-<caption><span class="caption-text">RigidObjectCollection write methods</span><a class="headerlink" href="#id4" title="Permalink to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id6">
+<caption><span class="caption-text">RigidObjectCollection write methods</span><a class="headerlink" href="#id6" title="Permalink to this table">#</a></caption>
 <colgroup>
 <col style="width: 50.0%" />
 <col style="width: 50.0%" />
@@ -1633,6 +1639,139 @@ to <a class="reference internal" href="../api/lab/isaaclab.utils.html#isaaclab.u
 <span class="p">)</span>
 </pre></div>
 </div>
+</section>
+<section id="urdf-importer">
+<h2>URDF Importer<a class="headerlink" href="#urdf-importer" title="Permalink to this heading">#</a></h2>
+<p>The URDF importer in Isaac Sim was rewritten to version 3.0, using the <code class="docutils literal notranslate"><span class="pre">urdf-usd-converter</span></code>
+library and the <code class="docutils literal notranslate"><span class="pre">isaacsim.asset.transformer.rules</span></code> extension to produce structured USD output.
+The old C++ binding-based API (using Kit commands <code class="docutils literal notranslate"><span class="pre">URDFParseFile</span></code>/<code class="docutils literal notranslate"><span class="pre">URDFImportRobot</span></code> and the
+<code class="docutils literal notranslate"><span class="pre">_urdf</span></code> interface from <code class="docutils literal notranslate"><span class="pre">acquire_urdf_interface()</span></code>) has been replaced with a new Python-based
+pipeline.</p>
+<p>The IsaacLab <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter" title="isaaclab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> has been updated to replicate the new
+<code class="docutils literal notranslate"><span class="pre">URDFImporter.import_urdf()</span></code> pipeline, inserting IsaacLab-specific post-processing (fix base,
+joint drives, link density) on the intermediate USD stage before the asset transformer
+restructures the output.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The previous version-pinning mechanism that locked the URDF importer extension to
+<code class="docutils literal notranslate"><span class="pre">isaacsim.asset.importer.urdf-2.4.31</span></code> has been removed. The converter now uses whichever
+version of the extension is available in your Isaac Sim installation.</p>
+</div>
+<section id="deprecated-settings">
+<h3>Deprecated Settings<a class="headerlink" href="#deprecated-settings" title="Permalink to this heading">#</a></h3>
+<p>The following <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> settings are <strong>deprecated</strong> because
+the new URDF importer 3.0 no longer supports them. They are kept for backward compatibility
+but will log warnings if enabled:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Setting</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">convert_mimic_joints_to_normal_joints</span></code></p></td>
+<td><p>No longer supported by the importer.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">replace_cylinders_with_capsules</span></code></p></td>
+<td><p>No longer supported by the importer.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">root_link_name</span></code></p></td>
+<td><p>No longer supported by the importer.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code> setting is <strong>still supported</strong>. It is now implemented as a URDF XML
+pre-processing step that runs before the USD conversion. Fixed joints are removed and child
+link elements (visual, collision, inertial) are merged into the parent link with correct
+transform composition.</p>
+</div>
+<p>Additionally, the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code></a>
+gains mode is <strong>deprecated</strong>. The <code class="docutils literal notranslate"><span class="pre">compute_natural_stiffness</span></code> function that it depended on has
+been removed from the importer. If <code class="docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code> is used, a
+<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#DeprecationWarning" title="(in Python v3.14)"><code class="xref py py-exc docutils literal notranslate"><span class="pre">DeprecationWarning</span></code></a> is emitted and joint drive gains are left at the values produced by the
+URDF importer. Use <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code></a> instead.</p>
+<p>The <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.AssetConverterBaseCfg.make_instanceable" title="isaaclab.sim.converters.AssetConverterBaseCfg.make_instanceable"><code class="xref py py-attr docutils literal notranslate"><span class="pre">make_instanceable</span></code></a> setting from the base class
+is also no longer supported and will be ignored. Assets will be made instanceable by default.</p>
+</section>
+<section id="updated-cli-tool">
+<h3>Updated CLI Tool<a class="headerlink" href="#updated-cli-tool" title="Permalink to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code> script has been updated. The <code class="docutils literal notranslate"><span class="pre">usd_file_name</span></code> is now determined
+automatically by the importer based on the robot name and cannot be overridden.</p>
+<p><strong>Before (Isaac Lab 2.x):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/convert_urdf.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>robot.urdf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/output/dir/robot.usd<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fix-base<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--merge-joints
+</pre></div>
+</div>
+<p><strong>After (Isaac Lab 3.0):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/convert_urdf.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>robot.urdf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/output/dir<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fix-base<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joint-stiffness<span class="w"> </span><span class="m">100</span>.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joint-damping<span class="w"> </span><span class="m">1</span>.0
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--merge-joints</span></code> flag is still accepted and correctly triggers the pre-processing
+step to merge fixed joints.</p>
+</div>
+</section>
+<section id="updated-python-api">
+<h3>Updated Python API<a class="headerlink" href="#updated-python-api" title="Permalink to this heading">#</a></h3>
+<p>If you use <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter" title="isaaclab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> or <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a>
+directly in your code, note the following changes:</p>
+<ol class="arabic simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">usd_file_name</span></code> is now set automatically by the converter based on the URDF file name.
+The importer generates output at <code class="docutils literal notranslate"><span class="pre">{usd_dir}/{robot_name}/{robot_name}.usda</span></code>.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">make_instanceable</span></code> setting is no longer supported. Assets will be made instanceable
+by default.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code> parameter is now implemented as a pre-processing step.</p></li>
+</ol>
+<p><strong>Before (Isaac Lab 2.x):</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.converters</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrdfConverter</span><span class="p">,</span> <span class="n">UrdfConverterCfg</span>
+
+<span class="n">cfg</span> <span class="o">=</span> <span class="n">UrdfConverterCfg</span><span class="p">(</span>
+    <span class="n">asset_path</span><span class="o">=</span><span class="s2">&quot;robot.urdf&quot;</span><span class="p">,</span>
+    <span class="n">usd_dir</span><span class="o">=</span><span class="s2">&quot;/output/dir&quot;</span><span class="p">,</span>
+    <span class="n">usd_file_name</span><span class="o">=</span><span class="s2">&quot;robot.usd&quot;</span><span class="p">,</span>
+    <span class="n">fix_base</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">merge_fixed_joints</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">make_instanceable</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">joint_drive</span><span class="o">=</span><span class="n">UrdfConverterCfg</span><span class="o">.</span><span class="n">JointDriveCfg</span><span class="p">(</span>
+        <span class="n">gains</span><span class="o">=</span><span class="n">UrdfConverterCfg</span><span class="o">.</span><span class="n">JointDriveCfg</span><span class="o">.</span><span class="n">PDGainsCfg</span><span class="p">(</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># use URDF values</span>
+            <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>After (Isaac Lab 3.0):</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.converters</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrdfConverter</span><span class="p">,</span> <span class="n">UrdfConverterCfg</span>
+
+<span class="n">cfg</span> <span class="o">=</span> <span class="n">UrdfConverterCfg</span><span class="p">(</span>
+    <span class="n">asset_path</span><span class="o">=</span><span class="s2">&quot;robot.urdf&quot;</span><span class="p">,</span>
+    <span class="n">usd_dir</span><span class="o">=</span><span class="s2">&quot;/output/dir&quot;</span><span class="p">,</span>
+    <span class="c1"># usd_file_name is determined automatically from the robot name</span>
+    <span class="n">fix_base</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">merge_fixed_joints</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># supported via pre-processing</span>
+    <span class="n">joint_drive</span><span class="o">=</span><span class="n">UrdfConverterCfg</span><span class="o">.</span><span class="n">JointDriveCfg</span><span class="p">(</span>
+        <span class="n">gains</span><span class="o">=</span><span class="n">UrdfConverterCfg</span><span class="o">.</span><span class="n">JointDriveCfg</span><span class="o">.</span><span class="n">PDGainsCfg</span><span class="p">(</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># use URDF values</span>
+            <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="mjcf-importer">
 <h2>MJCF Importer<a class="headerlink" href="#mjcf-importer" title="Permalink to this heading">#</a></h2>
@@ -1708,8 +1847,8 @@ The IsaacLab <a class="reference internal" href="../api/lab/isaaclab.sim.convert
 for backward compatibility and maps it to the new name internally.</p>
 </div>
 </section>
-<section id="updated-cli-tool">
-<h3>Updated CLI Tool<a class="headerlink" href="#updated-cli-tool" title="Permalink to this heading">#</a></h3>
+<section id="id1">
+<h3>Updated CLI Tool<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
 <p>The <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code> script has been updated to match the new importer settings.
 Old command-line flags (<code class="docutils literal notranslate"><span class="pre">--fix-base</span></code>, <code class="docutils literal notranslate"><span class="pre">--make-instanceable</span></code>, <code class="docutils literal notranslate"><span class="pre">--import-sites</span></code>)
 are no longer available.</p>
@@ -1731,8 +1870,8 @@ are no longer available.</p>
 </div>
 <p>New flags: <code class="docutils literal notranslate"><span class="pre">--merge-mesh</span></code>, <code class="docutils literal notranslate"><span class="pre">--collision-from-visuals</span></code>, <code class="docutils literal notranslate"><span class="pre">--collision-type</span></code>, <code class="docutils literal notranslate"><span class="pre">--self-collision</span></code>.</p>
 </section>
-<section id="updated-python-api">
-<h3>Updated Python API<a class="headerlink" href="#updated-python-api" title="Permalink to this heading">#</a></h3>
+<section id="id2">
+<h3>Updated Python API<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
 <p>If you use <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverter" title="isaaclab.sim.converters.MjcfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code></a> or <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.MjcfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a>
 directly in your code, update your configuration:</p>
 <p><strong>Before (Isaac Lab 2.x):</strong></p>
@@ -1856,12 +1995,18 @@ directly in your code, update your configuration:</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#warp-backend-for-asset-and-sensor-data">Warp Backend for Asset and Sensor Data</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#write-method-index-mask-split">Write Method Index/Mask Split</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#timestampedbufferwarp">TimestampedBufferWarp</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#urdf-importer">URDF Importer</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#deprecated-settings">Deprecated Settings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-cli-tool">Updated CLI Tool</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-python-api">Updated Python API</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mjcf-importer">MJCF Importer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#removed-settings">Removed Settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-settings">New Settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renamed-settings">Renamed Settings</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-cli-tool">Updated CLI Tool</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updated-python-api">Updated Python API</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Updated CLI Tool</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Updated Python API</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#need-help">Need Help?</a></li>

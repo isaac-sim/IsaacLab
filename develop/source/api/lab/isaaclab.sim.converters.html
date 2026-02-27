@@ -1296,13 +1296,17 @@ only the mesh files used by the URDF are modified. To force generation, either s
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>In Isaac Sim 5.1, the URDF importer changed the default behavior of merging fixed joints.
-Links connected through <code class="docutils literal notranslate"><span class="pre">fixed_joint</span></code> elements are no longer merged when their URDF link
-entries specify mass and inertia, even if <code class="docutils literal notranslate"><span class="pre">merge-joint</span></code> is set to True. The new behavior
-treats links with mass/inertia as full bodies rather than zero-mass reference frames.</p>
-<p>To maintain backwards compatibility, <strong>this converter pins to an older version of the
-URDF importer extension</strong> (version 2.4.31) that still merges fixed joints by default.
-This allows existing URDFs to work as expected without modification.</p>
+<p>In the URDF importer 3.0, the conversion pipeline uses the <code class="docutils literal notranslate"><span class="pre">urdf-usd-converter</span></code> library
+and the <code class="docutils literal notranslate"><span class="pre">isaacsim.asset.transformer.rules</span></code> extension to produce structured USD output.
+Features such as <code class="docutils literal notranslate"><span class="pre">convert_mimic_joints_to_normal_joints</span></code> and
+<code class="docutils literal notranslate"><span class="pre">replace_cylinders_with_capsules</span></code> are no longer natively supported by the importer and
+will emit warnings if enabled.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code> feature is implemented as a URDF XML pre-processing step that
+runs <em>before</em> the USD conversion. It removes fixed joints from the URDF and merges the
+child link’s visual, collision, and inertial elements into the parent link.</p>
 </div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -1496,9 +1500,9 @@ difficult to move the USD asset to a different location.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg.stiffness">
-<span class="sig-name descname"><span class="pre">stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg.stiffness" title="Permalink to this definition">#</a></dt>
-<dd><p>The stiffness of the joint drive in Nm/rad or N/rad.</p>
-<p>If None, the stiffness is set to the value parsed from the URDF file.
+<span class="sig-name descname"><span class="pre">stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg.stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>The stiffness of the joint drive in Nm/rad or N/rad. Defaults to None.</p>
+<p>If None, the stiffness values produced by the URDF importer are preserved.
 If <a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.target_type" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.target_type"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_type</span></code></a> is set to <code class="docutils literal notranslate"><span class="pre">&quot;velocity&quot;</span></code>, this value determines
 the drive strength in joint velocity space.</p>
 </dd></dl>
@@ -1528,6 +1532,12 @@ equivalent inertia at the joint. The damping ratio is such that:</p>
 <li><p><span class="math notranslate nohighlight">\(r &lt; 1.0\)</span> is underdamped,</p></li>
 <li><p><span class="math notranslate nohighlight">\(r &gt; 1.0\)</span> is overdamped.</p></li>
 </ul>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version This: </span>gains mode is no longer supported by the URDF importer 3.0.
+The <code class="docutils literal notranslate"><span class="pre">compute_natural_stiffness</span></code> function has been removed. If used, a
+<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#DeprecationWarning" title="(in Python v3.14)"><code class="xref py py-exc docutils literal notranslate"><span class="pre">DeprecationWarning</span></code></a> is emitted and joint drive gains are left at the values
+produced by the URDF importer. Use <code class="xref py py-class docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> instead.</p>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1651,12 +1661,19 @@ Defaults to 0.0.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.merge_fixed_joints">
 <span class="sig-name descname"><span class="pre">merge_fixed_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="Permalink to this definition">#</a></dt>
 <dd><p>Consolidate links that are connected by fixed joints. Defaults to True.</p>
+<p>When enabled, a URDF XML pre-processing step removes all fixed joints and merges each
+child link’s visual, collision, and inertial elements into the parent link before USD
+conversion. Downstream joints are re-parented with composed transforms. Chains of
+consecutive fixed joints are handled automatically.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.convert_mimic_joints_to_normal_joints">
 <span class="sig-name descname"><span class="pre">convert_mimic_joints_to_normal_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.convert_mimic_joints_to_normal_joints" title="Permalink to this definition">#</a></dt>
 <dd><p>Convert mimic joints to normal joints. Defaults to False.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version This: </span>option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1693,6 +1710,9 @@ Defaults to 0.0.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.converters.UrdfConverterCfg.replace_cylinders_with_capsules">
 <span class="sig-name descname"><span class="pre">replace_cylinders_with_capsules</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.UrdfConverterCfg.replace_cylinders_with_capsules" title="Permalink to this definition">#</a></dt>
 <dd><p>Replace cylinder shapes with capsule shapes. Defaults to False.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version This: </span>option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
