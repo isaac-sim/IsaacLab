@@ -648,10 +648,8 @@ The key parameters are:
 - ``--high_res_video``: An optional argument to generate a higher resolution video (540x960) for the ego-centric camera view. Default resolution is 160x256.
 
 On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
-the ego-centric camera view to MP4:
-
-.. note::
-   If you use ``--high_res_video`` during data generation, match the dimension(540x960) in the command below.
+the ego-centric camera view to MP4. If you use ``--high_res_video`` during data generation, match the
+dimension(540x960) in the command below.
 
 .. code:: bash
    ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
