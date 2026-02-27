@@ -711,6 +711,11 @@
 
 <span class="sd">    .. _dataclass: https://docs.python.org/3/library/dataclasses.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># snapshot field names declared in *this* class body before configclass</span>
+    <span class="c1"># merges parent fields — used by _field_module_dir to resolve {DIR} correctly.</span>
+    <span class="n">_own_ann</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;__annotations__&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">_own_body</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__dict__</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;__&quot;</span><span class="p">)}</span>
+    <span class="bp">cls</span><span class="o">.</span><span class="n">__configclass_own_fields__</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">_own_ann</span> <span class="o">|</span> <span class="n">_own_body</span><span class="p">)</span>
     <span class="c1"># add type annotations</span>
     <span class="n">_add_annotation_types</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
     <span class="c1"># add field factory</span>
@@ -806,10 +811,19 @@
     <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># Use nearest declaration in MRO (subclass override wins).</span>
+        <span class="c1"># We prefer __configclass_own_fields__ (the snapshot taken before</span>
+        <span class="c1"># _process_mutable_types copies parent fields into every subclass&#39;s</span>
+        <span class="c1"># __dict__) so that {DIR} resolves relative to the class that</span>
+        <span class="c1"># *originally* declared the field, not the subclass that inherited it.</span>
         <span class="k">for</span> <span class="n">mro_cls</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__mro__</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">mro_cls</span> <span class="ow">is</span> <span class="nb">object</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">mro_cls</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
+            <span class="n">own_fields</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mro_cls</span><span class="p">,</span> <span class="s2">&quot;__configclass_own_fields__&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">own_fields</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">own_fields</span><span class="p">:</span>
+                    <span class="bp">cls</span> <span class="o">=</span> <span class="n">mro_cls</span>
+                    <span class="k">break</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">mro_cls</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
                 <span class="bp">cls</span> <span class="o">=</span> <span class="n">mro_cls</span>
                 <span class="k">break</span>
     <span class="n">module_name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s2">&quot;__module__&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
