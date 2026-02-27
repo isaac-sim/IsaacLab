@@ -215,8 +215,8 @@ class UrdfConverter(AssetConverterBase):
             )
         if cfg.root_link_name:
             carb.log_warn("UrdfConverter: 'root_link_name' is no longer supported by the URDF importer 3.0.")
-        if isinstance(
-            cfg.joint_drive and cfg.joint_drive.gains,
+        if cfg.joint_drive and isinstance(
+            cfg.joint_drive.gains,
             UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg,
         ):
             import warnings
