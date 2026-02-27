@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+0.3.0 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_newton.test.mock_interfaces` test infrastructure module with
+  structured mock views, factory functions, and unit tests — mirroring the
+  ``isaaclab_physx`` mock interface pattern:
+
+  * :class:`~isaaclab_newton.test.mock_interfaces.views.MockNewtonArticulationView`:
+    extracted from monolithic ``mock_newton.py`` into its own module with lazy
+    initialization, individual ``set_mock_*`` methods, ``_noop_setters`` flag,
+    and numpy-based ``set_random_mock_data()``.
+
+  * Factory functions: ``create_mock_articulation_view()``,
+    ``create_mock_quadruped_view()``, ``create_mock_humanoid_view()`` for
+    convenient test setup.
+
+* Added unit tests for mock interfaces:
+  ``test_mock_articulation_view.py`` and ``test_factories.py``.
+
+Changed
+^^^^^^^
+
+* Restructured ``mock_newton.py``: moved ``MockNewtonArticulationView`` to
+  ``views/mock_articulation_view.py`` and removed ``torch`` dependency from
+  the mock module (replaced with ``numpy`` for random data generation).
+
+
 0.2.3 (2026-02-27)
 ~~~~~~~~~~~~~~~~~~
 
