@@ -54,6 +54,8 @@ class MockArticulationViewWarp:
         fixed_base: bool = False,
         prim_paths: list[str] | None = None,
         device: str = "cpu",
+        max_fixed_tendons: int = 0,
+        max_spatial_tendons: int = 0,
     ):
         """Initialize the mock articulation view.
 
@@ -66,6 +68,8 @@ class MockArticulationViewWarp:
             fixed_base: Whether the articulation has a fixed base.
             prim_paths: USD prim paths for each instance.
             device: Device for array allocation ("cpu" or "cuda:N").
+            max_fixed_tendons: Maximum number of fixed tendons.
+            max_spatial_tendons: Maximum number of spatial tendons.
         """
         self._count = count
         self._num_dofs = num_dofs
@@ -84,9 +88,9 @@ class MockArticulationViewWarp:
             fixed_base=fixed_base,
         )
 
-        # Tendon properties (fixed values for mock)
-        self._max_fixed_tendons = 0
-        self._max_spatial_tendons = 0
+        # Tendon properties
+        self._max_fixed_tendons = max_fixed_tendons
+        self._max_spatial_tendons = max_spatial_tendons
 
         # Internal state (lazily initialized)
         self._root_transforms: wp.array | None = None
