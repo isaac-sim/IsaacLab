@@ -37,7 +37,7 @@ Installation
             isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
-   By default, the above will install **all** the learning frameworks. These include
+   By default, the above will install **all** the learning framework and all Isaac Lab sub-packages (under ``source/isaaclab``). Available RL frameworks are:
    ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
 
    If you want to install only a specific framework, you can pass the name of the framework
@@ -60,5 +60,25 @@ Installation
 
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
-   The valid options are ``all``, ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``,
-   and ``none``. If ``none`` is passed, then no learning frameworks will be installed.
+   To install only specific sub-packages, pass a comma-separated list of sub-package names. The available
+   sub-packages are: ``assets``, ``physx``, ``contrib``, ``mimic``, ``newton``, ``rl``, ``tasks``,
+   ``teleop``. For example, to install only the ``mimic`` and ``assets`` sub-packages:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh --install physx,assets,rl,tasks  # or "./isaaclab.sh -i physx,assets,rl,tasks"
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat --install physx,assets,rl,tasks :: or "isaaclab.bat -i physx,assets,rl,tasks"
+
+   Pass ``none`` to install only the core ``isaaclab`` package without any sub-packages or RL frameworks.
