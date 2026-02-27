@@ -847,6 +847,7 @@
                 <span class="n">solver</span><span class="o">=</span><span class="s2">&quot;daqp&quot;</span><span class="p">,</span>
                 <span class="n">safety_break</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">fail_on_joint_limit_violation</span><span class="p">,</span>
             <span class="p">)</span>
+            <span class="k">assert</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">velocity</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">(),</span> <span class="s2">&quot;Solution to IK contains NaN.&quot;</span>
             <span class="n">joint_angle_changes</span> <span class="o">=</span> <span class="n">velocity</span> <span class="o">*</span> <span class="n">dt</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">AssertionError</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="c1"># Print warning and return the current joint positions as the target</span>
