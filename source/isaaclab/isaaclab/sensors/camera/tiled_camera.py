@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+
 from pxr import UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
@@ -227,8 +228,6 @@ class TiledCamera(Camera):
         if cfg is None:
             from isaaclab.renderers import renderer_cfg_from_type
             cfg = renderer_cfg_from_type("isaac_rtx")
-        if hasattr(cfg, "data_types"):
-            cfg.data_types = list(self.cfg.data_types)
         return cfg
 
     def _check_supported_data_types(self, cfg: TiledCameraCfg):

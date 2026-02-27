@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-from dataclasses import field
-
 from isaaclab.utils import configclass
 
 
@@ -18,6 +16,3 @@ class RendererCfg:
 
     renderer_type: str = "default"
     """Type identifier (e.g. 'isaac_rtx', 'newton_warp')."""
-
-    data_types: list[str] = field(default_factory=list)
-    """Data types to render (e.g. 'rgb', 'depth'). Set by the camera at use time; default empty."""

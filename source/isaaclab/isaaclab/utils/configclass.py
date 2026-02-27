@@ -125,7 +125,7 @@ def _class_to_dict(obj: object) -> dict[str, Any]:
     return class_to_dict(obj)
 
 
-def _update_class_from_dict(obj, data: dict[str, Any], *, strict: bool = True) -> None:
+def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
@@ -133,14 +133,13 @@ def _update_class_from_dict(obj, data: dict[str, Any], *, strict: bool = True) -
     Args:
         obj: The object to update.
         data: Input (nested) dictionary to update from.
-        strict: If True, raise KeyError for keys not on the object. If False, skip them.
 
     Raises:
         TypeError: When input is not a dictionary.
         ValueError: When dictionary has a value that does not match default config type.
-        KeyError: When dictionary has a key that does not exist in the default config type (strict=True only).
+        KeyError: When dictionary has a key that does not exist on the object.
     """
-    update_class_from_dict(obj, data, _ns="", strict=strict)
+    update_class_from_dict(obj, data, _ns="")
 
 
 def _replace_class_with_kwargs(obj: object, **kwargs) -> object:

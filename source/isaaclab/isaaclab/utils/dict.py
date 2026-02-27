@@ -72,7 +72,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     return data
 
 
-def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "", *, strict: bool = True) -> None:
+def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
@@ -82,14 +82,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "", *, strict: 
         data: Input dictionary to update from.
         _ns: Namespace of the current object. This is useful for nested configuration
             classes or dictionaries. Defaults to "".
-        strict: If True, raise KeyError when the dictionary has a key not present on the
-            object. If False, skip such keys (e.g. when merging Hydra-composed config
-            after a group override that replaced a node with a different type).
 
     Raises:
         TypeError: When input is not a dictionary.
         ValueError: When dictionary has a value that does not match default config type.
-        KeyError: When dictionary has a key that does not exist in the default config type (strict=True only).
+        KeyError: When dictionary has a key that does not exist on the object.
     """
     for key, value in data.items():
         # key_ns is the full namespace of the key
@@ -102,7 +99,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "", *, strict: 
             # -- 1) nested mapping → recurse ---------------------------
             if isinstance(value, Mapping):
                 # recursively call if it is a dictionary
-                update_class_from_dict(obj_mem, value, _ns=key_ns, strict=strict)
+                update_class_from_dict(obj_mem, value, _ns=key_ns)
                 continue
 
             # -- 2) iterable (list / tuple / etc.) ---------------------
@@ -137,7 +134,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "", *, strict: 
                     # recursively call if iterable contains Mappings
                     for i in range(len(obj_mem)):
                         if isinstance(value[i], Mapping):
-                            update_class_from_dict(obj_mem[i], value[i], _ns=key_ns, strict=strict)
+                            update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
                             set_obj = False
                     # do not set value to obj, otherwise it overwrites the cfg class with the dict
                     if not set_obj:
@@ -168,9 +165,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "", *, strict: 
 
         # -- B) if key is not present ------------------------------------
         else:
-            if strict:
-                raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
-            # strict=False: skip keys not on the object (e.g. Hydra group replacement)
+            raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
 
 
 """

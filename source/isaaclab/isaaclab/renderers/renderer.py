@@ -34,7 +34,8 @@ class Renderer(FactoryBase, BaseRenderer):
 def renderer_cfg_from_type(renderer_type: str | None) -> RendererCfg:
     """Map renderer_type string to a renderer config instance.
 
-    Used by TiledCamera._get_effective_renderer_cfg() (fallback if renderer_cfg is None).
+    Used by TiledCamera._get_effective_renderer_cfg() (fallback if Hydra arg did not set renderer_cfg
+    for that camera).
 
     Args:
         renderer_type: "newton_warp" → Newton backend config;
