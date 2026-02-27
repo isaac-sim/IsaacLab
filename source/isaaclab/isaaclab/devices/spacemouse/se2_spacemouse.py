@@ -19,10 +19,10 @@ import torch
 from isaaclab.utils.array import convert_to_torch
 
 from ..device_base import DeviceBase
+from .utils import convert_buffer
 
 if TYPE_CHECKING:
     from .se2_spacemouse_cfg import Se2SpaceMouseCfg
-from .utils import convert_buffer
 
 
 class Se2SpaceMouse(DeviceBase):

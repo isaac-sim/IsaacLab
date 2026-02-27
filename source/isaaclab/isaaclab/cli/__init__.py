@@ -35,8 +35,20 @@ def cli() -> None:
         "--install",
         nargs="?",
         const="all",
-        help="Install the extensions inside Isaac Lab and learning frameworks as extra dependencies.\n"
-        + "Can be used in any active conda/uv environment. Default is 'all'.",
+        help=(
+            "Install Isaac Lab sub-packages and RL frameworks.\n"
+            "Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.\n"
+            "\n"
+            "Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop.\n"
+            "RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.\n"
+            "\n"
+            "Passing an RL framework name installs all sub-packages + that framework.\n"
+            "\n"
+            "Special values:\n"
+            "- all  - Install all sub-packages + all RL frameworks (default).\n"
+            "- none - Install only the core 'isaaclab' package.\n"
+            "- <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.\n"
+        ),
     )
     parser.add_argument(
         "-f",

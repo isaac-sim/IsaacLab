@@ -16,7 +16,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import random
 
+import pytest
+
 import isaaclab.utils.dict as dict_utils
+import isaaclab.utils.string as string_utils
 
 
 def _test_function(x):
@@ -97,3 +100,28 @@ def test_dict_to_md5():
     for _ in range(200):
         md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
         assert md5_hash_1 == md5_hash_2
+
+
+class _CallableCfg:
+    class_type = _test_function
+
+
+def test_update_class_from_dict_keeps_callable_string_lazy():
+    """Callable-string updates should remain lazy via ResolvableString."""
+    cfg = _CallableCfg()
+    dict_utils.update_class_from_dict(cfg, {"class_type": "math:sin"})
+
+    assert isinstance(cfg.class_type, string_utils.ResolvableString)
+    # Dunder probing should not force resolution/import side effects.
+    assert hasattr(cfg.class_type, "__dataclass_fields__") is False
+    # Runtime use still resolves correctly.
+    assert pytest.approx(cfg.class_type(0.0), rel=0.0, abs=1e-9) == 0.0
+
+
+def test_update_class_from_dict_does_not_rewrap_resolvable_string():
+    """Existing ResolvableString should be preserved, not re-wrapped."""
+    cfg = _CallableCfg()
+    existing = string_utils.ResolvableString("math:sin")
+    dict_utils.update_class_from_dict(cfg, {"class_type": existing})
+
+    assert cfg.class_type is existing
