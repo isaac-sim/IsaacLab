@@ -107,7 +107,6 @@ class TeleopSessionLifecycle:
             )
         except (ImportError, ModuleNotFoundError):
             logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
-            self._pre_shutdown_subscription = None
 
     @property
     def is_active(self) -> bool:
@@ -230,6 +229,8 @@ class TeleopSessionLifecycle:
     def _on_pre_shutdown(self, _event):
         """Called when Kit is closing; run full cleanup since the app is exiting."""
         logger.info("Shutting down IsaacTeleop session due to Kit close")
+        self._pre_shutdown_subscription.unsubscribe()
+        self._pre_shutdown_subscription = None
         self.stop()
 
     # ------------------------------------------------------------------
