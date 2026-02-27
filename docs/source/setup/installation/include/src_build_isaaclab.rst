@@ -79,6 +79,6 @@ Installation
 
          .. code:: batch
 
-            isaaclab.bat --install mimic,assets :: or "isaaclab.bat -i mimic,assets"
+            isaaclab.bat --install physx,assets,rl,tasks :: or "isaaclab.bat -i physx,assets,rl,tasks"
 
    Pass ``none`` to install only the core ``isaaclab`` package without any sub-packages or RL frameworks.
