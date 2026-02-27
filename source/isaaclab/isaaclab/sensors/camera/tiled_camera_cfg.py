@@ -15,15 +15,13 @@ from .tiled_camera import TiledCamera
 
 @configclass
 class TiledCameraCfg(CameraCfg):
-    """Configuration for a tiled rendering-based camera sensor.
-
-    When using Hydra (e.g. train.py), :attr:`renderer_cfg` is instantiated from :attr:`renderer_type`
-    in isaaclab_tasks.utils.hydra before env creation. For non-Hydra paths, TiledCamera builds
-    renderer_cfg from renderer_type in _initialize_impl().
-    """
+    """Configuration for a tiled rendering-based camera sensor."""
 
     class_type: type = TiledCamera
 
+    # Required by Hydra overrides
+    # Overrides like env.scene.base_camera.renderer_type=newton_warp 
+    #   only work if the composed config has that attribute.
     renderer_type: str | None = None
     """Renderer backend selector (isaac_rtx, newton_warp). Hydra instantiates renderer_cfg from this; otherwise TiledCamera does in _initialize_impl()."""
 

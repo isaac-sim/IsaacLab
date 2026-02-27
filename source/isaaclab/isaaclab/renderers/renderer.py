@@ -21,8 +21,7 @@ class Renderer(FactoryBase, BaseRenderer):
 
     @classmethod
     def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
-        rt = getattr(cfg, "renderer_type", None)
-        return _RENDERER_TYPE_TO_BACKEND.get(rt, "physx")
+        return _RENDERER_TYPE_TO_BACKEND.get(cfg.renderer_type, "physx")
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""

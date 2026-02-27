@@ -145,7 +145,7 @@ class CameraCfg(SensorBaseCfg):
             "class:robot": (61, 178, 255, 255),
         }
 
-        """
+    """
 
     renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)
     """Renderer configuration for camera sensor."""

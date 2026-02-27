@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
 
 
 class TiledCamera(Camera):
+    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -53,10 +55,6 @@ class TiledCamera(Camera):
     - ``"semantic_segmentation"``: The semantic segmentation data.
     - ``"instance_segmentation_fast"``: The instance segmentation data.
     - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
-
-    When ``renderer_type == "newton_warp"`` (see :class:`~.tiled_camera_cfg.TiledCameraCfg`), rendering uses the
-    Newton Warp backend: PhysX runs simulation and Newton/Warp perform ray tracing; PhysX→Newton
-    state sync runs before each render. The combined sync+render is timed as ``newton_warp_sync_plus_render``.
 
     .. note::
         Currently the following sensor types are not supported in a "view" format:
@@ -175,8 +173,6 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Use renderer_cfg (Hydra sets it before env creation; else fallback from renderer_type)
-        renderer_cfg = self._get_effective_renderer_cfg()
 
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
@@ -189,7 +185,8 @@ class TiledCamera(Camera):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # Create renderer after scene is ready (post-cloning) so world_count is correct
-        self.renderer = Renderer(renderer_cfg)
+        # Hydra sets renderer config before env creation; else fallback from renderer_type
+        self.renderer = Renderer(self._get_effective_renderer_cfg())
         logger.info("Using renderer: %s", type(self.renderer).__name__)
 
         self.render_data = self.renderer.create_render_data(self)
