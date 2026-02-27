@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
-import warp as wp
+import warp as wp 
 
 from pxr import UsdGeom
 
@@ -185,9 +185,7 @@ class TiledCamera(Camera):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # Create renderer after scene is ready (post-cloning) so world_count is correct
-        # Resolve Hydra-friendly renderer_type to concrete renderer_cfg if set
-        renderer_cfg = self._get_effective_renderer_cfg()
-        self.renderer = Renderer(renderer_cfg)
+        self.renderer = Renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
 
         self.render_data = self.renderer.create_render_data(self)
@@ -223,19 +221,6 @@ class TiledCamera(Camera):
     """
     Private Helpers
     """
-
-    def _get_effective_renderer_cfg(self):
-        """Resolve renderer_cfg from optional renderer_type (Hydra override)."""
-        rt = getattr(self.cfg, "renderer_type", None)
-        if rt == "rtx":
-            from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-            return IsaacRtxRendererCfg()
-        if rt == "warp_renderer":
-            from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-            return NewtonWarpRendererCfg()
-        return self.cfg.renderer_cfg
 
     def _check_supported_data_types(self, cfg: TiledCameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
