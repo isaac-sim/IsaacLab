@@ -19,7 +19,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
-from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
@@ -57,7 +56,6 @@ class SensorBase(ABC):
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
-        # get stage handle
         self.stage = get_current_stage()
 
         # register various callback functions
@@ -287,6 +285,8 @@ class SensorBase(ABC):
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
 
+        from isaaclab_physx.physics import IsaacEvents, PhysxManager  # noqa: PLC0415
+
         # Register PHYSICS_READY callback for initialization (order=10 for lower priority)
         self._initialize_handle = PhysxManager.register_callback(
             lambda payload, obj_ref=obj_ref: safe_callback("_initialize_callback", payload, obj_ref),
@@ -318,6 +318,8 @@ class SensorBase(ABC):
                 self._is_initialized = True
             except Exception as e:
                 # Store exception to be raised after callback completes
+                from isaaclab_physx.physics import PhysxManager  # noqa: PLC0415
+
                 PhysxManager.store_callback_exception(e)
 
     def _invalidate_initialize_callback(self, event):
