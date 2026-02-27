@@ -27,9 +27,12 @@ import omni.replicator.core as rep
 from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import RTX_DISABLE_COLOR_RENDER_SETTING
 
 
 @pytest.fixture(scope="function")
@@ -666,6 +669,55 @@ def test_distance_to_camera_only_camera(setup_camera, device):
             for i in range(4):
                 assert im_data[i].mean() > 0.0
     assert camera.data.output["distance_to_camera"].dtype == torch.float
+    del camera
+
+
+@pytest.mark.parametrize(
+    "data_types",
+    [
+        ["distance_to_camera"],
+        ["distance_to_image_plane"],
+        ["depth"],
+        ["albedo"],
+        ["depth", "distance_to_camera"],
+    ],
+)
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.isaacsim_ci
+def test_rtx_disable_color_render_when_only_depth_types(setup_camera, device, data_types):
+    """Isaac RTX renderer sets disableColorRender for fast path when only depth/albedo requested."""
+    sim, camera_cfg, dt = setup_camera
+    for i in range(3):
+        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = data_types
+    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera = TiledCamera(camera_cfg)
+    sim.reset()
+
+    if get_isaac_sim_version().major >= 6:
+        assert get_settings_manager().get(RTX_DISABLE_COLOR_RENDER_SETTING) is True
+    del camera
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.isaacsim_ci
+def test_rtx_disable_color_render_not_set_when_rgb_requested(setup_camera, device):
+    """Isaac RTX renderer does not set disableColorRender when rgb is requested."""
+    sim, camera_cfg, dt = setup_camera
+    for i in range(3):
+        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["rgb", "distance_to_camera"]
+    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera = TiledCamera(camera_cfg)
+    sim.reset()
+
+    if get_isaac_sim_version().major >= 6:
+        # With rgb in data_types, disableColorRender should not be True (may be False or unset)
+        assert get_settings_manager().get(RTX_DISABLE_COLOR_RENDER_SETTING) is False
     del camera
 
 

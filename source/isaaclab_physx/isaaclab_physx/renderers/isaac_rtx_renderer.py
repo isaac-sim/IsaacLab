@@ -21,7 +21,7 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+from .isaac_rtx_renderer_utils import apply_rtx_disable_color_render, ensure_isaac_rtx_render_update
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
@@ -77,6 +77,9 @@ class IsaacRtxRenderer(BaseRenderer):
             cameras=cam_prim_paths, tile_resolution=(sensor.cfg.width, sensor.cfg.height)
         )
         render_product_paths = [rp.path]
+
+        # Set RTX fast path (disable color render) when only depth/albedo requested
+        apply_rtx_disable_color_render(sensor.cfg.data_types)
 
         # Register simple shading if needed
         if any(data_type in SIMPLE_SHADING_MODES for data_type in sensor.cfg.data_types):

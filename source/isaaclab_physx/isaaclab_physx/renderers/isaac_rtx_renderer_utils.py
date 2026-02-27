@@ -8,6 +8,34 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.utils.version import get_isaac_sim_version
+
+RTX_DISABLE_COLOR_RENDER_SETTING = "/rtx/sdg/force/disableColorRender"
+_SUPPORTED_FAST_TYPES = frozenset({
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "depth",
+    "albedo",
+})
+
+
+def apply_rtx_disable_color_render(data_types: list[str]) -> None:
+    """Set RTX disableColorRender for fast path when only depth/albedo requested.
+
+    Isaac Sim 6.0+ only. Sets True when all data types are depth/albedo; otherwise False.
+    If GUI is enabled, always False so viewport is not black.
+    """
+    if get_isaac_sim_version().major < 6:
+        return
+    settings = get_settings_manager()
+    if settings.get("/isaaclab/has_gui"):
+        settings.set_bool(RTX_DISABLE_COLOR_RENDER_SETTING, False)
+    elif all(dt in _SUPPORTED_FAST_TYPES for dt in data_types):
+        settings.set_bool(RTX_DISABLE_COLOR_RENDER_SETTING, True)
+    else:
+        settings.set_bool(RTX_DISABLE_COLOR_RENDER_SETTING, False)
+
 
 # Module-level dedup stamp: tracks the last (sim instance, physics step) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a

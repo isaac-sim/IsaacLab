@@ -127,14 +127,7 @@ class Camera(SensorBase):
         # This is only introduced in isaac sim 6.0
         isaac_sim_version = get_isaac_sim_version()
         if isaac_sim_version.major >= 6:
-            # Set RTX flag to enable fast path if only depth or albedo is requested
-            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
-            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
-                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
-
-            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-            if settings.get("/isaaclab/has_gui"):
-                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+            pass  # disableColorRender is set by Isaac RTX renderer / apply_rtx_disable_color_render
         else:
             if "albedo" in self.cfg.data_types:
                 logger.warning(
@@ -440,6 +433,11 @@ class Camera(SensorBase):
 
         import omni.replicator.core as rep
         from omni.syntheticdata.scripts.SyntheticData import SyntheticData
+
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_disable_color_render
+
+        # Set RTX fast path (disable color render) when only depth/albedo requested
+        apply_rtx_disable_color_render(list(self.cfg.data_types))
 
         # Initialize parent class
         super()._initialize_impl()
