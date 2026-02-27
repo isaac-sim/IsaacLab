@@ -146,10 +146,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
 
             # -- 3) callable attribute → keep string lazily resolvable --------------
             elif callable(obj_mem):
-                # Do not eagerly import backend modules while applying config dictionaries.
-                # Keep callable strings lazy; they resolve only when actually invoked.
-                if isinstance(value, str) and not isinstance(value, ResolvableString):
-                    value = ResolvableString(value)
+                if isinstance(value, str):
+                    if not isinstance(value, ResolvableString):
+                        value = ResolvableString(value)
+                elif isinstance(value, ResolvableString):
+                    pass
                 elif not callable(value):
                     raise ValueError(
                         f"[Config]: Incorrect type under namespace: {key_ns}."

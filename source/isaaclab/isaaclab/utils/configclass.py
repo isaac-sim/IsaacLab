@@ -217,11 +217,20 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None) -> Any:
             value = value.replace("{DIR}", module_dir)
         return ResolvableString(value)
     if isinstance(value, list):
-        return [_wrap_resolvable_strings(item, module_dir=module_dir) for item in value]
+        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir) for item in value]
+        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+            return value
+        return wrapped
     if isinstance(value, tuple):
-        return tuple(_wrap_resolvable_strings(item, module_dir=module_dir) for item in value)
+        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir) for item in value)
+        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+            return value
+        return wrapped
     if isinstance(value, dict):
-        return {key: _wrap_resolvable_strings(item, module_dir=module_dir) for key, item in value.items()}
+        wrapped = {key: _wrap_resolvable_strings(item, module_dir=module_dir) for key, item in value.items()}
+        if len(wrapped) == len(value) and all(wrapped[key] is value[key] for key in value):
+            return value
+        return wrapped
     if hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__"):
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)

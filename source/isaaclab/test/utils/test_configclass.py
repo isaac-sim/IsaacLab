@@ -447,7 +447,7 @@ basic_demo_cfg_change_with_tuple_correct = {
 
 basic_demo_cfg_nested_dict_and_list = {
     "dict_1": {
-        "dict_2": {"func": dummy_function2},
+        "dict_2": {"func": "test_configclass:dummy_function2"},
     },
     "list_1": [
         {"num_envs": 23, "episode_length": 3000, "viewer": {"eye": [5.0, 5.0, 5.0], "lookat": [0.0, 0.0, 0.0]}},
