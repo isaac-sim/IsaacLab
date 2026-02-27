@@ -24,6 +24,7 @@ from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, repl
 from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.render_config_store import register_render_configs
 
 # Renderer type options for Hydra config groups; default when missing.
 RENDERER_TYPE_OPTIONS = ("isaac_rtx", "newton_warp")
@@ -141,7 +142,8 @@ def register_task_to_hydra(
     cfg_dict = replace_slices_with_strings(cfg_dict)
     # --- ENV variants → register groups + record defaults
     register_hydra_group(cfg_dict)
-    # store the configuration to Hydra
+    # register render config presets and store the configuration to Hydra
+    register_render_configs()
     ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict), group=None)
     return env_cfg, agent_cfg
 
@@ -179,6 +181,20 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
                 # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
+                # apply renderer config to all cameras (in scene and at env level, e.g. tiled_camera)
+                if "render_cfg" in hydra_env_cfg and hydra_env_cfg["render_cfg"]:
+                    renderer_dict = hydra_env_cfg["render_cfg"]
+                    if isinstance(renderer_dict, dict):
+                        env_dict = hydra_env_cfg.get("env", {})
+
+                        def apply_to_cameras(d: dict) -> None:
+                            for v in d.values():
+                                if isinstance(v, dict):
+                                    if "renderer_cfg" in v:
+                                        v["renderer_cfg"] = renderer_dict
+                                    apply_to_cameras(v)
+
+                        apply_to_cameras(env_dict)
                 # normalize renderer_type: Hydra config groups can leave it as a dict {option: node}; flatten to string
                 _normalize_renderer_type_in_dict(hydra_env_cfg["env"])
                 # update the group configs with Hydra command line arguments
@@ -263,7 +279,7 @@ def register_hydra_group(cfg_dict: dict) -> None:
                     cs.store(group=group_path, name=variant_name, node=variant_node)
 
     renderer_defaults = _register_renderer_type_groups(cfg_dict, cs)
-    cfg_dict["defaults"] = ["_self_"] + [{g: "default"} for g in default_groups] + renderer_defaults
+    cfg_dict["defaults"] = ["_self_", {"render_cfg": "isaac_rtx"}] + [{g: "default"} for g in default_groups] + renderer_defaults
 
 
 def resolve_hydra_group_runtime_override(
