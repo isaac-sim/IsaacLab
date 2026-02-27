@@ -16,7 +16,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import copy
+import os
 import random
+from datetime import datetime
 
 import numpy as np
 import pytest
@@ -719,6 +721,106 @@ def test_rtx_disable_color_render_not_set_when_rgb_requested(setup_camera, devic
         # With rgb in data_types, disableColorRender should not be True (may be False or unset)
         assert get_settings_manager().get(RTX_DISABLE_COLOR_RENDER_SETTING) is False
     del camera
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.isaacsim_ci
+def test_camera_tiled_camera_parity(device):
+    """Check Camera and TiledCamera produce equivalent output for same config and scene."""
+    data_type = "depth"
+    height, width = 64, 64
+
+    def _create_scene_and_capture(camera_cls, camera_cfg_cls):
+        sim_utils.create_new_stage()
+        dt = 0.01
+        sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        _populate_scene()
+        sim_utils.update_stage()
+
+        cfg = camera_cfg_cls(
+            height=height,
+            width=width,
+            prim_path="/World/Camera",
+            offset=camera_cfg_cls.OffsetCfg(
+                pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"
+            ),
+            update_period=0,
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.1, 1.0e5),
+            ),
+        )
+        camera = camera_cls(cfg)
+        sim.reset()
+        for _ in range(5):
+            sim.step()
+        camera.update(dt)
+        output = {k: v.clone() for k, v in camera.data.output.items()}
+        del camera
+        rep.vp_manager.destroy_hydra_textures("Replicator")
+        sim.stop()
+        sim.clear_instance()
+        return output
+
+    out_camera = _create_scene_and_capture(Camera, CameraCfg)
+    out_tiled = _create_scene_and_capture(TiledCamera, TiledCameraCfg)
+
+    def _save_debug_outputs():
+        debug_dir = os.path.join(
+            os.path.dirname(__file__), "output", "camera_parity_debug"
+        )
+        os.makedirs(debug_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(debug_dir, f"camera_parity_{timestamp}.pt")
+        torch.save({"out_camera": out_camera, "out_tiled": out_tiled}, path)
+        print(f"Saved camera parity debug outputs to {path}")
+
+        # Save as images for visual inspection
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        for key in out_camera:
+            arr_cam = out_camera[key][0].cpu().numpy()
+            arr_tiled = out_tiled[key][0].cpu().numpy()
+            h, w = arr_cam.shape[0], arr_cam.shape[1]
+            # Scale figure so images are readable (e.g. 64x64 -> ~8" per subplot)
+            fig_w, fig_h = max(14, w * 0.14), max(7, h * 0.14)
+            fig, axes = plt.subplots(1, 2, figsize=(fig_w, fig_h), layout="constrained")
+            if arr_cam.shape[-1] in (3, 4):
+                axes[0].imshow(arr_cam)
+                axes[1].imshow(arr_tiled)
+            else:
+                im0 = axes[0].imshow(arr_cam.squeeze(-1), cmap="viridis")
+                im1 = axes[1].imshow(arr_tiled.squeeze(-1), cmap="viridis")
+                # Shared colorbar on the right so both subplots stay same size
+                fig.colorbar(im1, ax=axes, shrink=0.6, aspect=20)
+            axes[0].set_title(f"Camera: {key}")
+            axes[1].set_title(f"TiledCamera: {key}")
+            for ax in axes:
+                ax.set_aspect("equal")
+            img_path = os.path.join(debug_dir, f"camera_parity_{timestamp}_{key}.png")
+            plt.savefig(img_path, dpi=150, bbox_inches="tight")
+            plt.close()
+            print(f"Saved image to {img_path}")
+
+    try:
+        assert set(out_camera.keys()) == set(out_tiled.keys())
+        for key in out_camera:
+            # Check frames have meaningful content (not all black)
+            assert out_camera[key].max() > 0, f"Camera output '{key}' is all black"
+            assert out_tiled[key].max() > 0, f"TiledCamera output '{key}' is all black"
+            torch.testing.assert_close(
+                out_camera[key], out_tiled[key], rtol=1e-3, atol=1e-2
+            )
+    except AssertionError:
+        # Enable for debugging: _save_debug_outputs()
+        raise
+
+    # Enable for debugging: _save_debug_outputs()
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
