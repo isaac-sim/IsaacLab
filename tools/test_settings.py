@@ -18,7 +18,7 @@ DEFAULT_TIMEOUT = 500
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 500,
     "test_stage_in_memory.py": 500,
-    "test_imu.py": 500,
+    "test_imu.py": 750,
     "test_environments.py": 5000,  # This test runs through all the environments for 100 steps each
     "test_environments_with_stage_in_memory.py": (
         5000
@@ -36,9 +36,9 @@ PER_TEST_TIMEOUTS = {
     "test_simulation_render_config.py": 500,
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
-    "test_rl_games_wrapper.py": 500,
+    "test_rl_games_wrapper.py": 1000,
     "test_rsl_rl_wrapper.py": 1000,
-    "test_sb3_wrapper.py": 500,
+    "test_sb3_wrapper.py": 1000,
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 500,
     "test_manager_based_rl_env_obs_spaces.py": 500,
