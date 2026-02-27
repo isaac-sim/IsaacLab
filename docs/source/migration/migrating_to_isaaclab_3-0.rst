@@ -1126,7 +1126,7 @@ Isaac Teleop must now be installed in your Isaac Lab environment:
 
 .. code-block:: bash
 
-   pip install "isaacteleop[retargeters,ui]==1.0.0" --extra-index-url <NVIDIA_PYPI_URL_PLACEHOLDER>
+   pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
 
 See :ref:`install-isaac-teleop` for complete installation instructions.
 
@@ -1233,14 +1233,6 @@ field with ``IsaacTeleopCfg`` and a pipeline builder callable.
                sim_device=self.sim.device,
                xr_cfg=self.xr,
            )
-
-
-Script Usage
-------------
-
-The ``--teleop_device handtracking`` flag is still accepted by teleoperation scripts. However,
-when the environment configuration has an ``isaac_teleop`` attribute, scripts automatically use
-``IsaacTeleopDevice`` regardless of the ``--teleop_device`` value.
 
 
 Backward Compatibility

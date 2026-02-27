@@ -53,11 +53,11 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
 
 
-For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using `Isaac Teleop <ISAAC_TELEOP_REPO_PLACEHOLDER>`_ with NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking`` device:
+For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using `Isaac Teleop <ISAAC_TELEOP_REPO_PLACEHOLDER>`_ with NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``):
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --visualizer kit --teleop_device handtracking
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --visualizer kit
 
 .. note::
 

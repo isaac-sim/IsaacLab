@@ -56,23 +56,26 @@ Prerequisites
 Install Isaac Teleop
 --------------------
 
-Activate the **same** virtual environment you use for Isaac Lab, then install the ``isaacteleop``
-package from the NVIDIA-hosted PyPI server:
+#. Clone the Isaac Teleop repository:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   pip install "isaacteleop[retargeters,ui]==1.0.0" --extra-index-url <NVIDIA_PYPI_URL_PLACEHOLDER>
+      git clone git@github.com:NVIDIA/IsaacTeleop.git
+      cd isaacteleop/
 
-Validate the installation:
+#. **(Optional -- Hand Tracking)** If you plan to use optical hand tracking from the XR
+   device, create a CloudXR environment file:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   python -c "import isaacteleop.deviceio"
+      echo "NV_CXR_ENABLE_PUSH_DEVICES=0" > deps/cloudxr/cxr.env
 
-.. note::
+#. Activate the **same** virtual environment you use for Isaac Lab, then install the
+   ``isaacteleop`` package:
 
-   The ``isaacteleop`` wheel bundles the CloudXR runtime libraries. No separate CloudXR SDK
-   download or Docker container is required for the runtime itself.
+   .. code-block:: bash
+
+      pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
 
 
 .. _start-cloudxr-runtime:
@@ -80,31 +83,11 @@ Validate the installation:
 Start the CloudXR Runtime
 -------------------------
 
-The CloudXR runtime is included in the ``isaacteleop`` package. Start it in a dedicated terminal:
+From the ``isaacteleop/`` directory, start the CloudXR runtime in a dedicated terminal:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr
-
-On first launch you will be prompted to accept the CloudXR EULA. Acceptance is persisted to
-``~/.cloudxr/run/eula_accepted``. The runtime sets up ``~/.cloudxr/run/`` with the OpenXR runtime
-configuration automatically and handles SIGINT / SIGTERM for graceful shutdown.
-
-
-.. _configure-firewall:
-
-Configure Firewall Ports
-------------------------
-
-Open the required CloudXR and WebXR ports:
-
-.. code-block:: bash
-
-   sudo ufw allow 47998/udp
-   sudo ufw allow 49100/tcp
-   sudo ufw allow 48322/tcp
-   sudo ufw allow 8080/tcp
-   sudo ufw allow 8443/tcp
+   ./scripts/run_cloudxr.sh
 
 
 .. _run-isaac-lab-with-the-cloudxr-runtime:
@@ -112,13 +95,20 @@ Open the required CloudXR and WebXR ports:
 Run Isaac Lab with CloudXR
 --------------------------
 
+Open a **new** terminal where Isaac Lab will run and set up the CloudXR environment:
+
+.. code-block:: bash
+
+   # Activate the Isaac Lab virtual environment (conda or uv)
+   cd <path-to-isaacteleop>/isaacteleop/
+   source scripts/setup_cloudxr_env.sh
+
 With the CloudXR runtime running in a separate terminal, launch an Isaac Lab teleoperation script:
 
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-Abs-v0 \
-       --teleop_device handtracking
+       --task Isaac-PickPlace-GR1T2-Abs-v0
 
 Then in the Isaac Sim UI:
 
@@ -142,50 +132,6 @@ The viewport should show two eyes being rendered and the status "AR profile is a
    :alt: Isaac Lab viewport rendering two eyes
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
-
-.. dropdown:: Alternative: Use Docker Compose to run Isaac Lab and CloudXR Runtime together
-
-   On your Isaac Lab workstation:
-
-   #. Start the containers using the Isaac Lab ``container.py`` script:
-
-      .. code:: bash
-
-         ./docker/container.py start \
-             --files docker-compose.cloudxr-runtime.patch.yaml \
-             --env-file .env.cloudxr-runtime
-
-      If prompted, elect to activate X11 forwarding (necessary for the Isaac Sim UI).
-
-   #. Enter the Isaac Lab base container:
-
-      .. code:: bash
-
-         ./docker/container.py enter base
-
-   #. Run a teleop task from within the container:
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device handtracking
-
-   #. Stop the containers when finished:
-
-      .. code:: bash
-
-         ./docker/container.py stop \
-             --files docker-compose.cloudxr-runtime.patch.yaml \
-             --env-file .env.cloudxr-runtime
-
-      .. tip::
-
-         If you encounter issues on restart, clean up orphaned containers with:
-
-         .. code:: bash
-
-            docker system prune -f
 
 
 .. _use-apple-vision-pro:
