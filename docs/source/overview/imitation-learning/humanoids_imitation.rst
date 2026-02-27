@@ -408,6 +408,8 @@ The robot picks up an object at the initial location (point A) and places it at 
    updated pre-trained policies with separate upper and lower body policies for flexibtility. They have been verified in the real world and can be
    directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.
 
+.. _generate-the-manipulation-dataset:
+
 Generate the manipulation dataset
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -554,7 +556,9 @@ To generate the locomanipulation dataset, use the following command:
        --lift_step 60 \
        --navigate_step 130 \
        --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
-       --enable_cameras
+       --enable_cameras \
+       --randomize_placement \
+       --visualizer kit
 
 .. note::
 
@@ -562,8 +566,8 @@ To generate the locomanipulation dataset, use the following command:
 
 The key parameters for locomanipulation dataset generation are:
 
-* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task.  This should mark the point immediately after the robot has grasped the object.
-* ``--navigate_step 120``: Number of steps for the navigation phase between locations.  This should make the point where the robot has lifted the object and is ready to walk.
+* ``--lift_step 60``: Number of steps for the lifting phase of the manipulation task. This should mark the point immediately after the robot has grasped the object.
+* ``--navigate_step 130``: Number of steps for the navigation phase between locations. This should make the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
 
 This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
@@ -590,3 +594,66 @@ in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in
 
 The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
 The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.
+
+Use NuRec Background in Locomanipulation SDG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The `NuRec assets <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/assets/usd_assets_nurec.html#neural-volume-rendering>`__
+are neural volumes reconstructed from real-world captures. When integrated into the locomanipulation SDG workflow, these
+assets allow you to generate synthetic data in photorealistic environments that mirror real-world.
+
+You can load your own USD or USDZ file, which must include neural reconstruction for rendering, and a collision mesh to
+enable physical interaction and be set to invisible.
+
+Pre-constructed assets are available via the `PhysicalAI Robotics NuRec <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`__
+dataset. Some of them are captured from a humanoid-viewpoint to match the camera view of the humanoid robot.
+
+For example, when using the asset ``hand_hold-voyager-babyboom``, the relevant files are:
+
+- ``stage.usdz``: a USDZ archive that bundles 3D Gaussian splatting (``volume.nurec``), a collision mesh (``mesh.usd``), etc.
+- ``occupancy_map.yaml`` and ``occupancy_map.png``: occupancy map for path planning and navigation.
+
+Download the files and place them under ``<PATH_TO_USD_ASSET>``.
+
+Ensure you have the manipulation dataset from the previous step. You can also download a pre-recorded
+annotated dataset as in :ref:`Generate the manipulation dataset <generate-the-manipulation-dataset>`
+and place it under ``<DATASET_FOLDER>/dataset_annotated_g1_locomanip.hdf5``.
+
+Then run the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
+       --device cpu \
+       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --task="Isaac-G1-SteeringWheel-Locomanipulation" \
+       --dataset <DATASET_FOLDER>/dataset_annotated_g1_locomanip.hdf5 \
+       --num_runs 1 \
+       --lift_step 60 \
+       --navigate_step 130 \
+       --enable_pinocchio \
+       --output_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
+       --enable_cameras \
+       --visualizer kit \
+       --background_usd_path <PATH_TO_USD_ASSET>/stage.usdz \
+       --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml \
+       --init_camera_view \
+       --randomize_placement \
+       --visualizer kit
+
+The key parameters are:
+
+- ``--background_usd_path``: Path to the NuRec USD asset.
+- ``--background_occupancy_yaml_file``: Path to the occupancy map file.
+- ``--high_res_video``: Enable high resolution video recording for the ego-centric camera view.
+- ``--init_camera_view``: Set the viewport camera behind the robot at the start of episode.
+
+On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
+the ego-centric view to MP4:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
+      --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
+      --output_dir <DATASET_FOLDER>/ \
+      --input_keys robot_pov_cam

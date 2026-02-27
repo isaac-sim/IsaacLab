@@ -2124,10 +2124,10 @@ def test_spatial_tendons(sim, num_articulations, device):
     assert wp.to_torch(articulation.data.body_inertia).shape == (num_articulations, articulation.num_bodies, 9)
     assert articulation.num_spatial_tendons == 1
 
-    articulation.set_spatial_tendon_stiffness_index(stiffness=torch.tensor([10.0], device=device))
-    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=torch.tensor([10.0], device=device))
-    articulation.set_spatial_tendon_damping_index(damping=torch.tensor([10.0], device=device))
-    articulation.set_spatial_tendon_offset_index(offset=torch.tensor([10.0], device=device))
+    articulation.set_spatial_tendon_stiffness_index(stiffness=10.0)
+    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=10.0)
+    articulation.set_spatial_tendon_damping_index(damping=10.0)
+    articulation.set_spatial_tendon_offset_index(offset=10.0)
 
     # Simulate physics
     for _ in range(10):

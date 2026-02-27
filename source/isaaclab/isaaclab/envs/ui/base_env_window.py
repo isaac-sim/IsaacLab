@@ -11,16 +11,16 @@ import weakref
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+from isaaclab.sim.utils.stage import resolve_paths
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.version import has_kit
 
 if has_kit():
     import isaacsim
-    import omni.kit.app
     import omni.kit.commands
-    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-    from isaaclab.sim.utils.stage import get_current_stage, resolve_paths
 
 if TYPE_CHECKING:
     import omni.ui
@@ -64,7 +64,7 @@ class BaseEnvWindow:
         ]
 
         # get stage handle
-        self.stage = get_current_stage()
+        self.stage = env.sim.stage
 
         # Listeners for environment selection changes
         self._ui_listeners: list[ManagerLiveVisualizer] = []
