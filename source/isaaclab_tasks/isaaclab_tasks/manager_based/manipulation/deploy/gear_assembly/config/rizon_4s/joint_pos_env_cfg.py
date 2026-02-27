@@ -146,8 +146,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
-            "static_friction_range": (0.0, 0.0),
-            "dynamic_friction_range": (0.0, 0.0),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -270,7 +270,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         # Action configuration for Rizon 4s arm
         # Using smaller action scale for stability
-        self.joint_action_scale = 0.01
+        self.joint_action_scale = 0.025
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
             asset_name="robot",
             joint_names=[
@@ -326,7 +326,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # Grav gripper actuator configuration for gear manipulation
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=2.0,
+            effort_limit_sim=200.0,
             velocity_limit_sim=1.0,
             stiffness=2e3,
             damping=1e1,
