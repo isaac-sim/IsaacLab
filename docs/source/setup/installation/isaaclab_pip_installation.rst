@@ -17,19 +17,79 @@ To learn about how to set up your own project on top of Isaac Lab, please see :r
 
 .. include:: include/pip_python_virtual_env.rst
 
+Installing Isaac Lab
+~~~~~~~~~~~~~~~~~~~~
+
+The ``isaaclab`` package provides optional extras to install Isaac Sim and individual
+Isaac Lab sub-packages:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 55
+
+   * - Extra
+     - What it installs
+   * - ``isaacsim``
+     - Isaac Sim (``isaacsim[all,extscache]==X.X.X``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
+   * - ``assets``
+     - ``isaaclab_assets``
+   * - ``physx``
+     - ``isaaclab_physx``
+   * - ``contrib``
+     - ``isaaclab_contrib``
+   * - ``mimic``
+     - ``isaaclab_mimic``
+   * - ``newton``
+     - ``isaaclab_newton``
+   * - ``rl``
+     - ``isaaclab_rl``
+   * - ``tasks``
+     - ``isaaclab_tasks``
+   * - ``teleop``
+     - ``isaaclab_teleop``
+   * - ``all``
+     - All of the above sub-packages (does **not** include ``isaacsim``)
+
+.. tab-set::
+
+   .. tab-item:: uv
+
+      .. code-block:: bash
+
+         # Isaac Lab only
+         uv pip install isaaclab # latest version
+         uv pip install isaaclab==3.0.0 # specific version
+
+         # Isaac Lab + Isaac Sim
+         uv pip install "isaaclab[isaacsim]"
+
+         # Isaac Lab + specific sub-package(s)
+         uv pip install "isaaclab[assets]"
+         uv pip install "isaaclab[rl,tasks]"
+
+         # Isaac Lab + Isaac Sim + all sub-packages
+         uv pip install "isaaclab[isaacsim,all]"
+
+   .. tab-item:: pip
+
+      .. code-block:: bash
+
+         # Isaac Lab only
+         pip install isaaclab # latest version
+         pip install isaaclab==3.0.0 # specific version
+
+         # Isaac Lab + Isaac Sim
+         pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
+
+         # Isaac Lab + specific sub-package(s)
+         pip install "isaaclab[assets]"
+         pip install "isaaclab[rl,tasks]"
+
+         # Isaac Lab + Isaac Sim + all Isaac Lab sub-packages
+         pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com
+
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
-
-.. note::
-
-   In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
-   in the following commands.
-
--  Install the Isaac Lab packages along with Isaac Sim:
-
-   .. code-block:: none
-
-      pip install isaaclab[isaacsim,all]==3.0.0 --extra-index-url https://pypi.nvidia.com
 
 -  Install a CUDA-enabled PyTorch 2.10.0 build that matches your system architecture:
 

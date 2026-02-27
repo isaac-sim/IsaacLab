@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     # visualizers
-    "newton @ git+https://github.com/newton-physics/newton.git@35657fc",
+    "newton @ git+https://github.com/newton-physics/newton.git@v0.2.3",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
@@ -75,6 +75,31 @@ INSTALL_REQUIRES += [
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
+# Isaac Lab subpackages + Isaac Sim
+EXTRAS_REQUIRE = {
+    "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
+    # Individual Isaac Lab sub-packages
+    "assets": ["isaaclab_assets"],
+    "physx": ["isaaclab_physx"],
+    "contrib": ["isaaclab_contrib"],
+    "mimic": ["isaaclab_mimic"],
+    "newton": ["isaaclab_newton"],
+    "rl": ["isaaclab_rl"],
+    "tasks": ["isaaclab_tasks"],
+    "teleop": ["isaaclab_teleop"],
+    # Convenience: all sub-packages (does not include isaacsim)
+    "all": [
+        "isaaclab_assets",
+        "isaaclab_physx",
+        "isaaclab_contrib",
+        "isaaclab_mimic",
+        "isaaclab_newton",
+        "isaaclab_rl",
+        "isaaclab_tasks",
+        "isaaclab_teleop",
+    ],
+}
+
 # Installation operation
 setup(
     name="isaaclab",
@@ -88,6 +113,7 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
