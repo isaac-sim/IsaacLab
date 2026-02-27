@@ -149,8 +149,6 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 if isinstance(value, str):
                     if not isinstance(value, ResolvableString):
                         value = ResolvableString(value)
-                elif isinstance(value, ResolvableString):
-                    pass
                 elif not callable(value):
                     raise ValueError(
                         f"[Config]: Incorrect type under namespace: {key_ns}."
