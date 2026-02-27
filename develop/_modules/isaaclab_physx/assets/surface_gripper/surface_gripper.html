@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -787,6 +787,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;states&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;states&quot;</span><span class="p">)</span>
 
         <span class="c1"># Convert torch input to warp</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
@@ -848,13 +852,17 @@
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
 
-        <span class="k">for</span> <span class="n">prop_data</span><span class="p">,</span> <span class="n">prop_buf</span> <span class="ow">in</span> <span class="p">[</span>
-            <span class="p">(</span><span class="n">max_grip_distance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_grip_distance</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">coaxial_force_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coaxial_force_limit</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">shear_force_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shear_force_limit</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">retry_interval</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_retry_interval</span><span class="p">),</span>
+        <span class="k">for</span> <span class="n">prop_name</span><span class="p">,</span> <span class="n">prop_data</span><span class="p">,</span> <span class="n">prop_buf</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;max_grip_distance&quot;</span><span class="p">,</span> <span class="n">max_grip_distance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_grip_distance</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;coaxial_force_limit&quot;</span><span class="p">,</span> <span class="n">coaxial_force_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coaxial_force_limit</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;shear_force_limit&quot;</span><span class="p">,</span> <span class="n">shear_force_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shear_force_limit</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;retry_interval&quot;</span><span class="p">,</span> <span class="n">retry_interval</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_retry_interval</span><span class="p">),</span>
         <span class="p">]:</span>
             <span class="k">if</span> <span class="n">prop_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">prop_data</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">prop_name</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">prop_data</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">prop_name</span><span class="p">)</span>
                 <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
                     <span class="n">write_scalar_at_indices</span><span class="p">,</span>
                     <span class="n">dim</span><span class="o">=</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
@@ -1294,7 +1302,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -887,8 +887,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">body_mass</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Mass of all bodies in the simulation world frame.</span>
 
-<span class="sd">        Shape is (num_instances, 1, 1), dtype = wp.float32.</span>
-<span class="sd">        In torch this resolves to (num_instances, 1, 1).</span>
+<span class="sd">        Shape is (num_instances, 1), dtype = wp.float32.</span>
+<span class="sd">        In torch this resolves to (num_instances, 1).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_mass</span>
 
@@ -1307,7 +1307,9 @@
 
         <span class="c1"># -- Body properties</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_body_mass</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_view</span><span class="o">.</span><span class="n">get_masses</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_body_inertia</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_view</span><span class="o">.</span><span class="n">get_inertias</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_body_inertia</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_view</span><span class="o">.</span><span class="n">get_inertias</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_instances</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+        <span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal helpers.</span>
@@ -1588,7 +1590,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

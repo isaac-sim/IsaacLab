@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -804,28 +804,21 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Poll controller buttons and trigger actions on rising edges.</span>
 
 <span class="sd">        Called once per :meth:`advance` frame, after ``session.step()`` has</span>
-<span class="sd">        already called ``deviceio_session.update()`` so the controller data</span>
-<span class="sd">        is fresh.</span>
+<span class="sd">        executed the pipeline so the controller ``TensorGroup`` is fresh.</span>
 
 <span class="sd">        Currently handles:</span>
 <span class="sd">            * Right controller primary button (&quot;A&quot;) -- toggles anchor rotation.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">controller_tracker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_lifecycle</span><span class="o">.</span><span class="n">controller_tracker</span>
-        <span class="n">deviceio_session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_lifecycle</span><span class="o">.</span><span class="n">deviceio_session</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.tensor_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllerInputIndex</span>
 
-        <span class="k">if</span> <span class="n">controller_tracker</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">deviceio_session</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">right_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_lifecycle</span><span class="o">.</span><span class="n">last_right_controller</span>
+        <span class="k">if</span> <span class="n">right_data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">right_data</span><span class="o">.</span><span class="n">is_none</span><span class="p">:</span>
             <span class="k">return</span>
 
-        <span class="n">controller_data</span> <span class="o">=</span> <span class="n">controller_tracker</span><span class="o">.</span><span class="n">get_controller_data</span><span class="p">(</span><span class="n">deviceio_session</span><span class="p">)</span>
-        <span class="n">right</span> <span class="o">=</span> <span class="n">controller_data</span><span class="o">.</span><span class="n">right_controller</span>
-
-        <span class="k">if</span> <span class="n">right</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">right</span><span class="o">.</span><span class="n">is_active</span><span class="p">:</span>
-            <span class="n">current</span> <span class="o">=</span> <span class="n">right</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">primary_click</span>
-            <span class="k">if</span> <span class="n">current</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prev_right_a_pressed</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_manager</span><span class="o">.</span><span class="n">toggle_anchor_rotation</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_prev_right_a_pressed</span> <span class="o">=</span> <span class="n">current</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_prev_right_a_pressed</span> <span class="o">=</span> <span class="kc">False</span></div>
+        <span class="n">current</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">right_data</span><span class="p">[</span><span class="n">ControllerInputIndex</span><span class="o">.</span><span class="n">PRIMARY_CLICK</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">0.5</span>
+        <span class="k">if</span> <span class="n">current</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prev_right_a_pressed</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_manager</span><span class="o">.</span><span class="n">toggle_anchor_rotation</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prev_right_a_pressed</span> <span class="o">=</span> <span class="n">current</span></div>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_enable_teleop_bridge</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -932,7 +925,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

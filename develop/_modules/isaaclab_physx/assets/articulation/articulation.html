@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -1067,6 +1067,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;root_pose&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;root_pose&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">set_root_link_pose_to_sim</span><span class="p">,</span>
@@ -1153,6 +1157,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;root_pose&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;root_pose&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="c1"># Note: we are doing a single launch for faster performance. Prior versions would call</span>
         <span class="c1"># write_root_link_pose_to_sim after this.</span>
@@ -1303,6 +1311,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;root_velocity&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;root_velocity&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">set_root_com_velocity_to_sim</span><span class="p">,</span>
@@ -1392,6 +1404,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;root_velocity&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;root_velocity&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="c1"># Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -1511,6 +1527,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;position&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;position&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
@@ -1600,6 +1620,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">velocity</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;velocity&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">velocity</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;velocity&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">write_joint_vel_data</span><span class="p">,</span>
@@ -1686,6 +1710,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;stiffness&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;stiffness&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
             <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -1782,6 +1810,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;damping&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;damping&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
             <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -1869,6 +1901,7 @@
 
 <span class="sd">        Args:</span>
 <span class="sd">            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (num_instances, num_joints, 2).</span>
+<span class="sd">                In warp the expected shape is (num_instances, num_joints), with dtype wp.vec2f.</span>
 <span class="sd">            joint_ids: Joint indices. If None, then all joints are used.</span>
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">            full_data: Whether to expect full data. Defaults to False.</span>
@@ -1879,6 +1912,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec2f</span><span class="p">,</span> <span class="s2">&quot;limits&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec2f</span><span class="p">,</span> <span class="s2">&quot;limits&quot;</span><span class="p">)</span>
 
         <span class="n">clamped_defaults</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
@@ -1989,6 +2026,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limits&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limits&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
             <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -2092,6 +2133,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limits&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limits&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
             <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -2191,6 +2236,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">armature</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;armature&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">armature</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;armature&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">armature</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
             <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -2305,6 +2354,44 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">joint_friction_coeff</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;joint_friction_coeff&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">joint_friction_coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;joint_friction_coeff&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">joint_dynamic_friction_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                    <span class="n">joint_dynamic_friction_coeff</span><span class="p">,</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span>
+                    <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                    <span class="s2">&quot;joint_dynamic_friction_coeff&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                    <span class="n">joint_dynamic_friction_coeff</span><span class="p">,</span>
+                    <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                    <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                    <span class="s2">&quot;joint_dynamic_friction_coeff&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="k">if</span> <span class="n">joint_viscous_friction_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                    <span class="n">joint_viscous_friction_coeff</span><span class="p">,</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span>
+                    <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                    <span class="s2">&quot;joint_viscous_friction_coeff&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                    <span class="n">joint_viscous_friction_coeff</span><span class="p">,</span>
+                    <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                    <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                    <span class="s2">&quot;joint_viscous_friction_coeff&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
         <span class="c1"># Get the friction properties from the simulation.</span>
         <span class="n">friction_props</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_view</span><span class="o">.</span><span class="n">get_dof_friction_properties</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
@@ -2417,6 +2504,20 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">joint_dynamic_friction_coeff</span><span class="p">,</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span>
+                <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                <span class="s2">&quot;joint_dynamic_friction_coeff&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">joint_dynamic_friction_coeff</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                <span class="s2">&quot;joint_dynamic_friction_coeff&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
         <span class="c1"># Get the friction properties from the simulation.</span>
         <span class="n">friction_props</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_view</span><span class="o">.</span><span class="n">get_dof_friction_properties</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
@@ -2509,6 +2610,20 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">joint_viscous_friction_coeff</span><span class="p">,</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span>
+                <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                <span class="s2">&quot;joint_viscous_friction_coeff&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">joint_viscous_friction_coeff</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                <span class="s2">&quot;joint_viscous_friction_coeff&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
         <span class="c1"># Get the friction properties from the simulation.</span>
         <span class="n">friction_props</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_view</span><span class="o">.</span><span class="n">get_dof_friction_properties</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
@@ -2602,6 +2717,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;masses&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;masses&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
@@ -2683,6 +2802,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">coms</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;coms&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">coms</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;coms&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_body_com_pose_to_buffer</span><span class="p">,</span>
@@ -2769,6 +2892,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">inertias</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="mi">9</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;inertias&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">inertias</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">9</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;inertias&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_body_inertia_to_buffer</span><span class="p">,</span>
@@ -2851,6 +2978,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
@@ -2931,6 +3062,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
@@ -3011,6 +3146,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_ids</span><span class="p">(</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
@@ -3068,7 +3207,7 @@
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_stiffness_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_stiffness_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_stiffness_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3096,27 +3235,50 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_ids</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">stiffness</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;stiffness&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">stiffness</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;stiffness&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">stiffness</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_stiffness</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the stiffness to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_stiffness_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_stiffness_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_stiffness_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3155,7 +3317,7 @@
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_damping_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_damping_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_damping_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3183,27 +3345,46 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_ids</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;damping&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;damping&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">damping</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_damping</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">damping</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_damping</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">damping</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_damping</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the damping to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_damping_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_damping_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_damping_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3242,7 +3423,7 @@
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_limit_stiffness_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_limit_stiffness_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_limit_stiffness_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3270,27 +3451,50 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_ids</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">limit_stiffness</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limit_stiffness&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">limit_stiffness</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limit_stiffness&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">limit_stiffness</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_limit_stiffness</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limit_stiffness</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">limit_stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_limit_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">limit_stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_limit_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the limit stiffness to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_limit_stiffness_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_limit_stiffness_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_limit_stiffness_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3329,7 +3533,7 @@
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_position_limit_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_position_limit_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">limit</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3357,27 +3561,46 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_ids</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limit&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limit&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">limit</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_pos_limits</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">limit</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_pos_limits</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">limit</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_pos_limits</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the position limit to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_position_limit_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_position_limit_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">limit</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3416,7 +3639,7 @@
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_rest_length_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_rest_length_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_rest_length_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">rest_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3444,27 +3667,50 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_ids</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">rest_length</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;rest_length&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">rest_length</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;rest_length&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">rest_length</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_rest_length</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rest_length</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">rest_length</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_rest_length</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">rest_length</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_rest_length</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the rest length to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_rest_length_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_rest_length_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_rest_length_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">rest_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3503,7 +3749,7 @@
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_offset_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_offset_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_offset_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3531,27 +3777,46 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_ids</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;offset&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;offset&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">offset</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_offset</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">offset</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_offset</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">offset</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_fixed_tendon_offset</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the offset to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_fixed_tendon_offset_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_fixed_tendon_offset_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_fixed_tendon_offset_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">fixed_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3640,7 +3905,7 @@
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_stiffness_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_stiffness_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_stiffness_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3668,27 +3933,50 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">spatial_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_spatial_tendon_ids</span><span class="p">(</span><span class="n">spatial_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">stiffness</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_spatial_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;stiffness&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">stiffness</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;stiffness&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">stiffness</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">spatial_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_stiffness</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the stiffness to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_stiffness_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_stiffness_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_stiffness_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3727,7 +4015,7 @@
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_damping_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_damping_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_damping_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3755,27 +4043,46 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">spatial_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_spatial_tendon_ids</span><span class="p">(</span><span class="n">spatial_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_spatial_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;damping&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;damping&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">damping</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">spatial_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_damping</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">damping</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_damping</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">damping</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_damping</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the damping to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_damping_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_damping_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_damping_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3814,7 +4121,7 @@
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_limit_stiffness_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_limit_stiffness_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_limit_stiffness_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3843,27 +4150,50 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">spatial_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_spatial_tendon_ids</span><span class="p">(</span><span class="n">spatial_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">limit_stiffness</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_spatial_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limit_stiffness&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">limit_stiffness</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;limit_stiffness&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">limit_stiffness</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">spatial_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_limit_stiffness</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limit_stiffness</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">limit_stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_limit_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">limit_stiffness</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_limit_stiffness</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the limit stiffness to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_limit_stiffness_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_limit_stiffness_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_limit_stiffness_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">limit_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3902,7 +4232,7 @@
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_offset_index"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_offset_index">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_offset_index</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">full_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3930,27 +4260,46 @@
         <span class="c1"># resolve indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">spatial_tendon_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_spatial_tendon_ids</span><span class="p">(</span><span class="n">spatial_tendon_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_spatial_tendons</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;offset&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;offset&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">offset</span><span class="p">,</span>
-                <span class="n">env_ids</span><span class="p">,</span>
-                <span class="n">spatial_tendon_ids</span><span class="p">,</span>
-                <span class="n">full_data</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_offset</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-        <span class="p">)</span></div>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">articulation_kernels</span><span class="o">.</span><span class="n">float_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">offset</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_offset</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+                <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
+                <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">spatial_tendon_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">offset</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">spatial_tendon_ids</span><span class="p">,</span>
+                    <span class="n">full_data</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_spatial_tendon_offset</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span></div>
         <span class="c1"># Only updates internal buffers, does not apply the offset to the simulation.</span>
 
 <div class="viewcode-block" id="Articulation.set_spatial_tendon_offset_mask"><a class="viewcode-back" href="../../../../source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.Articulation.set_spatial_tendon_offset_mask">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_spatial_tendon_offset_mask</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+        <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">spatial_tendon_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -4992,7 +5341,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

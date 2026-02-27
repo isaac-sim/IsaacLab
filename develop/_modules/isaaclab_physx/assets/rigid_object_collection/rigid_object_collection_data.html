@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -1232,7 +1232,7 @@
         <span class="c1"># -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])</span>
         <span class="c1"># Masses: view returns (B*I, 1) in view order. _reshape_view_to_data gives (I, B) in instance order.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_body_mass</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reshape_view_to_data_2d</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_view</span><span class="o">.</span><span class="n">get_masses</span><span class="p">())</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
-            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="c1"># Inertias: view returns (B*I, 9) in view order. Need (I, B, 9) in instance order.</span>
         <span class="c1"># _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.</span>
@@ -1487,7 +1487,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

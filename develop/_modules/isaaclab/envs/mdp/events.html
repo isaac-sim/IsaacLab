@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -977,7 +977,6 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">default_mass</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_mass</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_inertia</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">default_inertia</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_inertia</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-
         <span class="c1"># resolve environment ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
@@ -1016,16 +1015,8 @@
             <span class="c1"># scale the inertia tensors by the the ratios</span>
             <span class="c1"># since mass randomization is done on default values, we can use the default inertia tensors</span>
             <span class="n">inertias</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_inertia</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;inertias device: &quot;</span><span class="p">,</span> <span class="n">inertias</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;inertias shape: &quot;</span><span class="p">,</span> <span class="n">inertias</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">,</span> <span class="n">BaseArticulation</span><span class="p">):</span>
-                <span class="c1"># inertia has shape: (num_envs, num_bodies, 9) for articulation</span>
-                <span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">default_inertia</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">*</span> <span class="n">ratios</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
-                <span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># inertia has shape: (num_envs, 9) for rigid object</span>
-                <span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_inertia</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">*</span> <span class="n">ratios</span>
+            <span class="c1"># inertia has shape: (num_envs, num_bodies, 9) for all assets</span>
+            <span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_inertia</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">*</span> <span class="n">ratios</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
             <span class="c1"># set the inertia tensors into the physics simulation</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">set_inertias_index</span><span class="p">(</span><span class="n">inertias</span><span class="o">=</span><span class="n">inertias</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
@@ -2538,7 +2529,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

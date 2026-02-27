@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -1041,6 +1041,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">body_poses</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;body_poses&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">body_poses</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;body_poses&quot;</span><span class="p">)</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">set_body_link_pose_to_sim</span><span class="p">,</span>
             <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
@@ -1133,6 +1137,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">body_poses</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;body_poses&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">body_poses</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;body_poses&quot;</span><span class="p">)</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">set_body_com_pose_to_sim</span><span class="p">,</span>
             <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
@@ -1229,6 +1237,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">body_velocities</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;body_velocities&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">body_velocities</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;body_velocities&quot;</span>
+            <span class="p">)</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">set_body_com_velocity_to_sim</span><span class="p">,</span>
             <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
@@ -1329,6 +1345,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">body_velocities</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;body_velocities&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">body_velocities</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">spatial_vectorf</span><span class="p">,</span> <span class="s2">&quot;body_velocities&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># Access body_com_pose_b and body_link_pose_w to ensure they are current.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">set_body_link_velocity_to_sim</span><span class="p">,</span>
@@ -1432,6 +1456,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;masses&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;masses&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_2d_data_to_buffer_with_indices</span><span class="p">,</span>
@@ -1513,6 +1541,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">coms</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;coms&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">coms</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">wp</span><span class="o">.</span><span class="n">transformf</span><span class="p">,</span> <span class="s2">&quot;coms&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_body_com_pose_to_buffer</span><span class="p">,</span>
@@ -1597,6 +1629,10 @@
         <span class="c1"># resolve all indices</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_ids</span><span class="p">(</span><span class="n">body_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">inertias</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="mi">9</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;inertias&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span><span class="n">inertias</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">9</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;inertias&quot;</span><span class="p">)</span>
         <span class="c1"># Warp kernels can ingest torch tensors directly, so we don&#39;t need to convert to warp arrays here.</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
             <span class="n">shared_kernels</span><span class="o">.</span><span class="n">write_body_inertia_to_buffer</span><span class="p">,</span>
@@ -2089,7 +2125,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>

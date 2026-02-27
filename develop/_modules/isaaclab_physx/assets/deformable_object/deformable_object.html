@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 26, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 27, 2026"/>
   </head>
   
   
@@ -699,7 +699,9 @@
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: A configuration instance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></div>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+        <span class="c1"># Register custom vec6f type for nodal state validation.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_DTYPE_TO_TORCH_TRAILING_DIMS</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_DTYPE_TO_TORCH_TRAILING_DIMS</span><span class="p">,</span> <span class="n">vec6f</span><span class="p">:</span> <span class="p">(</span><span class="mi">6</span><span class="p">,)}</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties</span>
@@ -859,6 +861,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve env_ids</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">nodal_pos</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_sim_vertices_per_body</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">,</span> <span class="s2">&quot;nodal_pos&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">nodal_pos</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_sim_vertices_per_body</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">,</span> <span class="s2">&quot;nodal_pos&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># convert torch to warp if needed</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">nodal_pos</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
             <span class="n">nodal_pos</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">nodal_pos</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">)</span>
@@ -919,6 +929,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve env_ids</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">nodal_vel</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_sim_vertices_per_body</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">,</span> <span class="s2">&quot;nodal_vel&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">nodal_vel</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_sim_vertices_per_body</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">,</span> <span class="s2">&quot;nodal_vel&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># convert torch to warp if needed</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">nodal_vel</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
             <span class="n">nodal_vel</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">nodal_vel</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">)</span>
@@ -983,6 +1001,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve env_ids</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">full_data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">targets</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_sim_vertices_per_body</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec4f</span><span class="p">,</span> <span class="s2">&quot;targets&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assert_shape_and_dtype</span><span class="p">(</span>
+                <span class="n">targets</span><span class="p">,</span> <span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_sim_vertices_per_body</span><span class="p">),</span> <span class="n">wp</span><span class="o">.</span><span class="n">vec4f</span><span class="p">,</span> <span class="s2">&quot;targets&quot;</span>
+            <span class="p">)</span>
         <span class="c1"># convert torch to warp if needed, ensuring 2D (num_envs, V, 4) -&gt; (num_envs, V) vec4f</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">targets</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">targets</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
@@ -1353,7 +1379,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 26, 2026.
+  Last updated on Feb 27, 2026.
   <br/>
 </p>
   </div>
