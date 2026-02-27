@@ -14,26 +14,6 @@ from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
 
-FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
-
-
-@configclass
-class KukaAllegroSceneCfg(dexsuite.SceneCfg):
-    """Kuka Allegro participant scene for Dexsuite Lifting/Reorientation"""
-
-    def __post_init__(self: dexsuite.SceneCfg):
-        super().__post_init__()
-        self.robot = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        for link_name in FINGERTIP_LIST:
-            setattr(
-                self,
-                f"{link_name}_object_s",
-                ContactSensorCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
-                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
-                ),
-            )
-
 
 @configclass
 class KukaAllegroRelJointPosActionCfg:
@@ -51,31 +31,16 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
 
 
 @configclass
-class KukaAllegroObservationCfg(dexsuite.ObservationsCfg):
-    """Kuka Allegro observations for Dexsuite Lifting/Reorientation"""
-
-    def __post_init__(self: dexsuite.ObservationsCfg):
-        super().__post_init__()
-        self.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
-            clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
-        )
-        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
-
-
-@configclass
 class KukaAllegroMixinCfg:
-    scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
-    observations: KukaAllegroObservationCfg = KukaAllegroObservationCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
 
     def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.commands.object_pose.body_name = "palm_link"
         self.scene.robot = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        for link_name in FINGERTIP_LIST:
+        finger_tip_body_list = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
+        for link_name in finger_tip_body_list:
             setattr(
                 self.scene,
                 f"{link_name}_object_s",
@@ -86,7 +51,7 @@ class KukaAllegroMixinCfg:
             )
         self.observations.proprio.contact = ObsTerm(
             func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
+            params={"contact_sensor_names": [f"{link}_object_s" for link in finger_tip_body_list]},
             clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
         )
         self.observations.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]

@@ -12,7 +12,6 @@ import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.sensors import TiledCamera
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
 from .utils import sample_object_point_cloud
@@ -206,53 +205,4 @@ def fingers_contact_force_b(
     robot: Articulation = env.scene[asset_cfg.name]
     root_link_quat_w = wp.to_torch(robot.data.root_link_quat_w)
     forces_b = quat_apply_inverse(root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
-    return forces_b.view(env.num_envs, -1)
-
-
-class vision_camera(ManagerTermBase):
-    """Vision camera observation term for retrieving and normalizing camera data.
-
-    Args (from ``cfg.params``):
-        sensor_cfg: Scene entity for the camera sensor. Defaults to ``SceneEntityCfg("tiled_camera")``.
-
-    Returns (from ``__call__``):
-        Tensor containing normalized camera images with shape depending on the camera configuration.
-    """
-
-    def __init__(self, cfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
-        self.sensor: TiledCamera = env.scene.sensors[sensor_cfg.name]
-        self.sensor_type = self.sensor.cfg.data_types[0]
-        self.norm_fn = self._depth_norm if self.sensor_type == "distance_to_image_plane" else self._rgb_norm
-
-    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
-        """Obtain and optionally normalize the camera image data.
-
-        Args:
-            env: The environment.
-            sensor_cfg: Scene entity for the camera sensor.
-            normalize: Whether to normalize the images. Defaults to ``True``.
-
-        Returns:
-            Tensor containing camera images (normalized if requested).
-        """
-        images = self.sensor.data.output[self.sensor_type]
-        torch.nan_to_num_(images, nan=1e6)
-        if normalize:
-            images = self.norm_fn(images)
-            images = images.permute(0, 3, 1, 2).contiguous()
-        return images
-
-    def _rgb_norm(self, images: torch.Tensor) -> torch.Tensor:
-        """Normalize RGB images."""
-        images = images.float() / 255.0
-        mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
-        images -= mean_tensor
-        return images
-
-    def _depth_norm(self, images: torch.Tensor) -> torch.Tensor:
-        """Normalize depth images."""
-        images = torch.tanh(images / 2) * 2
-        images -= torch.mean(images, dim=(1, 2), keepdim=True)
-        return images
+    return forces_b

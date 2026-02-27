@@ -184,8 +184,8 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 # update the group configs with Hydra command line arguments
                 runtime_choice = hydra_cfg.runtime.choices
                 resolve_hydra_group_runtime_override(env_cfg, agent_cfg, hydra_env_cfg, runtime_choice)
-                # update the configs with the Hydra command line arguments
-                env_cfg.from_dict(hydra_env_cfg["env"])
+                # update the configs with the Hydra command line arguments (strict=False: skip keys from replaced group nodes)
+                env_cfg.from_dict(hydra_env_cfg["env"], strict=False)
                 # instantiate renderer_cfg from renderer_type so cameras get a concrete RendererCfg
                 instantiate_renderer_cfg_in_env(env_cfg)
                 # replace strings that represent gymnasium spaces because OmegaConf does not support them.
@@ -195,7 +195,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 if isinstance(agent_cfg, dict) or agent_cfg is None:
                     agent_cfg = hydra_env_cfg["agent"]
                 else:
-                    agent_cfg.from_dict(hydra_env_cfg["agent"])
+                    agent_cfg.from_dict(hydra_env_cfg["agent"], strict=False)
                 # call the original function
                 func(env_cfg, agent_cfg, *args, **kwargs)
 
@@ -207,6 +207,24 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     return decorator
 
 
+def _find_renderer_cfg_paths(node: object, prefix: str = "env") -> list[str]:
+    """Recursively find paths under env where the value has renderer_type or renderer_cfg (TiledCameraCfg-like)."""
+    paths: list[str] = []
+    if isinstance(node, Mapping):
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if isinstance(value, Mapping):
+                if "renderer_type" in value or "renderer_cfg" in value:
+                    paths.append(path)
+                paths.extend(_find_renderer_cfg_paths(value, path))
+            else:
+                if hasattr(value, "renderer_type") or hasattr(value, "renderer_cfg"):
+                    paths.append(path)
+                if hasattr(value, "__dict__") and not isinstance(value, type):
+                    paths.extend(_find_renderer_cfg_paths(vars(value), path))
+    return paths
+
+
 def _register_renderer_type_groups(cfg_dict: dict, cs: ConfigStore) -> list[dict]:
     """Register Hydra config groups for renderer_type (isaac_rtx, newton_warp); return default entries for defaults list."""
     default_entries: list[dict] = []
@@ -216,16 +234,11 @@ def _register_renderer_type_groups(cfg_dict: dict, cs: ConfigStore) -> list[dict
             cs.store(group=group_path, name=opt, node=opt)
         default_entries.append({group_path: DEFAULT_RENDERER_TYPE})
 
-    try:
-        scene = getattr_nested(cfg_dict, "env.scene")
-    except (KeyError, AttributeError):
-        scene = None
-    if isinstance(scene, Mapping):
-        for camera_key in ("base_camera", "tiled_camera"):
-            if camera_key in scene:
-                add_group(f"env.scene.{camera_key}.renderer_type")
-    if "tiled_camera" in cfg_dict.get("env", {}):
-        add_group("env.tiled_camera.renderer_type")
+    env = cfg_dict.get("env") if isinstance(cfg_dict, Mapping) else getattr(cfg_dict, "env", None)
+    if env is None:
+        return default_entries
+    for path in _find_renderer_cfg_paths(env, "env"):
+        add_group(f"{path}.renderer_type")
     return default_entries
 
 

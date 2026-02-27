@@ -56,13 +56,13 @@ def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callab
                 _normalize_renderer_type_in_dict(hydra_env_cfg["env"])
                 # apply group overrides to mutate cfg objects before from_dict
                 resolve_hydra_group_runtime_override(env_cfg, agent_cfg, hydra_env_cfg, hydra_env_cfg["hydra"])
-                # update the configs with the Hydra command line arguments
-                env_cfg.from_dict(hydra_env_cfg["env"])
+                # update the configs with the Hydra command line arguments (strict=False: skip keys from replaced group nodes)
+                env_cfg.from_dict(hydra_env_cfg["env"], strict=False)
                 instantiate_renderer_cfg_in_env(env_cfg)
                 if isinstance(agent_cfg, dict):
                     agent_cfg = hydra_env_cfg["agent"]
                 else:
-                    agent_cfg.from_dict(hydra_env_cfg["agent"])
+                    agent_cfg.from_dict(hydra_env_cfg["agent"], strict=False)
                 # call the original function
                 func(env_cfg, agent_cfg, *args, **kwargs)
 
