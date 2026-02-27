@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Installation script for the 'isaaclab_newton' python package."""
+"""Installation script for the 'isaaclab_experimental' python package."""
 
 import os
 
 import toml
-from setuptools import setup
+from setuptools import find_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -18,17 +18,19 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
+    "numpy>2",
+    "warp-lang>=1.9.0.dev20250825",  # TODO: update to 1.11.0
+    "torch>=2.7",
     "prettytable==3.3.0",
-    # newton
-    "mujoco==3.5.0",
-    "mujoco-warp==3.5.0.2",
-    "newton==1.0.0rc3",
-    "PyOpenGL-accelerate==3.1.10",
+    "toml",
 ]
+
+
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Installation operation
 setup(
-    name="isaaclab_newton",
+    name="isaaclab_experimental",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -37,17 +39,15 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
-    package_data={"": ["*.pyi"]},
-    python_requires=">=3.11",
+    python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
-    packages=["isaaclab_newton"],
+    dependency_links=PYTORCH_INDEX_URL,
+    packages=find_packages(),
     classifiers=[
         "Natural Language :: English",
+        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
-        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )

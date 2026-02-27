@@ -6,6 +6,7 @@
 """Script to train RL agent with RSL-RL."""
 
 import argparse
+import contextlib
 import importlib.metadata as metadata
 import logging
 import os
@@ -34,6 +35,8 @@ import cli_args  # isort: skip
 logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 RSL_RL_VERSION = "3.0.1"
 
