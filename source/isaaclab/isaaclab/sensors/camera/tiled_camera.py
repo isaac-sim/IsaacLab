@@ -334,14 +334,6 @@ class TiledCamera(Camera):
         rows = math.ceil(self._view.count / cols)
         return (cols, rows)
 
-    def _create_annotator_data(self):
-        # we do not need to create annotator data for the tiled camera sensor
-        raise RuntimeError("This function should not be called for the tiled camera sensor.")
-
-    def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
-        # we do not need to process annotator output for the tiled camera sensor
-        raise RuntimeError("This function should not be called for the tiled camera sensor.")
-
     """
     Internal simulation callbacks.
     """

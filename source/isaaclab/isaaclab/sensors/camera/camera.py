@@ -450,13 +450,24 @@ class Camera(SensorBase):
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Create replicator render products and annotators
-        self._setup_replicator_annotators()
+        self._isaac_rtx_renderer_setup_replicator_annotators()
 
         # Create internal buffers
         self._create_buffers()
         self._update_intrinsic_matrices(self._ALL_INDICES)
 
-    def _setup_replicator_annotators(self) -> None:
+    def _update_buffers_impl(self, env_mask: wp.array):
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
+        # Increment frame count
+        self._frame[env_ids] += 1
+        # -- pose
+        if self.cfg.update_latest_camera_pose:
+            self._update_poses(env_ids)
+        self._isaac_rtx_renderer_update_annotator_buffers(env_ids)
+
+    def _isaac_rtx_renderer_setup_replicator_annotators(self) -> None:
         """Create replicator render products and annotators for the camera data types."""
         import omni.replicator.core as rep
         from omni.syntheticdata.scripts.SyntheticData import SyntheticData
@@ -553,56 +564,118 @@ class Camera(SensorBase):
                 # add to registry
                 self._rep_registry[name].append(rep_annotator)
 
-    def _update_buffers_impl(self, env_mask: wp.array):
-        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        if len(env_ids) == 0:
-            return
-        # Increment frame count
-        self._frame[env_ids] += 1
-        # -- pose
-        if self.cfg.update_latest_camera_pose:
-            self._update_poses(env_ids)
-        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
-        # Lazy import Isaac RTX Renderer dependency.
-        # For now the Camera implementation works only with Isaac RTX Renderer.
-        # Future consideration should be to move Renderer from TiledCamera up the hierarchy to Camera
-        # to make the Camera backend-agnostic.
+
+    def _isaac_rtx_renderer_update_annotator_buffers(self, env_ids: torch.Tensor) -> None:
+        """Pump RTX renderer and read annotator data into camera buffers."""
         from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
 
         ensure_isaac_rtx_render_update()
 
-        # -- read the data from annotator registry
-        # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:
-            # this is the first time buffer is called
-            # it allocates memory for all the sensors
-            self._create_annotator_data()
+            self._isaac_rtx_renderer_create_annotator_data()
         else:
-            # iterate over all the data types
             for name, annotators in self._rep_registry.items():
-                # iterate over all the annotators
                 for index in env_ids:
-                    # get the output
                     output = annotators[index].get_data()
-                    # process the output
-                    data, info = self._process_annotator_output(name, output)
-                    # add data to output
+                    data, info = self._isaac_rtx_renderer_process_annotator_output(name, output)
                     self._data.output[name][index] = data
-                    # add info to output
                     self._data.info[index][name] = info
-                # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
-                #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
-                #       larger than the clipping range in the output. We apply an additional clipping to ensure values
-                #       are within the clipping range for all the annotators.
                 if name == "distance_to_camera":
                     self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-                # apply defined clipping behavior
                 if (
                     name == "distance_to_camera" or name == "distance_to_image_plane"
                 ) and self.cfg.depth_clipping_behavior != "none":
                     self._data.output[name][torch.isinf(self._data.output[name])] = (
                         0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
                     )
+
+    def _isaac_rtx_renderer_create_annotator_data(self) -> None:
+        """Create the buffers to store the annotator data.
+
+        We create a buffer for each annotator and store the data in a dictionary. Since the data
+        shape is not known beforehand, we create a list of buffers and concatenate them later.
+
+        This is an expensive operation and should be called only once.
+        """
+        # add data from the annotators
+        for name, annotators in self._rep_registry.items():
+            # create a list to store the data for each annotator
+            data_all_cameras = list()
+            # iterate over all the annotators
+            for index in self._ALL_INDICES:
+                # get the output
+                output = annotators[index].get_data()
+                # process the output
+                data, info = self._isaac_rtx_renderer_process_annotator_output(name, output)
+                # append the data
+                data_all_cameras.append(data)
+                # store the info
+                self._data.info[index][name] = info
+            # concatenate the data along the batch dimension
+            self._data.output[name] = torch.stack(data_all_cameras, dim=0)
+            # NOTE: `distance_to_camera` and `distance_to_image_plane` are not both clipped to the maximum defined
+            #       in the clipping range. The clipping is applied only to `distance_to_image_plane` and then both
+            #       outputs are only clipped where the values in `distance_to_image_plane` exceed the threshold. To
+            #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
+            if name == "distance_to_camera":
+                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+            # clip the data if needed
+            if (
+                name == "distance_to_camera" or name == "distance_to_image_plane"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[name][torch.isinf(self._data.output[name])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
+
+    def _isaac_rtx_renderer_process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
+        """Process the annotator output.
+
+        This function is called after the data has been collected from all the cameras.
+        """
+        # extract info and data from the output
+        if isinstance(output, dict):
+            data = output["data"]
+            info = output["info"]
+        else:
+            data = output
+            info = None
+        # convert data into torch tensor
+        data = convert_to_torch(data, device=self.device)
+
+        # process data for different segmentation types
+        # Note: Replicator returns raw buffers of dtype int32 for segmentation types
+        #   so we need to convert them to uint8 4 channel images for colorized types
+        height, width = self.image_shape
+        if name == "semantic_segmentation":
+            if self.cfg.colorize_semantic_segmentation:
+                data = data.view(torch.uint8).reshape(height, width, -1)
+            else:
+                data = data.view(height, width, 1)
+        elif name == "instance_segmentation_fast":
+            if self.cfg.colorize_instance_segmentation:
+                data = data.view(torch.uint8).reshape(height, width, -1)
+            else:
+                data = data.view(height, width, 1)
+        elif name == "instance_id_segmentation_fast":
+            if self.cfg.colorize_instance_id_segmentation:
+                data = data.view(torch.uint8).reshape(height, width, -1)
+            else:
+                data = data.view(height, width, 1)
+        # make sure buffer dimensions are consistent as (H, W, C)
+        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth":
+            data = data.view(height, width, 1)
+        # we only return the RGB channels from the RGBA output if rgb is required
+        # normals return (x, y, z) in first 3 channels, 4th channel is unused
+        elif name == "rgb" or name == "normals":
+            data = data[..., :3]
+        # motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused
+        elif name == "motion_vectors":
+            data = data[..., :2]
+        elif name in self.SIMPLE_SHADING_MODES:
+            data = data[..., :3]
+
+        # return the data and info
+        return data, info
 
     """
     Private Helpers
@@ -695,94 +768,6 @@ class Camera(SensorBase):
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
             quat, origin="opengl", target="world"
         )
-
-    def _create_annotator_data(self):
-        """Create the buffers to store the annotator data.
-
-        We create a buffer for each annotator and store the data in a dictionary. Since the data
-        shape is not known beforehand, we create a list of buffers and concatenate them later.
-
-        This is an expensive operation and should be called only once.
-        """
-        # add data from the annotators
-        for name, annotators in self._rep_registry.items():
-            # create a list to store the data for each annotator
-            data_all_cameras = list()
-            # iterate over all the annotators
-            for index in self._ALL_INDICES:
-                # get the output
-                output = annotators[index].get_data()
-                # process the output
-                data, info = self._process_annotator_output(name, output)
-                # append the data
-                data_all_cameras.append(data)
-                # store the info
-                self._data.info[index][name] = info
-            # concatenate the data along the batch dimension
-            self._data.output[name] = torch.stack(data_all_cameras, dim=0)
-            # NOTE: `distance_to_camera` and `distance_to_image_plane` are not both clipped to the maximum defined
-            #       in the clipping range. The clipping is applied only to `distance_to_image_plane` and then both
-            #       outputs are only clipped where the values in `distance_to_image_plane` exceed the threshold. To
-            #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
-            if name == "distance_to_camera":
-                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-            # clip the data if needed
-            if (
-                name == "distance_to_camera" or name == "distance_to_image_plane"
-            ) and self.cfg.depth_clipping_behavior != "none":
-                self._data.output[name][torch.isinf(self._data.output[name])] = (
-                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
-                )
-
-    def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
-        """Process the annotator output.
-
-        This function is called after the data has been collected from all the cameras.
-        """
-        # extract info and data from the output
-        if isinstance(output, dict):
-            data = output["data"]
-            info = output["info"]
-        else:
-            data = output
-            info = None
-        # convert data into torch tensor
-        data = convert_to_torch(data, device=self.device)
-
-        # process data for different segmentation types
-        # Note: Replicator returns raw buffers of dtype int32 for segmentation types
-        #   so we need to convert them to uint8 4 channel images for colorized types
-        height, width = self.image_shape
-        if name == "semantic_segmentation":
-            if self.cfg.colorize_semantic_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        elif name == "instance_segmentation_fast":
-            if self.cfg.colorize_instance_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        elif name == "instance_id_segmentation_fast":
-            if self.cfg.colorize_instance_id_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        # make sure buffer dimensions are consistent as (H, W, C)
-        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth":
-            data = data.view(height, width, 1)
-        # we only return the RGB channels from the RGBA output if rgb is required
-        # normals return (x, y, z) in first 3 channels, 4th channel is unused
-        elif name == "rgb" or name == "normals":
-            data = data[..., :3]
-        # motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused
-        elif name == "motion_vectors":
-            data = data[..., :2]
-        elif name in self.SIMPLE_SHADING_MODES:
-            data = data[..., :3]
-
-        # return the data and info
-        return data, info
 
     def _resolve_simple_shading_mode(self) -> int | None:
         """Resolve the requested simple shading mode from data types."""
