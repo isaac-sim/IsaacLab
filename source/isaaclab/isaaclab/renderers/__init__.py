@@ -11,12 +11,17 @@ different renderer backends that can be used with Isaac Lab.
 
 from __future__ import annotations
 
-from .base_renderer import BaseRenderer
-from .renderer import Renderer
-from .renderer_cfg import RendererCfg
+import typing
 
-__all__ = [
-    "BaseRenderer",
-    "Renderer",
-    "RendererCfg",
-]
+if typing.TYPE_CHECKING:
+    from .base_renderer import BaseRenderer
+    from .renderer import Renderer
+    from .renderer_cfg import RendererCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("base_renderer", "BaseRenderer"),
+    ("renderer", "Renderer"),
+    ("renderer_cfg", "RendererCfg"),
+)

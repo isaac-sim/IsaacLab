@@ -53,13 +53,29 @@ Usage with a class modifier:
 
 """
 
-# isort: off
-from .modifier_cfg import ModifierCfg
-from .modifier_base import ModifierBase
-from .modifier import DigitalFilter
-from .modifier_cfg import DigitalFilterCfg
-from .modifier import Integrator
-from .modifier_cfg import IntegratorCfg
+from __future__ import annotations
 
-# isort: on
-from .modifier import bias, clip, scale
+import typing
+
+if typing.TYPE_CHECKING:
+    from .modifier_cfg import ModifierCfg
+    from .modifier_base import ModifierBase
+    from .modifier import DigitalFilter
+    from .modifier_cfg import DigitalFilterCfg
+    from .modifier import Integrator
+    from .modifier_cfg import IntegratorCfg
+    from .modifier import bias, clip, scale
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("modifier_cfg", ["ModifierCfg", "DigitalFilterCfg", "IntegratorCfg"]),
+    ("modifier_base", "ModifierBase"),
+    ("modifier", [
+        "DigitalFilter",
+        "Integrator",
+        "bias",
+        "clip",
+        "scale",
+    ]),
+)

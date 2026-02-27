@@ -5,4 +5,15 @@
 
 """Views for manipulating USD prims."""
 
-from .xform_prim_view import XformPrimView
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .xform_prim_view import XformPrimView
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("xform_prim_view", "XformPrimView"),
+)

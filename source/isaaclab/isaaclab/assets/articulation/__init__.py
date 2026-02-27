@@ -5,16 +5,23 @@
 
 """Sub-module for rigid articulated assets."""
 
-from .base_articulation import BaseArticulation
-from .base_articulation_data import BaseArticulationData
-from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
-from .articulation_data import ArticulationData
+from __future__ import annotations
 
-__all__ = [
-    "BaseArticulation",
-    "BaseArticulationData",
-    "Articulation",
-    "ArticulationCfg",
-    "ArticulationData",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .base_articulation import BaseArticulation
+    from .base_articulation_data import BaseArticulationData
+    from .articulation import Articulation
+    from .articulation_cfg import ArticulationCfg
+    from .articulation_data import ArticulationData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("base_articulation", "BaseArticulation"),
+    ("base_articulation_data", "BaseArticulationData"),
+    ("articulation", "Articulation"),
+    ("articulation_cfg", "ArticulationCfg"),
+    ("articulation_data", "ArticulationData"),
+)

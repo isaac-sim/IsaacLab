@@ -5,7 +5,17 @@
 
 """Sub-module for PhysX frame transformer sensor."""
 
-from .frame_transformer import FrameTransformer
-from .frame_transformer_data import FrameTransformerData
+from __future__ import annotations
 
-__all__ = ["FrameTransformer", "FrameTransformerData"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .frame_transformer import FrameTransformer
+    from .frame_transformer_data import FrameTransformerData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("frame_transformer", "FrameTransformer"),
+    ("frame_transformer_data", "FrameTransformerData"),
+)

@@ -5,8 +5,19 @@
 
 """This sub-module contains the functions that are specific to the lift environments."""
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+from __future__ import annotations
 
-from .observations import *  # noqa: F401, F403
-from .pick_place_events import *  # noqa: F401, F403
-from .terminations import *  # noqa: F401, F403
+import typing
+
+if typing.TYPE_CHECKING:
+    from .observations import *  # noqa: F403
+    from .pick_place_events import *  # noqa: F403
+    from .terminations import *  # noqa: F403
+    from isaaclab.envs.mdp import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["observations", "pick_place_events", "terminations"],
+    packages=["isaaclab.envs.mdp"],
+)

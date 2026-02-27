@@ -3,5 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .pbt import MultiObserver, PbtAlgoObserver
-from .pbt_cfg import PbtCfg
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .pbt import MultiObserver, PbtAlgoObserver
+    from .pbt_cfg import PbtCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("pbt", ["MultiObserver", "PbtAlgoObserver"]),
+    ("pbt_cfg", "PbtCfg"),
+)

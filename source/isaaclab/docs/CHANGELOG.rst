@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.4.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refined lazy-loading behavior for config-only import paths to keep environment
+  config construction backend-free. This includes stricter cascading namespace
+  resolution in :func:`~isaaclab.utils.module.attach_cascading`, avoiding eager
+  callable resolution during deepcopy of :class:`~isaaclab.utils.string.ResolvableString`,
+  and updating locomanipulation MDP exports/import boundaries so
+  ``test_env_cfg_no_forbidden_imports.py`` passes without importing runtime modules.
 
 4.3.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~

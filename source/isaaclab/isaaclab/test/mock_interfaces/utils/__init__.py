@@ -5,6 +5,19 @@
 
 """Utilities for creating and using mock interfaces."""
 
-from .mock_generator import MockArticulationBuilder, MockSensorBuilder
-from .mock_wrench_composer import MockWrenchComposer
-from .patching import patch_articulation, patch_sensor
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .mock_generator import MockArticulationBuilder, MockSensorBuilder
+    from .mock_wrench_composer import MockWrenchComposer
+    from .patching import patch_articulation, patch_sensor
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("mock_generator", ["MockArticulationBuilder", "MockSensorBuilder"]),
+    ("mock_wrench_composer", "MockWrenchComposer"),
+    ("patching", ["patch_articulation", "patch_sensor"]),
+)

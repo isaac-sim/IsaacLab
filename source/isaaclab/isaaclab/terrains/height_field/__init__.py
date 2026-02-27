@@ -25,14 +25,25 @@ the corresponding x and y coordinates.
 
 """
 
-from .hf_terrains_cfg import (
-    HfDiscreteObstaclesTerrainCfg,
-    HfInvertedPyramidSlopedTerrainCfg,
-    HfInvertedPyramidStairsTerrainCfg,
-    HfPyramidSlopedTerrainCfg,
-    HfPyramidStairsTerrainCfg,
-    HfRandomUniformTerrainCfg,
-    HfSteppingStonesTerrainCfg,
-    HfTerrainBaseCfg,
-    HfWaveTerrainCfg,
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .hf_terrains_cfg import HfDiscreteObstaclesTerrainCfg, HfInvertedPyramidSlopedTerrainCfg, HfInvertedPyramidStairsTerrainCfg, HfPyramidSlopedTerrainCfg, HfPyramidStairsTerrainCfg, HfRandomUniformTerrainCfg, HfSteppingStonesTerrainCfg, HfTerrainBaseCfg, HfWaveTerrainCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("hf_terrains_cfg", [
+        "HfDiscreteObstaclesTerrainCfg",
+        "HfInvertedPyramidSlopedTerrainCfg",
+        "HfInvertedPyramidStairsTerrainCfg",
+        "HfPyramidSlopedTerrainCfg",
+        "HfPyramidStairsTerrainCfg",
+        "HfRandomUniformTerrainCfg",
+        "HfSteppingStonesTerrainCfg",
+        "HfTerrainBaseCfg",
+        "HfWaveTerrainCfg",
+    ]),
 )

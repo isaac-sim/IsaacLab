@@ -5,10 +5,23 @@
 
 """Sub-module for frame transformer sensor."""
 
-from .base_frame_transformer import BaseFrameTransformer
-from .base_frame_transformer_data import BaseFrameTransformerData
-from .frame_transformer import FrameTransformer
-from .frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from .frame_transformer_data import FrameTransformerData
+from __future__ import annotations
 
-__all__ = ["BaseFrameTransformer", "BaseFrameTransformerData", "FrameTransformer", "FrameTransformerCfg", "FrameTransformerData", "OffsetCfg"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .base_frame_transformer import BaseFrameTransformer
+    from .base_frame_transformer_data import BaseFrameTransformerData
+    from .frame_transformer import FrameTransformer
+    from .frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
+    from .frame_transformer_data import FrameTransformerData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("base_frame_transformer", "BaseFrameTransformer"),
+    ("base_frame_transformer_data", "BaseFrameTransformerData"),
+    ("frame_transformer", "FrameTransformer"),
+    ("frame_transformer_cfg", ["FrameTransformerCfg", "OffsetCfg"]),
+    ("frame_transformer_data", "FrameTransformerData"),
+)

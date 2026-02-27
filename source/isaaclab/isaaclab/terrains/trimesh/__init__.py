@@ -12,18 +12,29 @@ tri-mesh primitive. Thus, this representation is more computationally and memory
 efficient than the height-field representation, but it is not as flexible.
 """
 
-from .mesh_terrains_cfg import (
-    MeshBoxTerrainCfg,
-    MeshFloatingRingTerrainCfg,
-    MeshGapTerrainCfg,
-    MeshInvertedPyramidStairsTerrainCfg,
-    MeshPitTerrainCfg,
-    MeshPlaneTerrainCfg,
-    MeshPyramidStairsTerrainCfg,
-    MeshRailsTerrainCfg,
-    MeshRandomGridTerrainCfg,
-    MeshRepeatedBoxesTerrainCfg,
-    MeshRepeatedCylindersTerrainCfg,
-    MeshRepeatedPyramidsTerrainCfg,
-    MeshStarTerrainCfg,
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .mesh_terrains_cfg import MeshBoxTerrainCfg, MeshFloatingRingTerrainCfg, MeshGapTerrainCfg, MeshInvertedPyramidStairsTerrainCfg, MeshPitTerrainCfg, MeshPlaneTerrainCfg, MeshPyramidStairsTerrainCfg, MeshRailsTerrainCfg, MeshRandomGridTerrainCfg, MeshRepeatedBoxesTerrainCfg, MeshRepeatedCylindersTerrainCfg, MeshRepeatedPyramidsTerrainCfg, MeshStarTerrainCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("mesh_terrains_cfg", [
+        "MeshBoxTerrainCfg",
+        "MeshFloatingRingTerrainCfg",
+        "MeshGapTerrainCfg",
+        "MeshInvertedPyramidStairsTerrainCfg",
+        "MeshPitTerrainCfg",
+        "MeshPlaneTerrainCfg",
+        "MeshPyramidStairsTerrainCfg",
+        "MeshRailsTerrainCfg",
+        "MeshRandomGridTerrainCfg",
+        "MeshRepeatedBoxesTerrainCfg",
+        "MeshRepeatedCylindersTerrainCfg",
+        "MeshRepeatedPyramidsTerrainCfg",
+        "MeshStarTerrainCfg",
+    ]),
 )

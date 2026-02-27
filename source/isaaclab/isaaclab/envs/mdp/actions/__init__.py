@@ -5,9 +5,27 @@
 
 """Various action terms that can be used in the environment."""
 
-from .actions_cfg import *
-from .binary_joint_actions import *
-from .joint_actions import *
-from .joint_actions_to_limits import *
-from .non_holonomic_actions import *
-from .surface_gripper_actions import *
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .actions_cfg import *  # noqa: F403
+    from .binary_joint_actions import *  # noqa: F403
+    from .joint_actions import *  # noqa: F403
+    from .joint_actions_to_limits import *  # noqa: F403
+    from .non_holonomic_actions import *  # noqa: F403
+    from .surface_gripper_actions import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=[
+        "actions_cfg",
+        "binary_joint_actions",
+        "joint_actions",
+        "joint_actions_to_limits",
+        "non_holonomic_actions",
+        "surface_gripper_actions",
+    ],
+)

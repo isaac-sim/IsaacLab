@@ -14,5 +14,30 @@ on the configuration, the spawned prim can be:
 
 """
 
-from .shapes import spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
-from .shapes_cfg import CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, ShapeCfg, SphereCfg
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .shapes import spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
+    from .shapes_cfg import CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, ShapeCfg, SphereCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("shapes", [
+        "spawn_capsule",
+        "spawn_cone",
+        "spawn_cuboid",
+        "spawn_cylinder",
+        "spawn_sphere",
+    ]),
+    ("shapes_cfg", [
+        "CapsuleCfg",
+        "ConeCfg",
+        "CuboidCfg",
+        "CylinderCfg",
+        "ShapeCfg",
+        "SphereCfg",
+    ]),
+)

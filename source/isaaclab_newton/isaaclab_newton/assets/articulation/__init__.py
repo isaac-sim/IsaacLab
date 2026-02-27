@@ -3,7 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .articulation import Articulation
-from .articulation_data import ArticulationData
+from __future__ import annotations
 
-__all__ = ["Articulation", "ArticulationData"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .articulation import Articulation
+    from .articulation_data import ArticulationData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("articulation", "Articulation"),
+    ("articulation_data", "ArticulationData"),
+)

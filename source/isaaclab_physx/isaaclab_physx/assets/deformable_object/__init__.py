@@ -5,12 +5,19 @@
 
 """Sub-module for deformable object assets."""
 
-from .deformable_object import DeformableObject
-from .deformable_object_cfg import DeformableObjectCfg
-from .deformable_object_data import DeformableObjectData
+from __future__ import annotations
 
-__all__ = [
-    "DeformableObject",
-    "DeformableObjectCfg",
-    "DeformableObjectData",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .deformable_object import DeformableObject
+    from .deformable_object_cfg import DeformableObjectCfg
+    from .deformable_object_data import DeformableObjectData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("deformable_object", "DeformableObject"),
+    ("deformable_object_cfg", "DeformableObjectCfg"),
+    ("deformable_object_data", "DeformableObjectData"),
+)

@@ -3,6 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .physx_replicate import physx_replicate
+from __future__ import annotations
 
-__all__ = ["physx_replicate"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .physx_replicate import physx_replicate
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("physx_replicate", "physx_replicate"),
+)

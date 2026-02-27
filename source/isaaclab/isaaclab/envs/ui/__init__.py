@@ -10,7 +10,21 @@ This includes functionalities such as tracking a robot in the simulation,
 toggling different debug visualization tools, and other user-defined functionalities.
 """
 
-from .base_env_window import BaseEnvWindow
-from .empty_window import EmptyWindow
-from .manager_based_rl_env_window import ManagerBasedRLEnvWindow
-from .viewport_camera_controller import ViewportCameraController
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .base_env_window import BaseEnvWindow
+    from .empty_window import EmptyWindow
+    from .manager_based_rl_env_window import ManagerBasedRLEnvWindow
+    from .viewport_camera_controller import ViewportCameraController
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("base_env_window", "BaseEnvWindow"),
+    ("empty_window", "EmptyWindow"),
+    ("manager_based_rl_env_window", "ManagerBasedRLEnvWindow"),
+    ("viewport_camera_controller", "ViewportCameraController"),
+)

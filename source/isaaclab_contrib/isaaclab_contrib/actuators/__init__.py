@@ -10,5 +10,17 @@ The thruster actuator simulates realistic motor/propeller dynamics including asy
 rise and fall time constants, thrust limits, and dynamic response characteristics.
 """
 
-from .thruster import Thruster
-from .thruster_cfg import ThrusterCfg
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .thruster import Thruster
+    from .thruster_cfg import ThrusterCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("thruster", "Thruster"),
+    ("thruster_cfg", "ThrusterCfg"),
+)

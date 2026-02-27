@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pinocchio as pin
 import scipy.linalg.blas as blas

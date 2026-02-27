@@ -26,18 +26,35 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
+from __future__ import annotations
+
 import warnings
 
-from .converters import *  # noqa: F401, F403
-from .schemas import *  # noqa: F401, F403
-from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
-from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
-from .spawners import *  # noqa: F401, F403
-from .utils import *  # noqa: F401, F403
-from .views import *  # noqa: F401, F403
+import typing
 
-# Deprecated alias for PhysxCfg -> PhysxCfg
-# This supports old code that uses `from isaaclab.sim import PhysxCfg`
+if typing.TYPE_CHECKING:
+    from .simulation_cfg import RenderCfg, SimulationCfg
+    from .simulation_context import SimulationContext, build_simulation_context
+    from .converters import *  # noqa: F403
+    from .schemas import *  # noqa: F403
+    from .spawners import *  # noqa: F403
+    from .utils import *  # noqa: F403
+    from .views import *  # noqa: F403
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("simulation_cfg", ["RenderCfg", "SimulationCfg"]),
+    ("simulation_context", ["SimulationContext", "build_simulation_context"]),
+    submodules=[
+        "converters",
+        "schemas",
+        "spawners",
+        "utils",
+        "views",
+    ],
+)
+
 try:
     from isaaclab_physx.physics import PhysxCfg as _PhysxCfg
 

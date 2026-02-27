@@ -14,4 +14,15 @@ The deploy module includes:
 
 """
 
-from .reach import *  # noqa: F401, F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .reach import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["reach"],
+)

@@ -38,28 +38,41 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from .articulation import BaseArticulation, BaseArticulationData, Articulation, ArticulationCfg, ArticulationData
-from .asset_base import AssetBase
-from .asset_base_cfg import AssetBaseCfg
-from .rigid_object import BaseRigidObject, BaseRigidObjectData, RigidObject, RigidObjectCfg, RigidObjectData
-from .rigid_object_collection import BaseRigidObjectCollection, BaseRigidObjectCollectionData, RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData
+from __future__ import annotations
 
-__all__ = [
-    "AssetBase",
-    "AssetBaseCfg",
-    "BaseArticulation",
-    "BaseArticulationData",
-    "Articulation",
-    "ArticulationCfg",
-    "ArticulationData",
-    "BaseRigidObject",
-    "BaseRigidObjectData",
-    "RigidObject",
-    "RigidObjectCfg",
-    "RigidObjectData",
-    "BaseRigidObjectCollection",
-    "BaseRigidObjectCollectionData",
-    "RigidObjectCollection",
-    "RigidObjectCollectionCfg",
-    "RigidObjectCollectionData",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .articulation import BaseArticulation, BaseArticulationData, Articulation, ArticulationCfg, ArticulationData
+    from .asset_base import AssetBase
+    from .asset_base_cfg import AssetBaseCfg
+    from .rigid_object import BaseRigidObject, BaseRigidObjectData, RigidObject, RigidObjectCfg, RigidObjectData
+    from .rigid_object_collection import BaseRigidObjectCollection, BaseRigidObjectCollectionData, RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("articulation", [
+        "BaseArticulation",
+        "BaseArticulationData",
+        "Articulation",
+        "ArticulationCfg",
+        "ArticulationData",
+    ]),
+    ("asset_base", "AssetBase"),
+    ("asset_base_cfg", "AssetBaseCfg"),
+    ("rigid_object", [
+        "BaseRigidObject",
+        "BaseRigidObjectData",
+        "RigidObject",
+        "RigidObjectCfg",
+        "RigidObjectData",
+    ]),
+    ("rigid_object_collection", [
+        "BaseRigidObjectCollection",
+        "BaseRigidObjectCollectionData",
+        "RigidObjectCollection",
+        "RigidObjectCollectionCfg",
+        "RigidObjectCollectionData",
+    ]),
+)

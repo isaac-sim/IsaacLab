@@ -5,4 +5,15 @@
 
 """.. deprecated:: Moved to :mod:`isaaclab_teleop.deprecated.openxr.retargeters.manipulator`."""
 
-from isaaclab_teleop.deprecated.openxr.retargeters.manipulator import *  # noqa: F401,F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from isaaclab_teleop.deprecated.openxr.retargeters.manipulator import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    packages=["isaaclab_teleop.deprecated.openxr.retargeters.manipulator"],
+)

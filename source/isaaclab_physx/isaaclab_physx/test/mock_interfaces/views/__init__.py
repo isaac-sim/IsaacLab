@@ -5,18 +5,25 @@
 
 """Mock PhysX TensorAPI views."""
 
-from .mock_articulation_view import MockArticulationView
-from .mock_articulation_view_warp import MockArticulationViewWarp
-from .mock_rigid_body_view import MockRigidBodyView
-from .mock_rigid_body_view_warp import MockRigidBodyViewWarp
-from .mock_rigid_contact_view import MockRigidContactView
-from .mock_rigid_contact_view_warp import MockRigidContactViewWarp
+from __future__ import annotations
 
-__all__ = [
-    "MockRigidBodyView",
-    "MockRigidBodyViewWarp",
-    "MockArticulationView",
-    "MockArticulationViewWarp",
-    "MockRigidContactView",
-    "MockRigidContactViewWarp",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .mock_articulation_view import MockArticulationView
+    from .mock_articulation_view_warp import MockArticulationViewWarp
+    from .mock_rigid_body_view import MockRigidBodyView
+    from .mock_rigid_body_view_warp import MockRigidBodyViewWarp
+    from .mock_rigid_contact_view import MockRigidContactView
+    from .mock_rigid_contact_view_warp import MockRigidContactViewWarp
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("mock_articulation_view", "MockArticulationView"),
+    ("mock_articulation_view_warp", "MockArticulationViewWarp"),
+    ("mock_rigid_body_view", "MockRigidBodyView"),
+    ("mock_rigid_body_view_warp", "MockRigidBodyViewWarp"),
+    ("mock_rigid_contact_view", "MockRigidContactView"),
+    ("mock_rigid_contact_view_warp", "MockRigidContactViewWarp"),
+)

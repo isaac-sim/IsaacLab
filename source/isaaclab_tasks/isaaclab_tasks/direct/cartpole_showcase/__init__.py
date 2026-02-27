@@ -5,5 +5,16 @@
 
 """Cartpole environment showcase for the supported Gymnasium spaces."""
 
-from .cartpole import *  # noqa
-from .cartpole_camera import *  # noqa
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .cartpole import *  # noqa: F403
+    from .cartpole_camera import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["cartpole", "cartpole_camera"],
+)

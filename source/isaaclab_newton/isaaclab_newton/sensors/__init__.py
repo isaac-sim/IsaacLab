@@ -5,10 +5,15 @@
 
 """Sub-package for Newton sensor implementations."""
 
-from .contact_sensor import ContactSensor, ContactSensorData, NewtonContactSensorCfg
+from __future__ import annotations
 
-__all__ = [
-    "ContactSensor",
-    "ContactSensorData",
-    "NewtonContactSensorCfg",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .contact_sensor import ContactSensor, ContactSensorData, NewtonContactSensorCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("contact_sensor", ["ContactSensor", "ContactSensorData", "NewtonContactSensorCfg"]),
+)

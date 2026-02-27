@@ -5,15 +5,39 @@
 
 """Sub-package containing utilities for common operations and helper functions."""
 
-from .array import *
-from .buffers import *
+from __future__ import annotations
+
+import typing
+
 from .configclass import configclass
-from .dict import *
-from .interpolation import *
-from .logger import *
-from .mesh import *
-from .modifiers import *
-from .string import *
-from .timer import Timer
-from .types import *
-from .version import *
+
+if typing.TYPE_CHECKING:
+    from .timer import Timer
+    from .array import *  # noqa: F403
+    from .buffers import *  # noqa: F403
+    from .dict import *  # noqa: F403
+    from .interpolation import *  # noqa: F403
+    from .logger import *  # noqa: F403
+    from .mesh import *  # noqa: F403
+    from .modifiers import *  # noqa: F403
+    from .string import *  # noqa: F403
+    from .types import *  # noqa: F403
+    from .version import *  # noqa: F403
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("timer", "Timer"),
+    submodules=[
+        "array",
+        "buffers",
+        "dict",
+        "interpolation",
+        "logger",
+        "mesh",
+        "modifiers",
+        "string",
+        "types",
+        "version",
+    ],
+)

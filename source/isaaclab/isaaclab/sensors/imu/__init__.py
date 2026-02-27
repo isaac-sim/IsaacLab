@@ -7,10 +7,23 @@
 Imu Sensor
 """
 
-from .base_imu import BaseImu
-from .base_imu_data import BaseImuData
-from .imu import Imu
-from .imu_cfg import ImuCfg
-from .imu_data import ImuData
+from __future__ import annotations
 
-__all__ = ["BaseImu", "BaseImuData", "Imu", "ImuCfg", "ImuData"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .base_imu import BaseImu
+    from .base_imu_data import BaseImuData
+    from .imu import Imu
+    from .imu_cfg import ImuCfg
+    from .imu_data import ImuData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("base_imu", "BaseImu"),
+    ("base_imu_data", "BaseImuData"),
+    ("imu", "Imu"),
+    ("imu_cfg", "ImuCfg"),
+    ("imu_data", "ImuData"),
+)

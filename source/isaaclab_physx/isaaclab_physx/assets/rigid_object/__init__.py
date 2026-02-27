@@ -5,10 +5,17 @@
 
 """Sub-module for rigid object assets."""
 
-from .rigid_object import RigidObject
-from .rigid_object_data import RigidObjectData
+from __future__ import annotations
 
-__all__ = [
-    "RigidObject",
-    "RigidObjectData",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .rigid_object import RigidObject
+    from .rigid_object_data import RigidObjectData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("rigid_object", "RigidObject"),
+    ("rigid_object_data", "RigidObjectData"),
+)

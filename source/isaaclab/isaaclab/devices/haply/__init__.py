@@ -5,6 +5,15 @@
 
 """Haply device interface for teleoperation."""
 
-from .se3_haply import HaplyDevice, HaplyDeviceCfg
+from __future__ import annotations
 
-__all__ = ["HaplyDevice", "HaplyDeviceCfg"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .se3_haply import HaplyDevice, HaplyDeviceCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("se3_haply", ["HaplyDevice", "HaplyDeviceCfg"]),
+)

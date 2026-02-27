@@ -5,5 +5,17 @@
 
 """Sub-module containing command terms for 3D orientation goals."""
 
-from .commands_cfg import InHandReOrientationCommandCfg  # noqa: F401
-from .orientation_command import InHandReOrientationCommand  # noqa: F401
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .commands_cfg import InHandReOrientationCommandCfg
+    from .orientation_command import InHandReOrientationCommand
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("commands_cfg", "InHandReOrientationCommandCfg"),
+    ("orientation_command", "InHandReOrientationCommand"),
+)

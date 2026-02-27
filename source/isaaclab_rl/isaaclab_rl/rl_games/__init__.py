@@ -5,5 +5,16 @@
 
 """Wrappers and utilities to configure an environment for rl-games library."""
 
-from .pbt import *
-from .rl_games import *
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .pbt import *  # noqa: F403
+    from .rl_games import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["pbt", "rl_games"],
+)

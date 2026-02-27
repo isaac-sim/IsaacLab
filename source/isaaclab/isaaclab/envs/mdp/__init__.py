@@ -15,11 +15,31 @@ are used to define the environment through their managers.
 
 """
 
-from .actions import *  # noqa: F401, F403
-from .commands import *  # noqa: F401, F403
-from .curriculums import *  # noqa: F401, F403
-from .events import *  # noqa: F401, F403
-from .observations import *  # noqa: F401, F403
-from .recorders import *  # noqa: F401, F403
-from .rewards import *  # noqa: F401, F403
-from .terminations import *  # noqa: F401, F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .actions import *  # noqa: F403
+    from .commands import *  # noqa: F403
+    from .curriculums import *  # noqa: F403
+    from .events import *  # noqa: F403
+    from .observations import *  # noqa: F403
+    from .recorders import *  # noqa: F403
+    from .rewards import *  # noqa: F403
+    from .terminations import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=[
+        "actions",
+        "commands",
+        "curriculums",
+        "events",
+        "observations",
+        "recorders",
+        "rewards",
+        "terminations",
+    ],
+)

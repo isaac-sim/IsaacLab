@@ -5,15 +5,19 @@
 
 """Sub-package containing PhysX-specific sensor implementations."""
 
-from .contact_sensor import ContactSensor, ContactSensorData
-from .frame_transformer import FrameTransformer, FrameTransformerData
-from .imu import Imu, ImuData
+from __future__ import annotations
 
-__all__ = [
-    "ContactSensor",
-    "ContactSensorData",
-    "FrameTransformer",
-    "FrameTransformerData",
-    "Imu",
-    "ImuData",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .contact_sensor import ContactSensor, ContactSensorData
+    from .frame_transformer import FrameTransformer, FrameTransformerData
+    from .imu import Imu, ImuData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("contact_sensor", ["ContactSensor", "ContactSensorData"]),
+    ("frame_transformer", ["FrameTransformer", "FrameTransformerData"]),
+    ("imu", ["Imu", "ImuData"]),
+)

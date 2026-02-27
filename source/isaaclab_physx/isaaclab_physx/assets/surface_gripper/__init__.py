@@ -5,10 +5,17 @@
 
 """Sub-module for surface_gripper assets."""
 
-from .surface_gripper import SurfaceGripper
-from .surface_gripper_cfg import SurfaceGripperCfg
+from __future__ import annotations
 
-__all__ = [
-    "SurfaceGripper",
-    "SurfaceGripperCfg",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .surface_gripper import SurfaceGripper
+    from .surface_gripper_cfg import SurfaceGripperCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("surface_gripper", "SurfaceGripper"),
+    ("surface_gripper_cfg", "SurfaceGripperCfg"),
+)

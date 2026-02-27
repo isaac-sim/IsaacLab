@@ -5,12 +5,17 @@
 
 """Implementation backends for simulation interfaces."""
 
-from .physx_manager import PhysxManager, IsaacEvents
-from .physx_manager_cfg import PhysxCfg
+from __future__ import annotations
 
+import typing
 
-__all__ = [
-    "PhysxManager",
-    "IsaacEvents",
-    "PhysxCfg",
-]
+if typing.TYPE_CHECKING:
+    from .physx_manager import PhysxManager, IsaacEvents
+    from .physx_manager_cfg import PhysxCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("physx_manager", ["PhysxManager", "IsaacEvents"]),
+    ("physx_manager_cfg", "PhysxCfg"),
+)

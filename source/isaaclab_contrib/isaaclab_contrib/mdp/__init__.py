@@ -5,4 +5,15 @@
 
 """Sub-package for MDP (Markov Decision Process) components contributed by the community."""
 
-from .actions import *  # noqa: F401, F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .actions import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["actions"],
+)

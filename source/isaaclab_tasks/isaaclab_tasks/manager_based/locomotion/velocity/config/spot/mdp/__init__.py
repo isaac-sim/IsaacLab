@@ -6,5 +6,16 @@
 
 """This sub-module contains the functions that are specific to the Spot locomotion task."""
 
-from .events import *  # noqa: F401, F403
-from .rewards import *  # noqa: F401, F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .events import *  # noqa: F403
+    from .rewards import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["events", "rewards"],
+)

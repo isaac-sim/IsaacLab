@@ -5,4 +5,15 @@
 
 """Pre-defined terrain configurations for the terrain generator."""
 
-from .rough import *  # noqa: F401
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .rough import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["rough"],
+)

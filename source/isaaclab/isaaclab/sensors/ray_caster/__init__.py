@@ -15,15 +15,37 @@ Corresponding camera implementations are also provided for each of the sensor im
 the same ray-casting operations as the sensor implementations, but return the results as images.
 """
 
+from __future__ import annotations
+
 from . import patterns
-from .multi_mesh_ray_caster import MultiMeshRayCaster
-from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
-from .multi_mesh_ray_caster_camera_cfg import MultiMeshRayCasterCameraCfg
-from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
-from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
-from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
-from .ray_caster import RayCaster
-from .ray_caster_camera import RayCasterCamera
-from .ray_caster_camera_cfg import RayCasterCameraCfg
-from .ray_caster_cfg import RayCasterCfg
-from .ray_caster_data import RayCasterData
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .multi_mesh_ray_caster import MultiMeshRayCaster
+    from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
+    from .multi_mesh_ray_caster_camera_cfg import MultiMeshRayCasterCameraCfg
+    from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
+    from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
+    from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
+    from .ray_caster import RayCaster
+    from .ray_caster_camera import RayCasterCamera
+    from .ray_caster_camera_cfg import RayCasterCameraCfg
+    from .ray_caster_cfg import RayCasterCfg
+    from .ray_caster_data import RayCasterData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("multi_mesh_ray_caster", "MultiMeshRayCaster"),
+    ("multi_mesh_ray_caster_camera", "MultiMeshRayCasterCamera"),
+    ("multi_mesh_ray_caster_camera_cfg", "MultiMeshRayCasterCameraCfg"),
+    ("multi_mesh_ray_caster_camera_data", "MultiMeshRayCasterCameraData"),
+    ("multi_mesh_ray_caster_cfg", "MultiMeshRayCasterCfg"),
+    ("multi_mesh_ray_caster_data", "MultiMeshRayCasterData"),
+    ("ray_caster", "RayCaster"),
+    ("ray_caster_camera", "RayCasterCamera"),
+    ("ray_caster_camera_cfg", "RayCasterCameraCfg"),
+    ("ray_caster_cfg", "RayCasterCfg"),
+    ("ray_caster_data", "RayCasterData"),
+)

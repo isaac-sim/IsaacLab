@@ -10,5 +10,16 @@ vehicles through thrust commands. These action terms integrate with Isaac Lab's
 MDP framework and :class:`~isaaclab_contrib.assets.Multirotor` assets.
 """
 
-from .thrust_actions import *  # noqa: F401, F403
-from .thrust_actions_cfg import *  # noqa: F401, F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .thrust_actions import *  # noqa: F403
+    from .thrust_actions_cfg import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["thrust_actions", "thrust_actions_cfg"],
+)

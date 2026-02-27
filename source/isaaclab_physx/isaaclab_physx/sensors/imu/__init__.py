@@ -5,7 +5,17 @@
 
 """Sub-module for PhysX IMU sensor."""
 
-from .imu import Imu
-from .imu_data import ImuData
+from __future__ import annotations
 
-__all__ = ["Imu", "ImuData"]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .imu import Imu
+    from .imu_data import ImuData
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("imu", "Imu"),
+    ("imu_data", "ImuData"),
+)

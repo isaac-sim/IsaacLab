@@ -22,15 +22,37 @@ which defines the common interface for all actuator models. The actuator models 
 and called by the :class:`isaaclab.assets.Articulation` class.
 """
 
-from .actuator_base import ActuatorBase
-from .actuator_base_cfg import ActuatorBaseCfg
-from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
-from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
-from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
-from .actuator_pd_cfg import (
-    DCMotorCfg,
-    DelayedPDActuatorCfg,
-    IdealPDActuatorCfg,
-    ImplicitActuatorCfg,
-    RemotizedPDActuatorCfg,
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .actuator_base import ActuatorBase
+    from .actuator_base_cfg import ActuatorBaseCfg
+    from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
+    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
+    from .actuator_pd_cfg import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg, RemotizedPDActuatorCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("actuator_base", "ActuatorBase"),
+    ("actuator_base_cfg", "ActuatorBaseCfg"),
+    ("actuator_net", ["ActuatorNetLSTM", "ActuatorNetMLP"]),
+    ("actuator_net_cfg", ["ActuatorNetLSTMCfg", "ActuatorNetMLPCfg"]),
+    ("actuator_pd", [
+        "DCMotor",
+        "DelayedPDActuator",
+        "IdealPDActuator",
+        "ImplicitActuator",
+        "RemotizedPDActuator",
+    ]),
+    ("actuator_pd_cfg", [
+        "DCMotorCfg",
+        "DelayedPDActuatorCfg",
+        "IdealPDActuatorCfg",
+        "ImplicitActuatorCfg",
+        "RemotizedPDActuatorCfg",
+    ]),
 )

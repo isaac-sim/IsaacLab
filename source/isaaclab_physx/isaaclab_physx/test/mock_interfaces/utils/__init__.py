@@ -5,22 +5,24 @@
 
 """Utilities for mock PhysX interfaces."""
 
-from .mock_shared_metatype import MockSharedMetatype
-from .patching import (
-    mock_articulation_view,
-    mock_rigid_body_view,
-    mock_rigid_contact_view,
-    patch_articulation_view,
-    patch_rigid_body_view,
-    patch_rigid_contact_view,
-)
+from __future__ import annotations
 
-__all__ = [
-    "MockSharedMetatype",
-    "patch_rigid_body_view",
-    "patch_articulation_view",
-    "patch_rigid_contact_view",
-    "mock_rigid_body_view",
-    "mock_articulation_view",
-    "mock_rigid_contact_view",
-]
+import typing
+
+if typing.TYPE_CHECKING:
+    from .mock_shared_metatype import MockSharedMetatype
+    from .patching import mock_articulation_view, mock_rigid_body_view, mock_rigid_contact_view, patch_articulation_view, patch_rigid_body_view, patch_rigid_contact_view
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("mock_shared_metatype", "MockSharedMetatype"),
+    ("patching", [
+        "mock_articulation_view",
+        "mock_rigid_body_view",
+        "mock_rigid_contact_view",
+        "patch_articulation_view",
+        "patch_rigid_body_view",
+        "patch_rigid_contact_view",
+    ]),
+)

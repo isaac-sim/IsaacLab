@@ -12,5 +12,17 @@ These include:
 
 """
 
-from .app_launcher import AppLauncher  # noqa: F401, F403
-from .settings_manager import SettingsManager, get_settings_manager, initialize_carb_settings  # noqa: F401, F403
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .app_launcher import AppLauncher
+    from .settings_manager import SettingsManager, get_settings_manager, initialize_carb_settings
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("app_launcher", "AppLauncher"),
+    ("settings_manager", ["SettingsManager", "get_settings_manager", "initialize_carb_settings"]),
+)

@@ -5,7 +5,18 @@
 
 """This sub-module contains the functions that are specific to the locomotion environments."""
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+from __future__ import annotations
 
-from .pre_trained_policy_action_cfg import *  # noqa: F401, F403
-from .rewards import *  # noqa: F401, F403
+import typing
+
+if typing.TYPE_CHECKING:
+    from .pre_trained_policy_action_cfg import *  # noqa: F403
+    from .rewards import *  # noqa: F403
+    from isaaclab.envs.mdp import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["pre_trained_policy_action_cfg", "rewards"],
+    packages=["isaaclab.envs.mdp"],
+)

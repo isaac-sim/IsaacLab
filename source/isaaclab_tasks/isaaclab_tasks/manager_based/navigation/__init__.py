@@ -5,4 +5,15 @@
 
 """Navigation environments."""
 
-from .config import anymal_c
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .config import anymal_c
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("config", "anymal_c"),
+)

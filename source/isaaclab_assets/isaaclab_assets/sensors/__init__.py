@@ -3,9 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-##
-# Configuration for different assets.
-##
+from __future__ import annotations
 
-from .gelsight import *
-from .velodyne import *
+import typing
+
+if typing.TYPE_CHECKING:
+    from .gelsight import *  # noqa: F403
+    from .velodyne import *  # noqa: F403
+
+from isaaclab.utils.module import cascading_export
+
+cascading_export(
+    submodules=["gelsight", "velodyne"],
+)

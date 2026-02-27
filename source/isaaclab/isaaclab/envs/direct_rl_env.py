@@ -29,14 +29,13 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
+from .common import VecEnvObs, VecEnvStepReturn
+from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
+from .utils.spaces import sample_space, spec_to_gym_space
 
 if has_kit():
     import omni.kit.app
-
-from .common import VecEnvObs, VecEnvStepReturn
-from .direct_rl_env_cfg import DirectRLEnvCfg
-from .utils.spaces import sample_space, spec_to_gym_space
 
 # import logger
 logger = logging.getLogger(__name__)

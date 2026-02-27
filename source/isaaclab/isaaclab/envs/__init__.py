@@ -42,16 +42,39 @@ For more information about the workflow design patterns, see the `Task Design Wo
 .. _`Task Design Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 """
 
+from __future__ import annotations
+
 from . import mdp, ui
-from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
-from .direct_marl_env import DirectMARLEnv
-from .direct_marl_env_cfg import DirectMARLEnvCfg
-from .direct_rl_env import DirectRLEnv
-from .direct_rl_env_cfg import DirectRLEnvCfg
-from .manager_based_env import ManagerBasedEnv
-from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .manager_based_rl_env import ManagerBasedRLEnv
-from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from .manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
-from .mimic_env_cfg import *
-from .utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
+    from .direct_marl_env import DirectMARLEnv
+    from .direct_marl_env_cfg import DirectMARLEnvCfg
+    from .direct_rl_env import DirectRLEnv
+    from .direct_rl_env_cfg import DirectRLEnvCfg
+    from .manager_based_env import ManagerBasedEnv
+    from .manager_based_env_cfg import ManagerBasedEnvCfg
+    from .manager_based_rl_env import ManagerBasedRLEnv
+    from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+    from .manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
+    from .utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
+    from .mimic_env_cfg import *  # noqa: F403
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("common", ["VecEnvObs", "VecEnvStepReturn", "ViewerCfg"]),
+    ("direct_marl_env", "DirectMARLEnv"),
+    ("direct_marl_env_cfg", "DirectMARLEnvCfg"),
+    ("direct_rl_env", "DirectRLEnv"),
+    ("direct_rl_env_cfg", "DirectRLEnvCfg"),
+    ("manager_based_env", "ManagerBasedEnv"),
+    ("manager_based_env_cfg", "ManagerBasedEnvCfg"),
+    ("manager_based_rl_env", "ManagerBasedRLEnv"),
+    ("manager_based_rl_env_cfg", "ManagerBasedRLEnvCfg"),
+    ("manager_based_rl_mimic_env", "ManagerBasedRLMimicEnv"),
+    ("utils.marl", ["multi_agent_to_single_agent", "multi_agent_with_one_agent"]),
+    submodules=["mimic_env_cfg"],
+)

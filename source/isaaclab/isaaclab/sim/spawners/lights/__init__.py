@@ -10,5 +10,24 @@ Please check the Omniverse documentation for `lighting overview
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/lighting.html>`_.
 """
 
-from .lights import spawn_light
-from .lights_cfg import CylinderLightCfg, DiskLightCfg, DistantLightCfg, DomeLightCfg, LightCfg, SphereLightCfg
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .lights import spawn_light
+    from .lights_cfg import CylinderLightCfg, DiskLightCfg, DistantLightCfg, DomeLightCfg, LightCfg, SphereLightCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("lights", "spawn_light"),
+    ("lights_cfg", [
+        "CylinderLightCfg",
+        "DiskLightCfg",
+        "DistantLightCfg",
+        "DomeLightCfg",
+        "LightCfg",
+        "SphereLightCfg",
+    ]),
+)

@@ -11,5 +11,17 @@ Currently, the following sensors are supported:
 
 """
 
-from .sensors import spawn_camera
-from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .sensors import spawn_camera
+    from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("sensors", "spawn_camera"),
+    ("sensors_cfg", ["FisheyeCameraCfg", "PinholeCameraCfg"]),
+)

@@ -15,9 +15,24 @@ The following example shows how to wrap an environment for RSL-RL:
 
 """
 
-from .distillation_cfg import *
-from .exporter import export_policy_as_jit, export_policy_as_onnx
-from .rl_cfg import *
-from .rnd_cfg import RslRlRndCfg
-from .symmetry_cfg import RslRlSymmetryCfg
-from .vecenv_wrapper import RslRlVecEnvWrapper
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .exporter import export_policy_as_jit, export_policy_as_onnx
+    from .rnd_cfg import RslRlRndCfg
+    from .symmetry_cfg import RslRlSymmetryCfg
+    from .vecenv_wrapper import RslRlVecEnvWrapper
+    from .distillation_cfg import *  # noqa: F403
+    from .rl_cfg import *  # noqa: F403
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("exporter", ["export_policy_as_jit", "export_policy_as_onnx"]),
+    ("rnd_cfg", "RslRlRndCfg"),
+    ("symmetry_cfg", "RslRlSymmetryCfg"),
+    ("vecenv_wrapper", "RslRlVecEnvWrapper"),
+    submodules=["distillation_cfg", "rl_cfg"],
+)

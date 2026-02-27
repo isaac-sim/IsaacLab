@@ -5,13 +5,19 @@
 
 """Sub-module for PhysX renderer backends (Isaac RTX / Omniverse Replicator)."""
 
+from __future__ import annotations
+
 from .isaac_rtx_renderer import IsaacRtxRenderer
-from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("isaac_rtx_renderer_cfg", "IsaacRtxRendererCfg"),
+)
 
 Renderer = IsaacRtxRenderer
-
-__all__ = [
-    "IsaacRtxRenderer",
-    "IsaacRtxRendererCfg",
-    "Renderer",
-]

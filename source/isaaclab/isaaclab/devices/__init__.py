@@ -20,11 +20,49 @@ to add user-defined callback functions to be called when a particular input is p
 the peripheral device.
 """
 
-from .device_base import DeviceBase, DeviceCfg, DevicesCfg
-from .gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
-from .haply import HaplyDevice, HaplyDeviceCfg
-from .keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
-from .openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
-from .retargeter_base import RetargeterBase, RetargeterCfg
-from .spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
-from .teleop_device_factory import create_teleop_device
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .device_base import DeviceBase, DeviceCfg, DevicesCfg
+    from .gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
+    from .haply import HaplyDevice, HaplyDeviceCfg
+    from .keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
+    from .openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
+    from .retargeter_base import RetargeterBase, RetargeterCfg
+    from .spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+    from .teleop_device_factory import create_teleop_device
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("device_base", ["DeviceBase", "DeviceCfg", "DevicesCfg"]),
+    ("gamepad", [
+        "Se2Gamepad",
+        "Se2GamepadCfg",
+        "Se3Gamepad",
+        "Se3GamepadCfg",
+    ]),
+    ("haply", ["HaplyDevice", "HaplyDeviceCfg"]),
+    ("keyboard", [
+        "Se2Keyboard",
+        "Se2KeyboardCfg",
+        "Se3Keyboard",
+        "Se3KeyboardCfg",
+    ]),
+    ("openxr", [
+        "ManusVive",
+        "ManusViveCfg",
+        "OpenXRDevice",
+        "OpenXRDeviceCfg",
+    ]),
+    ("retargeter_base", ["RetargeterBase", "RetargeterCfg"]),
+    ("spacemouse", [
+        "Se2SpaceMouse",
+        "Se2SpaceMouseCfg",
+        "Se3SpaceMouse",
+        "Se3SpaceMouseCfg",
+    ]),
+    ("teleop_device_factory", "create_teleop_device"),
+)

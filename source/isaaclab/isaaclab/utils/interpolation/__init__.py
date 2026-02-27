@@ -7,4 +7,15 @@
 Submodule for different interpolation methods.
 """
 
-from .linear_interpolation import LinearInterpolation
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from .linear_interpolation import LinearInterpolation
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export(
+    ("linear_interpolation", "LinearInterpolation"),
+)
