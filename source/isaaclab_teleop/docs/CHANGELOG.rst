@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Update Isaac Teleop API usage for querying controller button states.
+
 0.2.0 (2026-02-24)
 ~~~~~~~~~~~~~~~~~~~
 
