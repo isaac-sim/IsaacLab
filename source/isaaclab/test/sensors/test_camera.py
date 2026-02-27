@@ -95,10 +95,10 @@ def test_camera_init(setup_sim_camera):
     sim, camera_cfg, dt = setup_sim_camera
     # Create camera
     camera = Camera(camera_cfg)
-    # Check simulation parameter is set correctly
-    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
+    # Check simulation parameter is set correctly
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Check if camera is initialized
     assert camera.is_initialized
     # Check if camera prim is set correctly and that it is a camera prim

@@ -35,8 +35,13 @@ from .camera_data import CameraData
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-from isaaclab_physx.renderers import IsaacRTXSpecific
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_sensors_setup
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_rtx_sensors_setup,
+    create_isaac_rtx_backend,
+)
+
+if TYPE_CHECKING:
+    from isaaclab_physx.renderers import IsaacRTXSpecific
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -112,9 +117,6 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
-
-        # Set RTX sensors flag (must be at init so sim.is_rendering is correct before reset)
-        apply_rtx_sensors_setup(list(cfg.data_types))
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -406,6 +408,9 @@ class Camera(SensorBase):
                 " rendering."
             )
 
+        # Set RTX sensors flag (strategic placement before refactoring)
+        apply_rtx_sensors_setup(list(self.cfg.data_types))
+
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
@@ -425,13 +430,12 @@ class Camera(SensorBase):
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Create replicator render products and annotators via Isaac RTX backend
-        self._isaac_rtx = IsaacRTXSpecific(
+        self._isaac_rtx = create_isaac_rtx_backend(
             cfg=self.cfg,
             device=self._device,
             view=self._view,
             sensor_prims=self._sensor_prims,
         )
-        self._isaac_rtx.setup()
 
         # Create internal buffers
         self._create_buffers()

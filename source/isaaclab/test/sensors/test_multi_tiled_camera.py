@@ -82,11 +82,10 @@ def test_multi_tiled_camera_init(setup_camera):
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
-        # Check simulation parameter is set correctly
-        assert sim.get_setting("/isaaclab/render/rtx_sensors")
-
     # Play sim
     sim.reset()
+    # Check simulation parameter is set correctly
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     for i, camera in enumerate(tiled_cameras):
         # Check if camera is initialized
@@ -179,11 +178,10 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
-        # Check simulation parameter is set correctly
-        assert sim.get_setting("/isaaclab/render/rtx_sensors")
-
     # Play sim
     sim.reset()
+    # Check simulation parameter is set correctly
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     for i, camera in enumerate(tiled_cameras):
         # Check if camera is initialized
@@ -282,11 +280,10 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
-        # Check simulation parameter is set correctly
-        assert sim.get_setting("/isaaclab/render/rtx_sensors")
-
     # Play sim
     sim.reset()
+    # Check simulation parameter is set correctly
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     for i, camera in enumerate(tiled_cameras):
         # Check if camera is initialized

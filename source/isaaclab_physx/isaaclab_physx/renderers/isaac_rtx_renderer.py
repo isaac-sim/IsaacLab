@@ -24,6 +24,7 @@ from .isaac_rtx_renderer_utils import (
     SIMPLE_SHADING_AOV,
     SIMPLE_SHADING_MODES,
     apply_rtx_disable_color_render,
+    apply_rtx_sensors_setup,
     apply_simple_shading_mode,
     ensure_isaac_rtx_render_update,
 )
@@ -58,8 +59,9 @@ class IsaacRtxRenderer(BaseRenderer):
         import omni.replicator.core as rep
         from pxr import UsdGeom
 
-        # RTX setup (simple shading mode, disable color render)
+        # RTX setup (sensors flag, simple shading mode, disable color render)
         data_types = list(sensor.cfg.data_types)
+        apply_rtx_sensors_setup(data_types)
         apply_simple_shading_mode(data_types)
         apply_rtx_disable_color_render(data_types)
 

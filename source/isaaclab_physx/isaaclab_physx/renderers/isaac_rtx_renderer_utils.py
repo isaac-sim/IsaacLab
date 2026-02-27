@@ -333,6 +333,18 @@ def cleanup_per_render_product_annotators(
 # --- IsaacRTXSpecific: per-render-product Camera backend ---
 
 
+def create_isaac_rtx_backend(
+    cfg: _PerRenderProductCfgProtocol,
+    device: str,
+    view: Any,
+    sensor_prims: list,
+) -> "IsaacRTXSpecific":
+    """Create and setup Isaac RTX backend for per-render-product Camera."""
+    backend = IsaacRTXSpecific(cfg=cfg, device=device, view=view, sensor_prims=sensor_prims)
+    backend.setup()
+    return backend
+
+
 class IsaacRTXSpecific:
     """Isaac RTX backend for per-render-product Camera.
 
