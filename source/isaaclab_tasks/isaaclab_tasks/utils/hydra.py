@@ -182,8 +182,8 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
                 # apply renderer config to all cameras (in scene and at env level, e.g. tiled_camera)
-                if "render_cfg" in hydra_env_cfg and hydra_env_cfg["render_cfg"]:
-                    renderer_dict = hydra_env_cfg["render_cfg"]
+                if "renderer" in hydra_env_cfg and hydra_env_cfg["renderer"]:
+                    renderer_dict = hydra_env_cfg["renderer"]
                     if isinstance(renderer_dict, dict):
                         env_dict = hydra_env_cfg.get("env", {})
 
@@ -279,7 +279,7 @@ def register_hydra_group(cfg_dict: dict) -> None:
                     cs.store(group=group_path, name=variant_name, node=variant_node)
 
     renderer_defaults = _register_renderer_type_groups(cfg_dict, cs)
-    cfg_dict["defaults"] = ["_self_", {"render_cfg": "isaac_rtx"}] + [{g: "default"} for g in default_groups] + renderer_defaults
+    cfg_dict["defaults"] = ["_self_", {"renderer": "isaac_rtx"}] + [{g: "default"} for g in default_groups] + renderer_defaults
 
 
 def resolve_hydra_group_runtime_override(
