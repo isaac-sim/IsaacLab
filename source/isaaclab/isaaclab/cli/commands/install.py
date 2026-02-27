@@ -66,28 +66,32 @@ def _ensure_cuda_torch() -> None:
 
     want_torch = f"{torch_ver}+{cuda_tag}"
 
-    # Check current torch version (may be empty).
+    # Check current torch version using pip show (includes build tags).
     current_ver = ""
     try:
-        # Run python to check torch version.
         result = run_command(
             [
                 python_exe,
-                "-c",
-                "import torch; print(torch.__version__, end='')",
+                "-m",
+                "pip",
+                "show",
+                "torch",
             ],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0:
-            current_ver = result.stdout.strip()
+            for line in result.stdout.split("\n"):
+                if line.startswith("Version: "):
+                    current_ver = line.split("Version: ", 1)[1].strip()
+                    break
     except Exception:
         pass
 
-    # Skip install if version is already satisfied.
+    # Skip install if version already matches (including CUDA build tag).
     if current_ver == want_torch:
-        # print(f"[INFO] PyTorch {want_torch} already installed.")
+        print_info(f"PyTorch {want_torch} already installed.")
         return
 
     # Clean install torch.
