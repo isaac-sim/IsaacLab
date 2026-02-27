@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from isaaclab.utils import configclass
 from enum import Enum
 from typing import Any
+
+from isaaclab.utils import configclass
 
 
 @configclass
