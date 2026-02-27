@@ -26,7 +26,7 @@ from typing import Any, ClassVar
 import pytest
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils.configclass import _field_module_dir, configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
@@ -1119,3 +1119,29 @@ def test_validity():
 
     # check that no more than the expected missing fields are in the error message
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
+
+
+def test_dir_resolution_in_subclass():
+    """Test that {DIR} in inherited fields resolves relative to the declaring class's module."""
+
+    @configclass
+    class ParentCfg:
+        class_type: str = "{DIR}.my_module:MyClass"
+        name: str = "default"
+
+    @configclass
+    class ChildCfg(ParentCfg):
+        extra: int = 42
+
+    # Pretend the parent lives in a real package and the child lives in a test file
+    ParentCfg.__module__ = "some_package.sub_package.parent_cfg"
+    ChildCfg.__module__ = "test_some_feature"
+
+    parent = ParentCfg.__new__(ParentCfg)
+    child = ChildCfg.__new__(ChildCfg)
+
+    # class_type should resolve to the parent's module dir in both cases
+    assert _field_module_dir(parent, "class_type") == "some_package.sub_package"
+    assert _field_module_dir(child, "class_type") == "some_package.sub_package"
+    # extra should resolve to the child's module dir
+    assert _field_module_dir(child, "extra") == "test_some_feature"
