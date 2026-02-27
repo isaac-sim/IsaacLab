@@ -1,0 +1,6 @@
+services:
+  isaac-lab-base:
+    volumes:
+      - type: bind
+        source: ../../eigenbot/eigenbot
+        target: /workspace/eigenbot
