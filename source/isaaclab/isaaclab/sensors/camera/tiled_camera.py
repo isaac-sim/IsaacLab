@@ -83,15 +83,11 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: TiledCameraCfg, renderer=None):
+    def __init__(self, cfg: TiledCameraCfg):
         """Initializes the tiled camera sensor.
 
         Args:
             cfg: The configuration parameters.
-            renderer: Optional renderer instance (e.g. NewtonWarpRenderer()). When provided,
-                this renderer is used for Warp-based rendering instead of creating one from
-                cfg.renderer_type. Use Newton from setup.py (isaaclab.sh --install) by
-                passing ``renderer=NewtonWarpRenderer()``.
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
@@ -100,7 +96,6 @@ class TiledCamera(Camera):
         self.renderer: Renderer | None = None
         self.render_data = None
         super().__init__(cfg)
-        self._renderer_passed = renderer
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
@@ -341,7 +336,7 @@ class TiledCamera(Camera):
         self._data.output = data_dict
         self._data.info = dict()
         self.renderer.set_outputs(self.render_data, self._data.output)
-    
+
     def _tiled_image_shape(self) -> tuple[int, int]:
         """Returns a tuple containing the dimension of the tiled image."""
         cols, rows = self._tiling_grid_shape()

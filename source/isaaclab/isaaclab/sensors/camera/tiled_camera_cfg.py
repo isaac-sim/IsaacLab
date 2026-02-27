@@ -6,15 +6,11 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
 from .camera_cfg import CameraCfg
 from .tiled_camera import TiledCamera
-
-if TYPE_CHECKING:
-    from isaaclab.renderers import RendererCfg
 
 
 @configclass

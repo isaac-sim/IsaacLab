@@ -145,16 +145,7 @@ class CameraCfg(SensorBaseCfg):
             "class:robot": (61, 178, 255, 255),
         }
 
-    """
-
-    renderer_type: Literal["isaac_rtx", "newton_warp"] = "isaac_rtx"
-    """Renderer backend selector. When using Hydra, renderer_cfg is instantiated from this before env creation.
-
-    - ``"isaac_rtx"``: Use Isaac RTX (Replicator) renderer (default).
-    - ``"newton_warp"``: Use Newton Warp renderer (when available).
-
-    Override at train time via e.g. ``env.scene.base_camera.renderer_type=newton_warp``.
-    """
+        """
 
     renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)
     """Renderer configuration for camera sensor."""
