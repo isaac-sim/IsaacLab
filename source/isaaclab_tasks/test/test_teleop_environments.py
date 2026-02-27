@@ -5,6 +5,14 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+
+# Import pinocchio in the main script to force the use of the dependencies
+# installed by IsaacLab and not the one installed by Isaac Sim.
+# pinocchio is required by the Pink IK controller used in some teleop environments
+if sys.platform != "win32":
+    import pinocchio  # noqa: F401
+
 from isaaclab.app import AppLauncher
 
 # launch the simulator
@@ -22,11 +30,16 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
+# Teleop environments require isaacteleop / isaaclab_teleop and may interfere
+# with other environment tests when run in the same process. They are collected
+# separately here so they execute in their own test session.
+
+
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize(
-    "task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False, teleop_envs=False)
+    "task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False, teleop_envs=True)
 )
 @pytest.mark.isaacsim_ci
-def test_environments(task_name, num_envs, device):
-    # run environments without stage in memory
+def test_teleop_environments(task_name, num_envs, device):
+    # run teleop environments without stage in memory
     _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
