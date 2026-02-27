@@ -118,7 +118,8 @@ def test_camera_init(setup_sim_camera):
     assert camera.data.quat_w_opengl.shape == (1, 4)
     assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
-    assert camera.data.info == [{camera_cfg.data_types[0]: None}]
+    # info is a dict keyed by data type; empty for non-segmentation types (e.g. distance_to_image_plane)
+    assert isinstance(camera.data.info, dict)
 
     # Simulate physics
     for _ in range(10):
@@ -913,7 +914,8 @@ def test_throughput(setup_sim_camera):
             # Pack data back into replicator format to save them using its writer
             rep_output = {"annotators": {}}
             camera_data = convert_dict_to_backend({k: v[0] for k, v in camera.data.output.items()}, backend="numpy")
-            for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
+            for key, data in camera_data.items():
+                info = camera.data.info.get(key) if camera.data.info else None
                 if info is not None:
                     rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:

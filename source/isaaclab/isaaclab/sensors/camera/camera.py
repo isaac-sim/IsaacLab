@@ -29,19 +29,16 @@ from isaaclab.utils.math import (
 )
 from isaaclab.utils.version import get_isaac_sim_version
 
+from isaaclab.renderers import Renderer
+
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-    apply_rtx_sensors_setup,
-    create_isaac_rtx_backend,
-)
-
-if TYPE_CHECKING:
-    from isaaclab_physx.renderers import IsaacRTXSpecific
+from isaaclab_physx.renderers import SIMPLE_SHADING_MODES
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_rtx_sensors_setup
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -153,8 +150,9 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = CameraData()
-        # Isaac RTX backend (created in _initialize_impl)
-        self._isaac_rtx: IsaacRTXSpecific | None = None
+        # Renderer and render data (created in _initialize_impl)
+        self.renderer: Renderer | None = None
+        self.render_data = None
 
         # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
@@ -174,10 +172,9 @@ class Camera(SensorBase):
         """Unsubscribes from callbacks and detach from the replicator registry."""
         # unsubscribe callbacks
         super().__del__()
-        # cleanup Isaac RTX backend
-        if self._isaac_rtx is not None:
-            self._isaac_rtx.cleanup()
-            self._isaac_rtx = None
+        # cleanup render resources (renderer may be None if never initialized)
+        if hasattr(self, "renderer") and self.renderer is not None:
+            self.renderer.cleanup(getattr(self, "render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -220,9 +217,9 @@ class Camera(SensorBase):
 
         This can be used via replicator interfaces to attach to writes or external annotator registry.
         """
-        if self._isaac_rtx is None:
+        if self.render_data is None:
             return []
-        return self._isaac_rtx.render_product_paths
+        return self.render_data.render_product_paths
 
     @property
     def image_shape(self) -> tuple[int, int]:
@@ -395,7 +392,7 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function creates handles and registers the provided data types with the replicator registry to
+        This function creates handles and registers the provided data types with the renderer to
         be able to access the data from the sensor. It also initializes the internal buffers to store the data.
 
         Raises:
@@ -408,7 +405,7 @@ class Camera(SensorBase):
                 " rendering."
             )
 
-        # Set RTX sensors flag (strategic placement before refactoring)
+        # Set RTX sensors flag
         apply_rtx_sensors_setup(list(self.cfg.data_types))
 
         # Initialize parent class
@@ -429,17 +426,21 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Create replicator render products and annotators via Isaac RTX backend
-        self._isaac_rtx = create_isaac_rtx_backend(
-            cfg=self.cfg,
-            device=self._device,
-            view=self._view,
-            sensor_prims=self._sensor_prims,
-        )
+        # Populate sensor prims from view
+        for cam_prim in self._view.prims:
+            cam_prim_path = cam_prim.GetPath().pathString
+            if not cam_prim.IsA(UsdGeom.Camera):
+                raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
+            self._sensor_prims.append(UsdGeom.Camera(cam_prim))
+
+        # Create renderer after scene is ready (post-cloning) so world_count is correct
+        self.renderer = Renderer(self.cfg.renderer_cfg)
+        logger.info("Using renderer: %s", type(self.renderer).__name__)
+
+        self.render_data = self.renderer.create_render_data(self)
 
         # Create internal buffers
         self._create_buffers()
-        self._update_intrinsic_matrices(self._ALL_INDICES)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
@@ -447,15 +448,18 @@ class Camera(SensorBase):
             return
         # Increment frame count
         self._frame[env_ids] += 1
-        # -- pose
+
+        # update latest camera pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
-        self._isaac_rtx.update_annotator_buffers(
-            env_ids=env_ids,
-            all_indices=self._ALL_INDICES,
-            data_output=self._data.output,
-            data_info=self._data.info,
-        )
+
+        self.renderer.update_transforms()
+        self.renderer.render(self.render_data)
+
+        for output_name, output_data in self._data.output.items():
+            if output_name == "rgb":
+                continue
+            self.renderer.write_output(self.render_data, output_name, output_data)
 
     """
     Private Helpers
@@ -484,18 +488,83 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # create the data object
+        # -- intrinsic matrix
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_poses(self._ALL_INDICES)
         self._data.image_shape = self.image_shape
         # -- output data
-        # lazy allocation of data dictionary
-        # since the size of the output data is not known in advance, we leave it as None
-        # the memory will be allocated when the buffer() function is called for the first time.
-        self._data.output = {}
-        self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
+        data_dict = dict()
+        if "rgba" in self.cfg.data_types or "rgb" in self.cfg.data_types:
+            data_dict["rgba"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+            ).contiguous()
+        if "rgb" in self.cfg.data_types:
+            # RGB is the first 3 channels of RGBA
+            data_dict["rgb"] = data_dict["rgba"][..., :3]
+        if "albedo" in self.cfg.data_types:
+            data_dict["albedo"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+            ).contiguous()
+        for data_type in SIMPLE_SHADING_MODES:
+            if data_type in self.cfg.data_types:
+                data_dict[data_type] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
+                ).contiguous()
+        if "distance_to_image_plane" in self.cfg.data_types:
+            data_dict["distance_to_image_plane"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
+            ).contiguous()
+        if "depth" in self.cfg.data_types:
+            data_dict["depth"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
+            ).contiguous()
+        if "distance_to_camera" in self.cfg.data_types:
+            data_dict["distance_to_camera"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
+            ).contiguous()
+        if "normals" in self.cfg.data_types:
+            data_dict["normals"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
+            ).contiguous()
+        if "motion_vectors" in self.cfg.data_types:
+            data_dict["motion_vectors"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 2), device=self.device, dtype=torch.float32
+            ).contiguous()
+        if "semantic_segmentation" in self.cfg.data_types:
+            if self.cfg.colorize_semantic_segmentation:
+                data_dict["semantic_segmentation"] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+                ).contiguous()
+            else:
+                data_dict["semantic_segmentation"] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
+                ).contiguous()
+        if "instance_segmentation_fast" in self.cfg.data_types:
+            if self.cfg.colorize_instance_segmentation:
+                data_dict["instance_segmentation_fast"] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+                ).contiguous()
+            else:
+                data_dict["instance_segmentation_fast"] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
+                ).contiguous()
+        if "instance_id_segmentation_fast" in self.cfg.data_types:
+            if self.cfg.colorize_instance_id_segmentation:
+                data_dict["instance_id_segmentation_fast"] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+                ).contiguous()
+            else:
+                data_dict["instance_id_segmentation_fast"] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
+                ).contiguous()
+
+        self._data.output = data_dict
+        self._data.info = dict()
+        self.renderer.set_outputs(self.render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.
@@ -548,6 +617,11 @@ class Camera(SensorBase):
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
             quat, origin="opengl", target="world"
         )
+        # notify renderer (no-op for Isaac RTX which uses USD directly)
+        if self.renderer is not None and self.render_data is not None:
+            self.renderer.update_camera(
+                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+            )
 
     """
     Internal simulation callbacks.
@@ -557,9 +631,10 @@ class Camera(SensorBase):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
-        # cleanup Isaac RTX backend before invalidation
-        if self._isaac_rtx is not None:
-            self._isaac_rtx.cleanup()
-            self._isaac_rtx = None
+        # cleanup renderer before invalidation
+        if hasattr(self, "renderer") and self.renderer is not None:
+            self.renderer.cleanup(getattr(self, "render_data", None))
+            self.renderer = None
+            self.render_data = None
         # set all existing views to None to invalidate them
         self._view = None
