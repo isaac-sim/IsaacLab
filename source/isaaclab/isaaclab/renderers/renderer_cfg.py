@@ -13,4 +13,3 @@ class RendererCfg:
     """Configuration for a renderer."""
 
     renderer_type: str = "default"
-    """Type identifier (e.g. 'isaac_rtx', 'newton_warp')."""

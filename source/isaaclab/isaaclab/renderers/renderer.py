@@ -29,23 +29,3 @@ class Renderer(FactoryBase, BaseRenderer):
         # an instance of the correct backend-specific renderer class,
         # which is guaranteed to be a subclass of `BaseRenderer` by convention.
         return super().__new__(cls, cfg, *args, **kwargs)
-
-
-def renderer_cfg_from_type(renderer_type: str | None) -> RendererCfg:
-    """Map renderer_type string to a renderer config instance.
-
-    Used by TiledCamera._get_effective_renderer_cfg() (fallback if Hydra arg did not set renderer_cfg
-    for that camera).
-
-    Args:
-        renderer_type: "newton_warp" → Newton backend config;
-            "isaac_rtx" or None → PhysX (Isaac RTX) backend config.
-
-    Returns:
-        The corresponding config instance.
-    """
-    if renderer_type == "newton_warp":
-        from isaaclab_newton.renderers import NewtonWarpRendererCfg
-        return NewtonWarpRendererCfg()
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg
-    return IsaacRtxRendererCfg()

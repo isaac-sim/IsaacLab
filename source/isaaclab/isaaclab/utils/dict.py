@@ -86,7 +86,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     Raises:
         TypeError: When input is not a dictionary.
         ValueError: When dictionary has a value that does not match default config type.
-        KeyError: When dictionary has a key that does not exist on the object.
+        KeyError: When dictionary has a key that does not exist in the default config type.
     """
     for key, value in data.items():
         # key_ns is the full namespace of the key
@@ -145,9 +145,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 # update function name
                 value = string_to_callable(value)
 
-            # -- 4) simple scalar / explicit None / filling optional (obj_mem is None) ----
-            # obj_mem is None - this could be from passing in a None value for renderer_type
-            elif value is None or obj_mem is None or isinstance(value, type(obj_mem)):
+            # -- 4) simple scalar / explicit None ---------------------
+            elif value is None or isinstance(value, type(obj_mem)):
                 pass
 
             # -- 5) type mismatch → abort -----------------------------

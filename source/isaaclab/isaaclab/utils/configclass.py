@@ -137,7 +137,7 @@ def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
     Raises:
         TypeError: When input is not a dictionary.
         ValueError: When dictionary has a value that does not match default config type.
-        KeyError: When dictionary has a key that does not exist on the object.
+        KeyError: When dictionary has a key that does not exist in the default config type.
     """
     update_class_from_dict(obj, data, _ns="")
 
