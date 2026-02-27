@@ -20,6 +20,7 @@ from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, repl
 from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.render_config_store import register_render_configs
 
 
 def register_task_to_hydra(
@@ -51,11 +52,55 @@ def register_task_to_hydra(
         agent_cfg_dict = agent_cfg
     else:
         agent_cfg_dict = agent_cfg.to_dict()
-    cfg_dict = {"env": env_cfg_dict, "agent": agent_cfg_dict}
+    cfg_dict = {
+        "defaults": ["_self_", {"render": "isaac_rtx"}],
+        "env": env_cfg_dict,
+        "agent": agent_cfg_dict,
+    }
     # replace slices with strings because OmegaConf does not support slices
     cfg_dict = replace_slices_with_strings(cfg_dict)
-    # store the configuration to Hydra
+    # register render config presets and store the configuration to Hydra
+    register_render_configs()
     ConfigStore.instance().store(name=task_name, node=cfg_dict)
+    return env_cfg, agent_cfg
+
+
+def process_hydra_config(
+    hydra_cfg: DictConfig | dict,
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg,
+    agent_cfg: dict | object,
+) -> tuple[ManagerBasedRLEnvCfg | DirectRLEnvCfg, dict | object]:
+    """Process composed Hydra config and update env/agent configs in place.
+
+    Shared by hydra_task_config and tests. Applies render config to cameras,
+    updates env/agent from dict, restores gymnasium spaces.
+    """
+    if not isinstance(hydra_cfg, dict):
+        hydra_cfg = OmegaConf.to_container(hydra_cfg, resolve=True)
+    hydra_cfg = replace_strings_with_slices(hydra_cfg)
+
+    if "render" in hydra_cfg and hydra_cfg["render"]:
+        renderer_dict = hydra_cfg["render"]
+        if isinstance(renderer_dict, dict):
+            env_dict = hydra_cfg.get("env", {})
+
+            def apply_to_cameras(d: dict) -> None:
+                for v in d.values():
+                    if isinstance(v, dict):
+                        if "renderer_cfg" in v:
+                            v["renderer_cfg"] = renderer_dict
+                        apply_to_cameras(v)
+
+            apply_to_cameras(env_dict)
+
+    env_cfg.from_dict(hydra_cfg["env"])
+    env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
+
+    if isinstance(agent_cfg, dict) or agent_cfg is None:
+        agent_cfg = hydra_cfg["agent"]
+    else:
+        agent_cfg.from_dict(hydra_cfg["agent"])
+
     return env_cfg, agent_cfg
 
 
@@ -82,21 +127,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
             # define the new Hydra main function
             @hydra.main(config_path=None, config_name=task_name.split(":")[-1], version_base="1.3")
             def hydra_main(hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg):
-                # convert to a native dictionary
-                hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
-                # replace string with slices because OmegaConf does not support slices
-                hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
-                # update the configs with the Hydra command line arguments
-                env_cfg.from_dict(hydra_env_cfg["env"])
-                # replace strings that represent gymnasium spaces because OmegaConf does not support them.
-                # this must be done after converting the env configs from dictionary to avoid internal reinterpretations
-                env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
-                # get agent configs
-                if isinstance(agent_cfg, dict) or agent_cfg is None:
-                    agent_cfg = hydra_env_cfg["agent"]
-                else:
-                    agent_cfg.from_dict(hydra_env_cfg["agent"])
-                # call the original function
+                env_cfg, agent_cfg = process_hydra_config(hydra_env_cfg, env_cfg, agent_cfg)
                 func(env_cfg, agent_cfg, *args, **kwargs)
 
             # call the new Hydra main function
