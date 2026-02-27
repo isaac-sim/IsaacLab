@@ -352,19 +352,23 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         # Override gear initial states for Rizon (closer to robot, centered)
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(-0.6, 0.0, -0.1),
+            # pos=(-0.6, 0.0, -0.1),
+            pos=(0.63, -0.083, -0.1),
             rot=(0.0, 0.0, 0.70711, 0.70711),
         )
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(-0.6, 0.0, -0.1),
+            # pos=(-0.6, 0.0, -0.1),
+            pos=(0.63, -0.083, -0.1),
             rot=(0.0, 0.0, 0.70711, 0.70711),
         )
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(-0.6, 0.0, -0.1),
+            # pos=(-0.6, 0.0, -0.1),
+            pos=(0.63, -0.083, -0.1),
             rot=(0.0, 0.0, 0.70711, 0.70711),
         )
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(-0.6, 0.0, -0.1),
+            # pos=(-0.6, 0.0, -0.1),
+            pos=(0.63, -0.083, -0.1),
             rot=(0.0, 0.0, 0.70711, 0.70711),
         )
 
