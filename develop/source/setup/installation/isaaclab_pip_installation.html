@@ -684,6 +684,7 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preparing-a-python-environment">Preparing a Python Environment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-lab">Installing Isaac Lab</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-dependencies">Installing dependencies</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-lab-scripts">Running Isaac Lab Scripts</a></li>
@@ -786,7 +787,7 @@ env_isaaclab\Scripts\activate
 </div>
 <input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-2">
-UV Environment (experimental)</label><div class="sd-tab-content docutils">
+UV Environment</label><div class="sd-tab-content docutils">
 <p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -841,37 +842,116 @@ from inside the virtual environment:</p>
 </li>
 </ul>
 </section>
-<section id="installing-dependencies">
-<h2>Installing dependencies<a class="headerlink" href="#installing-dependencies" title="Permalink to this heading">#</a></h2>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>In case you used UV to create your virtual environment, please replace <code class="docutils literal notranslate"><span class="pre">pip</span></code> with <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code>
-in the following commands.</p>
+<section id="installing-isaac-lab">
+<h2>Installing Isaac Lab<a class="headerlink" href="#installing-isaac-lab" title="Permalink to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> package provides optional extras to install Isaac Sim and individual
+Isaac Lab sub-packages:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 21.4%" />
+<col style="width: 78.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Extra</p></th>
+<th class="head"><p>What it installs</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">isaacsim</span></code></p></td>
+<td><p>Isaac Sim (<code class="docutils literal notranslate"><span class="pre">isaacsim[all,extscache]==X.X.X</span></code>) from <a class="reference external" href="https://pypi.nvidia.com">pypi.nvidia.com</a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">assets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">physx</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_physx</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">contrib</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_contrib</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mimic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">newton</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_newton</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rl</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tasks</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">teleop</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">isaaclab_teleop</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>All of the above sub-packages (does <strong>not</strong> include <code class="docutils literal notranslate"><span class="pre">isaacsim</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
 </div>
-<ul>
-<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==3.0.0 --extra-index-url https://pypi.nvidia.com
-</pre></div>
-</div>
-</li>
-<li><p>Install a CUDA-enabled PyTorch 2.10.0 build that matches your system architecture:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
-<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-x86_64" for="sd-tab-item-9">
+<label class="sd-tab-label" for="sd-tab-item-9">
+uv</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Isaac Lab only</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaaclab<span class="w"> </span><span class="c1"># latest version</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">isaaclab</span><span class="o">==</span><span class="m">3</span>.0.0<span class="w"> </span><span class="c1"># specific version</span>
+
+<span class="c1"># Isaac Lab + Isaac Sim</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[isaacsim]&quot;</span>
+
+<span class="c1"># Isaac Lab + specific sub-package(s)</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[assets]&quot;</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[rl,tasks]&quot;</span>
+
+<span class="c1"># Isaac Lab + Isaac Sim + all sub-packages</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[isaacsim,all]&quot;</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-10">
+pip</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Isaac Lab only</span>
+pip<span class="w"> </span>install<span class="w"> </span>isaaclab<span class="w"> </span><span class="c1"># latest version</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="nv">isaaclab</span><span class="o">==</span><span class="m">3</span>.0.0<span class="w"> </span><span class="c1"># specific version</span>
+
+<span class="c1"># Isaac Lab + Isaac Sim</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[isaacsim]&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+
+<span class="c1"># Isaac Lab + specific sub-package(s)</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[assets]&quot;</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[rl,tasks]&quot;</span>
+
+<span class="c1"># Isaac Lab + Isaac Sim + all Isaac Lab sub-packages</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaaclab[isaacsim,all]&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="installing-dependencies">
+<h2>Installing dependencies<a class="headerlink" href="#installing-dependencies" title="Permalink to this heading">#</a></h2>
+<ul>
+<li><p>Install a CUDA-enabled PyTorch 2.10.0 build that matches your system architecture:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-11" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-x86_64" for="sd-tab-item-11">
 <i class="fa-brands fa-linux"></i> Linux (x86_64)</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.10.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.25.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
-<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="windows-x86_64" for="sd-tab-item-10">
+<input id="sd-tab-item-12" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="windows-x86_64" for="sd-tab-item-12">
 <i class="fa-brands fa-windows"></i> Windows (x86_64)</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.10.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.25.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
-<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-aarch64" for="sd-tab-item-11">
+<input id="sd-tab-item-13" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-aarch64" for="sd-tab-item-13">
 <i class="fa-brands fa-linux"></i> Linux (aarch64)</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.10.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.25.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu130
 </pre></div>
@@ -1025,6 +1105,7 @@ If the file already exists, it will be overwritten (a confirmation prompt will b
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preparing-a-python-environment">Preparing a Python Environment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-lab">Installing Isaac Lab</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-dependencies">Installing dependencies</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-lab-scripts">Running Isaac Lab Scripts</a></li>

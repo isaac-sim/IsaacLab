@@ -718,7 +718,7 @@ using pip (with <code class="docutils literal notranslate"><span class="pre">--e
 </div>
 </div>
 </div>
-<p>By default, the above will install <strong>all</strong> the learning frameworks. These include
+<p>By default, the above will install <strong>all</strong> the learning framework and all Isaac Lab sub-packages (under <code class="docutils literal notranslate"><span class="pre">source/isaaclab</span></code>). Available RL frameworks are:
 <code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>.</p>
 <p>If you want to install only a specific framework, you can pass the name of the framework
 as an argument. For example, to install only the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> framework, you can run:</p>
@@ -738,8 +738,26 @@ as an argument. For example, to install only the <code class="docutils literal n
 </div>
 </div>
 </div>
-<p>The valid options are <code class="docutils literal notranslate"><span class="pre">all</span></code>, <code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">none</span></code>. If <code class="docutils literal notranslate"><span class="pre">none</span></code> is passed, then no learning frameworks will be installed.</p>
+<p>To install only specific sub-packages, pass a comma-separated list of sub-package names. The available
+sub-packages are: <code class="docutils literal notranslate"><span class="pre">assets</span></code>, <code class="docutils literal notranslate"><span class="pre">physx</span></code>, <code class="docutils literal notranslate"><span class="pre">contrib</span></code>, <code class="docutils literal notranslate"><span class="pre">mimic</span></code>, <code class="docutils literal notranslate"><span class="pre">newton</span></code>, <code class="docutils literal notranslate"><span class="pre">rl</span></code>, <code class="docutils literal notranslate"><span class="pre">tasks</span></code>,
+<code class="docutils literal notranslate"><span class="pre">teleop</span></code>. For example, to install only the <code class="docutils literal notranslate"><span class="pre">mimic</span></code> and <code class="docutils literal notranslate"><span class="pre">assets</span></code> sub-packages:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-4">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--install<span class="w"> </span>physx,assets,rl,tasks<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -i physx,assets,rl,tasks&quot;</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-5">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --install physx,assets,rl,tasks :: or <span class="s2">&quot;isaaclab.bat -i physx,assets,rl,tasks&quot;</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">none</span></code> to install only the core <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> package without any sub-packages or RL frameworks.</p>
 </li>
 </ul>
 </section>
