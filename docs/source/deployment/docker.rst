@@ -33,7 +33,7 @@ We recommend using these versions or newer.
 
 .. note::
 
-    Due to limitations with `snap <https://snapcraft.io/docs/home-outside-home>`_, please make sure
+Due to limitations with snap_, please make sure
     the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
 
 
@@ -396,3 +396,4 @@ To run an example within the container, run:
 .. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages
 .. _`various middleware`: https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html
 .. _`tuned`: https://docs.ros.org/en/foxy/How-To-Guides/DDS-tuning.html
+.. _snap: https://snapcraft.io/docs/home-outside-home
