@@ -14,8 +14,9 @@ import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
+from isaaclab.visualizers import Visualizer
+
 from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
@@ -255,18 +256,12 @@ class NewtonVisualizer(Visualizer):
         self._viewer.show_springs = self.cfg.show_springs
         self._viewer.show_com = self.cfg.show_com
 
-        self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
-        self._viewer.renderer.draw_sky = self.cfg.enable_sky
-        self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
-
-        self._viewer.renderer.sky_upper = self.cfg.sky_upper_color
-        self._viewer.renderer.sky_lower = self.cfg.sky_lower_color
-        self._viewer.renderer._light_color = self.cfg.light_color
-
+        mode_name = self.cfg.rendering_mode if self.cfg.rendering_mode is not None else "none"
         logger.info(
-            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s",
+            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s mode=%s",
             self._viewer.camera.pos,
             self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target,
+            mode_name,
         )
         self._is_initialized = True
 

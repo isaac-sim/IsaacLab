@@ -10,14 +10,17 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import socket
+import time
 from typing import TYPE_CHECKING
 
 import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
 
+from isaaclab.visualizers import Visualizer
+
 from .rerun_visualizer_cfg import RerunVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +111,12 @@ class RerunVisualizer(Visualizer):
             self._setup_rerun_server()
             self._active_record_path = self.cfg.record_to_rrd
             self._create_viewer(record_to_rrd=self.cfg.record_to_rrd, metadata=metadata)
+            mode_name = self.cfg.rendering_mode if self.cfg.rendering_mode is not None else "none"
             logger.info(
-                "[RerunVisualizer] initialized | camera_pos=%s camera_target=%s",
+                "[RerunVisualizer] initialized | camera_pos=%s camera_target=%s mode=%s",
                 self.cfg.camera_position,
                 self.cfg.camera_target,
+                mode_name,
             )
             self._is_initialized = True
         except Exception as exc:
@@ -175,26 +180,69 @@ class RerunVisualizer(Visualizer):
             logger.warning("[RerunVisualizer] 'rerun' binary not found in PATH. Skipping external bind.")
             return
 
+        bind_host = self.cfg.bind_address
+        grpc_port = int(self.cfg.grpc_port)
+        web_port = int(self.cfg.web_port)
+        if not self._is_bind_port_available(bind_host, grpc_port) or not self._is_bind_port_available(
+            bind_host, web_port
+        ):
+            # If ports are already occupied, reuse any existing rerun server and avoid noisy subprocess crashes.
+            logger.warning(
+                "[RerunVisualizer] Requested bind %s (gRPC=%d, web=%d) is already in use. "
+                "Skipping server launch and attempting to connect to existing rerun server.",
+                bind_host,
+                grpc_port,
+                web_port,
+            )
+            self._rerun_address = f"rerun+http://127.0.0.1:{grpc_port}/proxy"
+            return
+
         cmd = [
             rerun_bin,
             "--serve-web",
             "--bind",
-            self.cfg.bind_address,
+            bind_host,
             "--port",
-            str(self.cfg.grpc_port),
+            str(grpc_port),
             "--web-viewer-port",
-            str(self.cfg.web_port),
+            str(web_port),
         ]
         if self.cfg.open_browser:
             cmd.append("--web-viewer")
-        self._rerun_server_process = subprocess.Popen(cmd)
+        self._rerun_server_process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Give the process a brief window to fail fast (e.g. race on busy port).
+        time.sleep(0.15)
+        if self._rerun_server_process.poll() is not None:
+            logger.warning(
+                "[RerunVisualizer] Rerun server exited immediately; proceeding without managed server process."
+            )
+            self._rerun_server_process = None
+            self._rerun_address = f"rerun+http://127.0.0.1:{grpc_port}/proxy"
+            return
+
         logger.info(
             "[RerunVisualizer] Server bind %s:%s, web %s",
-            self.cfg.bind_address,
-            self.cfg.grpc_port,
-            self.cfg.web_port,
+            bind_host,
+            grpc_port,
+            web_port,
         )
-        self._rerun_address = f"rerun+http://127.0.0.1:{self.cfg.grpc_port}/proxy"
+        self._rerun_address = f"rerun+http://127.0.0.1:{grpc_port}/proxy"
+
+    def _is_bind_port_available(self, host: str, port: int) -> bool:
+        """Check whether a host:port can be bound by a new server process."""
+        bind_host = "" if host in {"0.0.0.0", "::"} else host
+        family = socket.AF_INET6 if ":" in host and host not in {"0.0.0.0", "::"} else socket.AF_INET
+        with socket.socket(family, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((bind_host, port))
+            except OSError:
+                return False
+        return True
 
     def _create_viewer(self, record_to_rrd: str | None, metadata: dict | None = None, reset_time: bool = True) -> None:
         self._viewer = NewtonViewerRerun(

@@ -907,6 +907,7 @@ class AppLauncher:
 
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
         """Store RTX rendering mode in settings."""
+        rendering_mode_explicit = launcher_args.pop("rendering_mode_explicit", False)
         rendering_mode = launcher_args.get("rendering_mode")
 
         if rendering_mode is None:
@@ -915,7 +916,9 @@ class AppLauncher:
                 return
             rendering_mode = ""
 
-        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
+        settings = get_settings_manager()
+        settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
+        settings.set_bool("/isaaclab/rendering/rendering_mode/explicit", bool(rendering_mode_explicit))
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in settings."""

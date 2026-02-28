@@ -6,8 +6,7 @@
 """Configuration for Newton OpenGL Visualizer."""
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 @configclass
@@ -37,21 +36,3 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     show_com: bool = False
     """Show center of mass visualization."""
-
-    enable_shadows: bool = True
-    """Enable shadow rendering."""
-
-    enable_sky: bool = True
-    """Enable sky rendering."""
-
-    enable_wireframe: bool = False
-    """Enable wireframe rendering."""
-
-    sky_upper_color: tuple[float, float, float] = (0.2, 0.4, 0.6)
-    """Sky upper color RGB [0,1]."""
-
-    sky_lower_color: tuple[float, float, float] = (0.5, 0.6, 0.7)
-    """Sky lower color RGB [0,1]."""
-
-    light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Light color RGB [0,1]."""

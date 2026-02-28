@@ -3,12 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+<<<<<<< mtrepte/add_rendering_quality_cfg
+from __future__ import annotations
+
+import logging
+=======
 """Newton Warp renderer for tiled camera rendering."""
 
 from __future__ import annotations
 
 import logging
 import weakref
+>>>>>>> develop
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -16,17 +22,27 @@ import newton
 import torch
 import warp as wp
 
+<<<<<<< mtrepte/add_rendering_quality_cfg
+=======
 from isaaclab.renderers import BaseRenderer
+>>>>>>> develop
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.visualizers import VisualizerCfg
 
+<<<<<<< mtrepte/add_rendering_quality_cfg
+=======
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
+>>>>>>> develop
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
     from isaaclab.sim.scene_data_providers import SceneDataProvider
 
+<<<<<<< mtrepte/add_rendering_quality_cfg
+
+=======
+>>>>>>> develop
 logger = logging.getLogger(__name__)
 
 
@@ -49,12 +65,16 @@ class RenderData:
 
     def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, sensor: SensorBase):
         self.render_context = render_context
+<<<<<<< mtrepte/add_rendering_quality_cfg
+        self.sensor = sensor
+=======
 
         # Currently camera owns the renderer and render data. By holding full
         # reference of the sensor, we create a circular reference between the
         # sensor and the render data. Weak reference ensures proper garbage
         # collection.
         self.sensor = weakref.ref(sensor)
+>>>>>>> develop
         self.num_cameras = 1
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
@@ -141,6 +161,21 @@ class RenderData:
         output[0, tid] = wp.transformf(positions[tid], orientations[tid])
 
 
+<<<<<<< mtrepte/add_rendering_quality_cfg
+class NewtonWarpRenderer:
+    RenderData = RenderData
+
+    def __init__(self):
+        self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
+
+    def create_render_data(self, sensor: SensorBase) -> RenderData:
+        return RenderData(self.newton_sensor.render_context, sensor)
+
+    def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
+        render_data.set_outputs(output_data)
+
+    def update_transforms(self):
+=======
 class NewtonWarpRenderer(BaseRenderer):
     """Newton Warp backend for tiled camera rendering."""
 
@@ -161,17 +196,24 @@ class NewtonWarpRenderer(BaseRenderer):
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
+>>>>>>> develop
         SimulationContext.instance().update_scene_data_provider(True)
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
     ):
+<<<<<<< mtrepte/add_rendering_quality_cfg
+        render_data.update(positions, orientations, intrinsics)
+
+    def render(self, render_data: RenderData):
+=======
         """Update camera poses and intrinsics.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
+>>>>>>> develop
         self.newton_sensor.render(
             self.get_scene_data_provider().get_newton_state(),
             render_data.camera_transforms,
@@ -184,6 +226,11 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
+<<<<<<< mtrepte/add_rendering_quality_cfg
+        image_data = render_data.get_output(output_name)
+        if image_data is not None and image_data.ptr != output_data.data_ptr():
+            wp.copy(wp.from_torch(output_data), image_data)
+=======
         """Copy a specific output to the given buffer.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
         image_data = render_data.get_output(output_name)
@@ -196,6 +243,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
             render_data.sensor = None
+>>>>>>> develop
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

@@ -7,13 +7,11 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-import toml
 import torch
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
@@ -22,8 +20,12 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
+from isaaclab.rendering_mode.rendering_mode_utils import (
+    apply_mode_profile_to_visualizer_cfg,
+    apply_runtime_mode_profile_to_visualizer,
+)
 from isaaclab.sim.utils import create_new_stage
-from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
+from isaaclab.visualizers import Visualizer
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
@@ -145,11 +147,12 @@ class SimulationContext:
         self._physics = self.cfg.physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
-        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
+        # Runtime cache of applied per-visualizer rendering mode profile names.
+        self._visualizer_mode_keys: dict[int, str | None] = {}
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -169,94 +172,27 @@ class SimulationContext:
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    def _apply_render_cfg_settings(self) -> None:
-        """Apply render preset and overrides from SimulationCfg.render."""
-        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
-        # (name subject to change) to keep quality profiles and carb mappings centralized.
-        render_cfg = getattr(self.cfg, "render", None)
-        if render_cfg is None:
-            return
+    def _apply_mode_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
+        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        apply_mode_profile_to_visualizer_cfg(
+            self.get_setting,
+            self.set_setting,
+            visualizer_cfg,
+            mode_cfgs,
+            logger,
+        )
 
-        # Priority:
-        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
-        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = getattr(render_cfg, "rendering_mode", None)
-
-        if rendering_mode:
-            supported_rendering_modes = {"performance", "balanced", "quality"}
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
-                    f"{sorted(supported_rendering_modes)}."
-                )
-
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
-
-            if get_isaac_sim_version().major < 6:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            if os.path.exists(preset_filename):
-                with open(preset_filename) as file:
-                    preset_dict = toml.load(file)
-
-                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
-                    for key, value in data.items():
-                        key_path = f"{path}/{key}" if path else f"/{key}"
-                        if isinstance(value, dict):
-                            _apply_nested(value, key_path)
-                        else:
-                            self.set_setting(key_path.replace(".", "/"), value)
-
-                _apply_nested(preset_dict)
-            else:
-                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
-
-        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
-        field_to_setting = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-        }
-
-        for key, value in vars(render_cfg).items():
-            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
-                continue
-            setting_path = field_to_setting.get(key)
-            if setting_path is not None:
-                self.set_setting(setting_path, value)
-
-        # Raw overrides from render_cfg (stored via SettingsManager)
-        extra_settings = getattr(render_cfg, "carb_settings", None)
-        if extra_settings:
-            for key, value in extra_settings.items():
-                if "_" in key:
-                    path = "/" + key.replace("_", "/")
-                elif "." in key:
-                    path = "/" + key.replace(".", "/")
-                else:
-                    path = key
-                self.set_setting(path, value)
-
-        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
-        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
-        if antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-            except Exception:
-                pass
+    def _apply_runtime_mode_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
+        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        apply_runtime_mode_profile_to_visualizer(
+            self.get_setting,
+            self.set_setting,
+            viz,
+            self._visualizer_mode_keys,
+            mode_cfgs,
+            logger,
+            force=force,
+        )
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -335,10 +271,16 @@ class SimulationContext:
         for viz_type in requested_visualizers:
             try:
                 if viz_type == "newton":
+                    from isaaclab_newton.visualizers import NewtonVisualizerCfg
+
                     default_configs.append(NewtonVisualizerCfg())
                 elif viz_type == "rerun":
+                    from isaaclab_newton.visualizers import RerunVisualizerCfg
+
                     default_configs.append(RerunVisualizerCfg())
                 elif viz_type == "kit":
+                    from isaaclab_physx.visualizers import KitVisualizerCfg
+
                     default_configs.append(KitVisualizerCfg())
                 else:
                     logger.warning(
@@ -409,10 +351,11 @@ class SimulationContext:
 
         for cfg in visualizer_cfgs:
             try:
+                self._apply_mode_profile_to_visualizer_cfg(cfg)
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
+                self._apply_runtime_mode_profile_to_visualizer(visualizer, force=True)
                 self._visualizers.append(visualizer)
-                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
                 logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
 
@@ -507,6 +450,7 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                self._apply_runtime_mode_profile_to_visualizer(viz)
                 if viz.is_rendering_paused():
                     continue
                 if viz.is_closed:
@@ -526,6 +470,7 @@ class SimulationContext:
 
         for viz in visualizers_to_remove:
             try:
+                self._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
                 self._visualizers.remove(viz)
                 logger.info("Removed visualizer: %s", type(viz).__name__)
@@ -603,6 +548,7 @@ class SimulationContext:
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
+                cls._instance._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
             cls._instance._visualizers.clear()
             if cls._instance._scene_data_provider is not None:

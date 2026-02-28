@@ -1,37 +1,45 @@
 Configuring Rendering Settings
 ==============================
 
-Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
-You can select a mode via a command line argument or from within a script, and customize settings as needed.
-Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
+Isaac Lab offers three preset rendering mode profiles: ``performance``, ``balanced``, and ``quality``.
+You can select a profile via CLI or from script config, then override specific Kit/Newton settings as needed.
 
-Selecting a Rendering Mode
---------------------------
+Selecting a Rendering Mode Profile
+----------------------------------
 
-Rendering modes can be selected in 2 ways.
+Rendering mode can be selected in two ways:
 
-1. using the ``rendering_mode`` input class argument in :class:`~sim.RenderCfg`
+1. Set the visualizer profile selector field ``rendering_mode``, which selects an entry from
+   :attr:`~sim.SimulationCfg.rendering_mode_cfgs`.
 
    .. code-block:: python
 
-     # for an example of how this can be used, checkout the tutorial script
-     # scripts/tutorials/00_sim/set_rendering_mode.py
-     render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
+      import isaaclab.sim as sim_utils
+      from isaaclab_physx.visualizers import KitVisualizerCfg
 
-2. using the ``--rendering_mode`` CLI argument, which takes precedence over the ``rendering_mode`` argument in :class:`~sim.RenderCfg`.
+      sim_cfg = sim_utils.SimulationCfg(
+          visualizer_cfgs=[
+              KitVisualizerCfg(
+                  rendering_mode="performance",
+              ),
+          ],
+      )
+
+2. Use the ``--rendering_mode`` CLI argument, which takes precedence over
+   ``visualizer_cfg.rendering_mode``.
 
    .. code-block:: bash
 
-     ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+      ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
 
+Notes:
 
-Note, the ``rendering_mode`` defaults to ``balanced``.
-However, in the case where the launcher argument ``--enable_cameras`` is not set, then
-the default ``rendering_mode`` is not applied and, instead, the default kit rendering settings are used.
-
+* If ``rendering_mode=None`` for a visualizer, Isaac Lab does not apply rendering overrides
+  for that visualizer, and backend/native defaults (for Kit, USD-authored settings) are used.
+* ``--rendering_mode`` is the supported CLI entry point.
 
 Example renders from the ``set_rendering_mode.py`` script.
-To help assess rendering, the example scene includes some reflections, translucency, direct and ambient lighting, and several material types.
+To help assess rendering, the example scene includes reflections, translucency, direct and ambient lighting, and several material types.
 
 -  Quality Mode
 
@@ -54,117 +62,74 @@ To help assess rendering, the example scene includes some reflections, transluce
 Overwriting Specific Rendering Settings
 ---------------------------------------
 
-Preset rendering settings can be overwritten via the :class:`~sim.RenderCfg` class.
+Preset rendering settings can be overwritten via :class:`~sim.RenderingModeCfg`.
 
-There are 2 ways to provide settings that overwrite presets.
+There are two ways to provide settings that overwrite presets:
 
-1. :class:`~sim.RenderCfg` supports overwriting specific settings via user-friendly setting names that map to underlying RTX settings.
-   For example:
+1. :class:`~sim.RenderingModeCfg` supports overwriting specific settings via explicit
+   ``kit_*`` fields that map to underlying RTX settings.
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="performance",
-         # user friendly setting overwrites
-         enable_translucency=True, # defaults to False in performance mode
-         enable_reflections=True, # defaults to False in performance mode
-         dlss_mode="3", # defaults to 1 in performance mode
+      import isaaclab.sim as sim_utils
+
+      mode_cfg = sim_utils.RenderingModeCfg(
+          rendering_mode_preset="performance",
+          # explicit field overrides
+          kit_enable_translucency=True,  # defaults to False in performance mode
+          kit_enable_reflections=True,   # defaults to False in performance mode
+          kit_dlss_mode=3,               # defaults to 0 in performance mode
       )
 
-   List of user-friendly settings.
+   List of Kit settings.
 
    .. table::
       :widths: 25 75
 
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_translucency        | Bool. Enables translucency for specular transmissive surfaces such as    |
-      |                            | glass at the cost of some performance.                                   |
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_reflections         | Bool. Enables reflections at the cost of some performance.               |
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_global_illumination | Bool. Enables Diffused Global Illumination at the cost of some           |
-      |                            | performance.                                                             |
-      +----------------------------+--------------------------------------------------------------------------+
-      | antialiasing_mode          | Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"].                           |
-      |                            |                                                                          |
-      |                            | DLSS: Boosts performance by using AI to output higher resolution frames  |
-      |                            | from a lower resolution input. DLSS samples multiple lower resolution    |
-      |                            | images and uses motion data and feedback from prior frames to reconstruct|
-      |                            | native quality images.                                                   |
-      |                            | DLAA: Provides higher image quality with an AI-based anti-aliasing       |
-      |                            | technique. DLAA uses the same Super Resolution technology developed for  |
-      |                            | DLSS, reconstructing a native resolution image to maximize image quality.|
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_dlssg               | Bool. Enables the use of DLSS-G. DLSS Frame Generation boosts performance|
-      |                            | by using AI to generate more frames. This feature requires an Ada        |
-      |                            | Lovelace architecture GPU and can hurt performance due to additional     |
-      |                            | thread-related activities.                                               |
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_dl_denoiser         | Bool. Enables the use of a DL denoiser, which improves the quality of    |
-      |                            | renders at the cost of performance.                                      |
-      +----------------------------+--------------------------------------------------------------------------+
-      | dlss_mode                  | Literal[0, 1, 2, 3]. For DLSS anti-aliasing, selects the performance/    |
-      |                            | quality tradeoff mode. Valid values are 0 (Performance), 1 (Balanced),   |
-      |                            | 2 (Quality), or 3 (Auto).                                                |
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_direct_lighting     | Bool. Enable direct light contributions from lights.                     |
-      +----------------------------+--------------------------------------------------------------------------+
-      | samples_per_pixel          | Int. Defines the Direct Lighting samples per pixel. Higher values        |
-      |                            | increase the direct lighting quality at the cost of performance.         |
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_shadows             | Bool. Enables shadows at the cost of performance. When disabled, lights  |
-      |                            | will not cast shadows.                                                   |
-      +----------------------------+--------------------------------------------------------------------------+
-      | enable_ambient_occlusion   | Bool. Enables ambient occlusion at the cost of some performance.         |
-      +----------------------------+--------------------------------------------------------------------------+
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_translucency            | Bool. Enables translucency for specular transmissive surfaces such as   |
+      |                                    | glass at the cost of some performance.                                  |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_reflections             | Bool. Enables reflections at the cost of some performance.              |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_global_illumination     | Bool. Enables Diffuse Global Illumination at the cost of some           |
+      |                                    | performance.                                                            |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_antialiasing_mode              | Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"].                          |
+      |                                    | DLSS boosts performance by reconstructing higher-resolution frames.      |
+      |                                    | DLAA prioritizes image quality using the same SR technology as DLSS.    |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_dlssg                   | Bool. Enables DLSS-G frame generation (Ada Lovelace GPU required).      |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_dl_denoiser             | Bool. Enables DL denoiser (quality up, performance down).               |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_dlss_mode                      | Literal[0, 1, 2, 3] = Performance, Balanced, Quality, Auto.             |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_direct_lighting         | Bool. Enables direct light contributions from lights.                   |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_samples_per_pixel              | Int. Direct lighting samples-per-pixel (higher = better, slower).       |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_shadows                 | Bool. Enables shadows at performance cost.                              |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_enable_ambient_occlusion       | Bool. Enables ambient occlusion at performance cost.                    |
+      +------------------------------------+-------------------------------------------------------------------------+
 
-
-2. For more control, :class:`~sim.RenderCfg` allows you to overwrite any RTX setting by using the ``carb_settings`` argument.
-
-   Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
-
-   In addition, the RTX documentation can be found here - https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
-
-   An example usage of ``carb_settings``.
-
-   .. code-block:: python
-
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="quality",
-         # carb setting overwrites
-         carb_settings={
-            "rtx.translucency.enabled": False,
-            "rtx.reflections.enabled": False,
-            "rtx.domeLight.upperLowerStrategy": 3,
-         }
-      )
-
+2. Customize or add named profiles in :attr:`~sim.SimulationCfg.rendering_mode_cfgs`,
+   then select them from per-visualizer profile selector fields (``rendering_mode``).
 
 Current Limitations
 -------------------
 
-For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
-This may result in renders of lower quality, which may be especially evident at lower resolutions.
-Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
-``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
-quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+For performance reasons, DLSS-centric settings are commonly used by default.
+At lower resolutions, quality artifacts may be more visible.
+For low-resolution renders, consider:
 
+* ``kit_antialiasing_mode="DLAA"``
+* ``kit_enable_dl_denoiser=True``
 
-If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
-adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
-areas that become newly visible between frames:
-
-.. code-block:: python
-
-   render_cfg = sim_utils.RenderCfg(
-      carb_settings={
-         "/rtx/aovConverter/disocclusionScale": 10000,
-      }
-   )
-
-.. note::
-
+<<<<<<< mtrepte/add_rendering_quality_cfg
+in :class:`~sim.RenderingModeCfg`. These can improve quality at a performance cost.
+=======
    This parameter is not commonly exposed as it may have side effects in certain scenarios.
    Only use it as a last resort if other quality settings do not resolve the visual artifacts.
    The value can be adjusted to a very high value to reduce disocclusion artifacts.
@@ -189,3 +154,4 @@ in **multiple environments**, you must set the following so the renderer uses th
 
    With multiple environments, each environment holds its own copy of the scene, increasing device memory use,
    and environments are rendered one after another, which can substantially slow down rendering.
+>>>>>>> develop

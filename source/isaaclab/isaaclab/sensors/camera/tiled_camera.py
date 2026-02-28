@@ -25,7 +25,7 @@ from .camera import Camera
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.renderers import Renderer
+    from isaaclab.renderers.renderer import Renderer
 
     from .tiled_camera_cfg import TiledCameraCfg
 
