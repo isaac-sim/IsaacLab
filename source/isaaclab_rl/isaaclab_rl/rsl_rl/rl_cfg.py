@@ -67,28 +67,28 @@ class RslRlMLPModelCfg:
     stochastic: bool = MISSING
     """Whether the model output is stochastic.
 
-    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None
     for deterministic output or to a valid configuration class, e.g., `GaussianDistributionCfg` for stochastic output.
     """
 
     init_noise_std: float = MISSING
     """The initial noise standard deviation for the model.
 
-    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
     `init_std` field of the distribution configuration to specify the initial noise standard deviation.
     """
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
     """The type of noise standard deviation for the model. Default is scalar.
 
-    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
     `std_type` field of the distribution configuration to specify the type of noise standard deviation.
     """
 
     state_dependent_std: bool = False
     """Whether to use state-dependent standard deviation for the policy. Default is False.
 
-    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
     the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.
     """
 
@@ -277,6 +277,9 @@ class RslRlBaseRunnerCfg:
     .. note::
         This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.
     """
+
+    check_for_nan: bool = True
+    """Whether to check for NaN values coming from the environment."""
 
     save_interval: int = MISSING
     """The number of iterations between saves."""

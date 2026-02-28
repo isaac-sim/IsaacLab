@@ -96,7 +96,7 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
 
 
 _V4_0_0 = version.parse("4.0.0")
-_V4_1_0 = version.parse("4.1.0")
+_V5_0_0 = version.parse("5.0.0")
 _MODEL_CFG_NAMES = ("actor", "critic", "student", "teacher")
 
 
@@ -109,8 +109,8 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
         ``teacher``) are ignored and cleared.
     - For ``rsl-rl >= 4.0.0``, deprecated ``policy`` can be used to infer missing model configs, then ``policy`` is
         cleared.
-    - For ``rsl-rl >= 4.1.0``, legacy stochastic parameters are migrated to ``distribution_cfg`` when needed; for
-        ``4.0.0 <= rsl-rl < 4.1.0``, those legacy parameters are validated instead.
+    - For ``rsl-rl >= 5.0.0``, legacy stochastic parameters are migrated to ``distribution_cfg`` when needed; for
+        ``4.0.0 <= rsl-rl < 5.0.0``, those legacy parameters are validated instead.
 
     Raises:
         ValueError: If required legacy parameters are missing for the selected ``rsl-rl`` version.
@@ -266,11 +266,11 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
             agent_cfg.policy = MISSING
 
         # Handle new distribution configuration
-        if installed_version < _V4_1_0:
+        if installed_version < _V5_0_0:
             for model_name in _MODEL_CFG_NAMES:
                 if _has_non_missing_attr(agent_cfg, model_name):
                     _validate_old_stochastic_cfg(getattr(agent_cfg, model_name))
-        else:  # rsl-rl >= 4.1.0
+        else:  # rsl-rl >= 5.0.0
             # import new distribution config classes
             from isaaclab_rl.rsl_rl import RslRlMLPModelCfg
 
