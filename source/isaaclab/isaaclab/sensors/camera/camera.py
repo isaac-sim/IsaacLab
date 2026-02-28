@@ -128,8 +128,8 @@ class Camera(SensorBase):
         isaac_sim_version = get_isaac_sim_version()
         if isaac_sim_version.major >= 6:
             # Set RTX flag to enable fast path if only depth or albedo is requested
-            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
-            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
+            needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
+            if not needs_color_render:
                 settings.set_bool("/rtx/sdg/force/disableColorRender", True)
 
             # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
