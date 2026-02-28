@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     # visualizers
-    "newton @ git+https://github.com/newton-physics/newton.git@bed84ae2f6251ccd9d907ab7345638c9031c8246",
+    "newton==1.0.0rc1",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
