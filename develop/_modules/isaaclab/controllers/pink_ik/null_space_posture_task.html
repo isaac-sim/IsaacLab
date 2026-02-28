@@ -707,15 +707,8 @@
     <span class="c1"># Regularization factor for pseudoinverse computation to ensure numerical stability</span>
     <span class="n">PSEUDOINVERSE_DAMPING_FACTOR</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-9</span>
 
-<div class="viewcode-block" id="NullSpacePostureTask.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">cost</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-        <span class="n">lm_damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-        <span class="n">gain</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-        <span class="n">controlled_frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">controlled_joints</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Initialize the null space posture task.</span>
+<div class="viewcode-block" id="NullSpacePostureTask.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Initialize the null space posture task from a configuration object.</span>
 
 <span class="sd">        This task maintains a desired joint posture in the null space of higher-priority</span>
 <span class="sd">        frame tasks. Joint selection allows excluding specific joints (e.g., wrist joints</span>
@@ -723,20 +716,21 @@
 <span class="sd">        errors in critical joints like shoulders and waist.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            cost: Task weighting factor in the optimization objective.</span>
-<span class="sd">                Units: :math:`[\text{cost}] / [\text{rad}]`.</span>
-<span class="sd">            lm_damping: Levenberg-Marquardt regularization scale (unitless). Defaults to 0.0.</span>
-<span class="sd">            gain: Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.</span>
-<span class="sd">                Defaults to 1.0 (no filtering).</span>
-<span class="sd">            controlled_frames: Frame names whose Jacobians define the primary tasks for</span>
-<span class="sd">                null space projection. If None or empty, no projection is applied.</span>
-<span class="sd">            controlled_joints: Joint names to control in the posture task. If None or</span>
-<span class="sd">                empty, all actuated joints are controlled.</span>
+<span class="sd">            cfg: A :class:`~isaaclab.controllers.pink_ik.pink_task_cfg.NullSpacePostureTaskCfg`</span>
+<span class="sd">                (or any object with the same attributes).</span>
+
+<span class="sd">                - ``cost`` -- Task weighting factor (units: :math:`[\text{cost}] / [\text{rad}]`).</span>
+<span class="sd">                - ``lm_damping`` -- Levenberg-Marquardt regularization scale (unitless).</span>
+<span class="sd">                - ``gain`` -- Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.</span>
+<span class="sd">                - ``controlled_frames`` -- Frame names whose Jacobians define the primary</span>
+<span class="sd">                  tasks for null space projection. If empty, no projection is applied.</span>
+<span class="sd">                - ``controlled_joints`` -- Joint names to control. If empty, all actuated</span>
+<span class="sd">                  joints are controlled.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cost</span><span class="o">=</span><span class="n">cost</span><span class="p">,</span> <span class="n">gain</span><span class="o">=</span><span class="n">gain</span><span class="p">,</span> <span class="n">lm_damping</span><span class="o">=</span><span class="n">lm_damping</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cost</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">cost</span><span class="p">),</span> <span class="n">gain</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">gain</span><span class="p">),</span> <span class="n">lm_damping</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">lm_damping</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target_q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">controlled_frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">controlled_frames</span> <span class="ow">or</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">controlled_joints</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">controlled_joints</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">controlled_frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;controlled_frames&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">controlled_joints</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;controlled_joints&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_frame_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 

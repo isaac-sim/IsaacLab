@@ -636,17 +636,21 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pink</span><span class="w"> </span><span class="kn">import</span> <span class="n">solve_ik</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pink.tasks</span><span class="w"> </span><span class="kn">import</span> <span class="n">Task</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">utils</span> <span class="k">as</span> <span class="n">controller_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">retrieve_file_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_matching_names_values</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.null_space_posture_task</span><span class="w"> </span><span class="kn">import</span> <span class="n">NullSpacePostureTask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.pink_kinematics_configuration</span><span class="w"> </span><span class="kn">import</span> <span class="n">PinkKinematicsConfiguration</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.pink_task_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">PinkIKTaskCfg</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.pink_ik_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">PinkIKControllerCfg</span>
@@ -696,10 +700,25 @@
         <span class="c1"># Validate consistency between controlled_joint_indices and configuration</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_consistency</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">controlled_joint_indices</span><span class="p">)</span>
 
+        <span class="c1"># Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+
+            <span class="n">urdf_output_dir</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">urdf_output_dir</span> <span class="ow">or</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">gettempdir</span><span class="p">()</span>
+            <span class="n">urdf_path</span><span class="p">,</span> <span class="n">mesh_path</span> <span class="o">=</span> <span class="n">controller_utils</span><span class="o">.</span><span class="n">convert_usd_to_urdf</span><span class="p">(</span>
+                <span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">urdf_output_dir</span><span class="p">,</span> <span class="n">force_conversion</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">urdf_path</span> <span class="o">=</span> <span class="n">retrieve_file_path</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span> <span class="k">else</span> <span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span>
+            <span class="n">mesh_path</span> <span class="o">=</span> <span class="n">retrieve_file_path</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mesh_path</span> <span class="k">else</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mesh_path</span>
+
+        <span class="k">if</span> <span class="n">urdf_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either urdf_path or usd_path must be provided in the controller configuration&quot;</span><span class="p">)</span>
+
         <span class="c1"># Initialize the Kinematics model used by pink IK to control robot</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span> <span class="o">=</span> <span class="n">PinkKinematicsConfiguration</span><span class="p">(</span>
-            <span class="n">urdf_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span><span class="p">,</span>
-            <span class="n">mesh_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_path</span><span class="p">,</span>
+            <span class="n">urdf_path</span><span class="o">=</span><span class="n">urdf_path</span><span class="p">,</span>
+            <span class="n">mesh_path</span><span class="o">=</span><span class="n">mesh_path</span><span class="p">,</span>
             <span class="n">controlled_joint_names</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">,</span>
         <span class="p">)</span>
 
@@ -715,16 +734,19 @@
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_joint_positions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pink_joint_names</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_joint_positions</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_variable_input_tasks</span> <span class="o">=</span> <span class="p">[</span><span class="n">task_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="p">(</span><span class="n">task_cfg</span><span class="p">)</span> <span class="k">for</span> <span class="n">task_cfg</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fixed_input_tasks</span> <span class="o">=</span> <span class="p">[</span><span class="n">task_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="p">(</span><span class="n">task_cfg</span><span class="p">)</span> <span class="k">for</span> <span class="n">task_cfg</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">fixed_input_tasks</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="n">Task</span> <span class="o">|</span> <span class="n">PinkIKTaskCfg</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_variable_input_tasks</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">fixed_input_tasks</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="n">Task</span> <span class="o">|</span> <span class="n">PinkIKTaskCfg</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fixed_input_tasks</span><span class="p">)</span>
 
-        <span class="c1"># Set the default targets for each task from the configuration</span>
-        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_variable_input_tasks</span><span class="p">:</span>
             <span class="c1"># If task is a NullSpacePostureTask, set the target to the initial joint positions</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">NullSpacePostureTask</span><span class="p">):</span>
                 <span class="n">task</span><span class="o">.</span><span class="n">set_target</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">init_joint_positions</span><span class="p">)</span>
                 <span class="k">continue</span>
-            <span class="n">task</span><span class="o">.</span><span class="n">set_target_from_configuration</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">fixed_input_tasks</span><span class="p">:</span>
-            <span class="n">task</span><span class="o">.</span><span class="n">set_target_from_configuration</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">)</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="s2">&quot;set_target_from_configuration&quot;</span><span class="p">)(</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fixed_input_tasks</span><span class="p">:</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="s2">&quot;set_target_from_configuration&quot;</span><span class="p">)(</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">)</span>
 
         <span class="c1"># Create joint ordering mappings</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_setup_joint_ordering_mappings</span><span class="p">()</span></div>
@@ -749,6 +771,8 @@
             <span class="p">)</span>
 
         <span class="c1"># Check: Joint name consistency - verify that the indices point to the expected joint names</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">all_joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cfg.all_joint_names cannot be None&quot;</span><span class="p">)</span>
         <span class="n">actual_joint_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span><span class="o">.</span><span class="n">all_joint_names</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">controlled_joint_indices</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">actual_joint_names</span> <span class="o">!=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">:</span>
             <span class="n">mismatches</span> <span class="o">=</span> <span class="p">[]</span>
@@ -806,7 +830,7 @@
 <span class="sd">        Args:</span>
 <span class="sd">            curr_joint_pos: The current joint positions of shape (num_joints,).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_variable_input_tasks</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">NullSpacePostureTask</span><span class="p">):</span>
                 <span class="n">task</span><span class="o">.</span><span class="n">set_target</span><span class="p">(</span><span class="n">curr_joint_pos</span><span class="p">)</span></div>
 
@@ -842,7 +866,7 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="n">velocity</span> <span class="o">=</span> <span class="n">solve_ik</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">fixed_input_tasks</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_variable_input_tasks</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fixed_input_tasks</span><span class="p">,</span>
                 <span class="n">dt</span><span class="p">,</span>
                 <span class="n">solver</span><span class="o">=</span><span class="s2">&quot;daqp&quot;</span><span class="p">,</span>
                 <span class="n">safety_break</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">fail_on_joint_limit_violation</span><span class="p">,</span>
