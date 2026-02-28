@@ -215,7 +215,7 @@ class TestMockRigidObject:
 
     def test_body_properties(self, obj):
         """Test body property shapes."""
-        assert obj.data.body_mass.shape == (4, 1, 1)
+        assert obj.data.body_mass.shape == (4, 1)
         assert obj.data.body_inertia.shape == (4, 1, 9)
 
 
@@ -252,7 +252,7 @@ class TestMockRigidObjectCollection:
 
     def test_find_bodies_returns_mask(self, collection):
         """Test that find_bodies returns a mask tensor."""
-        body_mask, names, indices = collection.find_bodies("body_0")
+        body_mask, names = collection.find_bodies("body_0")
         assert isinstance(body_mask, torch.Tensor)
         assert body_mask.shape == (5,)
         assert body_mask[0]

@@ -367,9 +367,9 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_mass(self) -> wp.array:
-        """Body mass. Shape: (N, 1, 1)."""
+        """Body mass. Shape: (N, 1)."""
         if self._body_mass is None:
-            return wp.ones((self._num_instances, 1, 1), dtype=wp.float32, device=self.device)
+            return wp.ones((self._num_instances, 1), dtype=wp.float32, device=self.device)
         return self._body_mass
 
     @property
@@ -419,15 +419,8 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     # -- Shorthand properties (root_pose_w, body_pos_w, com_pos_b, etc.) --
 
-    @property
-    def com_pos_b(self) -> wp.array:
-        """Convenience alias for root_com_pos_w. Shape: (N, 3)."""
-        return wp.clone(self.root_com_pos_w, self.device)
-
-    @property
-    def com_quat_b(self) -> wp.array:
-        """Convenience alias for root_com_quat_w. Shape: (N, 4)."""
-        return wp.clone(self.root_com_quat_w, self.device)
+    # com_pos_b and com_quat_b are inherited from BaseRigidObjectData
+    # (they delegate to body_com_pos_b and body_com_quat_b respectively)
 
     # Inherited from BaseRigidObjectData
 
@@ -569,7 +562,11 @@ class MockRigidObject:
 
     # -- Core methods --
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Reset rigid object state for specified environments."""
         pass
 
@@ -613,72 +610,72 @@ class MockRigidObject:
 
     def write_root_state_to_sim(
         self,
-        root_state: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root state to simulation."""
         pass
 
     def write_root_com_state_to_sim(
         self,
-        root_state: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root CoM state to simulation."""
         pass
 
     def write_root_link_state_to_sim(
         self,
-        root_state: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root link state to simulation."""
         pass
 
     def write_root_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root pose to simulation."""
         pass
 
     def write_root_link_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root link pose to simulation."""
         pass
 
     def write_root_com_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root CoM pose to simulation."""
         pass
 
     def write_root_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root velocity to simulation."""
         pass
 
     def write_root_com_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root CoM velocity to simulation."""
         pass
 
     def write_root_link_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write root link velocity to simulation."""
         pass
@@ -687,39 +684,39 @@ class MockRigidObject:
 
     def set_masses(
         self,
-        masses: torch.Tensor,
+        masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body masses."""
         pass
 
     def set_coms(
         self,
-        coms: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body centers of mass."""
         pass
 
     def set_inertias(
         self,
-        inertias: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body inertias."""
         pass
 
     def set_external_force_and_torque(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        positions: torch.Tensor | None = None,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        is_global: bool = True,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        is_global: bool = False,
     ) -> None:
         """Set external forces and torques."""
         pass
@@ -728,6 +725,7 @@ class MockRigidObject:
 
     def write_root_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -735,6 +733,7 @@ class MockRigidObject:
 
     def write_root_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -742,6 +741,7 @@ class MockRigidObject:
 
     def write_root_link_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -749,6 +749,7 @@ class MockRigidObject:
 
     def write_root_link_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -756,6 +757,7 @@ class MockRigidObject:
 
     def write_root_com_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -763,6 +765,7 @@ class MockRigidObject:
 
     def write_root_com_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -770,6 +773,7 @@ class MockRigidObject:
 
     def write_root_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -777,6 +781,7 @@ class MockRigidObject:
 
     def write_root_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -784,6 +789,7 @@ class MockRigidObject:
 
     def write_root_com_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -791,6 +797,7 @@ class MockRigidObject:
 
     def write_root_com_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -798,6 +805,7 @@ class MockRigidObject:
 
     def write_root_link_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -805,6 +813,7 @@ class MockRigidObject:
 
     def write_root_link_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -812,48 +821,54 @@ class MockRigidObject:
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         pass
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         pass

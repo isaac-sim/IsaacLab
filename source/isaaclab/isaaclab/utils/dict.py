@@ -14,7 +14,7 @@ from typing import Any
 import torch
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
-from .string import callable_to_string, string_to_callable, string_to_slice
+from .string import ResolvableString, callable_to_string, string_to_slice
 
 """
 Dictionary <-> Class operations.
@@ -58,8 +58,12 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # disregard builtin attributes
         if key.startswith("__"):
             continue
+        # Keep lazy callable references as strings; don't force callable introspection.
+        if isinstance(value, ResolvableString):
+            data[key] = str(value)
         # check if attribute is callable -- function
-        if callable(value):
+        # check if attribute is callable -- function
+        elif callable(value):
             data[key] = callable_to_string(value)
         # check if attribute is a dictionary
         elif hasattr(value, "__dict__") or isinstance(value, dict):
@@ -140,10 +144,16 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                     if not set_obj:
                         continue
 
-            # -- 3) callable attribute → resolve string --------------
+            # -- 3) callable attribute → keep string lazily resolvable --------------
             elif callable(obj_mem):
-                # update function name
-                value = string_to_callable(value)
+                if isinstance(value, str):
+                    if not isinstance(value, ResolvableString):
+                        value = ResolvableString(value)
+                elif not callable(value):
+                    raise ValueError(
+                        f"[Config]: Incorrect type under namespace: {key_ns}."
+                        f" Expected callable or callable-string, Received: {type(value)}."
+                    )
 
             # -- 4) simple scalar / explicit None ---------------------
             elif value is None or isinstance(value, type(obj_mem)):

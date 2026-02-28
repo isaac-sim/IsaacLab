@@ -182,28 +182,21 @@ class IsaacTeleopDevice:
         """Poll controller buttons and trigger actions on rising edges.
 
         Called once per :meth:`advance` frame, after ``session.step()`` has
-        already called ``deviceio_session.update()`` so the controller data
-        is fresh.
+        executed the pipeline so the controller ``TensorGroup`` is fresh.
 
         Currently handles:
             * Right controller primary button ("A") -- toggles anchor rotation.
         """
-        controller_tracker = self._session_lifecycle.controller_tracker
-        deviceio_session = self._session_lifecycle.deviceio_session
+        from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
 
-        if controller_tracker is None or deviceio_session is None:
+        right_data = self._session_lifecycle.last_right_controller
+        if right_data is None or right_data.is_none:
             return
 
-        controller_data = controller_tracker.get_controller_data(deviceio_session)
-        right = controller_data.right_controller
-
-        if right is not None and right.is_active:
-            current = right.inputs.primary_click
-            if current and not self._prev_right_a_pressed:
-                self._anchor_manager.toggle_anchor_rotation()
-            self._prev_right_a_pressed = current
-        else:
-            self._prev_right_a_pressed = False
+        current = float(right_data[ControllerInputIndex.PRIMARY_CLICK]) > 0.5
+        if current and not self._prev_right_a_pressed:
+            self._anchor_manager.toggle_anchor_rotation()
+        self._prev_right_a_pressed = current
 
 
 def _enable_teleop_bridge() -> None:

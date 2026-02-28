@@ -11,17 +11,16 @@ from typing import TYPE_CHECKING, Literal
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 
-from .terrain_importer import TerrainImporter
-
 if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
+    from .terrain_importer import TerrainImporter
 
 
 @configclass
 class TerrainImporterCfg:
     """Configuration for the terrain manager."""
 
-    class_type: type = TerrainImporter
+    class_type: type[TerrainImporter] | str = "{DIR}.terrain_importer:TerrainImporter"
     """The class to use for the terrain importer.
 
     Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.

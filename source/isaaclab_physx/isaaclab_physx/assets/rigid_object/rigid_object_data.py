@@ -265,8 +265,8 @@ class RigidObjectData(BaseRigidObjectData):
     def body_mass(self) -> wp.array:
         """Mass of all bodies in the simulation world frame.
 
-        Shape is (num_instances, 1, 1), dtype = wp.float32.
-        In torch this resolves to (num_instances, 1, 1).
+        Shape is (num_instances, 1), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1).
         """
         return self._body_mass
 
@@ -685,7 +685,9 @@ class RigidObjectData(BaseRigidObjectData):
 
         # -- Body properties
         self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
+        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device).reshape(
+            (self._num_instances, 1, 9)
+        )
 
     """
     Internal helpers.

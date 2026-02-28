@@ -7,16 +7,17 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
-import carb
-
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -117,7 +118,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         # Find end effector index once
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
-            carb.log_warn(
+            logger.warning(
                 f"{self.end_effector_body_name} not found in robot body names. Cannot check gear drop condition."
             )
             self.eef_idx = None
@@ -250,7 +251,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         # Find end effector index once
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
-            carb.log_warn(
+            logger.warning(
                 f"{self.end_effector_body_name} not found in robot body names. Cannot check gear orientation condition."
             )
             self.eef_idx = None

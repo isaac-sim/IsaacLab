@@ -213,7 +213,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             joint_pos_des = joint_pos.clone()
         # set the joint position command
-        self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
+        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
@@ -539,7 +539,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             current_joint_vel=self._joint_vel,
             nullspace_joint_pos_target=self._nullspace_joint_pos_target,
         )
-        self._asset.set_joint_effort_target(self._joint_efforts, joint_ids=self._joint_ids)
+        self._asset.set_joint_effort_target_index(target=self._joint_efforts, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Resets the raw actions and the sensors if available.

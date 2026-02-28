@@ -121,7 +121,7 @@ def test_initialization(num_cubes, device):
         assert wp.to_torch(cube_object.data.root_pos_w).shape == (num_cubes, 3)
         assert wp.to_torch(cube_object.data.root_quat_w).shape == (num_cubes, 4)
         assert wp.to_torch(cube_object.data.body_mass).shape == (num_cubes, 1)
-        assert wp.to_torch(cube_object.data.body_inertia).shape == (num_cubes, 9)
+        assert wp.to_torch(cube_object.data.body_inertia).shape == (num_cubes, 1, 9)
 
         # Simulate physics
         for _ in range(2):

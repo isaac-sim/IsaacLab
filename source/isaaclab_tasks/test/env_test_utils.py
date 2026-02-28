@@ -5,8 +5,10 @@
 
 """Shared test utilities for Isaac Lab environments."""
 
+import importlib
 import inspect
 import os
+import sys
 
 import gymnasium as gym
 import pytest
@@ -21,10 +23,36 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
+def _is_teleop_env(task_spec) -> bool:
+    """Check if a task's environment config has teleop dependencies.
+
+    Inspects the class hierarchy of the env config to check if any base
+    class module defines ``_TELEOP_AVAILABLE``, indicating the environment
+    uses isaacteleop / isaaclab_teleop.
+    """
+    env_cfg_entry_point = task_spec.kwargs.get("env_cfg_entry_point")
+    if not isinstance(env_cfg_entry_point, str) or ":" not in env_cfg_entry_point:
+        return False
+    try:
+        mod_name, attr_name = env_cfg_entry_point.split(":")
+        mod = importlib.import_module(mod_name)
+        cfg_cls = getattr(mod, attr_name, None)
+        if cfg_cls is None:
+            return False
+        for cls in cfg_cls.__mro__:
+            cls_module = sys.modules.get(cls.__module__)
+            if cls_module is not None and hasattr(cls_module, "_TELEOP_AVAILABLE"):
+                return True
+    except (ImportError, AttributeError):
+        pass
+    return False
+
+
 def setup_environment(
     include_play: bool = False,
     factory_envs: bool | None = None,
     multi_agent: bool | None = None,
+    teleop_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -39,6 +67,10 @@ def setup_environment(
             - True: include only multi-agent environments
             - False: include only single-agent environments
             - None: include all environments regardless of agent type
+        teleop_envs:
+            - True: include only teleop environments (those requiring isaacteleop)
+            - False: exclude teleop environments
+            - None: include all environments regardless of teleop dependency
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -64,6 +96,13 @@ def setup_environment(
             factory_envs is False and ("Factory" in task_spec.id or "Forge" in task_spec.id)
         ):
             continue
+        # if None: no filter
+
+        # apply teleop filter
+        if teleop_envs is not None:
+            is_teleop = _is_teleop_env(task_spec)
+            if (teleop_envs is True and not is_teleop) or (teleop_envs is False and is_teleop):
+                continue
         # if None: no filter
 
         # apply multi agent filter

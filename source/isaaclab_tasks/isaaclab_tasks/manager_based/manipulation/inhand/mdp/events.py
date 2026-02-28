@@ -181,4 +181,5 @@ class reset_joints_within_limits_range(ManagerTermBase):
             joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
 
         # set into the physics simulation
-        self._asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)

@@ -1,6 +1,48 @@
 Changelog
 ---------
 
+0.5.3 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ContactSensor ``body_names`` property to use ``num_sensors`` instead of
+  deprecated ``num_bodies``.
+
+
 0.5.0 (2026-02-24)
 ~~~~~~~~~~~~~~~~~~
 

@@ -481,7 +481,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
         scene["contact_sensor"].reset()
         scene["shape"].write_root_pose_to_sim(
-            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0], device=device)
+            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0], device=device).unsqueeze(0)
         )
 
         # step sim once to compute friction forces
@@ -703,7 +703,7 @@ def _test_sensor_contact(
         duration = durations[idx]
         while current_test_time < duration:
             # set object states to contact the ground plane
-            shape.write_root_pose_to_sim(root_pose=torch.tensor(test_pose, device=shape.device))
+            shape.write_root_pose_to_sim(root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0))
             # perform simulation step
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
@@ -735,7 +735,7 @@ def _test_sensor_contact(
             _test_friction_forces(shape, sensor, mode)
 
         # switch the contact mode for 1 dt step before the next contact test begins.
-        shape.write_root_pose_to_sim(root_pose=torch.tensor(reset_pose, device=shape.device))
+        shape.write_root_pose_to_sim(root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0))
         # perform simulation step
         _perform_sim_step(sim, scene, sim_dt)
         # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time
