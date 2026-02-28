@@ -38,6 +38,7 @@ from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, repl
 from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.preset_cfg import PresetCfg
 
 
 def collect_presets(cfg, path: str = "") -> dict:
@@ -93,7 +94,18 @@ def collect_presets(cfg, path: str = "") -> dict:
         # Check if it's a configclass (has __dataclass_fields__)
         if hasattr(value, "__dataclass_fields__"):
             child_path = f"{path}.{name}" if path else name
-            result.update(collect_presets(value, child_path))
+            if isinstance(value, PresetCfg):
+                if getattr(value, "presets", None):
+                    raise ValueError(
+                        f"PresetCfg subclass at '{child_path}' must not define a 'presets' attribute. "
+                        "Use typed fields instead (e.g., default: MyCfg = MyCfg())."
+                    )
+                preset_dict = {}
+                for field_name in value.__dataclass_fields__:
+                    preset_dict[field_name] = getattr(value, field_name)
+                result[child_path] = preset_dict
+            else:
+                result.update(collect_presets(value, child_path))
 
     return result
 

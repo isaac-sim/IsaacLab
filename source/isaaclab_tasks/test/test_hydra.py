@@ -27,6 +27,7 @@ from isaaclab_tasks.utils.hydra import (
     collect_presets,
     parse_overrides,
 )
+from isaaclab_tasks.utils.preset_cfg import PresetCfg
 
 # =============================================================================
 # Test Configuration Classes with Presets
@@ -84,6 +85,49 @@ class ArmActionCfgInheritance(JointPositionActionCfg):
         "joint_position": JointPositionActionCfg(),
         "relative_joint_position": RelativeJointPositionActionCfg(),
     }
+
+
+@configclass
+class PhysxCfg:
+    """PhysX physics backend config."""
+
+    backend: str = "physx"
+    dt: float = 0.005
+    substeps: int = 2
+
+
+@configclass
+class NewtonCfg:
+    """Newton physics backend config."""
+
+    backend: str = "newton"
+    dt: float = 0.002
+    substeps: int = 4
+    solver_iterations: int = 8
+
+
+@configclass
+class SimBackendCfg(PresetCfg):
+    """Physics backend presets using PresetCfg pattern."""
+
+    default: PhysxCfg = PhysxCfg()
+    newton: NewtonCfg = NewtonCfg()
+
+
+@configclass
+class PresetCfgSimCfg:
+    """Sim config containing a PresetCfg-based backend field."""
+
+    render_interval: int = 1
+    backend: SimBackendCfg = SimBackendCfg()
+
+
+@configclass
+class PresetCfgEnvCfg:
+    """Environment config for PresetCfg tests."""
+
+    decimation: int = 4
+    sim: PresetCfgSimCfg = PresetCfgSimCfg()
 
 
 # Use auto-default pattern as the default for tests
@@ -392,3 +436,83 @@ def test_apply_overrides_unknown_raises(test_configs):
 
     with pytest.raises(ValueError, match="Unknown preset"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "observations", "bad")], [], presets)
+
+def test_preset_cfg_collect_presets():
+    """Test that collect_presets discovers PresetCfg subclass fields as presets."""
+    env_cfg = PresetCfgEnvCfg()
+    presets = collect_presets(env_cfg)
+
+    assert "sim.backend" in presets
+    assert "default" in presets["sim.backend"]
+    assert "newton" in presets["sim.backend"]
+    assert isinstance(presets["sim.backend"]["default"], PhysxCfg)
+    assert isinstance(presets["sim.backend"]["newton"], NewtonCfg)
+
+
+def test_preset_cfg_auto_default():
+    """Test that the 'default' field is auto-applied when no CLI override is given."""
+    env_cfg = PresetCfgEnvCfg()
+    presets = {
+        "env": collect_presets(env_cfg),
+        "agent": {},
+    }
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": {}}
+
+    apply_overrides(env_cfg, None, hydra_cfg, [], [], [], presets)
+
+    assert env_cfg.sim.backend.backend == "physx"
+    assert env_cfg.sim.backend.dt == 0.005
+
+
+def test_preset_cfg_cli_selection():
+    """Test that CLI selection replaces with the chosen preset."""
+    env_cfg = PresetCfgEnvCfg()
+    presets = {
+        "env": collect_presets(env_cfg),
+        "agent": {},
+    }
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": {}}
+
+    preset_sel = [("env", "sim.backend", "newton")]
+    apply_overrides(env_cfg, None, hydra_cfg, [], preset_sel, [], presets)
+
+    assert isinstance(env_cfg.sim.backend, NewtonCfg)
+    assert env_cfg.sim.backend.backend == "newton"
+    assert env_cfg.sim.backend.dt == 0.002
+    assert env_cfg.sim.backend.solver_iterations == 8
+
+
+def test_preset_cfg_global_preset():
+    """Test that a global preset applies to PresetCfg-discovered presets."""
+    env_cfg = PresetCfgEnvCfg()
+    presets = {
+        "env": collect_presets(env_cfg),
+        "agent": {},
+    }
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": {}}
+
+    apply_overrides(env_cfg, None, hydra_cfg, ["newton"], [], [], presets)
+
+    assert isinstance(env_cfg.sim.backend, NewtonCfg)
+    assert env_cfg.sim.backend.backend == "newton"
+
+
+def test_preset_cfg_with_presets_attr_raises():
+    """PresetCfg subclass with a 'presets' attribute should raise ValueError."""
+
+    @configclass
+    class BadBackendCfg(PresetCfg):
+        default: PhysxCfg = PhysxCfg()
+        newton: NewtonCfg = NewtonCfg()
+        presets = {"extra": PhysxCfg()}
+
+    @configclass
+    class BadSimCfg:
+        backend: BadBackendCfg = BadBackendCfg()
+
+    @configclass
+    class BadEnvCfg:
+        sim: BadSimCfg = BadSimCfg()
+
+    with pytest.raises(ValueError, match="must not define a 'presets' attribute"):
+        collect_presets(BadEnvCfg())

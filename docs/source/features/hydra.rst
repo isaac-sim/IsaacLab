@@ -154,7 +154,7 @@ Overrides are applied in sequence:
 Defining Presets
 ^^^^^^^^^^^^^^^^
 
-There are three styles for defining presets:
+There are four styles for defining presets:
 
 **Style 1: Inheritance** - Default values from base class, presets for alternatives:
 
@@ -208,6 +208,34 @@ There are three styles for defining presets:
         }
 
 With Style 3, the ``"default"`` preset is automatically applied when no preset is selected.
+
+**Style 4: PresetCfg class** - Declarative, class-based preset definitions:
+
+.. code-block:: python
+
+    from isaaclab_tasks.utils import PresetCfg
+
+    @configclass
+    class PhysicsCfg(PresetCfg):
+        """Physics backend presets using class-based pattern."""
+
+        default: PhysxCfg = PhysxCfg()
+        newton: NewtonCfg = NewtonCfg()
+
+    @configclass
+    class SimCfg:
+        physics: PhysicsCfg = PhysicsCfg()
+
+With Style 4, each field on the ``PresetCfg`` subclass is a named preset. The ``default`` field
+holds the config instance used when no CLI override is given. ``collect_presets`` automatically
+discovers ``PresetCfg`` subclasses and converts their fields into a presets dict, so no
+``presets`` attribute is needed. CLI usage is the same as other styles:
+
+.. code-block:: bash
+
+    # Use Newton physics backend
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.sim.physics=newton
 
 
 Using Presets
