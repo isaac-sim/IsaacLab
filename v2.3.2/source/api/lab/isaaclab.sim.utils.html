@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -159,6 +159,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../develop/source/api/lab/isaaclab.sim.utils.html" >develop</option>
             <option value="../../../../main/source/api/lab/isaaclab.sim.utils.html" >main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
@@ -208,7 +209,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -2300,7 +2301,7 @@ the new labels are appended to existing ones (if any). Defaults to True.</p></li
 <dd><p>Get all semantic labels (<code class="xref py py-class docutils literal notranslate"><span class="pre">UsdSemantics.LabelsAPI</span></code>) applied to a prim.</p>
 <div class="versionadded">
 <p><span class="versionmodified added">New in version 2.3.0: </span>This function is available in Isaac Sim 5.0 and later. For previous versions,
-please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
+please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2319,7 +2320,7 @@ If no labels are found, it returns an empty dictionary.</p>
 <dd><p>Removes semantic labels (<code class="xref py py-class docutils literal notranslate"><span class="pre">UsdSemantics.LabelsAPI</span></code>) from a prim and optionally its descendants.</p>
 <div class="versionadded">
 <p><span class="versionmodified added">New in version 2.3.0: </span>This function is available in Isaac Sim 5.0 and later. For previous versions,
-please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
+please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2345,7 +2346,7 @@ semantic labels (<code class="xref py py-class docutils literal notranslate"><sp
 </div>
 <div class="versionadded">
 <p><span class="versionmodified added">New in version 2.3.0: </span>This function is available in Isaac Sim 5.0 and later. For previous versions,
-please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
+please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2368,7 +2369,7 @@ please use <a class="reference external" href="https://docs.isaacsim.omniverse.n
 each label is applied to the prims. It returns a dictionary of labels and their corresponding count.</p>
 <div class="versionadded">
 <p><span class="versionmodified added">New in version 2.3.0: </span>This function is available in Isaac Sim 5.0 and later. For previous versions,
-please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
+please use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.core.utils/docs/index.html#module-isaacsim.core.utils.semantics" title="(in Isaac Sim)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.core.utils.semantics</span></code></a> module instead.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>

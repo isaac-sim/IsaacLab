@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -161,6 +161,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../develop/source/api/lab/isaaclab.utils.html" >develop</option>
             <option value="../../../../main/source/api/lab/isaaclab.utils.html" >main</option>
             <option value="../../../../release/2.1.0/source/api/lab/isaaclab.utils.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/api/lab/isaaclab.utils.html" >release/2.2.0</option>
@@ -210,7 +211,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -5291,7 +5292,7 @@ to all the joints of the articulation. We use a slice to make the indexing more 
 <dt class="sig sig-object py" id="isaaclab.utils.version.get_isaac_sim_version">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.version.</span></span><span class="sig-name descname"><span class="pre">get_isaac_sim_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Version</span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/version.html#get_isaac_sim_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.version.get_isaac_sim_version" title="Permalink to this definition">#</a></dt>
 <dd><p>Get the Isaac Sim version as a Version object, cached for performance.</p>
-<p>This function wraps <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.version/docs/index.html#isaacsim.core.version.get_version" title="(in Isaac Sim)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isaacsim.core.version.get_version()</span></code></a> and caches the result
+<p>This function wraps <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.core.version/docs/api.html#isaacsim.core.version.get_version" title="(in Isaac Sim)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isaacsim.core.version.get_version()</span></code></a> and caches the result
 to avoid repeated file I/O operations. The underlying Isaac Sim function reads from
 a file each time it’s called, which can be slow when called frequently.</p>
 <dl class="field-list simple">
