@@ -26,26 +26,6 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
-import warnings
-
 import lazy_loader as lazy
 
 __getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
-
-try:
-    from isaaclab_physx.physics import PhysxCfg as _PhysxCfg
-
-    class PhysxCfg(_PhysxCfg):
-        """DEPRECATED: Use PhysxCfg from isaaclab_physx.physics instead."""
-
-        def __init__(self, *args, **kwargs):
-            warnings.warn(
-                "PhysxCfg is deprecated. Use PhysxCfg from isaaclab_physx.physics instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            super().__init__(*args, **kwargs)
-
-except ImportError:
-    # isaaclab_physx not installed
-    PhysxCfg = None  # type: ignore
