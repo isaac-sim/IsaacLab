@@ -103,7 +103,7 @@ class PhysxSceneDataProvider:
         self._rigid_body_paths: list[str] = []
         self._articulation_paths: list[str] = []
         self._set_body_q_kernel = None
-        # env_id -> list of body indices (in Newton body_key order)
+        # env_id -> list of body indices (in Newton body_label order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
 
         # Initialize Newton pipeline only if needed for visualization
@@ -147,8 +147,8 @@ class PhysxSceneDataProvider:
             self._newton_state = self._newton_model.state()
 
             # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_key)
-            self._articulation_paths = list(self._newton_model.articulation_key)
+            self._rigid_body_paths = list(self._newton_model.body_label)
+            self._articulation_paths = list(self._newton_model.articulation_label)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -186,7 +186,7 @@ class PhysxSceneDataProvider:
             self._filtered_newton_state = self._filtered_newton_model.state()
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            filtered_paths = list(self._filtered_newton_model.body_key)
+            filtered_paths = list(self._filtered_newton_model.body_label)
             self._filtered_body_indices = []
             missing = []
             for path in filtered_paths:
@@ -278,7 +278,7 @@ class PhysxSceneDataProvider:
         return None, None
 
     def _cache_view_index_map(self, view, key: str) -> None:
-        """Map PhysX view indices to Newton body_key ordering."""
+        """Map PhysX view indices to Newton body_label ordering."""
         prim_paths = getattr(view, "prim_paths", None)
         if not prim_paths or not self._rigid_body_paths:
             return
@@ -408,7 +408,7 @@ class PhysxSceneDataProvider:
 
         num_bodies = len(self._rigid_body_paths)
         if num_bodies != self._newton_state.body_q.shape[0]:
-            logger.warning(f"Body count mismatch: body_key={num_bodies}, state={self._newton_state.body_q.shape[0]}")
+            logger.warning(f"Body count mismatch: body_label={num_bodies}, state={self._newton_state.body_q.shape[0]}")
             return None
 
         # Allocate outputs in Newton body order.

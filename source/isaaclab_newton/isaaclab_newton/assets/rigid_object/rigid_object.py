@@ -936,7 +936,7 @@ class RigidObject(BaseRigidObject):
                 # 1D flattened array
                 param = getattr(NewtonManager.get_model(), param_name)
                 # Search over all bodies as organized in the environment
-                body_subset = NewtonManager.get_model().body_key
+                body_subset = NewtonManager.get_model().body_label
                 param_expr = ".*" if param_expr is None else param_expr
                 indices, _ = string_utils.resolve_matching_names(param_expr, body_subset, False)
                 indices = wp.array(indices, dtype=wp.int32, device=self.device)
@@ -944,7 +944,7 @@ class RigidObject(BaseRigidObject):
                 # 1D flattened array
                 param = getattr(NewtonManager.get_model(), param_name)
                 # Search over all shapes as organized in the environment
-                all_shapes = NewtonManager.get_model().shape_key
+                all_shapes = NewtonManager.get_model().shape_label
                 param_expr = ".*" if param_expr is None else param_expr
                 indices, _ = string_utils.resolve_matching_names(param_expr, all_shapes, False)
                 indices = wp.array(indices, dtype=wp.int32, device=self.device)
@@ -952,7 +952,7 @@ class RigidObject(BaseRigidObject):
                 # 1D flattened array
                 param = getattr(NewtonManager.get_model(), param_name)
                 # Search over all joints as organized in the environment
-                all_joints = NewtonManager.get_model().joint_key
+                all_joints = NewtonManager.get_model().joint_label
                 param_expr = ".*" if param_expr is None else param_expr
                 indices, _ = string_utils.resolve_matching_names(param_expr, all_joints, False)
                 indices = wp.array(indices, dtype=wp.int32, device=self.device)

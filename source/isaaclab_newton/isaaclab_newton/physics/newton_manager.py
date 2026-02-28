@@ -10,34 +10,23 @@ from __future__ import annotations
 import logging
 import numpy as np
 import re
+import time
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import Axis, BroadPhaseMode, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.sensors import SensorContact as NewtonContactSensor
+from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton.sensors import SensorContact, SensorFrameTransform
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
-
-
-def flipped_match(x: str, y: str) -> bool:
-    """Flipped match function for contact partner matching.
-
-    Args:
-        x: The body/shape name in the simulation.
-        y: The body/shape name in the contact view.
-
-    Returns:
-        True if the body/shape name matches the contact view pattern.
-    """
-    return re.match(y, x) is not None
 
 
 class NewtonManager(PhysicsManager):
@@ -72,7 +61,8 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
-    _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
+    _newton_contact_sensors: dict = {}  # Maps sensor_key to SensorContact
+    _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
     _report_contacts: bool = False
 
     # CUDA graphing
@@ -86,6 +76,11 @@ class NewtonManager(PhysicsManager):
 
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
+
+    # Pending site requests from sensors.
+    # Key: (body_pattern, xform_floats), Value: (label, wp.transform)
+    # identical (body_pattern, transform) reuses the same site.
+    _cl_pending_sites: dict[tuple[str | None, tuple[float, ...]], tuple[str, wp.transform]] = {}
 
     # Views list for assets to register their views
     _views: list = []
@@ -144,6 +139,7 @@ class NewtonManager(PhysicsManager):
             wp.capture_launch(cls._graph)  # type: ignore[arg-type]
         else:
             cls._simulate()
+        # time.sleep(0.005)
 
         # Debug convergence info
         if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
@@ -190,18 +186,138 @@ class NewtonManager(PhysicsManager):
         cls._needs_collision_pipeline = False
         cls._collision_pipeline = None
         cls._newton_contact_sensors = {}
+        cls._newton_frame_transform_sensors = []
         cls._report_contacts = False
         cls._graph = None
         cls._newton_stage_path = None
         cls._usdrt_stage = None
         cls._up_axis = "Z"
         cls._model_changes = set()
+        cls._cl_pending_sites = {}
         cls._views = []
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
         """Set the Newton model builder."""
         cls._builder = builder
+
+    @classmethod
+    def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+        """Create a :class:`ModelBuilder` configured with default settings.
+
+        Args:
+            up_axis: Override for the up-axis. Defaults to ``None``, which uses
+                the manager's ``_up_axis``.
+            **kwargs: Forwarded to :class:`ModelBuilder`.
+
+        Returns:
+            New builder with up-axis and contact margin defaults applied.
+        """
+        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder.default_shape_cfg.contact_margin = 0.01
+        return builder
+
+    @classmethod
+    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform) -> str:
+        """Register a site request for injection into prototypes before replication.
+
+        Sensors call this during ``__init__``. Sites are injected into prototype
+        builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
+        before ``add_builder``, so they replicate correctly per-world.
+
+        Identical ``(body_pattern, transform)`` registrations share sites.
+
+        Args:
+            body_pattern: Env-regex body path
+                (e.g. ``"/World/envs/env_.*/Robot/link0"``), or ``None`` for
+                global sites (world-origin reference, etc.).
+            xform: Site transform relative to body.
+
+        Returns:
+            Assigned site label suffix.
+        """
+        xform_key = tuple(xform)
+        key = (body_pattern, xform_key)
+        if key in cls._cl_pending_sites:
+            return cls._cl_pending_sites[key][0]
+        label = f"ft_{len(cls._cl_pending_sites)}"
+        cls._cl_pending_sites[key] = (label, xform)
+        return label
+
+    @classmethod
+    def _cl_inject_sites(
+        cls,
+        main_builder: ModelBuilder,
+        proto_builders: dict[str, ModelBuilder],
+        proto_env_map: list[tuple[str, str, dict[int, int]]],
+    ) -> None:
+        """Inject registered sites into prototype builders before replication.
+
+        Non-global sites are matched against prototype body labels via prefix
+        translation (dest-regex → src prefix). Global sites (``body_pattern is
+        None``) are added to *main_builder* with ``body=-1``.
+
+        Pending requests are cleared after processing.
+
+        Args:
+            main_builder: Top-level builder that receives global sites.
+            proto_builders: ``{src_path: ModelBuilder}`` prototype builders.
+            proto_env_map: Output of :func:`_proto_env_mappings` — list of
+                ``(src_prefix, dest_template, world_to_env)`` tuples.
+        """
+        if not cls._cl_pending_sites:
+            return
+
+        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if body_pattern is None:
+                main_builder.add_site(body=-1, xform=xform, label=label)
+                continue
+
+            for src_prefix, dest_template, _ in proto_env_map:
+                dest_prefix = dest_template.replace("{}", ".*").rstrip("/")
+
+                if not body_pattern.startswith(dest_prefix):
+                    continue
+
+                suffix = body_pattern[len(dest_prefix) :]
+                proto_body_path = src_prefix + suffix
+
+                proto = proto_builders.get(src_prefix) or proto_builders.get(src_prefix + "/")
+                if proto is None:
+                    continue
+
+                for body_idx, body_label in enumerate(proto.body_label):
+                    if body_label.rstrip("/") == proto_body_path.rstrip("/"):
+                        site_label = f"{body_label}/{label}"
+                        proto.add_site(body=body_idx, xform=xform, label=site_label)
+                        logger.debug(f"Injected site '{site_label}' into prototype")
+                        break
+
+        cls._cl_pending_sites.clear()
+
+    @classmethod
+    def _cl_inject_sites_fallback(cls) -> None:
+        """Inject pending sites into the flat builder (no-replication path).
+
+        Uses regex matching against ``_builder.body_label`` instead of
+        prefix translation through prototypes.
+        """
+        if not cls._cl_pending_sites:
+            return
+
+        builder = cls._builder
+        body_labels = list(builder.body_label)
+
+        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if body_pattern is None:
+                builder.add_site(body=-1, xform=xform, label=label)
+            else:
+                for body_idx, body_label in enumerate(body_labels):
+                    if re.fullmatch(body_pattern, body_label):
+                        site_label = f"{body_label}/{label}"
+                        builder.add_site(body=body_idx, xform=xform, label=site_label)
+
+        cls._cl_pending_sites.clear()
 
     @classmethod
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
@@ -225,11 +341,13 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
+        # Inject any pending site requests (no-replication fallback path).
+        # In the replication path, _cl_inject_sites() already ran from newton_replicate.
+        cls._cl_inject_sites_fallback()
+
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
-        # Set smaller contact margin for manipulation examples (default 10cm is too large)
-        cls._builder.default_shape_cfg.contact_margin = 0.01
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
@@ -248,7 +366,7 @@ class NewtonManager(PhysicsManager):
             import usdrt
 
             cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(cls._model.body_key):
+            for i, prim_path in enumerate(cls._model.body_label):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
@@ -263,7 +381,7 @@ class NewtonManager(PhysicsManager):
 
         stage = get_current_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
-        builder = ModelBuilder(up_axis=up_axis)
+        builder = cls.create_builder(up_axis=up_axis)
         builder.add_usd(stage)
         cls.set_builder(builder)
 
@@ -277,7 +395,7 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase_mode=BroadPhaseMode.EXPLICIT)
+                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -393,6 +511,11 @@ class NewtonManager(PhysicsManager):
                     cls._state_0, cls._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
 
+        # Update frame transform sensors
+        if cls._newton_frame_transform_sensors:
+            for sensor in cls._newton_frame_transform_sensors:
+                sensor.update(cls._state_0)
+
         # Populate contacts for contact sensors
         if cls._report_contacts:
             # For newton_contacts (unified pipeline): use locally computed contacts
@@ -400,7 +523,7 @@ class NewtonManager(PhysicsManager):
             eval_contacts = contacts if contacts is not None else cls._contacts
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
-                sensor.eval(eval_contacts)
+                sensor.update(eval_contacts)
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
@@ -453,18 +576,21 @@ class NewtonManager(PhysicsManager):
         contact_partners_shape_expr: str | list[str] | None = None,
         prune_noncolliding: bool = True,
         verbose: bool = False,
-    ) -> None:
+    ) -> tuple:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
-        Note: Only one contact sensor can be active at a time.
+        Regex expressions are resolved to ``list[int]`` indices before being forwarded to the Newton sensor.
 
         Args:
-            body_names_expr: Expression for body names to sense.
-            shape_names_expr: Expression for shape names to sense.
-            contact_partners_body_expr: Expression for contact partner body names.
-            contact_partners_shape_expr: Expression for contact partner shape names.
+            body_names_expr: Regex expression for body names to sense.
+            shape_names_expr: Regex expression for shape names to sense.
+            contact_partners_body_expr: Regex expression for contact partner body names.
+            contact_partners_shape_expr: Regex expression for contact partner shape names.
             prune_noncolliding: Make force matrix sparse using collision pairs.
             verbose: Print verbose information.
+
+        Returns:
+            Hashable sensor key for looking up the sensor in :attr:`_newton_contact_sensors`.
         """
         # Validate inputs
         if body_names_expr is None and shape_names_expr is None:
@@ -474,23 +600,46 @@ class NewtonManager(PhysicsManager):
         if contact_partners_body_expr is not None and contact_partners_shape_expr is not None:
             raise ValueError("Only one of contact_partners_body_expr or contact_partners_shape_expr must be provided")
 
+        # Resolve regex expressions to integer indices
+        body_indices = resolve_matching_names(body_names_expr, cls._model.body_label)[0] if body_names_expr else None
+        shape_indices = (
+            resolve_matching_names(shape_names_expr, cls._model.shape_label)[0] if shape_names_expr else None
+        )
+        partner_body_indices = (
+            resolve_matching_names(contact_partners_body_expr, cls._model.body_label)[0]
+            if contact_partners_body_expr
+            else None
+        )
+        partner_shape_indices = (
+            resolve_matching_names(contact_partners_shape_expr, cls._model.shape_label)[0]
+            if contact_partners_shape_expr
+            else None
+        )
+
         # Log sensor configuration
         sensor_target = body_names_expr or shape_names_expr
         partner_filter = contact_partners_body_expr or contact_partners_shape_expr or "all bodies/shapes"
         logger.info(f"Adding contact sensor for {sensor_target} with filter {partner_filter}")
 
-        # Create unique key for this sensor
-        sensor_key = (body_names_expr, shape_names_expr, contact_partners_body_expr, contact_partners_shape_expr)
+        # Create unique key from the original expressions
+        def _as_key(val):
+            return tuple(val) if isinstance(val, list) else val
+
+        sensor_key = (
+            _as_key(body_names_expr),
+            _as_key(shape_names_expr),
+            _as_key(contact_partners_body_expr),
+            _as_key(contact_partners_shape_expr),
+        )
 
         # Create and store the sensor
         # Note: SensorContact constructor requests 'force' attribute from the model
-        newton_sensor = NewtonContactSensor(
+        newton_sensor = SensorContact(
             cls._model,
-            sensing_obj_bodies=body_names_expr,
-            sensing_obj_shapes=shape_names_expr,
-            counterpart_bodies=contact_partners_body_expr,
-            counterpart_shapes=contact_partners_shape_expr,
-            match_fn=flipped_match,
+            sensing_obj_bodies=body_indices,
+            sensing_obj_shapes=shape_indices,
+            counterpart_bodies=partner_body_indices,
+            counterpart_shapes=partner_shape_indices,
             include_total=True,
             prune_noncolliding=prune_noncolliding,
             verbose=verbose,
@@ -501,8 +650,32 @@ class NewtonManager(PhysicsManager):
         # Regenerate contacts only if they were already created without force attribute
         # If solver is not initialized, contacts will be created with force in initialize_solver()
         if cls._solver is not None and cls._contacts is not None:
-            # Only regenerate if contacts don't have force attribute (sensor.eval() requires it)
+            # Only regenerate if contacts don't have force attribute (sensor.update() requires it)
             if cls._contacts.force is None:
                 cls._initialize_contacts()
 
         return sensor_key
+
+    @classmethod
+    def add_frame_transform_sensor(cls, shapes: list[int], reference_sites: list[int]) -> int:
+        """Add a frame transform sensor for measuring relative transforms.
+
+        Creates a :class:`SensorFrameTransform` from pre-resolved shape and reference
+        site indices, appends it to the internal list, and returns its index.
+
+        Args:
+            shapes: Ordered list of shape indices to measure.
+            reference_sites: 1:1 list of reference site indices (same length as shapes).
+
+        Returns:
+            Index of the newly created sensor in :attr:`_newton_frame_transform_sensors`.
+        """
+        sensor = SensorFrameTransform(
+            cls._model,
+            shapes=shapes,
+            reference_sites=reference_sites,
+        )
+        idx = len(cls._newton_frame_transform_sensors)
+        cls._newton_frame_transform_sensors.append(sensor)
+        logger.info(f"Added frame transform sensor (index={idx}, shapes={len(shapes)})")
+        return idx

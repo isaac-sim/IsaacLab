@@ -291,3 +291,26 @@ def inplace_square(x: Any):
     source_ndims = get_ndims(x)
     # Fetch the appropriate kernel from the cache and launch it
     wp.launch(_get_square_kernel(source_ndims), dim=x.shape, inputs=[x])
+
+
+def transform_to_vec_quat(
+    t: wp.array,
+) -> tuple[wp.array, wp.array]:
+    """Split a wp.transformf array into position (vec3f) and quaternion (quatf) arrays.
+
+    Zero-copy: returns views into the same underlying memory.
+
+    Args:
+        t: Array of transforms (dtype=wp.transformf). Shape ``(N,)``, ``(N, M)``, or ``(N, M, K)``.
+
+    Returns:
+        Tuple of (positions, quaternions) as warp array views with matching dimensionality.
+    """
+    floats = t.view(wp.float32)
+    if t.ndim == 1:
+        return floats[:, :3].view(wp.vec3f), floats[:, 3:].view(wp.quatf)
+    if t.ndim == 2:
+        return floats[:, :, :3].view(wp.vec3f), floats[:, :, 3:].view(wp.quatf)
+    if t.ndim == 3:
+        return floats[:, :, :, :3].view(wp.vec3f), floats[:, :, :, 3:].view(wp.quatf)
+    raise ValueError(f"Expected 1D, 2D, or 3D transform array, got ndim={t.ndim}")
