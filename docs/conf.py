@@ -26,12 +26,16 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx/isaaclab_physx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_teleop"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_teleop/isaaclab_teleop"))
 
 # -- Project information -----------------------------------------------------
 
@@ -199,6 +203,8 @@ autodoc_mock_imports = [
     "imageio",
     "ipywidgets",
     "mpl_toolkits",
+    "isaacteleop",
+    "scipy",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -115,12 +116,18 @@ class LocomotionEnv(DirectRLEnv):
 
     def _apply_action(self):
         forces = self.action_scale * self.joint_gears * self.actions
-        self.robot.set_joint_effort_target(forces, joint_ids=self._joint_dof_idx)
+        self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
-        self.torso_position, self.torso_rotation = self.robot.data.root_pos_w, self.robot.data.root_quat_w
-        self.velocity, self.ang_velocity = self.robot.data.root_lin_vel_w, self.robot.data.root_ang_vel_w
-        self.dof_pos, self.dof_vel = self.robot.data.joint_pos, self.robot.data.joint_vel
+        self.torso_position, self.torso_rotation = (
+            wp.to_torch(self.robot.data.root_pos_w),
+            wp.to_torch(self.robot.data.root_quat_w),
+        )
+        self.velocity, self.ang_velocity = (
+            wp.to_torch(self.robot.data.root_lin_vel_w),
+            wp.to_torch(self.robot.data.root_ang_vel_w),
+        )
+        self.dof_pos, self.dof_vel = wp.to_torch(self.robot.data.joint_pos), wp.to_torch(self.robot.data.joint_vel)
 
         (
             self.up_proj,
@@ -143,8 +150,8 @@ class LocomotionEnv(DirectRLEnv):
             self.velocity,
             self.ang_velocity,
             self.dof_pos,
-            self.robot.data.soft_joint_pos_limits[0, :, 0],
-            self.robot.data.soft_joint_pos_limits[0, :, 1],
+            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 0],
+            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 1],
             self.inv_start_rot,
             self.basis_vec0,
             self.basis_vec1,
@@ -202,20 +209,22 @@ class LocomotionEnv(DirectRLEnv):
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
-            env_ids = self.robot._ALL_INDICES
+            env_ids = wp.to_torch(self.robot._ALL_INDICES)
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        joint_pos = self.robot.data.default_joint_pos[env_ids]
-        joint_vel = self.robot.data.default_joint_vel[env_ids]
-        default_root_state = self.robot.data.default_root_state[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids]
+        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids]
+        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids]
+        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids]
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
-        self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
-        to_target = self.targets[env_ids] - default_root_state[:, :3]
+        to_target = self.targets[env_ids] - default_root_pose[:, :3]
         to_target[:, 2] = 0.0
         self.potentials[env_ids] = -torch.linalg.norm(to_target, ord=2, dim=-1) / self.cfg.sim.dt
 

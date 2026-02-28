@@ -6,7 +6,7 @@
 import warnings
 from abc import ABC, abstractmethod
 
-import torch
+import warp as wp
 
 
 class BaseRigidObjectCollectionData(ABC):
@@ -63,32 +63,30 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_body_pose(self) -> torch.Tensor:
+    def default_body_pose(self) -> wp.array:
         """Default body pose ``[pos, quat]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame. Shape is (num_instances, num_bodies, 7).
+        The position and quaternion are of the rigid body's actor frame.
+        Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_bodies, 7).
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def default_body_vel(self) -> torch.Tensor:
-        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is
+    def default_body_vel(self) -> wp.array:
+        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame.
 
-
-        The linear and angular velocities are of the rigid body's center of mass frame. Shape is
+        The linear and angular velocities are of the rigid body's center of mass frame.
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
         (num_instances, num_bodies, 6).
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def default_body_state(self) -> torch.Tensor:
-        """Default body state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
-
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
-        are of the center of mass frame. Shape is (num_instances, num_bodies, 13).
-        """
+    def default_body_state(self) -> wp.array:
+        """Deprecated, same as :attr:`default_body_pose` and :attr:`default_body_vel`."""
         raise NotImplementedError()
 
     ##
@@ -97,8 +95,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pose_w(self) -> torch.Tensor:
-        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
+    def body_link_pose_w(self) -> wp.array:
+        """Body link pose ``[pos, quat]`` in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_bodies, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -107,8 +108,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_vel_w(self) -> torch.Tensor:
-        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_bodies, 6).
+    def body_link_vel_w(self) -> wp.array:
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
+        (num_instances, num_bodies, 6).
 
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
@@ -117,8 +121,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_w(self) -> torch.Tensor:
-        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
+    def body_com_pose_w(self) -> wp.array:
+        """Body center of mass pose ``[pos, quat]`` in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -127,9 +134,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_vel_w(self) -> torch.Tensor:
+    def body_com_vel_w(self) -> wp.array:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 6).
+
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
+        (num_instances, num_bodies, 6).
 
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
@@ -138,43 +147,29 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_state_w(self) -> torch.Tensor:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
-        """
+    def body_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_link_state_w(self) -> torch.Tensor:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (x, y, z, w) format.
-        """
+    def body_link_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_state_w(self) -> torch.Tensor:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (x, y, z, w) format.
-        """
+    def body_com_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_acc_w(self) -> torch.Tensor:
+    def body_com_acc_w(self) -> wp.array:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
-        Shape is (num_instances, num_bodies, 6).
+
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
+        (num_instances, num_bodies, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
@@ -182,9 +177,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_b(self) -> torch.Tensor:
+    def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
-        Shape is (num_instances, num_bodies, 7).
+
+        Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
@@ -193,14 +190,21 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_mass(self) -> torch.Tensor:
-        """Mass of all bodies in the simulation world frame. Shape is (num_instances, num_bodies)."""
+    def body_mass(self) -> wp.array:
+        """Mass of all bodies in the simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
+        """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_inertia(self) -> torch.Tensor:
-        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, num_bodies, 9)."""
+    def body_inertia(self) -> wp.array:
+        """Inertia of all bodies in the simulation world frame.
+
+        Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_bodies, 9).
+        """
         raise NotImplementedError()
 
     ##
@@ -209,14 +213,21 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> torch.Tensor:
-        """Projection of the gravity direction on base frame. Shape is (num_instances, num_bodies, 3)."""
+    def projected_gravity_b(self) -> wp.array:
+        """Projection of the gravity direction on base frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
+        """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def heading_w(self) -> torch.Tensor:
-        """Yaw heading of the base frame (in radians). Shape is (num_instances, num_bodies).
+    def heading_w(self) -> wp.array:
+        """Yaw heading of the base frame (in radians).
+
+        Shape is (num_instances, num_bodies), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_bodies).
 
         .. note::
             This quantity is computed by assuming that the forward-direction of the base
@@ -226,8 +237,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_lin_vel_b(self) -> torch.Tensor:
-        """Root link linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
+    def body_link_lin_vel_b(self) -> wp.array:
+        """Root link linear velocity in base frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
@@ -236,8 +250,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_ang_vel_b(self) -> torch.Tensor:
-        """Root link angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
+    def body_link_ang_vel_b(self) -> wp.array:
+        """Root link angular velocity in base frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
@@ -246,8 +263,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_vel_b(self) -> torch.Tensor:
-        """Root center of mass linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_lin_vel_b(self) -> wp.array:
+        """Root center of mass linear velocity in base frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
@@ -256,8 +276,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_vel_b(self) -> torch.Tensor:
-        """Root center of mass angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_ang_vel_b(self) -> wp.array:
+        """Root center of mass angular velocity in base frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
@@ -270,8 +293,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pos_w(self) -> torch.Tensor:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_link_pos_w(self) -> wp.array:
+        """Positions of all bodies in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
@@ -279,53 +305,71 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_quat_w(self) -> torch.Tensor:
-        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+    def body_link_quat_w(self) -> wp.array:
+        """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
-        This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
+        Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
+        (num_instances, num_bodies, 4).
+
+        This quantity is the orientation of the rigid bodies' actor frame relative to the world.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_link_lin_vel_w(self) -> torch.Tensor:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_link_lin_vel_w(self) -> wp.array:
+        """Linear velocity of all bodies in simulation world frame.
 
-        This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
+
+        This quantity is the linear velocity of the rigid bodies' actor frame relative to the world.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_link_ang_vel_w(self) -> torch.Tensor:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_link_ang_vel_w(self) -> wp.array:
+        """Angular velocity of all bodies in simulation world frame.
 
-        This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
+
+        This quantity is the angular velocity of the rigid bodies' actor frame relative to the world.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_pos_w(self) -> torch.Tensor:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_pos_w(self) -> wp.array:
+        """Positions of all bodies' center of mass in simulation world frame.
 
-        This quantity is the position of the rigid bodies' actor frame.
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
+
+        This quantity is the position of the rigid bodies' center of mass frame.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_quat_w(self) -> torch.Tensor:
-        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
+    def body_com_quat_w(self) -> wp.array:
+        """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
-        Shape is (num_instances, num_bodies, 4). This quantity is the orientation of the rigid bodies' actor frame.
+        Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
+        (num_instances, num_bodies, 4).
+
+        This quantity is the orientation of the rigid bodies' principal axes of inertia.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_lin_vel_w(self) -> torch.Tensor:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_lin_vel_w(self) -> wp.array:
+        """Linear velocity of all bodies in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
@@ -333,8 +377,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_vel_w(self) -> torch.Tensor:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_ang_vel_w(self) -> wp.array:
+        """Angular velocity of all bodies in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
@@ -342,8 +389,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_lin_acc_w(self) -> wp.array:
+        """Linear acceleration of all bodies in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
@@ -351,8 +401,11 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+    def body_com_ang_acc_w(self) -> wp.array:
+        """Angular acceleration of all bodies in simulation world frame.
+
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
 
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
@@ -360,21 +413,26 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_b(self) -> torch.Tensor:
+    def body_com_pos_b(self) -> wp.array:
         """Center of mass position of all of the bodies in their respective link frames.
-        Shape is (num_instances, num_bodies, 3).
 
-        This quantity is the center of mass location relative to its body'slink frame.
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_bodies, 3).
+
+        This quantity is the center of mass location relative to its body's link frame.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_quat_b(self) -> torch.Tensor:
-        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
-        respective link frames. Shape is (num_instances, num_bodies, 4).
+    def body_com_quat_b(self) -> wp.array:
+        """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
+        respective link frames.
 
-        This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
+        Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
+        (num_instances, num_bodies, 4).
+
+        This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
         """
         raise NotImplementedError()
 
@@ -383,57 +441,57 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    def body_pose_w(self) -> torch.Tensor:
+    def body_pose_w(self) -> wp.array:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
-    def body_pos_w(self) -> torch.Tensor:
+    def body_pos_w(self) -> wp.array:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    def body_quat_w(self) -> torch.Tensor:
+    def body_quat_w(self) -> wp.array:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    def body_vel_w(self) -> torch.Tensor:
+    def body_vel_w(self) -> wp.array:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    def body_lin_vel_w(self) -> torch.Tensor:
+    def body_lin_vel_w(self) -> wp.array:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    def body_ang_vel_w(self) -> torch.Tensor:
+    def body_ang_vel_w(self) -> wp.array:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    def body_acc_w(self) -> torch.Tensor:
+    def body_acc_w(self) -> wp.array:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    def body_lin_acc_w(self) -> torch.Tensor:
+    def body_lin_acc_w(self) -> wp.array:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    def body_ang_acc_w(self) -> torch.Tensor:
+    def body_ang_acc_w(self) -> wp.array:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    def com_pos_b(self) -> torch.Tensor:
+    def com_pos_b(self) -> wp.array:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
-    def com_quat_b(self) -> torch.Tensor:
+    def com_quat_b(self) -> wp.array:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
@@ -447,7 +505,7 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    def default_object_pose(self) -> torch.Tensor:
+    def default_object_pose(self) -> wp.array:
         """Deprecated property. Please use :attr:`default_body_pose` instead."""
         warnings.warn(
             "The `default_object_pose` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -458,7 +516,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.default_body_pose
 
     @property
-    def default_object_vel(self) -> torch.Tensor:
+    def default_object_vel(self) -> wp.array:
         """Deprecated property. Please use :attr:`default_body_vel` instead."""
         warnings.warn(
             "The `default_object_vel` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -469,7 +527,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.default_body_vel
 
     @property
-    def default_object_state(self) -> torch.Tensor:
+    def default_object_state(self) -> wp.array:
         """Deprecated property. Please use :attr:`default_body_state` instead."""
         warnings.warn(
             "The `default_object_state` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -578,7 +636,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pose_b
 
     @property
-    def object_link_pos_w(self) -> torch.Tensor:
+    def object_link_pos_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
             "The `object_link_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -589,7 +647,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pos_w
 
     @property
-    def object_link_quat_w(self) -> torch.Tensor:
+    def object_link_quat_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
             "The `object_link_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -600,7 +658,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_quat_w
 
     @property
-    def object_link_lin_vel_w(self) -> torch.Tensor:
+    def object_link_lin_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_lin_vel_w` instead."""
         warnings.warn(
             "The `object_link_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -611,7 +669,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_lin_vel_w
 
     @property
-    def object_link_ang_vel_w(self) -> torch.Tensor:
+    def object_link_ang_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_ang_vel_w` instead."""
         warnings.warn(
             "The `object_link_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -622,7 +680,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_ang_vel_w
 
     @property
-    def object_com_pos_w(self) -> torch.Tensor:
+    def object_com_pos_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_pos_w` instead."""
         warnings.warn(
             "The `object_com_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -633,7 +691,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pos_w
 
     @property
-    def object_com_quat_w(self) -> torch.Tensor:
+    def object_com_quat_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_quat_w` instead."""
         warnings.warn(
             "The `object_com_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -644,7 +702,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_w
 
     @property
-    def object_com_lin_vel_w(self) -> torch.Tensor:
+    def object_com_lin_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
             "The `object_com_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -655,7 +713,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_w
 
     @property
-    def object_com_ang_vel_w(self) -> torch.Tensor:
+    def object_com_ang_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
             "The `object_com_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -666,7 +724,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    def object_com_lin_acc_w(self) -> torch.Tensor:
+    def object_com_lin_acc_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
             "The `object_com_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -677,7 +735,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_acc_w
 
     @property
-    def object_com_ang_acc_w(self) -> torch.Tensor:
+    def object_com_ang_acc_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
             "The `object_com_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -688,7 +746,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_acc_w
 
     @property
-    def object_com_pos_b(self) -> torch.Tensor:
+    def object_com_pos_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
         warnings.warn(
             "The `object_com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -699,7 +757,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pos_b
 
     @property
-    def object_com_quat_b(self) -> torch.Tensor:
+    def object_com_quat_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
         warnings.warn(
             "The `object_com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -710,7 +768,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_b
 
     @property
-    def object_link_lin_vel_b(self) -> torch.Tensor:
+    def object_link_lin_vel_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_lin_vel_b` instead."""
         warnings.warn(
             "The `object_link_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -721,7 +779,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_lin_vel_b
 
     @property
-    def object_link_ang_vel_b(self) -> torch.Tensor:
+    def object_link_ang_vel_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_ang_vel_b` instead."""
         warnings.warn(
             "The `object_link_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -732,7 +790,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_ang_vel_b
 
     @property
-    def object_com_lin_vel_b(self) -> torch.Tensor:
+    def object_com_lin_vel_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
             "The `object_com_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -743,7 +801,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_b
 
     @property
-    def object_com_ang_vel_b(self) -> torch.Tensor:
+    def object_com_ang_vel_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
             "The `object_com_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -754,7 +812,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_b
 
     @property
-    def object_pose_w(self) -> torch.Tensor:
+    def object_pose_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
         warnings.warn(
             "The `object_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pose_w` instead.",
@@ -764,7 +822,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pose_w
 
     @property
-    def object_pos_w(self) -> torch.Tensor:
+    def object_pos_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
             "The `object_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pos_w` instead.",
@@ -774,7 +832,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pos_w
 
     @property
-    def object_quat_w(self) -> torch.Tensor:
+    def object_quat_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
             "The `object_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_quat_w` instead.",
@@ -784,7 +842,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_quat_w
 
     @property
-    def object_vel_w(self) -> torch.Tensor:
+    def object_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         warnings.warn(
             "The `object_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_vel_w` instead.",
@@ -794,7 +852,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_vel_w
 
     @property
-    def object_lin_vel_w(self) -> torch.Tensor:
+    def object_lin_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
             "The `object_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -805,7 +863,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_w
 
     @property
-    def object_ang_vel_w(self) -> torch.Tensor:
+    def object_ang_vel_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
             "The `object_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -816,7 +874,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    def object_lin_vel_b(self) -> torch.Tensor:
+    def object_lin_vel_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
             "The `object_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -827,7 +885,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_b
 
     @property
-    def object_ang_vel_b(self) -> torch.Tensor:
+    def object_ang_vel_b(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
             "The `object_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -838,7 +896,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_b
 
     @property
-    def object_acc_w(self) -> torch.Tensor:
+    def object_acc_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         warnings.warn(
             "The `object_acc_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_acc_w` instead.",
@@ -848,7 +906,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_acc_w
 
     @property
-    def object_lin_acc_w(self) -> torch.Tensor:
+    def object_lin_acc_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
             "The `object_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -859,7 +917,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_acc_w
 
     @property
-    def object_ang_acc_w(self) -> torch.Tensor:
+    def object_ang_acc_w(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
             "The `object_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -874,7 +932,7 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    def default_mass(self) -> torch.Tensor:
+    def default_mass(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
         warnings.warn(
             "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
@@ -883,11 +941,11 @@ class BaseRigidObjectCollectionData(ABC):
             stacklevel=2,
         )
         if self._default_mass is None:
-            self._default_mass = self.body_mass.clone()
+            self._default_mass = wp.clone(self.body_mass, self.device)
         return self._default_mass
 
     @property
-    def default_inertia(self) -> torch.Tensor:
+    def default_inertia(self) -> wp.array:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
         warnings.warn(
             "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
@@ -896,5 +954,5 @@ class BaseRigidObjectCollectionData(ABC):
             stacklevel=2,
         )
         if self._default_inertia is None:
-            self._default_inertia = self.body_inertia.clone()
+            self._default_inertia = wp.clone(self.body_inertia, self.device)
         return self._default_inertia

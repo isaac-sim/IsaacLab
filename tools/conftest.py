@@ -268,6 +268,7 @@ def pytest_sessionstart(session):
     # Get filter pattern from environment variable or command line
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
+    curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
@@ -282,8 +283,10 @@ def pytest_sessionstart(session):
     print("=" * 50)
     print(f"Filter pattern: '{filter_pattern}'")
     print(f"Exclude pattern: '{exclude_pattern}'")
+    print(f"Curobo-only mode: {curobo_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -297,10 +300,17 @@ def pytest_sessionstart(session):
         for root, _, files in os.walk(source_dir):
             for file in files:
                 if file.startswith("test_") and file.endswith(".py"):
-                    # Skip if the file is in TESTS_TO_SKIP
-                    if file in test_settings.TESTS_TO_SKIP:
-                        print(f"Skipping {file} as it's in the skip list")
-                        continue
+                    if curobo_only:
+                        # In curobo-only mode, run exclusively the cuRobo and SkillGen tests.
+                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
+                        # these tests (which are skipped in base-image jobs) can execute.
+                        if file not in test_settings.CUROBO_TESTS:
+                            continue
+                    else:
+                        # Skip if the file is in TESTS_TO_SKIP
+                        if file in test_settings.TESTS_TO_SKIP:
+                            print(f"Skipping {file} as it's in the skip list")
+                            continue
 
                     full_path = os.path.join(root, file)
 

@@ -58,6 +58,7 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObject, RigidObjectCfg
@@ -202,7 +203,7 @@ def run_simulator(
         scene.update(sim_dt)
 
     # Initialize the position of franka
-    robot_initial_pos = robot.data.body_pos_w[0, ee_body_idx].cpu().numpy()
+    robot_initial_pos = wp.to_torch(robot.data.body_pos_w)[0, ee_body_idx].cpu().numpy()
     haply_initial_pos = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
     ik_controller_cfg = DifferentialIKControllerCfg(
@@ -225,7 +226,7 @@ def run_simulator(
 
     # Initialize IK controller
     ik_controller = DifferentialIKController(cfg=ik_controller_cfg, num_envs=scene.num_envs, device=sim.device)
-    initial_ee_quat = robot.data.body_quat_w[:, ee_body_idx]
+    initial_ee_quat = wp.to_torch(robot.data.body_quat_w)[:, ee_body_idx]
     ik_controller.set_command(command=torch.zeros(scene.num_envs, 3, device=sim.device), ee_quat=initial_ee_quat)
 
     prev_button_a = False
@@ -234,7 +235,7 @@ def run_simulator(
     gripper_target = 0.04
 
     # Initialize the rotation of franka end-effector
-    ee_rotation_angle = robot.data.joint_pos[0, 6].item()
+    ee_rotation_angle = wp.to_torch(robot.data.joint_pos)[0, 6].item()
     rotation_step = np.pi / 3
 
     print("\n[INFO] Teleoperation ready!")
@@ -298,16 +299,16 @@ def run_simulator(
 
         target_pos_tensor = torch.tensor(target_pos, dtype=torch.float32, device=sim.device).unsqueeze(0)
 
-        current_joint_pos = robot.data.joint_pos[:, arm_joint_indices]
-        ee_pos_w = robot.data.body_pos_w[:, ee_body_idx]
-        ee_quat_w = robot.data.body_quat_w[:, ee_body_idx]
+        current_joint_pos = wp.to_torch(robot.data.joint_pos)[:, arm_joint_indices]
+        ee_pos_w = wp.to_torch(robot.data.body_pos_w)[:, ee_body_idx]
+        ee_quat_w = wp.to_torch(robot.data.body_quat_w)[:, ee_body_idx]
 
         # get jacobian to IK controller
         jacobian = robot.root_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
         ik_controller.set_command(command=target_pos_tensor, ee_quat=ee_quat_w)
         joint_pos_des = ik_controller.compute(ee_pos_w, ee_quat_w, jacobian, current_joint_pos)
 
-        joint_pos_target = robot.data.joint_pos[0].clone()
+        joint_pos_target = wp.to_torch(robot.data.joint_pos)[0].clone()
 
         # Update joints: 6 from IK + 1 from button control (correct by design)
         joint_pos_target[arm_joint_indices] = joint_pos_des[0]  # panda_joint1-6 from IK

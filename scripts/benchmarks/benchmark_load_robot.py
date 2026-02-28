@@ -57,6 +57,7 @@ app_start_time_end = time.perf_counter_ns()
 imports_time_begin = time.perf_counter_ns()
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -133,19 +134,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = robot.data.default_root_state.clone()
+            root_state = wp.to_torch(robot.data.default_root_state).clone()
             root_state[:, :3] += scene.env_origins
             robot.write_root_pose_to_sim(root_state[:, :7])
             robot.write_root_velocity_to_sim(root_state[:, 7:])
             # set joint positions with some noise
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                wp.to_torch(robot.data.default_joint_pos).clone(),
+                wp.to_torch(robot.data.default_joint_vel).clone(),
+            )
             joint_pos += torch.rand_like(joint_pos) * 0.1
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
             scene.reset()
         # Apply random action
         # -- generate random joint efforts
-        efforts = torch.randn_like(robot.data.joint_pos) * 5.0
+        efforts = torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 5.0
         # -- apply action to the robot
         robot.set_joint_effort_target(efforts)
         # -- write data to sim

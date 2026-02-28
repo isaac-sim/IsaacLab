@@ -59,7 +59,7 @@ def spawn_light(
     # delete spawner func specific parameters
     del cfg["prim_type"]
     # delete custom attributes in the config that are not USD parameters
-    non_usd_cfg_param_names = ["func", "copy_from_source", "visible", "semantic_tags"]
+    non_usd_cfg_param_names = ["func", "copy_from_source", "visible", "semantic_tags", "spawn_path"]
     for param_name in non_usd_cfg_param_names:
         del cfg[param_name]
     # set into USD API

@@ -17,16 +17,14 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 import omni.kit.commands
-import omni.usd
-from isaacsim.core.cloner import Cloner
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import get_isaac_sim_version
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
-from .stage import get_current_stage, get_current_stage_id
+from .stage import get_current_stage, get_current_stage_id, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
@@ -224,46 +222,6 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     return success
 
 
-def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> bool:
-    """Moves a prim from one path to another within a USD stage.
-
-    This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`
-    is set to True, the world transform of the prim is kept. This implies that the prim's local transform is reset
-    such that the prim's world transform is the same as the source path's world transform. If it is set to False,
-    the prim's local transform is preserved.
-
-    .. warning::
-        Reparenting or moving prims in USD is an expensive operation that may trigger
-        significant recomposition costs, especially in large or deeply layered stages.
-
-    Args:
-        path_from: Path of the USD Prim you wish to move
-        path_to: Final destination of the prim
-        keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.
-        stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
-
-    Returns:
-        True if the prim was moved successfully, False otherwise.
-
-    Example:
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
-        >>> sim_utils.move_prim("/World/Cube", "/Cube")
-    """
-    # get stage handle
-    stage = get_current_stage() if stage is None else stage
-    # move prim
-    success, _ = omni.kit.commands.execute(
-        "MovePrimCommand",
-        path_from=path_from,
-        path_to=path_to,
-        keep_world_transform=keep_world_transform,
-        stage_or_context=stage,
-    )
-    return success
-
-
 """
 USD Prim properties and attributes.
 """
@@ -400,6 +358,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         sdf_type = Sdf.ValueTypeNames.Int
     elif isinstance(value, float):
         sdf_type = Sdf.ValueTypeNames.Float
+    elif isinstance(value, str):
+        sdf_type = Sdf.ValueTypeNames.String
     elif isinstance(value, (tuple, list)) and len(value) == 3 and any(isinstance(v, float) for v in value):
         sdf_type = Sdf.ValueTypeNames.Float3
     elif isinstance(value, (tuple, list)) and len(value) == 2 and any(isinstance(v, float) for v in value):
@@ -573,8 +533,8 @@ def export_prim_to_file(
     Sdf.CopySpec(source_layer, source_prim_path, target_layer, target_prim_path)
     # set the default prim
     target_layer.defaultPrim = Sdf.Path(target_prim_path).name
-    # resolve all paths relative to layer path
-    omni.usd.resolve_paths(source_layer.identifier, target_layer.identifier)
+    # resolve paths so asset references remain valid from the new location
+    resolve_paths(source_layer.identifier, target_layer.identifier)
     # save the stage
     target_layer.Save()
 
@@ -709,10 +669,10 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning and cloning
-        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # resolve prim paths for spawning
+        prim_spawn_path = prim_path.replace(".*", "0")
         # spawn single instance
-        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
@@ -735,27 +695,19 @@ def clone(func: Callable) -> Callable:
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:  # type: ignore
             from ..schemas import schemas as _schemas
 
-            _schemas.activate_contact_sensors(prim_paths[0])
+            _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
-        if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            if get_isaac_sim_version().major < 5:
-                # clone the prim
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
-            else:
-                # clone the prim
-                clone_in_fabric = kwargs.get("clone_in_fabric", False)
-                replicate_physics = kwargs.get("replicate_physics", False)
-                cloner.clone(
-                    prim_paths[0],
-                    prim_paths[1:],
-                    replicate_physics=replicate_physics,
-                    copy_from_source=cfg.copy_from_source,
-                    clone_in_fabric=clone_in_fabric,
-                )
+        if len(source_prim_paths) > 1:
+            # lazy import to avoid circular import
+            from isaaclab.cloner import usd_replicate
+
+            formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
+            usd_replicate(
+                stage=stage,
+                sources=[formattable_path.format(0)],
+                destinations=[formattable_path],
+                env_ids=torch.arange(len(source_prim_paths)),
+            )
         # return the source prim
         return prim
 
@@ -866,10 +818,11 @@ def bind_physics_material(
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
-    has_physics_scene_api = prim.HasAPI(PhysxSchema.PhysxSceneAPI)
+    applied = prim.GetAppliedSchemas()
+    has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
-    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
+    has_deformable_body = "PhysxDeformableBodyAPI" in applied
+    has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"

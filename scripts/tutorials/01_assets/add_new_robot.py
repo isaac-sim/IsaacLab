@@ -23,6 +23,7 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -109,9 +110,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset counters
             count = 0
             # reset the scene entities to their initial positions offset by the environment origins
-            root_jetbot_state = scene["Jetbot"].data.default_root_state.clone()
+            root_jetbot_state = wp.to_torch(scene["Jetbot"].data.default_root_state).clone()
             root_jetbot_state[:, :3] += scene.env_origins
-            root_dofbot_state = scene["Dofbot"].data.default_root_state.clone()
+            root_dofbot_state = wp.to_torch(scene["Dofbot"].data.default_root_state).clone()
             root_dofbot_state[:, :3] += scene.env_origins
 
             # copy the default root state to the sim for the jetbot's orientation and velocity
@@ -122,13 +123,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
             # copy the default joint states to the sim
             joint_pos, joint_vel = (
-                scene["Jetbot"].data.default_joint_pos.clone(),
-                scene["Jetbot"].data.default_joint_vel.clone(),
+                wp.to_torch(scene["Jetbot"].data.default_joint_pos).clone(),
+                wp.to_torch(scene["Jetbot"].data.default_joint_vel).clone(),
             )
             scene["Jetbot"].write_joint_state_to_sim(joint_pos, joint_vel)
             joint_pos, joint_vel = (
-                scene["Dofbot"].data.default_joint_pos.clone(),
-                scene["Dofbot"].data.default_joint_vel.clone(),
+                wp.to_torch(scene["Dofbot"].data.default_joint_pos).clone(),
+                wp.to_torch(scene["Dofbot"].data.default_joint_vel).clone(),
             )
             scene["Dofbot"].write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
@@ -146,7 +147,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene["Jetbot"].set_joint_velocity_target(action)
 
         # wave
-        wave_action = scene["Dofbot"].data.default_joint_pos
+        wave_action = wp.to_torch(scene["Dofbot"].data.default_joint_pos)
         wave_action[:, 0:4] = 0.25 * np.sin(2 * np.pi * 0.5 * sim_time)
         scene["Dofbot"].set_joint_position_target(wave_action)
 

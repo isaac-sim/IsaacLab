@@ -20,35 +20,18 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 from __future__ import annotations
 
 import logging
-from dataclasses import MISSING
 
 import numpy as np
 import torch
 
-import omni.physx.scripts.utils as physx_utils
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+
+from .visualization_markers_cfg import VisualizationMarkersCfg
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@configclass
-class VisualizationMarkersCfg:
-    """A class to configure a :class:`VisualizationMarkers`."""
-
-    prim_path: str = MISSING
-    """The prim path where the :class:`UsdGeom.PointInstancer` will be created."""
-
-    markers: dict[str, SpawnerCfg] = MISSING
-    """The dictionary of marker configurations.
-
-    The key is the name of the marker, and the value is the configuration of the marker.
-    The key is used to identify the marker in the class.
-    """
 
 
 class VisualizationMarkers:
@@ -370,6 +353,8 @@ class VisualizationMarkers:
         Args:
             prim: The prim to check.
         """
+        import omni.physx.scripts.utils as physx_utils
+
         # check if prim is valid
         if not prim.IsValid():
             raise ValueError(f"Prim at path '{prim.GetPrimAtPath()}' is not valid.")
@@ -381,10 +366,10 @@ class VisualizationMarkers:
             # check if it is physics body -> if so, remove it
             if child_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 child_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+                child_prim.RemoveAppliedSchema("PhysxArticulationAPI")
             if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 child_prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+                child_prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
             if child_prim.IsA(UsdPhysics.Joint):
                 child_prim.GetAttribute("physics:jointEnabled").Set(False)
             # check if prim is instanced -> if so, make it uninstanceable

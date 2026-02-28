@@ -1,6 +1,60 @@
 Changelog
 ---------
 
+1.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all direct and manager-based task environments to use new ``_index`` write/set
+  APIs with keyword-only arguments.
+
+
+1.2.0 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Split environment configuration from implementation for the following direct RL task environments.
+  Each environment now has a dedicated ``*_env_cfg.py`` file containing only the configuration dataclass,
+  keeping ``__init__.py`` imports cfg-only and leaving the implementation file free of cfg dependencies:
+
+* Added strict ``TYPE_CHECKING`` guards across MDP modules (observations, rewards, terminations,
+  curriculums, events) so that heavy simulation-backend imports (``pxr``, ``omni``, ``carb``,
+  ``scipy``) are not triggered when task configs are loaded without a running simulator.
+
+1.1.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Set replicate physics to False for GR1T2 and G1 environments.
+
+
+1.1.1 (2026-02-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update stack and pick place environments to use warp data and fix quaternion ordering.
+
+
+1.1.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to wrap warp data property accesses with ``wp.to_torch()``
+  for compatibility with the new warp backend. This includes direct RL environments
+  and all manager-based MDP functions (actions, observations, rewards, terminations,
+  commands, events, and curriculums).
+
+
 1.0.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~
 

@@ -17,6 +17,7 @@ import pathlib
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -252,26 +253,26 @@ def test_constant_velocity(setup_sim):
         if idx > 1:
             # check the imu accelerations
             torch.testing.assert_close(
-                scene.sensors["imu_ball"].data.lin_acc_b,
+                wp.to_torch(scene.sensors["imu_ball"].data.lin_acc_b),
                 prev_lin_acc_ball,
                 rtol=1e-3,
                 atol=1e-3,
             )
             torch.testing.assert_close(
-                scene.sensors["imu_ball"].data.ang_acc_b,
+                wp.to_torch(scene.sensors["imu_ball"].data.ang_acc_b),
                 prev_ang_acc_ball,
                 rtol=1e-3,
                 atol=1e-3,
             )
 
             torch.testing.assert_close(
-                scene.sensors["imu_cube"].data.lin_acc_b,
+                wp.to_torch(scene.sensors["imu_cube"].data.lin_acc_b),
                 prev_lin_acc_cube,
                 rtol=1e-3,
                 atol=1e-3,
             )
             torch.testing.assert_close(
-                scene.sensors["imu_cube"].data.ang_acc_b,
+                wp.to_torch(scene.sensors["imu_cube"].data.ang_acc_b),
                 prev_ang_acc_cube,
                 rtol=1e-3,
                 atol=1e-3,
@@ -282,7 +283,7 @@ def test_constant_velocity(setup_sim):
             #       setting v_0 (initial velocity) and then a calculation step of v_i = v_0 + a*dt. Consequently,
             #       the data.lin_vel_b is returning approx. v_i.
             torch.testing.assert_close(
-                scene.sensors["imu_ball"].data.lin_vel_b,
+                wp.to_torch(scene.sensors["imu_ball"].data.lin_vel_b),
                 torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
                     scene.num_envs, 1
                 ),
@@ -290,7 +291,7 @@ def test_constant_velocity(setup_sim):
                 atol=1e-4,
             )
             torch.testing.assert_close(
-                scene.sensors["imu_cube"].data.lin_vel_b,
+                wp.to_torch(scene.sensors["imu_cube"].data.lin_vel_b),
                 torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
                     scene.num_envs, 1
                 ),
@@ -299,10 +300,10 @@ def test_constant_velocity(setup_sim):
             )
 
         # update previous values
-        prev_lin_acc_ball = scene.sensors["imu_ball"].data.lin_acc_b.clone()
-        prev_ang_acc_ball = scene.sensors["imu_ball"].data.ang_acc_b.clone()
-        prev_lin_acc_cube = scene.sensors["imu_cube"].data.lin_acc_b.clone()
-        prev_ang_acc_cube = scene.sensors["imu_cube"].data.ang_acc_b.clone()
+        prev_lin_acc_ball = wp.to_torch(scene.sensors["imu_ball"].data.lin_acc_b).clone()
+        prev_ang_acc_ball = wp.to_torch(scene.sensors["imu_ball"].data.ang_acc_b).clone()
+        prev_lin_acc_cube = wp.to_torch(scene.sensors["imu_cube"].data.lin_acc_b).clone()
+        prev_ang_acc_cube = wp.to_torch(scene.sensors["imu_cube"].data.ang_acc_b).clone()
 
 
 @pytest.mark.isaacsim_ci
@@ -330,9 +331,9 @@ def test_constant_acceleration(setup_sim):
 
         # check the imu data
         torch.testing.assert_close(
-            scene.sensors["imu_ball"].data.lin_acc_b,
+            wp.to_torch(scene.sensors["imu_ball"].data.lin_acc_b),
             math_utils.quat_apply_inverse(
-                scene.rigid_objects["balls"].data.root_quat_w,
+                wp.to_torch(scene.rigid_objects["balls"].data.root_quat_w),
                 torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
                 / sim.get_physics_dt(),
             ),
@@ -342,8 +343,8 @@ def test_constant_acceleration(setup_sim):
 
         # check the angular velocity
         torch.testing.assert_close(
-            scene.sensors["imu_ball"].data.ang_vel_b,
-            scene.rigid_objects["balls"].data.root_ang_vel_b,
+            wp.to_torch(scene.sensors["imu_ball"].data.ang_vel_b),
+            wp.to_torch(scene.rigid_objects["balls"].data.root_ang_vel_b),
             rtol=1e-4,
             atol=1e-4,
         )
@@ -366,21 +367,25 @@ def test_single_dof_pendulum(setup_sim):
         scene.update(sim.get_physics_dt())
 
         # get pendulum joint state
-        joint_pos = scene.articulations["pendulum"].data.joint_pos
-        joint_vel = scene.articulations["pendulum"].data.joint_vel
-        joint_acc = scene.articulations["pendulum"].data.joint_acc
+        joint_pos = wp.to_torch(scene.articulations["pendulum"].data.joint_pos)
+        joint_vel = wp.to_torch(scene.articulations["pendulum"].data.joint_vel)
+        joint_acc = wp.to_torch(scene.articulations["pendulum"].data.joint_acc)
 
         # IMU and base data
         imu_data = scene.sensors["imu_pendulum_imu_link"].data
         base_data = scene.sensors["imu_pendulum_base"].data
 
         # extract imu_link imu_sensor dynamics
-        lin_vel_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_vel_b)
-        lin_acc_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_acc_b)
+        lin_vel_w_imu_link = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.lin_vel_b))
+        lin_acc_w_imu_link = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.lin_acc_b))
 
         # calculate the joint dynamics from the imu_sensor (y axis of imu_link is parallel to joint axis of pendulum)
-        joint_vel_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_vel_b)[..., 1].unsqueeze(-1)
-        joint_acc_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_acc_b)[..., 1].unsqueeze(-1)
+        joint_vel_imu = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.ang_vel_b))[
+            ..., 1
+        ].unsqueeze(-1)
+        joint_acc_imu = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.ang_acc_b))[
+            ..., 1
+        ].unsqueeze(-1)
 
         # calculate analytical solution
         vx = -joint_vel * pend_length * torch.sin(joint_pos)
@@ -399,9 +404,9 @@ def test_single_dof_pendulum(setup_sim):
 
         # compare imu projected gravity
         gravity_dir_w = torch.tensor((0.0, 0.0, -1.0), device=scene.device).repeat(2, 1)
-        gravity_dir_b = math_utils.quat_apply_inverse(imu_data.quat_w, gravity_dir_w)
+        gravity_dir_b = math_utils.quat_apply_inverse(wp.to_torch(imu_data.quat_w), gravity_dir_w)
         torch.testing.assert_close(
-            imu_data.projected_gravity_b,
+            wp.to_torch(imu_data.projected_gravity_b),
             gravity_dir_b,
         )
 
@@ -436,47 +441,47 @@ def test_single_dof_pendulum(setup_sim):
 
         # check the position between offset and imu definition
         torch.testing.assert_close(
-            base_data.pos_w,
-            imu_data.pos_w,
+            wp.to_torch(base_data.pos_w),
+            wp.to_torch(imu_data.pos_w),
             rtol=1e-5,
             atol=1e-5,
         )
 
         # check the orientation between offset and imu definition
         torch.testing.assert_close(
-            base_data.quat_w,
-            imu_data.quat_w,
+            wp.to_torch(base_data.quat_w),
+            wp.to_torch(imu_data.quat_w),
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the angular velocities of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.ang_vel_b,
-            imu_data.ang_vel_b,
+            wp.to_torch(base_data.ang_vel_b),
+            wp.to_torch(imu_data.ang_vel_b),
             rtol=1e-4,
             atol=1e-4,
         )
         # check the angular acceleration of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.ang_acc_b,
-            imu_data.ang_acc_b,
+            wp.to_torch(base_data.ang_acc_b),
+            wp.to_torch(imu_data.ang_acc_b),
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the linear velocity of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.lin_vel_b,
-            imu_data.lin_vel_b,
+            wp.to_torch(base_data.lin_vel_b),
+            wp.to_torch(imu_data.lin_vel_b),
             rtol=1e-2,
             atol=5e-3,
         )
 
         # check the linear acceleration of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.lin_acc_b,
-            imu_data.lin_acc_b,
+            wp.to_torch(base_data.lin_acc_b),
+            wp.to_torch(imu_data.lin_acc_b),
             rtol=1e-1,
             atol=1e-1,
         )
@@ -499,29 +504,38 @@ def test_indirect_attachment(setup_sim):
         scene.update(sim.get_physics_dt())
 
         # get pendulum joint state
-        joint_pos = scene.articulations["pendulum2"].data.joint_pos
-        joint_vel = scene.articulations["pendulum2"].data.joint_vel
-        joint_acc = scene.articulations["pendulum2"].data.joint_acc
+        joint_pos = wp.to_torch(scene.articulations["pendulum2"].data.joint_pos)
+        joint_vel = wp.to_torch(scene.articulations["pendulum2"].data.joint_vel)
+        joint_acc = wp.to_torch(scene.articulations["pendulum2"].data.joint_acc)
 
         imu = scene.sensors["imu_indirect_pendulum_link"]
         imu_base = scene.sensors["imu_indirect_pendulum_base"]
 
         torch.testing.assert_close(
-            imu._offset_pos_b,
-            imu_base._offset_pos_b,
+            wp.to_torch(imu._offset_pos_b),
+            wp.to_torch(imu_base._offset_pos_b),
         )
-        torch.testing.assert_close(imu._offset_quat_b, imu_base._offset_quat_b, rtol=1e-4, atol=1e-4)
+        torch.testing.assert_close(
+            wp.to_torch(imu._offset_quat_b),
+            wp.to_torch(imu_base._offset_quat_b),
+            rtol=1e-4,
+            atol=1e-4,
+        )
 
         # IMU and base data
         imu_data = scene.sensors["imu_indirect_pendulum_link"].data
         base_data = scene.sensors["imu_indirect_pendulum_base"].data
         # extract imu_link imu_sensor dynamics
-        lin_vel_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_vel_b)
-        lin_acc_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_acc_b)
+        lin_vel_w_imu_link = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.lin_vel_b))
+        lin_acc_w_imu_link = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.lin_acc_b))
 
         # calculate the joint dynamics from the imu_sensor (y axis of imu_link is parallel to joint axis of pendulum)
-        joint_vel_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_vel_b)[..., 1].unsqueeze(-1)
-        joint_acc_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_acc_b)[..., 1].unsqueeze(-1)
+        joint_vel_imu = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.ang_vel_b))[
+            ..., 1
+        ].unsqueeze(-1)
+        joint_acc_imu = math_utils.quat_apply(wp.to_torch(imu_data.quat_w), wp.to_torch(imu_data.ang_acc_b))[
+            ..., 1
+        ].unsqueeze(-1)
 
         # calculate analytical solution
         vx = -joint_vel * pend_length * torch.sin(joint_pos)
@@ -540,9 +554,9 @@ def test_indirect_attachment(setup_sim):
 
         # compare imu projected gravity
         gravity_dir_w = torch.tensor((0.0, 0.0, -1.0), device=scene.device).repeat(2, 1)
-        gravity_dir_b = math_utils.quat_apply_inverse(imu_data.quat_w, gravity_dir_w)
+        gravity_dir_b = math_utils.quat_apply_inverse(wp.to_torch(imu_data.quat_w), gravity_dir_w)
         torch.testing.assert_close(
-            imu_data.projected_gravity_b,
+            wp.to_torch(imu_data.projected_gravity_b),
             gravity_dir_b,
         )
 
@@ -577,47 +591,47 @@ def test_indirect_attachment(setup_sim):
 
         # check the position between offset and imu definition
         torch.testing.assert_close(
-            base_data.pos_w,
-            imu_data.pos_w,
+            wp.to_torch(base_data.pos_w),
+            wp.to_torch(imu_data.pos_w),
             rtol=1e-5,
             atol=1e-5,
         )
 
         # check the orientation between offset and imu definition
         torch.testing.assert_close(
-            base_data.quat_w,
-            imu_data.quat_w,
+            wp.to_torch(base_data.quat_w),
+            wp.to_torch(imu_data.quat_w),
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the angular velocities of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.ang_vel_b,
-            imu_data.ang_vel_b,
+            wp.to_torch(base_data.ang_vel_b),
+            wp.to_torch(imu_data.ang_vel_b),
             rtol=1e-4,
             atol=1e-4,
         )
         # check the angular acceleration of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.ang_acc_b,
-            imu_data.ang_acc_b,
+            wp.to_torch(base_data.ang_acc_b),
+            wp.to_torch(imu_data.ang_acc_b),
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the linear velocity of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.lin_vel_b,
-            imu_data.lin_vel_b,
+            wp.to_torch(base_data.lin_vel_b),
+            wp.to_torch(imu_data.lin_vel_b),
             rtol=1e-2,
             atol=5e-3,
         )
 
         # check the linear acceleration of the imus between offset and imu definition
         torch.testing.assert_close(
-            base_data.lin_acc_b,
-            imu_data.lin_acc_b,
+            wp.to_torch(base_data.lin_acc_b),
+            wp.to_torch(imu_data.lin_acc_b),
             rtol=1e-1,
             atol=1e-1,
         )
@@ -650,50 +664,50 @@ def test_offset_calculation(setup_sim):
 
         # check the accelerations
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.lin_acc_b,
-            scene.sensors["imu_robot_imu_link"].data.lin_acc_b,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.lin_acc_b),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.lin_acc_b),
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.ang_acc_b,
-            scene.sensors["imu_robot_imu_link"].data.ang_acc_b,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.ang_acc_b),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.ang_acc_b),
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the velocities
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.ang_vel_b,
-            scene.sensors["imu_robot_imu_link"].data.ang_vel_b,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.ang_vel_b),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.ang_vel_b),
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.lin_vel_b,
-            scene.sensors["imu_robot_imu_link"].data.lin_vel_b,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.lin_vel_b),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.lin_vel_b),
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the orientation
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.quat_w,
-            scene.sensors["imu_robot_imu_link"].data.quat_w,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.quat_w),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.quat_w),
             rtol=1e-4,
             atol=1e-4,
         )
         # check the position
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.pos_w,
-            scene.sensors["imu_robot_imu_link"].data.pos_w,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.pos_w),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.pos_w),
             rtol=1e-4,
             atol=1e-4,
         )
         # check the projected gravity
         torch.testing.assert_close(
-            scene.sensors["imu_robot_base"].data.projected_gravity_b,
-            scene.sensors["imu_robot_imu_link"].data.projected_gravity_b,
+            wp.to_torch(scene.sensors["imu_robot_base"].data.projected_gravity_b),
+            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.projected_gravity_b),
             rtol=1e-4,
             atol=1e-4,
         )

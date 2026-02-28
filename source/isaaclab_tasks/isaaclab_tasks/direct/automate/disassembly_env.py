@@ -8,8 +8,7 @@ import os
 
 import numpy as np
 import torch
-
-import carb
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -57,11 +56,13 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _set_body_inertias(self):
         """Note: this is to account for the asset_options.armature parameter in IGE."""
-        inertias = self._robot.root_view.get_inertias()
+        inertias = wp.to_torch(self._robot.root_view.get_inertias())
         offset = torch.zeros_like(inertias)
         offset[:, :, [0, 4, 8]] += 0.01
         new_inertias = inertias + offset
-        self._robot.root_view.set_inertias(new_inertias, torch.arange(self.num_envs))
+        self._robot.root_view.set_inertias(
+            wp.from_torch(new_inertias), wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32))
+        )
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
@@ -83,11 +84,11 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _set_friction(self, asset, value):
         """Update material properties for a given asset."""
-        materials = asset.root_view.get_material_properties()
+        materials = wp.to_torch(asset.root_view.get_material_properties())
         materials[..., 0] = value  # Static friction.
         materials[..., 1] = value  # Dynamic friction.
-        env_ids = torch.arange(self.scene.num_envs, device="cpu")
-        asset.root_view.set_material_properties(materials, env_ids)
+        env_ids = torch.arange(self.scene.num_envs, device="cpu", dtype=torch.int32)
+        asset.root_view.set_material_properties(wp.from_torch(materials), wp.from_torch(env_ids))
 
     def _init_tensors(self):
         """Initialize tensors once."""
@@ -201,25 +202,27 @@ class DisassemblyEnv(DirectRLEnv):
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""
         # TODO: A lot of these can probably only be set once?
-        self.fixed_pos = self._fixed_asset.data.root_pos_w - self.scene.env_origins
-        self.fixed_quat = self._fixed_asset.data.root_quat_w
+        self.fixed_pos = wp.to_torch(self._fixed_asset.data.root_pos_w) - self.scene.env_origins
+        self.fixed_quat = wp.to_torch(self._fixed_asset.data.root_quat_w)
 
-        self.held_pos = self._held_asset.data.root_pos_w - self.scene.env_origins
-        self.held_quat = self._held_asset.data.root_quat_w
+        self.held_pos = wp.to_torch(self._held_asset.data.root_pos_w) - self.scene.env_origins
+        self.held_quat = wp.to_torch(self._held_asset.data.root_quat_w)
 
-        self.fingertip_midpoint_pos = self._robot.data.body_pos_w[:, self.fingertip_body_idx] - self.scene.env_origins
-        self.fingertip_midpoint_quat = self._robot.data.body_quat_w[:, self.fingertip_body_idx]
-        self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w[:, self.fingertip_body_idx]
-        self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_pos = (
+            wp.to_torch(self._robot.data.body_pos_w)[:, self.fingertip_body_idx] - self.scene.env_origins
+        )
+        self.fingertip_midpoint_quat = wp.to_torch(self._robot.data.body_quat_w)[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_linvel = wp.to_torch(self._robot.data.body_lin_vel_w)[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_angvel = wp.to_torch(self._robot.data.body_ang_vel_w)[:, self.fingertip_body_idx]
 
-        jacobians = self._robot.root_view.get_jacobians()
+        jacobians = wp.to_torch(self._robot.root_view.get_jacobians())
 
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.root_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
-        self.joint_pos = self._robot.data.joint_pos.clone()
-        self.joint_vel = self._robot.data.joint_vel.clone()
+        self.arm_mass_matrix = wp.to_torch(self._robot.root_view.get_generalized_mass_matrices())[:, 0:7, 0:7]
+        self.joint_pos = wp.to_torch(self._robot.data.joint_pos).clone()
+        self.joint_vel = wp.to_torch(self._robot.data.joint_vel).clone()
 
         # Compute pose of gripper goal and top of socket in socket frame
         self.gripper_goal_pos, self.gripper_goal_quat = combine_frame_transforms(
@@ -422,8 +425,8 @@ class DisassemblyEnv(DirectRLEnv):
         self.ctrl_target_joint_pos[:, 7:9] = self.ctrl_target_gripper_dof_pos
         self.joint_torque[:, 7:9] = 0.0
 
-        self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
-        self._robot.set_joint_effort_target(self.joint_torque)
+        self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
+        self._robot.set_joint_effort_target_index(target=self.joint_torque)
 
     def _get_dones(self):
         """Update intermediate values used for rewards and observations."""
@@ -476,18 +479,27 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _set_assets_to_default_pose(self, env_ids):
         """Move assets to default pose before randomization."""
-        held_state = self._held_asset.data.default_root_state.clone()[env_ids]
+        held_state = torch.cat(
+            [wp.to_torch(self._held_asset.data.default_root_pose), wp.to_torch(self._held_asset.data.default_root_vel)],
+            dim=-1,
+        )[env_ids].clone()
         held_state[:, 0:3] += self.scene.env_origins[env_ids]
         held_state[:, 7:] = 0.0
-        self._held_asset.write_root_pose_to_sim(held_state[:, 0:7], env_ids=env_ids)
-        self._held_asset.write_root_velocity_to_sim(held_state[:, 7:], env_ids=env_ids)
+        self._held_asset.write_root_pose_to_sim_index(root_pose=held_state[:, 0:7], env_ids=env_ids)
+        self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_state[:, 7:], env_ids=env_ids)
         self._held_asset.reset()
 
-        fixed_state = self._fixed_asset.data.default_root_state.clone()[env_ids]
+        fixed_state = torch.cat(
+            [
+                wp.to_torch(self._fixed_asset.data.default_root_pose),
+                wp.to_torch(self._fixed_asset.data.default_root_vel),
+            ],
+            dim=-1,
+        )[env_ids].clone()
         fixed_state[:, 0:3] += self.scene.env_origins[env_ids]
         fixed_state[:, 7:] = 0.0
-        self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
-        self._fixed_asset.write_root_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim_index(root_pose=fixed_state[:, 0:7], env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim_index(root_velocity=fixed_state[:, 7:], env_ids=env_ids)
         self._fixed_asset.reset()
 
     def _move_gripper_to_grasp_pose(self, env_ids):
@@ -544,9 +556,10 @@ class DisassemblyEnv(DirectRLEnv):
 
             self.ctrl_target_joint_pos[env_ids, 0:7] = self.joint_pos[env_ids, 0:7]
             # Update dof state.
-            self._robot.write_joint_state_to_sim(self.joint_pos, self.joint_vel)
+            self._robot.write_joint_position_to_sim_index(position=self.joint_pos)
+            self._robot.write_joint_velocity_to_sim_index(velocity=self.joint_vel)
             self._robot.reset()
-            self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
+            self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
 
             # Simulate and update tensors.
             self.step_sim_no_action()
@@ -599,16 +612,17 @@ class DisassemblyEnv(DirectRLEnv):
         # gripper_width = self.cfg_task.held_asset_cfg.diameter / 2 * 1.25
         # gripper_width = self.cfg_task.hand_width_max / 3.0
         gripper_width = self.gripper_open_width
-        joint_pos = self._robot.data.default_joint_pos[env_ids]
+        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
         joint_pos[:, 7:] = gripper_width  # MIMIC
         joint_pos[:, :7] = torch.tensor(joints, device=self.device)[None, :]
         joint_vel = torch.zeros_like(joint_pos)
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
-        self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
         self._robot.reset()
-        self._robot.set_joint_effort_target(joint_effort, env_ids=env_ids)
+        self._robot.set_joint_effort_target_index(target=joint_effort, env_ids=env_ids)
 
         self.step_sim_no_action()
 
@@ -621,7 +635,13 @@ class DisassemblyEnv(DirectRLEnv):
 
     def randomize_fixed_initial_state(self, env_ids):
         # (1.) Randomize fixed asset pose.
-        fixed_state = self._fixed_asset.data.default_root_state.clone()[env_ids]
+        fixed_state = torch.cat(
+            [
+                wp.to_torch(self._fixed_asset.data.default_root_pose),
+                wp.to_torch(self._fixed_asset.data.default_root_vel),
+            ],
+            dim=-1,
+        )[env_ids].clone()
         # (1.a.) Position
         rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
         fixed_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
@@ -643,7 +663,8 @@ class DisassemblyEnv(DirectRLEnv):
         # (1.c.) Velocity
         fixed_state[:, 7:] = 0.0  # vel
         # (1.d.) Update values.
-        self._fixed_asset.write_root_state_to_sim(fixed_state, env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim_index(root_pose=fixed_state[:, 0:7], env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim_index(root_velocity=fixed_state[:, 7:], env_ids=env_ids)
         self._fixed_asset.reset()
 
         # (1.e.) Noisy position observation.
@@ -656,12 +677,16 @@ class DisassemblyEnv(DirectRLEnv):
 
     def randomize_held_initial_state(self, env_ids, pre_grasp):
         # Set plug pos to assembled state
-        held_state = self._held_asset.data.default_root_state.clone()
+        held_state = torch.cat(
+            [wp.to_torch(self._held_asset.data.default_root_pose), wp.to_torch(self._held_asset.data.default_root_vel)],
+            dim=-1,
+        ).clone()
         held_state[env_ids, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
         held_state[env_ids, 3:7] = self.fixed_quat[env_ids].clone()
         held_state[env_ids, 7:] = 0.0
 
-        self._held_asset.write_root_state_to_sim(held_state)
+        self._held_asset.write_root_pose_to_sim_index(root_pose=held_state[:, 0:7])
+        self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_state[:, 7:])
         self._held_asset.reset()
 
         self.step_sim_no_action()
@@ -687,6 +712,8 @@ class DisassemblyEnv(DirectRLEnv):
 
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
+        import carb
+
         # Disable gravity.
         physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
         physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))
@@ -727,6 +754,8 @@ class DisassemblyEnv(DirectRLEnv):
 
         # Set initial gains for the episode.
         self._set_gains(self.default_gains)
+
+        import carb
 
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
 

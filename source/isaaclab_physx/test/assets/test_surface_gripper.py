@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
@@ -30,7 +31,7 @@ from isaaclab.assets import (
 )
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView
 
@@ -170,7 +171,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
         device: The device to run the test on.
         add_ground_plane: Whether to add a ground plane to the simulation.
     """
-    if get_isaac_sim_version().major < 5:
+    if has_kit() and get_isaac_sim_version().major < 5:
         return
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
     surface_gripper, articulation, _ = generate_surface_gripper(
@@ -187,8 +188,8 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
     assert surface_gripper.state.shape == (num_articulations,)
 
     # Check that the command and state are initialized to the correct values
-    assert surface_gripper.command == 0.0  # Idle command after a reset
-    assert surface_gripper.state == -1.0  # Open state after a reset
+    assert wp.to_torch(surface_gripper.command).item() == 0.0  # Idle command after a reset
+    assert wp.to_torch(surface_gripper.state).item() == -1.0  # Open state after a reset
 
     # Simulate physics
     for _ in range(10):
@@ -204,7 +205,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 @pytest.mark.isaacsim_ci
 def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
-    if get_isaac_sim_version().major < 5:
+    if has_kit() and get_isaac_sim_version().major < 5:
         return
     num_articulations = 1
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)

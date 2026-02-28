@@ -16,7 +16,7 @@ import torch
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -138,7 +138,6 @@ class ManagerBasedEnv:
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
-                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -357,7 +356,7 @@ class ManagerBasedEnv:
             A tuple containing the observations and extras.
         """
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -418,7 +417,7 @@ class ManagerBasedEnv:
         """
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)

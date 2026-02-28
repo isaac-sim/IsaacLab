@@ -31,6 +31,10 @@ inputs:
     description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
     default: ''
     required: false
+  curobo-only:
+    description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
+    default: 'false'
+    required: false
 
 runs:
   using: composite
@@ -47,6 +51,7 @@ runs:
           local reports_dir="$5"
           local pytest_options="$6"
           local filter_pattern="$7"
+          local curobo_only="$8"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -54,6 +59,9 @@ runs:
           fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
+          fi
+          if [ "$curobo_only" = "true" ]; then
+            echo "cuRobo-only mode enabled: running only cuRobo and SkillGen tests"
           fi
 
           # Create reports directory
@@ -72,6 +80,11 @@ runs:
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
             -e TEST_RESULT_FILE=$result_file"
+
+          if [ "$curobo_only" = "true" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
+            echo "Setting TEST_CUROBO_ONLY=true"
+          fi
 
           if [ -n "$filter_pattern" ]; then
             if [[ "$filter_pattern" == not* ]]; then
@@ -154,4 +167,4 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}"

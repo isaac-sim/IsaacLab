@@ -19,13 +19,15 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-import omni.kit.app
-import omni.physx
+from isaaclab.utils.version import has_kit
+
+if has_kit():
+    import omni.kit.app
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -125,7 +127,6 @@ class DirectMARLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

@@ -19,12 +19,11 @@ from enum import Enum
 
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
 
-import carb
-from pxr import PhysxSchema
-
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
@@ -221,37 +220,37 @@ def setup_simulation():
     durations = [sim_dt, sim_dt * 2, sim_dt * 32, sim_dt * 128]
     terrains = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
     devices = ["cuda:0", "cpu"]
-    carb_settings_iface = carb.settings.get_settings()
-    return sim_dt, durations, terrains, devices, carb_settings_iface
+    settings = get_settings_manager()
+    return sim_dt, durations, terrains, devices, settings
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
-@flaky(max_runs=3, min_passes=1)
+@flaky(max_runs=5, min_passes=1)
 def test_cube_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-    _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    sim_dt, durations, terrains, devices, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, settings, durations)
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
-@flaky(max_runs=3, min_passes=1)
+@flaky(max_runs=5, min_passes=1)
 def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-    _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    sim_dt, durations, terrains, devices, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, settings, durations)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 6, 24])
 def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
@@ -282,7 +281,7 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         scene = InteractiveScene(scene_cfg)
 
         # Check that contact processing is enabled
-        assert not carb_settings_iface.get("/physics/disableContactProcessing")
+        assert not settings.get("/physics/disableContactProcessing")
 
         # Set variables internally for reference
         sim.reset()
@@ -300,14 +299,18 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
             _perform_sim_step(sim, scene, sim_dt)
 
         # Check values for cube 2 --> cube 1 is the only collision for cube 2
-        torch.testing.assert_close(contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor_2.data.net_forces_w)
+        torch.testing.assert_close(
+            wp.to_torch(contact_sensor_2.data.force_matrix_w)[:, :, 0],
+            wp.to_torch(contact_sensor_2.data.net_forces_w),
+        )
         # Check that forces are opposite and equal
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w[:, :, 0], -contact_sensor.data.force_matrix_w[:, :, 0]
+            wp.to_torch(contact_sensor_2.data.force_matrix_w)[:, :, 0],
+            -wp.to_torch(contact_sensor.data.force_matrix_w)[:, :, 0],
         )
         # Check values are non-zero (contacts are happening and are getting reported)
-        assert contact_sensor_2.data.net_forces_w.sum().item() > 0.0
-        assert contact_sensor.data.net_forces_w.sum().item() > 0.0
+        assert wp.to_torch(contact_sensor_2.data.net_forces_w).sum().item() > 0.0
+        assert wp.to_torch(contact_sensor.data.net_forces_w).sum().item() > 0.0
 
 
 def test_no_contact_reporting(setup_simulation):
@@ -316,7 +319,7 @@ def test_no_contact_reporting(setup_simulation):
     We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
     """
     # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device="cpu", dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
@@ -347,7 +350,7 @@ def test_no_contact_reporting(setup_simulation):
         scene = InteractiveScene(scene_cfg)
 
         # Force disable contact processing
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+        settings.set_bool("/physics/disableContactProcessing", True)
 
         # Set variables internally for reference
         sim.reset()
@@ -367,16 +370,16 @@ def test_no_contact_reporting(setup_simulation):
             _perform_sim_step(sim, scene, sim_dt)
 
         # check values are zero (contacts are happening but not reported)
-        assert contact_sensor.data.net_forces_w.sum().item() == 0.0
-        assert contact_sensor.data.force_matrix_w.sum().item() == 0.0
-        assert contact_sensor_2.data.net_forces_w.sum().item() == 0.0
-        assert contact_sensor_2.data.force_matrix_w.sum().item() == 0.0
+        assert wp.to_torch(contact_sensor.data.net_forces_w).sum().item() == 0.0
+        assert wp.to_torch(contact_sensor.data.force_matrix_w).sum().item() == 0.0
+        assert wp.to_torch(contact_sensor_2.data.net_forces_w).sum().item() == 0.0
+        assert wp.to_torch(contact_sensor_2.data.force_matrix_w).sum().item() == 0.0
 
 
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_simulation):
     """Test sensor print is working correctly."""
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device="cuda:0", dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         # Spawn things into stage
@@ -401,7 +404,7 @@ def test_sensor_print(setup_simulation):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_contact_sensor_threshold(setup_simulation, device):
     """Test that the contact sensor USD threshold attribute is set to 0.0."""
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         # Spawn things into stage
@@ -429,9 +432,8 @@ def test_contact_sensor_threshold(setup_simulation, device):
         assert contact_sensor is not None, "Contact sensor was not created"
 
         # Check if the prim has contact report API and verify threshold is close to 0.0
-        if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-            cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, prim.GetPrimPath())
-            threshold_attr = cr_api.GetThresholdAttr()
+        if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
+            threshold_attr = prim.GetAttribute("physxContactReport:threshold")
             if threshold_attr.IsValid():
                 threshold_value = threshold_attr.Get()
                 assert pytest.approx(threshold_value, abs=1e-6) == 0.0, (
@@ -449,8 +451,8 @@ def test_friction_reporting(setup_simulation, grav_dir):
     This test places a contact sensor enabled cube onto a ground plane under different gravity directions.
     It then compares the normalized friction force dir with the direction of gravity to ensure they are aligned.
     """
-    sim_dt, _, _, _, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -479,7 +481,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
         scene["contact_sensor"].reset()
         scene["shape"].write_root_pose_to_sim(
-            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0])
+            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0], device=device).unsqueeze(0)
         )
 
         # step sim once to compute friction forces
@@ -487,9 +489,10 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
         # check that forces are being reported match expected friction forces
         expected_friction, _, _, _ = scene["contact_sensor"].contact_view.get_friction_data(dt=sim_dt)
-        reported_friction = scene["contact_sensor"].data.friction_forces_w[0, 0, :]
+        expected_friction_torch = wp.to_torch(expected_friction)
+        reported_friction = wp.to_torch(scene["contact_sensor"].data.friction_forces_w)[0, 0, :]
 
-        torch.testing.assert_close(expected_friction.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
+        torch.testing.assert_close(expected_friction_torch.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
 
         # check that friction force direction opposes gravity direction
         grav = torch.tensor(grav_dir, device=device)
@@ -502,8 +505,8 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
 @pytest.mark.isaacsim_ci
 def test_invalid_prim_paths_config(setup_simulation):
-    sim_dt, _, _, _, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -536,8 +539,8 @@ def test_invalid_prim_paths_config(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_invalid_max_contact_points_config(setup_simulation):
-    sim_dt, _, _, _, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -580,7 +583,7 @@ def _run_contact_sensor_test(
     sim_dt: float,
     devices: list[str],
     terrains: list[TerrainImporterCfg],
-    carb_settings_iface,
+    settings,
     durations: list[float],
 ):
     """
@@ -700,7 +703,7 @@ def _test_sensor_contact(
         duration = durations[idx]
         while current_test_time < duration:
             # set object states to contact the ground plane
-            shape.write_root_pose_to_sim(root_pose=test_pose)
+            shape.write_root_pose_to_sim(root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0))
             # perform simulation step
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
@@ -732,7 +735,7 @@ def _test_sensor_contact(
             _test_friction_forces(shape, sensor, mode)
 
         # switch the contact mode for 1 dt step before the next contact test begins.
-        shape.write_root_pose_to_sim(root_pose=reset_pose)
+        shape.write_root_pose_to_sim(root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0))
         # perform simulation step
         _perform_sim_step(sim, scene, sim_dt)
         # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time
@@ -746,26 +749,30 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
         assert sensor._data.friction_forces_w is None
         return
 
-    # check shape of the contact_pos_w tensor
+    # check shape of the friction_forces_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_bodies = sensor.num_bodies
-    assert sensor._data.friction_forces_w.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
+    friction_torch = wp.to_torch(sensor._data.friction_forces_w)
+    assert friction_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
-        assert torch.any(torch.abs(sensor._data.friction_forces_w) > 1e-5).item()
+        assert torch.any(torch.abs(friction_torch) > 1e-5).item()
         friction_forces, _, buffer_count, buffer_start_indices = sensor.contact_view.get_friction_data(
             dt=sensor._sim_physics_dt
         )
+        friction_forces_t = wp.to_torch(friction_forces)
+        buffer_count_t = wp.to_torch(buffer_count).to(torch.int32)
+        buffer_start_t = wp.to_torch(buffer_start_indices).to(torch.int32)
         for i in range(sensor.num_instances * num_bodies):
             for j in range(sensor.contact_view.filter_count):
-                start_index_ij = buffer_start_indices[i, j]
-                count_ij = buffer_count[i, j]
-                force = torch.sum(friction_forces[start_index_ij : (start_index_ij + count_ij), :], dim=0)
+                start_index_ij = buffer_start_t[i, j]
+                count_ij = buffer_count_t[i, j]
+                force = torch.sum(friction_forces_t[start_index_ij : (start_index_ij + count_ij), :], dim=0)
                 env_idx = i // num_bodies
                 body_idx = i % num_bodies
-                assert torch.allclose(force, sensor._data.friction_forces_w[env_idx, body_idx, j, :], atol=1e-5)
+                assert torch.allclose(force, friction_torch[env_idx, body_idx, j, :], atol=1e-5)
 
     elif mode == ContactTestMode.NON_CONTACT:
-        assert torch.all(sensor._data.friction_forces_w == 0.0).item()
+        assert torch.all(friction_torch == 0.0).item()
 
 
 def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
@@ -780,20 +787,19 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
         assert sensor._data.contact_pos_w is None
         return
 
-    # check shape of the contact_pos_w tensor
+    # check shape of the contact_pos_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_bodies = sensor.num_bodies
-    assert sensor._data.contact_pos_w.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
+    contact_pos_torch = wp.to_torch(sensor._data.contact_pos_w)
+    assert contact_pos_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # check contact positions
     if mode == ContactTestMode.IN_CONTACT:
-        contact_position = sensor._data.pos_w + torch.tensor(
-            [[0.0, 0.0, -shape.cfg.spawn.radius]], device=sensor._data.pos_w.device
-        )
+        pos_w_torch = wp.to_torch(sensor._data.pos_w)
+        contact_position = pos_w_torch + torch.tensor([[0.0, 0.0, -shape.cfg.spawn.radius]], device=pos_w_torch.device)
         assert torch.all(
-            torch.abs(torch.linalg.norm(sensor._data.contact_pos_w - contact_position.unsqueeze(1), ord=2, dim=-1))
-            < 1e-2
+            torch.abs(torch.linalg.norm(contact_pos_torch - contact_position.unsqueeze(1), ord=2, dim=-1)) < 1e-2
         ).item()
     elif mode == ContactTestMode.NON_CONTACT:
-        assert torch.all(torch.isnan(sensor._data.contact_pos_w)).item()
+        assert torch.all(torch.isnan(contact_pos_torch)).item()
 
 
 def _check_prim_contact_state_times(
@@ -822,10 +828,10 @@ def _check_prim_contact_state_times(
         in_air = True
     if expected_contact_time > 0.0:
         in_contact = True
-    measured_contact_time = sensor.data.current_contact_time
-    measured_air_time = sensor.data.current_air_time
-    measured_last_contact_time = sensor.data.last_contact_time
-    measured_last_air_time = sensor.data.last_air_time
+    measured_contact_time = wp.to_torch(sensor.data.current_contact_time)
+    measured_air_time = wp.to_torch(sensor.data.current_air_time)
+    measured_last_contact_time = wp.to_torch(sensor.data.last_contact_time)
+    measured_last_air_time = wp.to_torch(sensor.data.last_air_time)
     # check current contact state
     assert pytest.approx(measured_contact_time.item(), 0.01) == expected_contact_time
     assert pytest.approx(measured_air_time.item(), 0.01) == expected_air_time
@@ -833,8 +839,8 @@ def _check_prim_contact_state_times(
     assert pytest.approx(measured_last_contact_time.item(), 0.01) == expected_last_contact_time
     assert pytest.approx(measured_last_air_time.item(), 0.01) == expected_last_air_time
     # check current contact mode
-    assert sensor.compute_first_contact(dt=dt).item() == in_contact
-    assert sensor.compute_first_air(dt=dt).item() == in_air
+    assert wp.to_torch(sensor.compute_first_contact(dt=dt)).item() == in_contact
+    assert wp.to_torch(sensor.compute_first_air(dt=dt)).item() == in_air
 
 
 def _perform_sim_step(sim, scene, sim_dt):

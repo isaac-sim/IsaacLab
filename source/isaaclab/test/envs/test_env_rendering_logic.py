@@ -7,7 +7,7 @@
 
 from isaaclab.app import AppLauncher
 
-# launch omniverse app
+# launch Kit app
 # need to set "enable_cameras" true to be able to do rendering tests
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
@@ -16,7 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
-from isaaclab_physx.visualizers import RenderMode
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import (
@@ -30,6 +29,8 @@ from isaaclab.envs import (
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
+from isaaclab.visualizers.kit_visualizer import KitVisualizer
+from isaaclab.visualizers.kit_visualizer_cfg import KitVisualizerCfg
 
 
 @configclass
@@ -48,7 +49,9 @@ def create_manager_based_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -65,7 +68,9 @@ def create_manager_based_rl_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -86,7 +91,9 @@ def create_direct_rl_env(render_interval: int):
         action_space: int = 0
         observation_space: int = 0
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
     class Env(DirectRLEnv):
@@ -172,10 +179,11 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         #   Without it, the test will exit after the environment is closed
         env.sim._app_control_on_stop_handle = None  # type: ignore
 
-        # check that we are in partial rendering mode for the environment
-        # this is enabled due to app launcher setting "enable_cameras=True"
-        # Access render mode through the first visualizer (OVVisualizer)
-        assert env.sim.visualizers[0].render_mode == RenderMode.PARTIAL_RENDERING
+        # Reset to initialize visualizers (they're created lazily in reset())
+        env.reset()
+
+        # Ensure the default Kit visualizer is active for rendering callbacks.
+        assert isinstance(env.sim.visualizers[0], KitVisualizer)
 
         # add physics callback via physics manager (IsaacEvents is PhysX-specific)
         physics_handle = env.sim.physics_manager.register_callback(
@@ -187,8 +195,8 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         original_step = viz.step
         render_dt = env.cfg.sim.dt * env.cfg.sim.render_interval
 
-        def wrapped_step(dt, state=None):
-            original_step(dt, state)
+        def wrapped_step(dt):
+            original_step(dt)
             render_cb(render_dt)
 
         viz.step = wrapped_step

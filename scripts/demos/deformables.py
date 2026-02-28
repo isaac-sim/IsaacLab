@@ -36,6 +36,7 @@ import random
 import numpy as np
 import torch
 import tqdm
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
@@ -160,7 +161,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # reset deformable object state
             for _, deform_body in enumerate(entities.values()):
                 # root state
-                nodal_state = deform_body.data.default_nodal_state_w.clone()
+                nodal_state = wp.to_torch(deform_body.data.default_nodal_state_w).clone()
                 deform_body.write_nodal_state_to_sim(nodal_state)
                 # reset the internal state
                 deform_body.reset()

@@ -20,20 +20,22 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-import omni.kit.app
-import omni.physx
-
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
+
+from .ui import ViewportCameraController
+
+if has_kit():
+    import omni.kit.app
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
-from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
 # import logger
@@ -131,7 +133,6 @@ class DirectRLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -309,7 +310,7 @@ class DirectRLEnv(gym.Env):
             self.seed(seed)
 
         # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
         self._reset_idx(indices)
 
         # update articulation kinematics
@@ -393,7 +394,7 @@ class DirectRLEnv(gym.Env):
         self.reward_buf = self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset

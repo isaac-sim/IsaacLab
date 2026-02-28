@@ -65,6 +65,7 @@ class MockArticulationView:
         self._num_links = num_links
         self._device = device
         self._prim_paths = prim_paths or [f"/World/Articulation_{i}" for i in range(count)]
+        self._noop_setters = False
 
         # Create shared metatype
         self._shared_metatype = MockSharedMetatype(
@@ -140,6 +141,13 @@ class MockArticulationView:
     def prim_paths(self) -> list[str]:
         """USD prim paths for each instance."""
         return self._prim_paths
+
+    @property
+    def dof_paths(self) -> list[list[str]]:
+        """DOF paths for each instance."""
+        dof_names = self._shared_metatype.dof_names or [f"joint_{i}" for i in range(self._num_dofs)]
+        single_instance_paths = [f"{self._prim_paths[0]}/{name}" for name in dof_names]
+        return [single_instance_paths] * self._count
 
     # -- Root Getters --
 
@@ -344,6 +352,8 @@ class MockArticulationView:
             transforms: Tensor of shape (N, 7) or (len(indices), 7).
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         transforms = transforms.to(self._device)
         if self._root_transforms is None:
             self._root_transforms = torch.zeros(self._count, 7, device=self._device)
@@ -364,6 +374,8 @@ class MockArticulationView:
             velocities: Tensor of shape (N, 6) or (len(indices), 6).
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         velocities = velocities.to(self._device)
         if self._root_velocities is None:
             self._root_velocities = torch.zeros(self._count, 6, device=self._device)
@@ -385,6 +397,8 @@ class MockArticulationView:
             positions: Tensor of shape (N, J) or (len(indices), J).
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         positions = positions.to(self._device)
         if self._dof_positions is None:
             self._dof_positions = torch.zeros(self._count, self._num_dofs, device=self._device)
@@ -404,6 +418,8 @@ class MockArticulationView:
             velocities: Tensor of shape (N, J) or (len(indices), J).
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         velocities = velocities.to(self._device)
         if self._dof_velocities is None:
             self._dof_velocities = torch.zeros(self._count, self._num_dofs, device=self._device)
@@ -465,6 +481,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If limits tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(limits, "dof_limits")
         if self._dof_limits is None:
             self._dof_limits = torch.zeros(self._count, self._num_dofs, 2, device="cpu")
@@ -489,6 +507,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If stiffnesses tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(stiffnesses, "dof_stiffnesses")
         if self._dof_stiffnesses is None:
             self._dof_stiffnesses = torch.zeros(self._count, self._num_dofs, device="cpu")
@@ -511,6 +531,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If dampings tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(dampings, "dof_dampings")
         if self._dof_dampings is None:
             self._dof_dampings = torch.zeros(self._count, self._num_dofs, device="cpu")
@@ -533,6 +555,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If max_forces tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(max_forces, "dof_max_forces")
         if self._dof_max_forces is None:
             self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device="cpu")
@@ -555,6 +579,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If max_velocities tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(max_velocities, "dof_max_velocities")
         if self._dof_max_velocities is None:
             self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device="cpu")
@@ -577,6 +603,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If armatures tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(armatures, "dof_armatures")
         if self._dof_armatures is None:
             self._dof_armatures = torch.zeros(self._count, self._num_dofs, device="cpu")
@@ -599,6 +627,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If friction_coefficients tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(friction_coefficients, "dof_friction_coefficients")
         if self._dof_friction_coefficients is None:
             self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device="cpu")
@@ -621,6 +651,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If friction_properties tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(friction_properties, "dof_friction_properties")
         if self._dof_friction_properties is None:
             self._dof_friction_properties = torch.zeros(self._count, self._num_dofs, 3, device="cpu")
@@ -645,6 +677,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If masses tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(masses, "masses")
         if self._masses is None:
             self._masses = torch.ones(self._count, self._num_links, device="cpu")
@@ -667,6 +701,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If coms tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(coms, "coms")
         if self._coms is None:
             self._coms = torch.zeros(self._count, self._num_links, 7, device="cpu")
@@ -690,6 +726,8 @@ class MockArticulationView:
         Raises:
             RuntimeError: If inertias tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(inertias, "inertias")
         if self._inertias is None:
             self._inertias = torch.zeros(self._count, self._num_links, 9, device="cpu")
@@ -894,6 +932,95 @@ class MockArticulationView:
             forces: Tensor of shape (N, L, 6).
         """
         self._link_incoming_joint_force = forces.to(self._device)
+
+    # -- Actions (no-op for testing) --
+
+    def apply_forces_and_torques_at_position(
+        self,
+        force_data: torch.Tensor | None = None,
+        torque_data: torch.Tensor | None = None,
+        position_data: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+        is_global: bool = True,
+    ) -> None:
+        """Apply forces and torques at positions (no-op in mock).
+
+        Args:
+            force_data: Forces to apply, shape (N, 3) or (len(indices), 3).
+            torque_data: Torques to apply, shape (N, 3) or (len(indices), 3).
+            position_data: Positions to apply forces at, shape (N, 3) or (len(indices), 3).
+            indices: Optional indices of articulations to apply to.
+            is_global: Whether forces/torques are in global frame.
+        """
+        pass  # No-op for mock
+
+    # -- Tendon Getters (stubs) --
+
+    def get_fixed_tendon_stiffnesses(self) -> torch.Tensor:
+        """Get fixed tendon stiffnesses. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_dampings(self) -> torch.Tensor:
+        """Get fixed tendon dampings. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_limit_stiffnesses(self) -> torch.Tensor:
+        """Get fixed tendon limit stiffnesses. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_rest_lengths(self) -> torch.Tensor:
+        """Get fixed tendon rest lengths. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_offsets(self) -> torch.Tensor:
+        """Get fixed tendon offsets. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_limits(self) -> torch.Tensor:
+        """Get fixed tendon limits. Returns zeros of shape (N, max_fixed_tendons, 2)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, 2, device="cpu")
+
+    def get_spatial_tendon_stiffnesses(self) -> torch.Tensor:
+        """Get spatial tendon stiffnesses. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    def get_spatial_tendon_dampings(self) -> torch.Tensor:
+        """Get spatial tendon dampings. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    def get_spatial_tendon_limit_stiffnesses(self) -> torch.Tensor:
+        """Get spatial tendon limit stiffnesses. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    def get_spatial_tendon_offsets(self) -> torch.Tensor:
+        """Get spatial tendon offsets. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    # -- Tendon Setters (no-op stubs) --
+
+    def set_fixed_tendon_properties(
+        self,
+        stiffness: torch.Tensor | None = None,
+        damping: torch.Tensor | None = None,
+        limit_stiffness: torch.Tensor | None = None,
+        pos_limits: torch.Tensor | None = None,
+        rest_length: torch.Tensor | None = None,
+        offset: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+    ) -> None:
+        """Set fixed tendon properties (no-op in mock)."""
+        pass  # No-op for mock
+
+    def set_spatial_tendon_properties(
+        self,
+        stiffness: torch.Tensor | None = None,
+        damping: torch.Tensor | None = None,
+        limit_stiffness: torch.Tensor | None = None,
+        offset: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+    ) -> None:
+        """Set spatial tendon properties (no-op in mock)."""
+        pass  # No-op for mock
 
     def set_random_mock_data(self) -> None:
         """Set all internal state to random values for benchmarking.
