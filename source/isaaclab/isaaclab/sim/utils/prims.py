@@ -669,8 +669,21 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning
-        prim_spawn_path = prim_path.replace(".*", "0")
+        # Build a prototype prim path to spawn once, then copy to ALL matching parents.
+        #
+        # Octi: Leaf note wild card and root not wild card should be treated differently:
+        #   (A) ".*" in root_path  e.g. /World/Origin_0.*/CameraSensor
+        #       source_prim_paths holds ALL matching parent prims already in the stage.
+        #       We spawn the child once at source_prim_paths[0] as the prototype, then
+        #       Sdf.CopySpec it to every remaining parent so every parent ends up with
+        #       the child prim.
+        #
+        #   (B) ".*" in asset_path only  e.g. /World/template/Object/proto_asset_.*
+        #       No matching prims exist yet; source_prim_paths == [root_path] (one entry).
+        #       Replacing ".*" → "0" in asset_path gives the intended name proto_asset_0.
+        #       No copy step runs because there is only one parent.
+        #
+        prim_spawn_path = f"{source_prim_paths[0]}/{asset_path.replace('.*', '0')}"
         # spawn single instance
         prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
@@ -698,16 +711,13 @@ def clone(func: Callable) -> Callable:
             _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
         if len(source_prim_paths) > 1:
-            # lazy import to avoid circular import
-            from isaaclab.cloner import usd_replicate
-
-            formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
-            usd_replicate(
-                stage=stage,
-                sources=[formattable_path.format(0)],
-                destinations=[formattable_path],
-                env_ids=torch.arange(len(source_prim_paths)),
-            )
+            sanitized_asset = asset_path.replace(".*", "0")
+            rl = stage.GetRootLayer()
+            with Sdf.ChangeBlock():
+                for src_parent in source_prim_paths[1:]:
+                    dest_path = f"{src_parent}/{sanitized_asset}"
+                    Sdf.CreatePrimInLayer(rl, dest_path)
+                    Sdf.CopySpec(rl, Sdf.Path(prim_spawn_path), rl, Sdf.Path(dest_path))
         # return the source prim
         return prim
 
