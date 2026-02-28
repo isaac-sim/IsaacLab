@@ -4,6 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Retargeters for mapping input device data to robot commands."""
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

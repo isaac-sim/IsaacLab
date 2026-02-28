@@ -11,6 +11,6 @@ Isaac Lab framework yet, but are planned to be added in the future. They are
 contributed by the community to extend the capabilities of Isaac Lab.
 """
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

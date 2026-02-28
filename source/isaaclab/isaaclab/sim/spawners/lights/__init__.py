@@ -10,6 +10,6 @@ Please check the Omniverse documentation for `lighting overview
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/lighting.html>`_.
 """
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

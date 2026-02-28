@@ -38,6 +38,6 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

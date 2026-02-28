@@ -22,6 +22,6 @@ The following table summarizes the interpretation of the prim paths for differen
 
 """
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

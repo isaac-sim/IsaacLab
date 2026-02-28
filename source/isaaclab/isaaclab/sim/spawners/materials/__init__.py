@@ -52,6 +52,6 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

@@ -20,6 +20,6 @@ configurations to spawn different types of meshes. Based on the configuration, t
 .. _USDGeomMesh: https://openusd.org/release/api/class_usd_geom_mesh.html
 """
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()
