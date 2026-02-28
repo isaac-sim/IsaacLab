@@ -638,22 +638,24 @@ Then run the following command:
        --background_usd_path <PATH_TO_USD_ASSET>/stage.usdz \
        --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml \
        --init_camera_view \
-       --randomize_placement \
-       --visualizer kit
+       --randomize_placement
 
 The key parameters are:
 
 - ``--background_usd_path``: Path to the NuRec USD asset.
 - ``--background_occupancy_yaml_file``: Path to the occupancy map file.
-- ``--high_res_video``: Enable high resolution video recording for the ego-centric camera view.
 - ``--init_camera_view``: Set the viewport camera behind the robot at the start of episode.
+- ``--high_res_video``: An optional argument to generate a higher resolution video (540x960) for the ego-centric camera view. Default resolution is 160x256.
 
 On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
-the ego-centric view to MP4:
+the ego-centric camera view to MP4. If you use ``--high_res_video`` during data generation, match the
+dimension(540x960) in the command below.
 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
       --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
       --output_dir <DATASET_FOLDER>/ \
-      --input_keys robot_pov_cam
+      --input_keys robot_pov_cam \
+      --video_width 256 \
+      --video_height 160

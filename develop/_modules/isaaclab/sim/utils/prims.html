@@ -1291,8 +1291,21 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">source_prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">root_path</span><span class="p">]</span>
 
-        <span class="c1"># resolve prim paths for spawning</span>
-        <span class="n">prim_spawn_path</span> <span class="o">=</span> <span class="n">prim_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+        <span class="c1"># Build a prototype prim path to spawn once, then copy to ALL matching parents.</span>
+        <span class="c1">#</span>
+        <span class="c1"># Octi: Leaf note wild card and root not wild card should be treated differently:</span>
+        <span class="c1">#   (A) &quot;.*&quot; in root_path  e.g. /World/Origin_0.*/CameraSensor</span>
+        <span class="c1">#       source_prim_paths holds ALL matching parent prims already in the stage.</span>
+        <span class="c1">#       We spawn the child once at source_prim_paths[0] as the prototype, then</span>
+        <span class="c1">#       Sdf.CopySpec it to every remaining parent so every parent ends up with</span>
+        <span class="c1">#       the child prim.</span>
+        <span class="c1">#</span>
+        <span class="c1">#   (B) &quot;.*&quot; in asset_path only  e.g. /World/template/Object/proto_asset_.*</span>
+        <span class="c1">#       No matching prims exist yet; source_prim_paths == [root_path] (one entry).</span>
+        <span class="c1">#       Replacing &quot;.*&quot; → &quot;0&quot; in asset_path gives the intended name proto_asset_0.</span>
+        <span class="c1">#       No copy step runs because there is only one parent.</span>
+        <span class="c1">#</span>
+        <span class="n">prim_spawn_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">source_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">asset_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.*&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;0&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="c1"># spawn single instance</span>
         <span class="n">prim</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">prim_spawn_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># set the prim visibility</span>
@@ -1320,16 +1333,13 @@
             <span class="n">_schemas</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">(</span><span class="n">prim_spawn_path</span><span class="p">)</span>
         <span class="c1"># clone asset using cloner API</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">source_prim_paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c1"># lazy import to avoid circular import</span>
-            <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">usd_replicate</span>
-
-            <span class="n">formattable_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">root_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.*&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">asset_path</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="n">usd_replicate</span><span class="p">(</span>
-                <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
-                <span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="n">formattable_path</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
-                <span class="n">destinations</span><span class="o">=</span><span class="p">[</span><span class="n">formattable_path</span><span class="p">],</span>
-                <span class="n">env_ids</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">source_prim_paths</span><span class="p">)),</span>
-            <span class="p">)</span>
+            <span class="n">sanitized_asset</span> <span class="o">=</span> <span class="n">asset_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+            <span class="n">rl</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">()</span>
+            <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">src_parent</span> <span class="ow">in</span> <span class="n">source_prim_paths</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                    <span class="n">dest_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">src_parent</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">sanitized_asset</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="n">Sdf</span><span class="o">.</span><span class="n">CreatePrimInLayer</span><span class="p">(</span><span class="n">rl</span><span class="p">,</span> <span class="n">dest_path</span><span class="p">)</span>
+                    <span class="n">Sdf</span><span class="o">.</span><span class="n">CopySpec</span><span class="p">(</span><span class="n">rl</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">prim_spawn_path</span><span class="p">),</span> <span class="n">rl</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">dest_path</span><span class="p">))</span>
         <span class="c1"># return the source prim</span>
         <span class="k">return</span> <span class="n">prim</span>
 

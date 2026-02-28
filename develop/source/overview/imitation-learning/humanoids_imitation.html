@@ -1249,23 +1249,25 @@ and place it under <code class="docutils literal notranslate"><span class="pre">
 <span class="w">    </span>--background_usd_path<span class="w"> </span>&lt;PATH_TO_USD_ASSET&gt;/stage.usdz<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--background_occupancy_yaml_file<span class="w"> </span>&lt;PATH_TO_USD_ASSET&gt;/occupancy_map.yaml<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--init_camera_view<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--randomize_placement<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--visualizer<span class="w"> </span>kit
+<span class="w">    </span>--randomize_placement
 </pre></div>
 </div>
 <p>The key parameters are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--background_usd_path</span></code>: Path to the NuRec USD asset.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--background_occupancy_yaml_file</span></code>: Path to the occupancy map file.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--high_res_video</span></code>: Enable high resolution video recording for the ego-centric camera view.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--init_camera_view</span></code>: Set the viewport camera behind the robot at the start of episode.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--high_res_video</span></code>: An optional argument to generate a higher resolution video (540x960) for the ego-centric camera view. Default resolution is 160x256.</p></li>
 </ul>
 <p>On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
-the ego-centric view to MP4:</p>
+the ego-centric camera view to MP4. If you use <code class="docutils literal notranslate"><span class="pre">--high_res_video</span></code> during data generation, match the
+dimension(540x960) in the command below.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/hdf5_to_mp4.py<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>--input_file<span class="w"> </span>&lt;DATASET_FOLDER&gt;/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>--output_dir<span class="w"> </span>&lt;DATASET_FOLDER&gt;/<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>--input_keys<span class="w"> </span>robot_pov_cam
+<span class="w">   </span>--input_keys<span class="w"> </span>robot_pov_cam<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--video_width<span class="w"> </span><span class="m">256</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--video_height<span class="w"> </span><span class="m">160</span>
 </pre></div>
 </div>
 </section>
