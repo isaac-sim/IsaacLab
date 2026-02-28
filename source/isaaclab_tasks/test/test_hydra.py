@@ -23,11 +23,11 @@ import pytest
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.hydra import (
+    PresetCfg,
     apply_overrides,
     collect_presets,
     parse_overrides,
 )
-from isaaclab_tasks.utils.preset_cfg import PresetCfg
 
 # =============================================================================
 # Test Configuration Classes with Presets
@@ -436,6 +436,7 @@ def test_apply_overrides_unknown_raises(test_configs):
 
     with pytest.raises(ValueError, match="Unknown preset"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "observations", "bad")], [], presets)
+
 
 def test_preset_cfg_collect_presets():
     """Test that collect_presets discovers PresetCfg subclass fields as presets."""

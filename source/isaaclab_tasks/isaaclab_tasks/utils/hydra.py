@@ -35,10 +35,29 @@ except ImportError:
     raise ImportError("Hydra not installed. Run: pip install hydra-core")
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.preset_cfg import PresetCfg
+
+
+@configclass
+class PresetCfg:
+    """Base class for declarative preset definitions.
+
+    Subclass this and define fields as preset options.
+    The field named ``default`` holds the config instance used
+    when no CLI override is given. All other fields are named
+    alternative presets.
+
+    Example::
+
+        @configclass
+        class PhysicsCfg(PresetCfg):
+            default: PhysxCfg = PhysxCfg()
+            newton: NewtonCfg = NewtonCfg()
+    """
+
+    pass
 
 
 def collect_presets(cfg, path: str = "") -> dict:
