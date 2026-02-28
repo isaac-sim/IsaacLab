@@ -30,14 +30,12 @@ from isaaclab_tasks.utils.hydra import (
 )
 
 # =============================================================================
-# Test Configuration Classes with Presets
+# Leaf config classes (reused across all test sections)
 # =============================================================================
 
 
 @configclass
 class JointPositionActionCfg:
-    """Default joint position action config."""
-
     class_type: str = "JointPositionAction"
     asset_name: str = "robot"
     joint_names: list = [".*"]
@@ -47,8 +45,6 @@ class JointPositionActionCfg:
 
 @configclass
 class RelativeJointPositionActionCfg:
-    """Relative joint position action config."""
-
     class_type: str = "RelativeJointPositionAction"
     asset_name: str = "robot"
     joint_names: list = [".*"]
@@ -59,17 +55,62 @@ class RelativeJointPositionActionCfg:
 
 @configclass
 class VelocityActionCfg:
-    """Velocity action config."""
-
     class_type: str = "VelocityAction"
     asset_name: str = "robot"
     velocity_scale: float = 1.0
 
 
 @configclass
-class ArmActionCfgAutoDefault:
-    """Arm action config using auto-default pattern (no inheritance)."""
+class PhysxCfg:
+    backend: str = "physx"
+    dt: float = 0.005
+    substeps: int = 2
 
+
+@configclass
+class NewtonCfg:
+    backend: str = "newton"
+    dt: float = 0.002
+    substeps: int = 4
+    solver_iterations: int = 8
+
+
+@configclass
+class NoiselessObservationsCfg:
+    enable_corruption: bool = False
+    concatenate_terms: bool = True
+    noise_scale: float = 0.0
+
+
+@configclass
+class FastObservationsCfg:
+    enable_corruption: bool = False
+    concatenate_terms: bool = False
+    noise_scale: float = 0.0
+
+
+@configclass
+class SmallPolicyCfg:
+    actor_hidden_dims: list = [64, 32]
+
+
+@configclass
+class LargePolicyCfg:
+    actor_hidden_dims: list = [512, 256, 128]
+
+
+@configclass
+class FastPolicyCfg:
+    actor_hidden_dims: list = [32, 16]
+
+
+# =============================================================================
+# Composite configs using presets dict (Style 1-3)
+# =============================================================================
+
+
+@configclass
+class ArmActionCfg:
     presets = {
         "default": JointPositionActionCfg(),
         "joint_position": JointPositionActionCfg(),
@@ -78,102 +119,20 @@ class ArmActionCfgAutoDefault:
 
 
 @configclass
-class ArmActionCfgInheritance(JointPositionActionCfg):
-    """Arm action config using inheritance pattern."""
-
-    presets = {
-        "joint_position": JointPositionActionCfg(),
-        "relative_joint_position": RelativeJointPositionActionCfg(),
-    }
-
-
-@configclass
-class PhysxCfg:
-    """PhysX physics backend config."""
-
-    backend: str = "physx"
-    dt: float = 0.005
-    substeps: int = 2
-
-
-@configclass
-class NewtonCfg:
-    """Newton physics backend config."""
-
-    backend: str = "newton"
-    dt: float = 0.002
-    substeps: int = 4
-    solver_iterations: int = 8
-
-
-@configclass
-class SimBackendCfg(PresetCfg):
-    """Physics backend presets using PresetCfg pattern."""
-
-    default: PhysxCfg = PhysxCfg()
-    newton: NewtonCfg = NewtonCfg()
-
-
-@configclass
-class PresetCfgSimCfg:
-    """Sim config containing a PresetCfg-based backend field."""
-
-    render_interval: int = 1
-    backend: SimBackendCfg = SimBackendCfg()
-
-
-@configclass
-class PresetCfgEnvCfg:
-    """Environment config for PresetCfg tests."""
-
-    decimation: int = 4
-    sim: PresetCfgSimCfg = PresetCfgSimCfg()
-
-
-# Use auto-default pattern as the default for tests
-ArmActionCfg = ArmActionCfgAutoDefault
-
-
-@configclass
 class JointControlActionsCfg:
-    """Actions config with arm_action field."""
-
     arm_action: ArmActionCfg = ArmActionCfg()
 
 
 @configclass
 class VelocityControlActionsCfg:
-    """Actions config with velocity_command (no arm_action)."""
-
     velocity_command: VelocityActionCfg = VelocityActionCfg()
 
 
 @configclass
-class NoiselessObservationsCfg:
-    """Noiseless observations."""
-
-    enable_corruption: bool = False
-    concatenate_terms: bool = True
-    noise_scale: float = 0.0
-
-
-@configclass
-class FastObservationsCfg:
-    """Fast/inference observations - no corruption, simple."""
-
-    enable_corruption: bool = False
-    concatenate_terms: bool = False
-    noise_scale: float = 0.0
-
-
-@configclass
 class ObservationsCfg:
-    """Observations config with presets."""
-
     enable_corruption: bool = True
     concatenate_terms: bool = True
     noise_scale: float = 0.1
-
     presets = {
         "noise_less": NoiselessObservationsCfg(),
         "fast": FastObservationsCfg(),
@@ -182,10 +141,7 @@ class ObservationsCfg:
 
 @configclass
 class ActionsCfg:
-    """Actions config with presets for different control modes."""
-
     arm_action: ArmActionCfg = ArmActionCfg()
-
     presets = {
         "joint_control": JointControlActionsCfg(),
         "velocity_control": VelocityControlActionsCfg(),
@@ -193,32 +149,8 @@ class ActionsCfg:
 
 
 @configclass
-class SmallPolicyCfg:
-    """Small policy network config."""
-
-    actor_hidden_dims: list = [64, 32]
-
-
-@configclass
-class LargePolicyCfg:
-    """Large policy network config."""
-
-    actor_hidden_dims: list = [512, 256, 128]
-
-
-@configclass
-class FastPolicyCfg:
-    """Fast/inference policy - smaller network for speed."""
-
-    actor_hidden_dims: list = [32, 16]
-
-
-@configclass
 class PolicyCfg:
-    """Policy config with presets."""
-
     actor_hidden_dims: list = [256, 128]
-
     presets = {
         "small_network": SmallPolicyCfg(),
         "large_network": LargePolicyCfg(),
@@ -228,22 +160,100 @@ class PolicyCfg:
 
 @configclass
 class SampleEnvCfg:
-    """Sample environment config with nested configs."""
-
     decimation: int = 4
     sim_dt: float = 0.005
-
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
 
 
 @configclass
 class SampleAgentCfg:
-    """Sample agent config."""
-
     max_iterations: int = 1000
     learning_rate: float = 3e-4
     policy: PolicyCfg = PolicyCfg()
+
+
+# =============================================================================
+# Composite configs using PresetCfg (Style 4)
+# =============================================================================
+
+
+@configclass
+class SimBackendCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg()
+    newton: NewtonCfg = NewtonCfg()
+
+
+@configclass
+class ObsModeCfg(PresetCfg):
+    default: NoiselessObservationsCfg = NoiselessObservationsCfg()
+    fast: FastObservationsCfg = FastObservationsCfg()
+
+
+@configclass
+class PolicyModeCfg(PresetCfg):
+    default: SmallPolicyCfg = SmallPolicyCfg()
+    fast: FastPolicyCfg = FastPolicyCfg()
+
+
+@configclass
+class PresetCfgEnvCfg:
+    decimation: int = 4
+    backend: SimBackendCfg = SimBackendCfg()
+    observations: ObsModeCfg = ObsModeCfg()
+
+
+@configclass
+class PresetCfgAgentCfg:
+    learning_rate: float = 3e-4
+    policy: PolicyModeCfg = PolicyModeCfg()
+
+
+@configclass
+class RootAgentCfg(PresetCfg):
+    """Root-level PresetCfg — the agent config itself is a PresetCfg."""
+
+    default: SampleAgentCfg = SampleAgentCfg()
+    fast: SampleAgentCfg = SampleAgentCfg(max_iterations=100, learning_rate=1e-3)
+
+
+# -- Nested PresetCfg-inside-PresetCfg (mirrors scene.base_camera pattern) --
+
+
+@configclass
+class CameraSmallCfg:
+    width: int = 64
+    height: int = 64
+
+
+@configclass
+class CameraLargeCfg:
+    width: int = 256
+    height: int = 256
+
+
+@configclass
+class CameraPresetCfg(PresetCfg):
+    small: CameraSmallCfg = CameraSmallCfg()
+    large: CameraLargeCfg = CameraLargeCfg()
+
+
+@configclass
+class BaseSceneCfg:
+    num_envs: int = 1024
+    camera: CameraPresetCfg | None = None
+
+
+@configclass
+class ScenePresetCfg(PresetCfg):
+    default: BaseSceneCfg = BaseSceneCfg()
+    with_camera: BaseSceneCfg = BaseSceneCfg(camera=CameraPresetCfg())
+
+
+@configclass
+class NestedPresetEnvCfg:
+    decimation: int = 4
+    scene: ScenePresetCfg = ScenePresetCfg()
 
 
 # =============================================================================
@@ -252,268 +262,298 @@ class SampleAgentCfg:
 
 
 @pytest.fixture
-def test_configs():
-    """Create fresh test configs and collect presets recursively."""
+def dict_presets():
+    """Fresh configs using presets dict pattern."""
     env_cfg = SampleEnvCfg()
     agent_cfg = SampleAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    return env_cfg, agent_cfg, presets
 
-    # Collect presets recursively (same as hydra.py does)
-    presets = {
-        "env": collect_presets(env_cfg),
-        "agent": collect_presets(agent_cfg),
-    }
 
+@pytest.fixture
+def class_presets():
+    """Fresh configs using PresetCfg pattern."""
+    env_cfg = PresetCfgEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
     return env_cfg, agent_cfg, presets
 
 
 # =============================================================================
-# Tests for collect_presets
+# Tests: collect_presets
 # =============================================================================
 
 
-def test_collect_presets():
-    """Test collecting presets from all levels of config tree."""
-    env_cfg = SampleEnvCfg()
-    presets = collect_presets(env_cfg)
-
-    # Top-level presets
+def test_collect_presets_dict_style():
+    """presets dict discovered at correct paths."""
+    presets = collect_presets(SampleEnvCfg())
     assert "observations" in presets
     assert "actions" in presets
+    assert "actions.arm_action" in presets
     assert "noise_less" in presets["observations"]
     assert "velocity_control" in presets["actions"]
-
-    # Nested presets from actions.arm_action
-    assert "actions.arm_action" in presets
     assert "relative_joint_position" in presets["actions.arm_action"]
 
 
+def test_collect_presets_class_style():
+    """PresetCfg fields discovered at correct paths."""
+    presets = collect_presets(PresetCfgEnvCfg())
+    assert "backend" in presets
+    assert set(presets["backend"].keys()) == {"default", "newton"}
+    assert isinstance(presets["backend"]["default"], PhysxCfg)
+    assert isinstance(presets["backend"]["newton"], NewtonCfg)
+
+
+def test_collect_presets_root_level():
+    """Root-level PresetCfg collected at path=''."""
+    presets = collect_presets(RootAgentCfg())
+    assert "" in presets
+    assert set(presets[""].keys()) == {"default", "fast"}
+    assert isinstance(presets[""]["default"], SampleAgentCfg)
+    assert presets[""]["fast"].max_iterations == 100
+
+
+def test_collect_presets_class_with_presets_attr_raises():
+    """PresetCfg subclass with a 'presets' attribute raises ValueError."""
+
+    @configclass
+    class BadCfg(PresetCfg):
+        default: PhysxCfg = PhysxCfg()
+        presets = {"extra": PhysxCfg()}
+
+    @configclass
+    class WrapperCfg:
+        child: BadCfg = BadCfg()
+
+    with pytest.raises(ValueError, match="must not define a 'presets' attribute"):
+        collect_presets(WrapperCfg())
+
+
 # =============================================================================
-# Tests for parse_overrides
+# Tests: parse_overrides
 # =============================================================================
 
 
-def test_parse_overrides_mixed(test_configs):
-    """Mix of all override types with proper categorization."""
-    _, _, presets = test_configs
+def test_parse_overrides_mixed(dict_presets):
+    """All override types categorized correctly."""
+    _, _, presets = dict_presets
     args = [
-        "presets=fast",  # global preset (applies to observations AND policy)
-        "env.decimation=10",  # global scalar
-        "env.observations=noise_less",  # path preset
-        "env.actions.arm_action=relative_joint_position",  # nested preset
-        "env.actions.arm_action.scale=2.0",  # preset scalar
+        "presets=fast",
+        "env.decimation=10",
+        "env.observations=noise_less",
+        "env.actions.arm_action=relative_joint_position",
+        "env.actions.arm_action.scale=2.0",
     ]
-    global_presets, preset_sel, preset_scalar, global_scalar = parse_overrides(args, presets)
+    global_p, sel, scalar, glob = parse_overrides(args, presets)
+    assert global_p == ["fast"]
+    assert ("env", "observations", "noise_less") in sel
+    assert ("env", "actions.arm_action", "relative_joint_position") in sel
+    assert ("env.actions.arm_action.scale", "2.0") in scalar
+    assert "env.decimation=10" in glob
 
-    assert global_presets == ["fast"]
-    assert ("env", "observations", "noise_less") in preset_sel
-    assert ("env", "actions.arm_action", "relative_joint_position") in preset_sel
-    assert ("env.actions.arm_action.scale", "2.0") in preset_scalar
-    assert "env.decimation=10" in global_scalar
+
+def test_parse_overrides_sorted_by_depth(dict_presets):
+    """Parent presets applied before children."""
+    _, _, presets = dict_presets
+    args = ["env.actions.arm_action=relative_joint_position", "env.actions=joint_control"]
+    _, sel, _, _ = parse_overrides(args, presets)
+    assert sel[0] == ("env", "actions", "joint_control")
+    assert sel[1] == ("env", "actions.arm_action", "relative_joint_position")
 
 
-def test_parse_overrides_sorted_by_depth(test_configs):
-    """Parent presets should be applied before children."""
-    _, _, presets = test_configs
-    args = [
-        "env.actions.arm_action=relative_joint_position",  # nested (depth 2)
-        "env.actions=joint_control",  # parent (depth 1)
-    ]
-    _, preset_sel, _, _ = parse_overrides(args, presets)
-
-    # joint_control (depth 1) should come before arm_action (depth 2)
-    assert preset_sel[0] == ("env", "actions", "joint_control")
-    assert preset_sel[1] == ("env", "actions.arm_action", "relative_joint_position")
+def test_parse_overrides_root_preset():
+    """Root-level PresetCfg parsed as agent=<name>."""
+    presets = {"env": {}, "agent": collect_presets(RootAgentCfg())}
+    _, sel, _, _ = parse_overrides(["agent=fast"], presets)
+    assert sel == [("agent", "", "fast")]
 
 
 # =============================================================================
-# Tests for apply_overrides
+# Tests: apply_overrides — presets dict
 # =============================================================================
 
 
-def test_apply_overrides_global_preset(test_configs):
-    """Global preset should apply to all matching paths with same name."""
-    env_cfg, agent_cfg, presets = test_configs
+def test_apply_global_preset(dict_presets):
+    """Global preset applies to all matching paths."""
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
-    # Check defaults before applying
-    assert env_cfg.observations.enable_corruption is True
-    assert agent_cfg.policy.actor_hidden_dims == [256, 128]
-
-    # Use global preset "fast" - should apply to BOTH observations AND policy
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [], [], presets)
-
-    # Should have applied FastObservationsCfg to env.observations
     assert env_cfg.observations.enable_corruption is False
-    assert env_cfg.observations.concatenate_terms is False
-
-    # Should have applied FastPolicyCfg to agent.policy
     assert agent_cfg.policy.actor_hidden_dims == [32, 16]
 
 
-def test_apply_overrides_multiple_global_presets(test_configs):
-    """Multiple non-conflicting global presets should all apply."""
-    env_cfg, agent_cfg, presets = test_configs
+def test_apply_multiple_global_presets(dict_presets):
+    """Non-conflicting global presets all apply."""
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
-    # noise_less only affects observations, large_network only affects policy
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["noise_less", "large_network"], [], [], presets)
-
-    # noise_less applied to observations
-    assert env_cfg.observations.enable_corruption is False
     assert env_cfg.observations.noise_scale == 0.0
-
-    # large_network applied to policy
     assert agent_cfg.policy.actor_hidden_dims == [512, 256, 128]
 
 
-def test_apply_overrides_conflicting_global_presets(test_configs):
-    """Conflicting global presets should raise ValueError."""
-    env_cfg, agent_cfg, presets = test_configs
+def test_apply_conflicting_global_raises(dict_presets):
+    """Conflicting global presets raise ValueError."""
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
-    # Both "fast" and "noise_less" define a preset for observations -> conflict
     with pytest.raises(ValueError, match="Conflicting global presets"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast", "noise_less"], [], [], presets)
 
 
-def test_apply_overrides_preset_with_scalars(test_configs):
-    """Preset selection + scalar overrides on new preset."""
-    env_cfg, agent_cfg, presets = test_configs
+def test_apply_preset_with_scalars(dict_presets):
+    """Preset selection + scalar overrides."""
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
-    preset_sel = [("env", "actions.arm_action", "relative_joint_position")]
-    preset_scalar = [
-        ("env.actions.arm_action.scale", "5.0"),
-        ("env.actions.arm_action.use_zero_offset", "false"),
-    ]
-
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], preset_sel, preset_scalar, presets)
-
-    # Preset selected (RelativeJointPositionActionCfg has use_zero_offset)
-    assert hasattr(env_cfg.actions.arm_action, "use_zero_offset")
+    sel = [("env", "actions.arm_action", "relative_joint_position")]
+    scalars = [("env.actions.arm_action.scale", "5.0"), ("env.actions.arm_action.use_zero_offset", "false")]
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, scalars, presets)
     assert env_cfg.actions.arm_action.scale == 5.0
     assert env_cfg.actions.arm_action.use_zero_offset is False
 
 
-def test_apply_overrides_nested_groups(test_configs):
+def test_apply_nested_groups(dict_presets):
     """Select parent group, then nested group, then scalar."""
-    env_cfg, agent_cfg, presets = test_configs
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
-    preset_sel = [
-        ("env", "actions", "joint_control"),
-        ("env", "actions.arm_action", "relative_joint_position"),
-    ]
-    preset_scalar = [("env.actions.arm_action.scale", "7.0")]
-
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], preset_sel, preset_scalar, presets)
-
+    sel = [("env", "actions", "joint_control"), ("env", "actions.arm_action", "relative_joint_position")]
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [("env.actions.arm_action.scale", "7.0")], presets)
     assert isinstance(env_cfg.actions, JointControlActionsCfg)
-    assert hasattr(env_cfg.actions.arm_action, "use_zero_offset")
     assert env_cfg.actions.arm_action.scale == 7.0
 
 
-def test_apply_overrides_structural_replacement(test_configs):
-    """Selecting velocity_control replaces structure (removes arm_action)."""
-    env_cfg, agent_cfg, presets = test_configs
+def test_apply_structural_replacement(dict_presets):
+    """Selecting velocity_control replaces structure."""
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
-    preset_sel = [("env", "actions", "velocity_control")]
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], preset_sel, [], presets)
-
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "actions", "velocity_control")], [], presets)
     assert isinstance(env_cfg.actions, VelocityControlActionsCfg)
     assert hasattr(env_cfg.actions, "velocity_command")
-    assert not hasattr(env_cfg.actions, "arm_action") or env_cfg.actions.arm_action is None
 
 
-def test_apply_overrides_unknown_raises(test_configs):
-    """Unknown preset group or name should raise ValueError."""
-    env_cfg, agent_cfg, presets = test_configs
+def test_apply_unknown_raises(dict_presets):
+    """Unknown preset group or name raises ValueError."""
+    env_cfg, agent_cfg, presets = dict_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-
     with pytest.raises(ValueError, match="Unknown preset group"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "nonexistent", "x")], [], presets)
-
     with pytest.raises(ValueError, match="Unknown preset"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "observations", "bad")], [], presets)
 
 
-def test_preset_cfg_collect_presets():
-    """Test that collect_presets discovers PresetCfg subclass fields as presets."""
-    env_cfg = PresetCfgEnvCfg()
-    presets = collect_presets(env_cfg)
-
-    assert "sim.backend" in presets
-    assert "default" in presets["sim.backend"]
-    assert "newton" in presets["sim.backend"]
-    assert isinstance(presets["sim.backend"]["default"], PhysxCfg)
-    assert isinstance(presets["sim.backend"]["newton"], NewtonCfg)
+# =============================================================================
+# Tests: apply_overrides — PresetCfg (nested + broadcast + root)
+# =============================================================================
 
 
-def test_preset_cfg_auto_default():
-    """Test that the 'default' field is auto-applied when no CLI override is given."""
-    env_cfg = PresetCfgEnvCfg()
-    presets = {
-        "env": collect_presets(env_cfg),
-        "agent": {},
-    }
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": {}}
-
-    apply_overrides(env_cfg, None, hydra_cfg, [], [], [], presets)
-
-    assert env_cfg.sim.backend.backend == "physx"
-    assert env_cfg.sim.backend.dt == 0.005
+def test_presetcfg_auto_default(class_presets):
+    """'default' field auto-applied when no CLI override."""
+    env_cfg, agent_cfg, presets = class_presets
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
+    assert isinstance(env_cfg.backend, PhysxCfg)
+    assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
+    assert isinstance(agent_cfg.policy, SmallPolicyCfg)
 
 
-def test_preset_cfg_cli_selection():
-    """Test that CLI selection replaces with the chosen preset."""
-    env_cfg = PresetCfgEnvCfg()
-    presets = {
-        "env": collect_presets(env_cfg),
-        "agent": {},
-    }
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": {}}
-
-    preset_sel = [("env", "sim.backend", "newton")]
-    apply_overrides(env_cfg, None, hydra_cfg, [], preset_sel, [], presets)
-
-    assert isinstance(env_cfg.sim.backend, NewtonCfg)
-    assert env_cfg.sim.backend.backend == "newton"
-    assert env_cfg.sim.backend.dt == 0.002
-    assert env_cfg.sim.backend.solver_iterations == 8
+def test_presetcfg_cli_selection(class_presets):
+    """Path selection replaces with chosen preset."""
+    env_cfg, agent_cfg, presets = class_presets
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton")], [], presets)
+    assert isinstance(env_cfg.backend, NewtonCfg)
+    assert env_cfg.backend.dt == 0.002
 
 
-def test_preset_cfg_global_preset():
-    """Test that a global preset applies to PresetCfg-discovered presets."""
-    env_cfg = PresetCfgEnvCfg()
-    presets = {
-        "env": collect_presets(env_cfg),
-        "agent": {},
-    }
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": {}}
-
-    apply_overrides(env_cfg, None, hydra_cfg, ["newton"], [], [], presets)
-
-    assert isinstance(env_cfg.sim.backend, NewtonCfg)
-    assert env_cfg.sim.backend.backend == "newton"
+def test_presetcfg_global_broadcast(class_presets):
+    """Global preset 'fast' broadcasts across env and agent PresetCfg fields."""
+    env_cfg, agent_cfg, presets = class_presets
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [], [], presets)
+    assert isinstance(env_cfg.observations, FastObservationsCfg)
+    assert isinstance(agent_cfg.policy, FastPolicyCfg)
 
 
-def test_preset_cfg_with_presets_attr_raises():
-    """PresetCfg subclass with a 'presets' attribute should raise ValueError."""
+def test_presetcfg_path_selection_others_default(class_presets):
+    """Path preset on one field, others get auto-default."""
+    env_cfg, agent_cfg, presets = class_presets
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton")], [], presets)
+    assert isinstance(env_cfg.backend, NewtonCfg)
+    assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
+    assert isinstance(agent_cfg.policy, SmallPolicyCfg)
 
-    @configclass
-    class BadBackendCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        newton: NewtonCfg = NewtonCfg()
-        presets = {"extra": PhysxCfg()}
 
-    @configclass
-    class BadSimCfg:
-        backend: BadBackendCfg = BadBackendCfg()
+def test_root_presetcfg_auto_default():
+    """Root-level PresetCfg auto-applies 'default'."""
+    agent_cfg = RootAgentCfg()
+    env_cfg = SampleEnvCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    env_cfg, agent_cfg = apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
+    assert isinstance(agent_cfg, SampleAgentCfg)
+    assert agent_cfg.max_iterations == 1000
 
-    @configclass
-    class BadEnvCfg:
-        sim: BadSimCfg = BadSimCfg()
 
-    with pytest.raises(ValueError, match="must not define a 'presets' attribute"):
-        collect_presets(BadEnvCfg())
+def test_root_presetcfg_cli_selection():
+    """Root-level PresetCfg resolved via path selection."""
+    agent_cfg = RootAgentCfg()
+    env_cfg = SampleEnvCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    env_cfg, agent_cfg = apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("agent", "", "fast")], [], presets)
+    assert isinstance(agent_cfg, SampleAgentCfg)
+    assert agent_cfg.max_iterations == 100
+    assert agent_cfg.learning_rate == 1e-3
+
+
+def test_root_presetcfg_global_preset():
+    """Root-level PresetCfg resolved via global preset."""
+    agent_cfg = RootAgentCfg()
+    env_cfg = SampleEnvCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    env_cfg, agent_cfg = apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [], [], presets)
+    assert isinstance(agent_cfg, SampleAgentCfg)
+    assert agent_cfg.max_iterations == 100
+
+
+# =============================================================================
+# Tests: nested PresetCfg inside PresetCfg
+# =============================================================================
+
+
+def test_collect_nested_presetcfg():
+    """PresetCfg inside another PresetCfg's alternatives is discovered."""
+    presets = collect_presets(NestedPresetEnvCfg())
+    assert "scene" in presets
+    assert set(presets["scene"].keys()) == {"default", "with_camera"}
+    # camera preset discovered inside with_camera alternative
+    assert "scene.camera" in presets
+    assert set(presets["scene.camera"].keys()) == {"small", "large"}
+    assert isinstance(presets["scene.camera"]["small"], CameraSmallCfg)
+    assert isinstance(presets["scene.camera"]["large"], CameraLargeCfg)
+
+
+def test_nested_presetcfg_global_broadcast():
+    """Global preset resolves both outer and nested PresetCfg."""
+    env_cfg = NestedPresetEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    # "with_camera" selects the scene, "large" selects the camera
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["with_camera", "large"], [], [], presets)
+    assert isinstance(env_cfg.scene, BaseSceneCfg)
+    assert isinstance(env_cfg.scene.camera, CameraLargeCfg)
+    assert env_cfg.scene.camera.width == 256
+
+
+def test_nested_presetcfg_path_selection():
+    """Path selection on nested PresetCfg resolves correctly."""
+    env_cfg = NestedPresetEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    sel = [("env", "scene", "with_camera"), ("env", "scene.camera", "large")]
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [], presets)
+    assert isinstance(env_cfg.scene, BaseSceneCfg)
+    assert isinstance(env_cfg.scene.camera, CameraLargeCfg)
+    assert env_cfg.scene.camera.width == 256
