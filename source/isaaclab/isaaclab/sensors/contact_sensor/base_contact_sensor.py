@@ -127,7 +127,7 @@ class BaseContactSensor(SensorBase):
             env_mask: The masks of the environments to reset. Defaults to None: all the environments are reset.
         """
         # reset the timers and counters
-        super().reset(env_ids)
+        super().reset(env_ids, env_mask)
 
     @abstractmethod
     def find_bodies(

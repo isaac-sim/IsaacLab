@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
+from isaaclab_experimental.utils.warp import is_warp_capturable
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import class_to_dict, string_to_callable
@@ -400,6 +401,12 @@ class ManagerBase(ABC):
                     f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
+
+        # register non-capturable terms with the call switch for mode=2 fallback
+        if not is_warp_capturable(term_cfg.func):
+            switch = getattr(self._env, "_manager_call_switch", None)
+            if switch is not None:
+                switch.register_manager_capturability(type(self).__name__, False)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing

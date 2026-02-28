@@ -39,6 +39,18 @@ parser.add_argument(
     help="Enable Isaac Lab timers (use --no-timer to disable).",
 )
 parser.add_argument(
+    "--step-timer",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="Enable granular timer sections in environment step().",
+)
+parser.add_argument(
+    "--reset-timer",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="Enable granular timer sections in environment reset().",
+)
+parser.add_argument(
     "--manager_call_config",
     type=str,
     default=None,
@@ -91,12 +103,18 @@ import os
 import torch
 from datetime import datetime
 
+import isaaclab_experimental.envs.manager_based_rl_env_warp as manager_based_rl_env_warp
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+import isaaclab.envs.manager_based_rl_env as manager_based_rl_env
 from isaaclab.utils.timer import Timer
 
 Timer.enable = args_cli.timer
 Timer.enable_display_output = args_cli.timer
+manager_based_rl_env.TIMER_ENABLED_STEP = args_cli.step_timer
+manager_based_rl_env.TIMER_ENABLED_RESET_IDX = args_cli.reset_timer
+manager_based_rl_env_warp.TIMER_ENABLED_STEP = args_cli.step_timer
+manager_based_rl_env_warp.TIMER_ENABLED_RESET_IDX = args_cli.reset_timer
 
 import isaaclab_tasks_experimental  # noqa: F401
 
