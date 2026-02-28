@@ -9,35 +9,22 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import re
 from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import Axis, BroadPhaseMode, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.sensors import SensorContact as NewtonContactSensor
+from newton.sensors import SensorContact
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
-
-
-def flipped_match(x: str, y: str) -> bool:
-    """Flipped match function for contact partner matching.
-
-    Args:
-        x: The body/shape name in the simulation.
-        y: The body/shape name in the contact view.
-
-    Returns:
-        True if the body/shape name matches the contact view pattern.
-    """
-    return re.match(y, x) is not None
 
 
 class NewtonManager(PhysicsManager):
@@ -72,7 +59,7 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
-    _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
+    _newton_contact_sensors: dict = {}  # Maps sensor_key to SensorContact
     _report_contacts: bool = False
 
     # CUDA graphing
@@ -248,7 +235,7 @@ class NewtonManager(PhysicsManager):
             import usdrt
 
             cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(cls._model.body_key):
+            for i, prim_path in enumerate(cls._model.body_label):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
@@ -400,7 +387,7 @@ class NewtonManager(PhysicsManager):
             eval_contacts = contacts if contacts is not None else cls._contacts
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
-                sensor.eval(eval_contacts)
+                sensor.update(eval_contacts)
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
@@ -453,18 +440,23 @@ class NewtonManager(PhysicsManager):
         contact_partners_shape_expr: str | list[str] | None = None,
         prune_noncolliding: bool = True,
         verbose: bool = False,
-    ) -> None:
+    ) -> tuple:
         """Add a contact sensor for reporting contacts between bodies/shapes.
+
+        Regex expressions are resolved to ``list[int]`` indices before being forwarded to the Newton sensor.
 
         Note: Only one contact sensor can be active at a time.
 
         Args:
-            body_names_expr: Expression for body names to sense.
-            shape_names_expr: Expression for shape names to sense.
-            contact_partners_body_expr: Expression for contact partner body names.
-            contact_partners_shape_expr: Expression for contact partner shape names.
+            body_names_expr: Regex expression for body names to sense.
+            shape_names_expr: Regex expression for shape names to sense.
+            contact_partners_body_expr: Regex expression for contact partner body names.
+            contact_partners_shape_expr: Regex expression for contact partner shape names.
             prune_noncolliding: Make force matrix sparse using collision pairs.
             verbose: Print verbose information.
+
+        Returns:
+            Hashable sensor key for looking up the sensor in :attr:`_newton_contact_sensors`.
         """
         # Validate inputs
         if body_names_expr is None and shape_names_expr is None:
@@ -474,23 +466,46 @@ class NewtonManager(PhysicsManager):
         if contact_partners_body_expr is not None and contact_partners_shape_expr is not None:
             raise ValueError("Only one of contact_partners_body_expr or contact_partners_shape_expr must be provided")
 
+        # Resolve regex expressions to integer indices
+        body_indices = resolve_matching_names(body_names_expr, cls._model.body_label)[0] if body_names_expr else None
+        shape_indices = (
+            resolve_matching_names(shape_names_expr, cls._model.shape_label)[0] if shape_names_expr else None
+        )
+        partner_body_indices = (
+            resolve_matching_names(contact_partners_body_expr, cls._model.body_label)[0]
+            if contact_partners_body_expr
+            else None
+        )
+        partner_shape_indices = (
+            resolve_matching_names(contact_partners_shape_expr, cls._model.shape_label)[0]
+            if contact_partners_shape_expr
+            else None
+        )
+
         # Log sensor configuration
         sensor_target = body_names_expr or shape_names_expr
         partner_filter = contact_partners_body_expr or contact_partners_shape_expr or "all bodies/shapes"
         logger.info(f"Adding contact sensor for {sensor_target} with filter {partner_filter}")
 
-        # Create unique key for this sensor
-        sensor_key = (body_names_expr, shape_names_expr, contact_partners_body_expr, contact_partners_shape_expr)
+        # Create unique key from the original expressions
+        def _as_key(val):
+            return tuple(val) if isinstance(val, list) else val
+
+        sensor_key = (
+            _as_key(body_names_expr),
+            _as_key(shape_names_expr),
+            _as_key(contact_partners_body_expr),
+            _as_key(contact_partners_shape_expr),
+        )
 
         # Create and store the sensor
         # Note: SensorContact constructor requests 'force' attribute from the model
-        newton_sensor = NewtonContactSensor(
+        newton_sensor = SensorContact(
             cls._model,
-            sensing_obj_bodies=body_names_expr,
-            sensing_obj_shapes=shape_names_expr,
-            counterpart_bodies=contact_partners_body_expr,
-            counterpart_shapes=contact_partners_shape_expr,
-            match_fn=flipped_match,
+            sensing_obj_bodies=body_indices,
+            sensing_obj_shapes=shape_indices,
+            counterpart_bodies=partner_body_indices,
+            counterpart_shapes=partner_shape_indices,
             include_total=True,
             prune_noncolliding=prune_noncolliding,
             verbose=verbose,
@@ -501,7 +516,7 @@ class NewtonManager(PhysicsManager):
         # Regenerate contacts only if they were already created without force attribute
         # If solver is not initialized, contacts will be created with force in initialize_solver()
         if cls._solver is not None and cls._contacts is not None:
-            # Only regenerate if contacts don't have force attribute (sensor.eval() requires it)
+            # Only regenerate if contacts don't have force attribute (sensor.update() requires it)
             if cls._contacts.force is None:
                 cls._initialize_contacts()
 

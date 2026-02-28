@@ -615,25 +615,18 @@ class InteractiveScene:
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 if isinstance(asset_cfg, ContactSensorCfg):
-                    if asset_cfg.shape_path is not None:
-                        updated_shape_names_expr = []
-                        for filter_prim_path in asset_cfg.shape_path:
-                            updated_shape_names_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                        asset_cfg.shape_path = updated_shape_names_expr
                     if asset_cfg.filter_prim_paths_expr is not None:
-                        updated_contact_partners_body_expr = []
-                        for contact_partners_body_expr in asset_cfg.filter_prim_paths_expr:
-                            updated_contact_partners_body_expr.append(
-                                contact_partners_body_expr.format(ENV_REGEX_NS=self.env_regex_ns)
-                            )
-                        asset_cfg.filter_prim_paths_expr = updated_contact_partners_body_expr
-                    if asset_cfg.filter_shape_paths_expr is not None:
-                        updated_contact_partners_shape_expr = []
-                        for contact_partners_shape_expr in asset_cfg.filter_shape_paths_expr:
-                            updated_contact_partners_shape_expr.append(
-                                contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns)
-                            )
-                        asset_cfg.filter_shape_paths_expr = updated_contact_partners_shape_expr
+                        asset_cfg.filter_prim_paths_expr = [
+                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_prim_paths_expr
+                        ]
+                    if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr is not None:
+                        asset_cfg.sensor_shape_prim_expr = [
+                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.sensor_shape_prim_expr
+                        ]
+                    if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr is not None:
+                        asset_cfg.filter_shape_prim_expr = [
+                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_shape_prim_expr
+                        ]
                 elif isinstance(asset_cfg, FrameTransformerCfg):
                     if asset_cfg.target_frames is not None:
                         for target_frame in asset_cfg.target_frames:

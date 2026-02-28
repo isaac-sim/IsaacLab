@@ -6,9 +6,11 @@
 """Sub-module for contact sensor based on :class:`newton.SensorContact`."""
 
 from .contact_sensor import ContactSensor
+from .contact_sensor_cfg import NewtonContactSensorCfg
 from .contact_sensor_data import ContactSensorData
 
 __all__ = [
     "ContactSensor",
     "ContactSensorData",
+    "NewtonContactSensorCfg",
 ]

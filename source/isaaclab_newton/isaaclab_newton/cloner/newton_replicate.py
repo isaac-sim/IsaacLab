@@ -80,7 +80,7 @@ def newton_replicate(
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
-            keys, worlds_arr = getattr(builder, f"{t}_key"), getattr(builder, f"{t}_world")
+            keys, worlds_arr = getattr(builder, f"{t}_label"), getattr(builder, f"{t}_world")
             for k, w in enumerate(worlds_arr):
                 if w in world_roots and keys[k].startswith(src_path):
                     keys[k] = swap(keys[k], world_roots[w])

@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
-from newton.sensors import MatchKind
 from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
@@ -33,6 +32,8 @@ from .contact_sensor_kernels import (
 if TYPE_CHECKING:
     from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
 
+    from .contact_sensor_cfg import NewtonContactSensorCfg
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,16 +50,26 @@ class ContactSensor(BaseContactSensor):
     .. _Newton SensorContact: https://newton-physics.github.io/newton/api/_generated/newton.sensors.SensorContact.html
     """
 
-    cfg: ContactSensorCfg
+    cfg: NewtonContactSensorCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: ContactSensorCfg):
+    def __init__(self, cfg: ContactSensorCfg | NewtonContactSensorCfg):
         """Initializes the contact sensor object.
 
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
+        from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
+
+        from .contact_sensor_cfg import NewtonContactSensorCfg
+
+        if isinstance(cfg, NewtonContactSensorCfg):
+            pass
+        elif isinstance(cfg, ContactSensorCfg):
+            cfg = NewtonContactSensorCfg.from_base_cfg(cfg)
+        else:
+            raise TypeError(f"Invalid config: {cfg}")
+
         super().__init__(cfg)
 
         # Create empty variables for storing output data
@@ -100,6 +111,7 @@ class ContactSensor(BaseContactSensor):
 
     @property
     def filter_object_names(self) -> list[str] | None:
+        """Ordered names of filter objects (counterparts) for contact filtering."""
         return self._filter_object_names
 
     @property
@@ -186,9 +198,10 @@ class ContactSensor(BaseContactSensor):
             abs_tol: The absolute tolerance for the comparison.
 
         Returns:
-            A boolean array indicating the sensors that have established contact within the last
-            :attr:`dt` seconds. Shape is (N, S), where N is the number of environments and S is the
-            number of sensors.
+            A float array (1.0/0.0) indicating the sensors that have established contact within the
+            last :attr:`dt` seconds. Shape is (N, S), where N is the number of environments and S is
+            the number of sensors. The returned array is a shared internal buffer; it is invalidated
+            by the next call to :meth:`compute_first_contact` or :meth:`compute_first_air`.
 
         Raises:
             RuntimeError: If the sensor is not configured to track contact time.
@@ -226,8 +239,10 @@ class ContactSensor(BaseContactSensor):
             abs_tol: The absolute tolerance for the comparison.
 
         Returns:
-            A boolean array indicating the sensors that have broken contact within the last :attr:`dt` seconds.
-            Shape is (N, S), where N is the number of environments and S is the number of sensors.
+            A float array (1.0/0.0) indicating the sensors that have broken contact within the last
+            :attr:`dt` seconds. Shape is (N, S), where N is the number of environments and S is the
+            number of sensors. The returned array is a shared internal buffer; it is invalidated by
+            the next call to :meth:`compute_first_contact` or :meth:`compute_first_air`.
 
         Raises:
             RuntimeError: If the sensor is not configured to track contact time.
@@ -253,42 +268,21 @@ class ContactSensor(BaseContactSensor):
     """
 
     def _initialize_impl(self):
-        super()._initialize_impl()
         """Initializes the sensor-related handles and internal buffers."""
-        # construct regex expression for the sensor names
+        super()._initialize_impl()
 
-        if self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_paths_expr is not None:
-            self._generate_force_matrix = True
-        else:
-            self._generate_force_matrix = False
+        if self.cfg.force_threshold is None:
+            self.cfg.force_threshold = 0.0
 
-        sensor_body_regex = self.cfg.prim_path
-        if self.cfg.shape_path is not None:
-            sensor_shape_regex = "(" + "|".join(self.cfg.shape_path) + ")"
-        else:
-            sensor_shape_regex = None
-        if self.cfg.filter_prim_paths_expr is not None:
-            filter_object_body_regex = "(" + "|".join(self.cfg.filter_prim_paths_expr) + ")"
-        else:
-            filter_object_body_regex = None
-        if self.cfg.filter_shape_paths_expr is not None:
-            filter_object_shape_regex = "(" + "|".join(self.cfg.filter_shape_paths_expr) + ")"
-        else:
-            filter_object_shape_regex = None
-
-        # Store the sensor key for later lookup
-        self._sensor_key = (
-            sensor_body_regex,
-            sensor_shape_regex,
-            filter_object_body_regex,
-            filter_object_shape_regex,
+        self._generate_force_matrix = (
+            self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_prim_expr is not None
         )
 
-        NewtonManager.add_contact_sensor(
-            body_names_expr=sensor_body_regex,
-            shape_names_expr=sensor_shape_regex,
-            contact_partners_body_expr=filter_object_body_regex,
-            contact_partners_shape_expr=filter_object_shape_regex,
+        self._sensor_key = NewtonManager.add_contact_sensor(
+            body_names_expr=self.cfg.prim_path if self.cfg.sensor_shape_prim_expr is None else None,
+            shape_names_expr=self.cfg.sensor_shape_prim_expr,
+            contact_partners_body_expr=self.cfg.filter_prim_paths_expr,
+            contact_partners_shape_expr=self.cfg.filter_shape_prim_expr,
             prune_noncolliding=True,
         )
 
@@ -312,10 +306,10 @@ class ContactSensor(BaseContactSensor):
         # Assume homogeneous envs, i.e. all envs have the same number of sensors
         # Only get the names for the first env. Expected structure: /World/envs/env_.*/...
         def get_name(idx, match_kind):
-            if match_kind == MatchKind.BODY:
-                return NewtonManager._model.body_key[idx].split("/")[-1]
-            if match_kind == MatchKind.SHAPE:
-                return NewtonManager._model.shape_key[idx].split("/")[-1]
+            if match_kind == NewtonContactSensor.MatchKind.BODY:
+                return NewtonManager._model.body_label[idx].split("/")[-1]
+            if match_kind == NewtonContactSensor.MatchKind.SHAPE:
+                return NewtonManager._model.shape_label[idx].split("/")[-1]
             return "MATCH_ANY"
 
         self._sensor_names = [get_name(idx, kind) for idx, kind in self.contact_view.sensing_objs]
