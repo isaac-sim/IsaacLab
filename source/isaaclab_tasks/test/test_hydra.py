@@ -236,6 +236,7 @@ class CameraLargeCfg:
 class CameraPresetCfg(PresetCfg):
     small: CameraSmallCfg = CameraSmallCfg()
     large: CameraLargeCfg = CameraLargeCfg()
+    default: CameraSmallCfg = CameraSmallCfg()
 
 
 @configclass
@@ -528,9 +529,34 @@ def test_collect_nested_presetcfg():
     assert set(presets["scene"].keys()) == {"default", "with_camera"}
     # camera preset discovered inside with_camera alternative
     assert "scene.camera" in presets
-    assert set(presets["scene.camera"].keys()) == {"small", "large"}
+    assert set(presets["scene.camera"].keys()) == {"small", "large", "default"}
     assert isinstance(presets["scene.camera"]["small"], CameraSmallCfg)
     assert isinstance(presets["scene.camera"]["large"], CameraLargeCfg)
+
+
+def test_nested_presetcfg_pruned_when_parent_has_none():
+    """When scene auto-defaults to default (camera=None), nested camera preset is pruned."""
+    env_cfg = NestedPresetEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    # No CLI args → scene resolves to default (camera=None), camera preset must NOT apply
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
+    assert isinstance(env_cfg.scene, BaseSceneCfg)
+    assert env_cfg.scene.camera is None
+
+
+def test_nested_presetcfg_auto_default_with_camera():
+    """When with_camera scene is selected, camera auto-defaults to small (the default)."""
+    env_cfg = NestedPresetEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    # Only select with_camera scene, camera should auto-default to small
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["with_camera"], [], [], presets)
+    assert isinstance(env_cfg.scene, BaseSceneCfg)
+    assert isinstance(env_cfg.scene.camera, CameraSmallCfg)
+    assert env_cfg.scene.camera.width == 64
 
 
 def test_nested_presetcfg_global_broadcast():

@@ -336,6 +336,25 @@ def apply_overrides(
     """
     cfgs = {"env": env_cfg, "agent": agent_cfg}
 
+    def _path_reachable(sec: str, path: str) -> bool:
+        """Check that every ancestor along *path* is non-None on the live config.
+
+        For "scene.camera" we walk to ``cfg.scene`` and verify it is not None,
+        then check ``cfg.scene.camera`` is not None.  If any segment is missing
+        or None the child preset cannot be applied.
+        """
+        if not path:
+            return cfgs[sec] is not None
+        obj = cfgs[sec]
+        for part in path.split("."):
+            try:
+                obj = getattr(obj, part)
+            except (AttributeError, TypeError):
+                return False
+            if obj is None:
+                return False
+        return True
+
     def _apply_node(sec: str, path: str, node):
         """Replace a config node at the given section/path, handling root (path='')."""
         node_dict = node.to_dict() if hasattr(node, "to_dict") else dict(node)
@@ -346,23 +365,19 @@ def apply_overrides(
             _setattr(cfgs[sec], path, node)
             _setattr(hydra_cfg, f"{sec}.{path}", node_dict)
 
-    # Build set of paths that will be explicitly selected
-    selected_paths = {f"{sec}.{path}" if path else sec for sec, path, _ in preset_sel}
-    for name in global_presets:
-        for sec in ("env", "agent"):
-            for path, path_presets in presets.get(sec, {}).items():
-                if name in path_presets:
-                    selected_paths.add(f"{sec}.{path}" if path else sec)
+    # --- Phase 1: Determine selected preset name for every path ---------------
+    # Start with explicit path selections
+    resolved: dict[str, tuple[str, str, str]] = {}  # full_path -> (sec, path, name)
+    for sec, path, name in preset_sel:
+        if path not in presets.get(sec, {}):
+            raise ValueError(f"Unknown preset group: {sec}.{path}")
+        if name not in presets[sec][path]:
+            avail = list(presets[sec][path].keys())
+            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}")
+        full_path = f"{sec}.{path}" if path else sec
+        resolved[full_path] = (sec, path, name)
 
-    # 0. Auto-apply "default" presets for paths not explicitly selected
-    for sec in ("env", "agent"):
-        for path, path_presets in presets.get(sec, {}).items():
-            full_path = f"{sec}.{path}" if path else sec
-            if full_path not in selected_paths and "default" in path_presets:
-                if cfgs[sec] is not None:
-                    _apply_node(sec, path, path_presets["default"])
-
-    # 1. Apply global presets - find all paths with matching preset name
+    # Apply global presets (error on conflict)
     applied_by: dict[str, str] = {}
     for name in global_presets:
         for sec in ("env", "agent"):
@@ -375,17 +390,20 @@ def apply_overrides(
                             f"both define preset for '{full_path}'"
                         )
                     applied_by[full_path] = name
-                    if cfgs[sec] is not None:
-                        _apply_node(sec, path, path_presets[name])
+                    if full_path not in resolved:
+                        resolved[full_path] = (sec, path, name)
 
-    # 2. Apply path-specific preset selections (REPLACE entire section)
-    for sec, path, name in preset_sel:
-        if path not in presets.get(sec, {}):
-            raise ValueError(f"Unknown preset group: {sec}.{path}")
-        if name not in presets[sec][path]:
-            avail = list(presets[sec][path].keys())
-            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}")
-        if cfgs[sec] is not None:
+    # Fill remaining paths with "default" (if available)
+    for sec in ("env", "agent"):
+        for path, path_presets in presets.get(sec, {}).items():
+            full_path = f"{sec}.{path}" if path else sec
+            if full_path not in resolved and "default" in path_presets:
+                resolved[full_path] = (sec, path, "default")
+
+    # --- Phase 2: Apply in depth order, pruning unreachable children ----------
+    for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
+        sec, path, name = resolved[full_path]
+        if cfgs[sec] is not None and _path_reachable(sec, path):
             _apply_node(sec, path, presets[sec][path][name])
 
     # 3. Apply scalar overrides within preset paths
