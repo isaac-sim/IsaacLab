@@ -13,8 +13,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni.timeline
-
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import class_to_dict, string_to_callable
 
@@ -163,6 +161,8 @@ class ManagerBase(ABC):
             # is called
             # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
             # are resolved. Those have the order 10.
+            import omni.timeline  # noqa: PLC0415
+
             timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
             self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.PLAY),

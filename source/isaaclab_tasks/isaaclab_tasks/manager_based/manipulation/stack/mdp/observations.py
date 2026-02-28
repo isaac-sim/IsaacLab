@@ -54,9 +54,9 @@ def instance_randomize_cube_positions_in_world_frame(
     cube_2_pos_w = []
     cube_3_pos_w = []
     for env_id in range(env.num_envs):
-        cube_1_pos_w.append(wp.to_torch(cube_1.data.object_pos_w)[env_id, env.rigid_objects_in_focus[env_id][0], :3])
-        cube_2_pos_w.append(wp.to_torch(cube_2.data.object_pos_w)[env_id, env.rigid_objects_in_focus[env_id][1], :3])
-        cube_3_pos_w.append(wp.to_torch(cube_3.data.object_pos_w)[env_id, env.rigid_objects_in_focus[env_id][2], :3])
+        cube_1_pos_w.append(wp.to_torch(cube_1.data.body_link_pos_w)[env_id, env.rigid_objects_in_focus[env_id][0], :3])
+        cube_2_pos_w.append(wp.to_torch(cube_2.data.body_link_pos_w)[env_id, env.rigid_objects_in_focus[env_id][1], :3])
+        cube_3_pos_w.append(wp.to_torch(cube_3.data.body_link_pos_w)[env_id, env.rigid_objects_in_focus[env_id][2], :3])
     cube_1_pos_w = torch.stack(cube_1_pos_w)
     cube_2_pos_w = torch.stack(cube_2_pos_w)
     cube_3_pos_w = torch.stack(cube_3_pos_w)
@@ -103,9 +103,15 @@ def instance_randomize_cube_orientations_in_world_frame(
     cube_2_quat_w = []
     cube_3_quat_w = []
     for env_id in range(env.num_envs):
-        cube_1_quat_w.append(wp.to_torch(cube_1.data.object_quat_w)[env_id, env.rigid_objects_in_focus[env_id][0], :4])
-        cube_2_quat_w.append(wp.to_torch(cube_2.data.object_quat_w)[env_id, env.rigid_objects_in_focus[env_id][1], :4])
-        cube_3_quat_w.append(wp.to_torch(cube_3.data.object_quat_w)[env_id, env.rigid_objects_in_focus[env_id][2], :4])
+        cube_1_quat_w.append(
+            wp.to_torch(cube_1.data.body_link_quat_w)[env_id, env.rigid_objects_in_focus[env_id][0], :4]
+        )
+        cube_2_quat_w.append(
+            wp.to_torch(cube_2.data.body_link_quat_w)[env_id, env.rigid_objects_in_focus[env_id][1], :4]
+        )
+        cube_3_quat_w.append(
+            wp.to_torch(cube_3.data.body_link_quat_w)[env_id, env.rigid_objects_in_focus[env_id][2], :4]
+        )
     cube_1_quat_w = torch.stack(cube_1_quat_w)
     cube_2_quat_w = torch.stack(cube_2_quat_w)
     cube_3_quat_w = torch.stack(cube_3_quat_w)
@@ -214,12 +220,18 @@ def instance_randomize_object_obs(
     cube_2_quat_w = []
     cube_3_quat_w = []
     for env_id in range(env.num_envs):
-        cube_1_pos_w.append(wp.to_torch(cube_1.data.object_pos_w)[env_id, env.rigid_objects_in_focus[env_id][0], :3])
-        cube_2_pos_w.append(wp.to_torch(cube_2.data.object_pos_w)[env_id, env.rigid_objects_in_focus[env_id][1], :3])
-        cube_3_pos_w.append(wp.to_torch(cube_3.data.object_pos_w)[env_id, env.rigid_objects_in_focus[env_id][2], :3])
-        cube_1_quat_w.append(wp.to_torch(cube_1.data.object_quat_w)[env_id, env.rigid_objects_in_focus[env_id][0], :4])
-        cube_2_quat_w.append(wp.to_torch(cube_2.data.object_quat_w)[env_id, env.rigid_objects_in_focus[env_id][1], :4])
-        cube_3_quat_w.append(wp.to_torch(cube_3.data.object_quat_w)[env_id, env.rigid_objects_in_focus[env_id][2], :4])
+        cube_1_pos_w.append(wp.to_torch(cube_1.data.body_link_pos_w)[env_id, env.rigid_objects_in_focus[env_id][0], :3])
+        cube_2_pos_w.append(wp.to_torch(cube_2.data.body_link_pos_w)[env_id, env.rigid_objects_in_focus[env_id][1], :3])
+        cube_3_pos_w.append(wp.to_torch(cube_3.data.body_link_pos_w)[env_id, env.rigid_objects_in_focus[env_id][2], :3])
+        cube_1_quat_w.append(
+            wp.to_torch(cube_1.data.body_link_quat_w)[env_id, env.rigid_objects_in_focus[env_id][0], :4]
+        )
+        cube_2_quat_w.append(
+            wp.to_torch(cube_2.data.body_link_quat_w)[env_id, env.rigid_objects_in_focus[env_id][1], :4]
+        )
+        cube_3_quat_w.append(
+            wp.to_torch(cube_3.data.body_link_quat_w)[env_id, env.rigid_objects_in_focus[env_id][2], :4]
+        )
     cube_1_pos_w = torch.stack(cube_1_pos_w)
     cube_2_pos_w = torch.stack(cube_2_pos_w)
     cube_3_pos_w = torch.stack(cube_3_pos_w)

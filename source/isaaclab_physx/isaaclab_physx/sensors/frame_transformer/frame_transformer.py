@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -97,32 +98,41 @@ class FrameTransformer(BaseFrameTransformer):
     def num_bodies(self) -> int:
         """Returns the number of target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`len(data.target_frame_names)` to access the number of target frames.
+        .. deprecated::
+            Use ``len(data.target_frame_names)`` instead. This property will be removed in a future release.
         """
+        warnings.warn(
+            "The `num_bodies` property will be deprecated in a future release."
+            " Please use `len(data.target_frame_names)` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return len(self._target_frame_body_names)
 
     @property
     def body_names(self) -> list[str]:
         """Returns the names of the target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`data.target_frame_names` to access the target frame names.
+        .. deprecated::
+            Use ``data.target_frame_names`` instead. This property will be removed in a future release.
         """
+        warnings.warn(
+            "The `body_names` property will be deprecated in a future release."
+            " Please use `data.target_frame_names` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._target_frame_body_names
 
     """
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        # resolve indices and mask
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timers and counters
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None:
-            env_ids = ...
+        super().reset(None, env_mask)
 
     """
     Implementation.
@@ -153,8 +163,8 @@ class FrameTransformer(BaseFrameTransformer):
         body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
         target_offsets: dict[str, dict[str, torch.Tensor]] = {}
-        # The frames whose offsets are not identity
-        non_identity_offset_frames: list[str] = []
+        # The frames whose offsets are not identity (use set to avoid duplicates across envs)
+        non_identity_offset_frames: set[str] = set()
 
         # Only need to perform offsetting of target frame if any of the position offsets are non-zero or any of the
         # rotation offsets are not the identity quaternion for efficiency in _update_buffer_impl
@@ -215,7 +225,7 @@ class FrameTransformer(BaseFrameTransformer):
                     offset_quat = torch.tensor(offset.rot, device=self.device)
                     # Check if we need to apply offsets (optimized code path in _update_buffer_impl)
                     if not is_identity_pose(offset_pos, offset_quat):
-                        non_identity_offset_frames.append(frame_name)
+                        non_identity_offset_frames.add(frame_name)
                         self._apply_target_frame_offset = True
                     target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
 
@@ -227,7 +237,7 @@ class FrameTransformer(BaseFrameTransformer):
         else:
             logger.info(
                 f"Offsets application needed from '{self.cfg.prim_path}' to the following target frames:"
-                f" {non_identity_offset_frames}"
+                f" {sorted(non_identity_offset_frames)}"
             )
 
         # The names of bodies that RigidPrim will be tracking to later extract transforms from
@@ -397,8 +407,10 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
+        # Resolve mask
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
         # Get raw transforms from PhysX view and reinterpret as transformf
         raw_transforms = self._frame_physx_view.get_transforms().view(wp.transformf)
 
@@ -406,6 +418,7 @@ class FrameTransformer(BaseFrameTransformer):
             frame_transformer_update_kernel,
             dim=(self._num_envs, self._num_target_frames),
             inputs=[
+                env_mask,
                 raw_transforms,
                 self._source_raw_indices,
                 self._target_raw_indices,

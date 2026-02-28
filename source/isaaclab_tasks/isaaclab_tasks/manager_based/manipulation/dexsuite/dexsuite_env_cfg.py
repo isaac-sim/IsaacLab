@@ -187,13 +187,6 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for randomization."""
 
-    # -- pre-startup
-    randomize_object_scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={"scale_range": (0.75, 1.5), "asset_cfg": SceneEntityCfg("object")},
-    )
-
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
@@ -395,7 +388,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     viewer: ViewerCfg = ViewerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45), origin_type="env")
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -430,6 +423,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.sim.physics = PhysxCfg(
             bounce_threshold_velocity=0.01,
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
+            gpu_found_lost_pairs_capacity=2**26,
         )
 
         if self.curriculum is not None:

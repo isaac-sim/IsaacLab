@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -20,7 +20,10 @@ import omni
 
 from isaaclab.app.settings_manager import get_settings_manager
 
-from ..device_base import DeviceBase, DeviceCfg
+from ..device_base import DeviceBase
+
+if TYPE_CHECKING:
+    from .se2_gamepad_cfg import Se2GamepadCfg
 
 
 class Se2Gamepad(DeviceBase):
@@ -203,14 +206,3 @@ class Se2Gamepad(DeviceBase):
         command[command_sign] *= -1
 
         return command
-
-
-@dataclass
-class Se2GamepadCfg(DeviceCfg):
-    """Configuration for SE2 gamepad devices."""
-
-    v_x_sensitivity: float = 1.0
-    v_y_sensitivity: float = 1.0
-    omega_z_sensitivity: float = 1.0
-    dead_zone: float = 0.01
-    class_type: type[DeviceBase] = Se2Gamepad

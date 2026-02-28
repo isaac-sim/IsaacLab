@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
 
 import torch
 from torchvision.utils import save_image
@@ -11,17 +14,19 @@ from torchvision.utils import save_image
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import Camera, CameraCfg, RayCasterCamera, TiledCamera
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
 
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sensors import Camera, RayCasterCamera, TiledCamera
 ##
 # Pre-defined configs
 ##

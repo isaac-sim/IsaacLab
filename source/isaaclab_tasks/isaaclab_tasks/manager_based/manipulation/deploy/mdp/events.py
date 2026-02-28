@@ -343,9 +343,10 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             joint_vel = torch.zeros_like(joint_pos)
 
             # Write to sim
-            self.robot_asset.set_joint_position_target(joint_pos, env_ids=env_ids)
-            self.robot_asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
-            self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+            self.robot_asset.set_joint_position_target_index(target=joint_pos, env_ids=env_ids)
+            self.robot_asset.set_joint_velocity_target_index(target=joint_vel, env_ids=env_ids)
+            self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+            self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         # Set gripper to grasp position
         joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
@@ -357,8 +358,9 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             hand_grasp_width = self.hand_grasp_width[gear_key]
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)
 
-        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
-        self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self.robot_asset.set_joint_position_target_index(target=joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
+        self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         # Set gripper to closed position
         for row_idx, env_id in enumerate(env_ids.tolist()):
@@ -366,7 +368,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             hand_close_width = self.hand_close_width[gear_key]
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_close_width)
 
-        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
+        self.robot_asset.set_joint_position_target_index(target=joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
 
 
 class randomize_gears_and_base_pose(ManagerTermBase):
@@ -445,10 +447,11 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         asset_names_to_process = [self.base_asset_name] + self.gear_asset_names
         for asset_name in asset_names_to_process:
             asset: RigidObject | Articulation = env.scene[asset_name]
-            root_states = wp.to_torch(asset.data.default_root_state)[env_ids].clone()
-            positions = root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_pose_samples[:, 0:3]
-            orientations = math_utils.quat_mul(root_states[:, 3:7], orientations_delta)
-            velocities = root_states[:, 7:13] + rand_vel_samples
+            default_root_pose = wp.to_torch(asset.data.default_root_pose)[env_ids].clone()
+            default_root_vel = wp.to_torch(asset.data.default_root_vel)[env_ids].clone()
+            positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_pose_samples[:, 0:3]
+            orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
+            velocities = default_root_vel + rand_vel_samples
             positions_by_asset[asset_name] = positions
             orientations_by_asset[asset_name] = orientations
             velocities_by_asset[asset_name] = velocities
@@ -478,5 +481,5 @@ class randomize_gears_and_base_pose(ManagerTermBase):
             positions = positions_by_asset[asset_name]
             orientations = orientations_by_asset[asset_name]
             velocities = velocities_by_asset[asset_name]
-            asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-            asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+            asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+            asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)

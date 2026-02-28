@@ -237,7 +237,9 @@ class TestGPUInfoRecorder:
         measurement_data = recorder.get_data()
         assert isinstance(measurement_data, MeasurementData)
         # GPU data includes measurements (memory and utilization stats)
-        assert len(measurement_data.measurements) == 6  # memory (mean, std, n) + utilization (mean, std, n)
+        # 6 measurements per GPU: memory (mean, std, n) + utilization (mean, std, n)
+        num_gpus = data["gpu_metadata"]["device_count"]
+        assert len(measurement_data.measurements) == 6 * num_gpus
         # 4 metadata entries: device_count, current_device, cuda_version, gpu_devices dict
         assert len(measurement_data.metadata) == 4
 

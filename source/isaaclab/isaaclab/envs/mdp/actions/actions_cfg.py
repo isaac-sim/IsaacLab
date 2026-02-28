@@ -6,19 +6,19 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import (
-    binary_joint_actions,
-    joint_actions,
-    joint_actions_to_limits,
-    non_holonomic_actions,
-    surface_gripper_actions,
-    task_space_actions,
-)
+if TYPE_CHECKING:
+    from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
+    from .joint_actions import JointEffortAction, JointPositionAction, JointVelocityAction, RelativeJointPositionAction
+    from .joint_actions_to_limits import EMAJointPositionToLimitsAction, JointPositionToLimitsAction
+    from .non_holonomic_actions import NonHolonomicAction
+    from .surface_gripper_actions import SurfaceGripperBinaryAction
+    from .task_space_actions import DifferentialInverseKinematicsAction, OperationalSpaceControllerAction
 
 ##
 # Joint actions.
@@ -49,7 +49,7 @@ class JointPositionActionCfg(JointActionCfg):
     See :class:`JointPositionAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions.JointPositionAction
+    class_type: type[JointPositionAction] | str = "{DIR}.joint_actions:JointPositionAction"
 
     use_default_offset: bool = True
     """Whether to use default joint positions configured in the articulation asset as offset.
@@ -67,7 +67,7 @@ class RelativeJointPositionActionCfg(JointActionCfg):
     See :class:`RelativeJointPositionAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions.RelativeJointPositionAction
+    class_type: type[RelativeJointPositionAction] | str = "{DIR}.joint_actions:RelativeJointPositionAction"
 
     use_zero_offset: bool = True
     """Whether to ignore the offset defined in articulation asset. Defaults to True.
@@ -83,7 +83,7 @@ class JointVelocityActionCfg(JointActionCfg):
     See :class:`JointVelocityAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions.JointVelocityAction
+    class_type: type[JointVelocityAction] | str = "{DIR}.joint_actions:JointVelocityAction"
 
     use_default_offset: bool = True
     """Whether to use default joint velocities configured in the articulation asset as offset.
@@ -100,7 +100,7 @@ class JointEffortActionCfg(JointActionCfg):
     See :class:`JointEffortAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions.JointEffortAction
+    class_type: type[JointEffortAction] | str = "{DIR}.joint_actions:JointEffortAction"
 
 
 ##
@@ -115,7 +115,7 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
     See :class:`JointPositionToLimitsAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions_to_limits.JointPositionToLimitsAction
+    class_type: type[JointPositionToLimitsAction] | str = "{DIR}.joint_actions_to_limits:JointPositionToLimitsAction"
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
@@ -144,7 +144,9 @@ class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
     See :class:`EMAJointPositionToLimitsAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions_to_limits.EMAJointPositionToLimitsAction
+    class_type: type[EMAJointPositionToLimitsAction] | str = (
+        "{DIR}.joint_actions_to_limits:EMAJointPositionToLimitsAction"
+    )
 
     alpha: float | dict[str, float] = 1.0
     """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
@@ -180,7 +182,7 @@ class BinaryJointPositionActionCfg(BinaryJointActionCfg):
     See :class:`BinaryJointPositionAction` for more details.
     """
 
-    class_type: type[ActionTerm] = binary_joint_actions.BinaryJointPositionAction
+    class_type: type[BinaryJointPositionAction] | str = "{DIR}.binary_joint_actions:BinaryJointPositionAction"
 
 
 @configclass
@@ -190,7 +192,7 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     See :class:`BinaryJointVelocityAction` for more details.
     """
 
-    class_type: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
+    class_type: type[BinaryJointVelocityAction] | str = "{DIR}.binary_joint_actions:BinaryJointVelocityAction"
 
 
 @configclass
@@ -225,7 +227,7 @@ class AbsBinaryJointPositionActionCfg(ActionTermCfg):
     positive_threshold: bool = True
     """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
 
-    class_type: type[ActionTerm] = binary_joint_actions.AbsBinaryJointPositionAction
+    class_type: type[AbsBinaryJointPositionAction] | str = "{DIR}.binary_joint_actions:AbsBinaryJointPositionAction"
 
 
 ##
@@ -240,7 +242,7 @@ class NonHolonomicActionCfg(ActionTermCfg):
     See :class:`NonHolonomicAction` for more details.
     """
 
-    class_type: type[ActionTerm] = non_holonomic_actions.NonHolonomicAction
+    class_type: type[NonHolonomicAction] | str = "{DIR}.non_holonomic_actions:NonHolonomicAction"
 
     body_name: str = MISSING
     """Name of the body which has the dummy mechanism connected to."""
@@ -283,7 +285,9 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
         rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
+    class_type: type[DifferentialInverseKinematicsAction] | str = (
+        "{DIR}.task_space_actions:DifferentialInverseKinematicsAction"
+    )
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
@@ -319,7 +323,9 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
         rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
+    class_type: type[OperationalSpaceControllerAction] | str = (
+        "{DIR}.task_space_actions:OperationalSpaceControllerAction"
+    )
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
@@ -378,4 +384,4 @@ class SurfaceGripperBinaryActionCfg(ActionTermCfg):
     close_command: float = 1.0
     """The command value to close the gripper. Defaults to 1.0."""
 
-    class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction
+    class_type: type[SurfaceGripperBinaryAction] | str = "{DIR}.surface_gripper_actions:SurfaceGripperBinaryAction"

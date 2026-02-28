@@ -19,8 +19,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-import omni.kit.app
-import omni.physx
+from isaaclab.utils.version import has_kit
+
+if has_kit():
+    import omni.kit.app
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene

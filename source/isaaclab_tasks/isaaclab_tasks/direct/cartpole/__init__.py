@@ -20,7 +20,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_env:CartpoleEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_env:CartpoleEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
@@ -33,7 +33,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleRGBCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleRGBCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -44,7 +44,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleAlbedoCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleAlbedoCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -55,7 +55,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleSimpleShadingConstantCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleSimpleShadingConstantCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -66,7 +66,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleSimpleShadingDiffuseCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleSimpleShadingDiffuseCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -77,7 +77,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleSimpleShadingFullCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleSimpleShadingFullCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -88,7 +88,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleDepthCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleDepthCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
