@@ -3,21 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .image_plot import ImagePlot
-    from .line_plot import LiveLinePlot
-    from .manager_live_visualizer import ManagerLiveVisualizer
-    from .ui_visualizer_base import UiVisualizerBase
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("image_plot", "ImagePlot"),
-    ("line_plot", "LiveLinePlot"),
-    ("manager_live_visualizer", "ManagerLiveVisualizer"),
-    ("ui_visualizer_base", "UiVisualizerBase"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

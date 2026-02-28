@@ -5,16 +5,6 @@
 
 """Wrappers and utilities to configure an environment for rl-games library."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .pbt import *  # noqa: F403
-    from .rl_games import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["pbt", "rl_games"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

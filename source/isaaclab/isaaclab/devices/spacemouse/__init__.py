@@ -5,21 +5,6 @@
 
 """Spacemouse device for SE(2) and SE(3) control."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .se2_spacemouse import Se2SpaceMouse
-    from .se2_spacemouse_cfg import Se2SpaceMouseCfg
-    from .se3_spacemouse import Se3SpaceMouse
-    from .se3_spacemouse_cfg import Se3SpaceMouseCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("se2_spacemouse", "Se2SpaceMouse"),
-    ("se2_spacemouse_cfg", "Se2SpaceMouseCfg"),
-    ("se3_spacemouse", "Se3SpaceMouse"),
-    ("se3_spacemouse_cfg", "Se3SpaceMouseCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

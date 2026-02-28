@@ -5,16 +5,6 @@
 
 """.. deprecated:: Moved to :mod:`isaaclab_teleop.deprecated.openxr.retargeters`."""
 
-from __future__ import annotations
+from isaaclab.utils.module import lazy_export
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from isaaclab_teleop.deprecated.openxr.retargeters import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=[],
-    packages=["isaaclab_teleop.deprecated.openxr.retargeters"],
-)
+lazy_export(packages=["isaaclab_teleop.deprecated.openxr.retargeters"])

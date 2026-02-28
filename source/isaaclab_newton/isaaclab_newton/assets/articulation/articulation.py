@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import JointType
 from newton.selection import ArticulationView
 from newton.solvers import SolverNotifyFlags
 from prettytable import PrettyTable
@@ -34,6 +33,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from newton import JointType
 
 from .articulation_data import ArticulationData
 

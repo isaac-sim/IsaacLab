@@ -10,17 +10,6 @@ into a single configuration. This is useful when the user wants to spawn multipl
 different configurations.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .wrappers import spawn_multi_asset, spawn_multi_usd_file
-    from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("wrappers", ["spawn_multi_asset", "spawn_multi_usd_file"]),
-    ("wrappers_cfg", ["MultiAssetSpawnerCfg", "MultiUsdFileCfg"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

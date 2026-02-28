@@ -5,19 +5,10 @@
 
 """Sub-module for Newton renderer backends (Newton Warp)."""
 
-from __future__ import annotations
-
 from .newton_warp_renderer import NewtonWarpRenderer
 
-import typing
+import lazy_loader as lazy
 
-if typing.TYPE_CHECKING:
-    from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("newton_warp_renderer_cfg", "NewtonWarpRendererCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
 
 Renderer = NewtonWarpRenderer

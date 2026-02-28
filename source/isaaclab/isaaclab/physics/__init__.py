@@ -5,17 +5,6 @@
 
 """Implementation backends for simulation interfaces."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .physics_manager import PhysicsManager, PhysicsEvent, CallbackHandle
-    from .physics_manager_cfg import PhysicsCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("physics_manager", ["PhysicsManager", "PhysicsEvent", "CallbackHandle"]),
-    ("physics_manager_cfg", "PhysicsCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

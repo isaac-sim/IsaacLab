@@ -5,17 +5,6 @@
 
 """Various command terms that can be used in the environment."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .commands_cfg import DroneUniformPoseCommandCfg
-    from .drone_pose_command import DroneUniformPoseCommand
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("commands_cfg", "DroneUniformPoseCommandCfg"),
-    ("drone_pose_command", "DroneUniformPoseCommand"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

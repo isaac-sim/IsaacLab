@@ -9,19 +9,6 @@ This sub-package contains configuration classes and implementations for
 different renderer backends that can be used with Isaac Lab.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .base_renderer import BaseRenderer
-    from .renderer import Renderer
-    from .renderer_cfg import RendererCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("base_renderer", "BaseRenderer"),
-    ("renderer", "Renderer"),
-    ("renderer_cfg", "RendererCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

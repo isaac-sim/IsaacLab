@@ -5,25 +5,6 @@
 
 """Sub-module for camera wrapper around USD camera prim."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .camera import Camera
-    from .camera_cfg import CameraCfg
-    from .camera_data import CameraData
-    from .tiled_camera import TiledCamera
-    from .tiled_camera_cfg import TiledCameraCfg
-    from .utils import *  # noqa: F403
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("camera", "Camera"),
-    ("camera_cfg", "CameraCfg"),
-    ("camera_data", "CameraData"),
-    ("tiled_camera", "TiledCamera"),
-    ("tiled_camera_cfg", "TiledCameraCfg"),
-    submodules=["utils"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

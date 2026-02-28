@@ -5,17 +5,6 @@
 
 """Sub-module for rigid object collection."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .rigid_object_collection import RigidObjectCollection
-    from .rigid_object_collection_data import RigidObjectCollectionData
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("rigid_object_collection", "RigidObjectCollection"),
-    ("rigid_object_collection_data", "RigidObjectCollectionData"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

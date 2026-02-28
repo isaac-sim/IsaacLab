@@ -5,17 +5,6 @@
 
 """Sub-module for PhysX frame transformer sensor."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .frame_transformer import FrameTransformer
-    from .frame_transformer_data import FrameTransformerData
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("frame_transformer", "FrameTransformer"),
-    ("frame_transformer_data", "FrameTransformerData"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

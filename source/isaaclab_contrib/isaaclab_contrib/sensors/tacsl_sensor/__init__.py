@@ -5,19 +5,6 @@
 
 """TacSL Tactile Sensor implementation for IsaacLab."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .visuotactile_sensor import VisuoTactileSensor
-    from .visuotactile_sensor_cfg import GelSightRenderCfg, VisuoTactileSensorCfg
-    from .visuotactile_sensor_data import VisuoTactileSensorData
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("visuotactile_sensor", "VisuoTactileSensor"),
-    ("visuotactile_sensor_cfg", ["GelSightRenderCfg", "VisuoTactileSensorCfg"]),
-    ("visuotactile_sensor_data", "VisuoTactileSensorData"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

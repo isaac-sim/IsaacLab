@@ -6,16 +6,6 @@
 
 """This sub-module contains the functions that are specific to the Spot locomotion task."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .events import *  # noqa: F403
-    from .rewards import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["events", "rewards"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -26,28 +26,11 @@ Usage:
 
 """
 
-from __future__ import annotations
-
 from .noise_cfg import ConstantNoiseCfg, GaussianNoiseCfg, NoiseModelCfg, NoiseModelWithAdditiveBiasCfg, UniformNoiseCfg
 
-import typing
+import lazy_loader as lazy
 
-if typing.TYPE_CHECKING:
-    from .noise_cfg import NoiseCfg
-    from .noise_model import NoiseModel, NoiseModelWithAdditiveBias, constant_noise, gaussian_noise, uniform_noise
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("noise_cfg", "NoiseCfg"),
-    ("noise_model", [
-        "NoiseModel",
-        "NoiseModelWithAdditiveBias",
-        "constant_noise",
-        "gaussian_noise",
-        "uniform_noise",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
 
 ConstantBiasNoiseCfg = ConstantNoiseCfg
 AdditiveUniformNoiseCfg = UniformNoiseCfg

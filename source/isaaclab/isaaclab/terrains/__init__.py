@@ -20,28 +20,6 @@ There are two main components in this package:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
-    from .terrain_generator import TerrainGenerator
-    from .terrain_generator_cfg import TerrainGeneratorCfg
-    from .terrain_importer import TerrainImporter
-    from .terrain_importer_cfg import TerrainImporterCfg
-    from .utils import color_meshes_by_height, create_prim_from_mesh
-    from .height_field import *  # noqa: F403
-    from .trimesh import *  # noqa: F403
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("sub_terrain_cfg", ["FlatPatchSamplingCfg", "SubTerrainBaseCfg"]),
-    ("terrain_generator", "TerrainGenerator"),
-    ("terrain_generator_cfg", "TerrainGeneratorCfg"),
-    ("terrain_importer", "TerrainImporter"),
-    ("terrain_importer_cfg", "TerrainImporterCfg"),
-    ("utils", ["color_meshes_by_height", "create_prim_from_mesh"]),
-    submodules=["height_field", "trimesh"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

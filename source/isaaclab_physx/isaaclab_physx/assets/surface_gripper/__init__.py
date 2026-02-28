@@ -5,17 +5,6 @@
 
 """Sub-module for surface_gripper assets."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .surface_gripper import SurfaceGripper
-    from .surface_gripper_cfg import SurfaceGripperCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("surface_gripper", "SurfaceGripper"),
-    ("surface_gripper_cfg", "SurfaceGripperCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -3,27 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+from isaaclab.utils.module import lazy_export
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .commands import *  # noqa: F403
-    from .curriculums import *  # noqa: F403
-    from .observations import *  # noqa: F403
-    from .rewards import *  # noqa: F403
-    from .terminations import *  # noqa: F403
-    from isaaclab.envs.mdp import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=[
-        "commands",
-        "curriculums",
-        "observations",
-        "rewards",
-        "terminations",
-    ],
-    packages=["isaaclab.envs.mdp"],
-)
+lazy_export(packages=["isaaclab.envs.mdp"])

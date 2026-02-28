@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Package containing asset and sensor configurations."""
 
-from __future__ import annotations
-
 import os
 import toml
 ISAACLAB_ASSETS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
@@ -16,14 +14,6 @@ ISAACLAB_ASSETS_METADATA = toml.load(os.path.join(ISAACLAB_ASSETS_EXT_DIR, "conf
 """Extension metadata dictionary parsed from the extension.toml file."""
 __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
 
-import typing
+import lazy_loader as lazy
 
-if typing.TYPE_CHECKING:
-    from .robots import *  # noqa: F403
-    from .sensors import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["robots", "sensors"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

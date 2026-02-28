@@ -54,31 +54,6 @@ For example:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .from_files import *  # noqa: F403
-    from .lights import *  # noqa: F403
-    from .materials import *  # noqa: F403
-    from .meshes import *  # noqa: F403
-    from .sensors import *  # noqa: F403
-    from .shapes import *  # noqa: F403
-    from .spawner_cfg import *  # noqa: F403
-    from .wrappers import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=[
-        "from_files",
-        "lights",
-        "materials",
-        "meshes",
-        "sensors",
-        "shapes",
-        "spawner_cfg",
-        "wrappers",
-    ],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

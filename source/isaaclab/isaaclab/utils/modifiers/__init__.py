@@ -53,29 +53,6 @@ Usage with a class modifier:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .modifier_cfg import ModifierCfg
-    from .modifier_base import ModifierBase
-    from .modifier import DigitalFilter
-    from .modifier_cfg import DigitalFilterCfg
-    from .modifier import Integrator
-    from .modifier_cfg import IntegratorCfg
-    from .modifier import bias, clip, scale
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("modifier_cfg", ["ModifierCfg", "DigitalFilterCfg", "IntegratorCfg"]),
-    ("modifier_base", "ModifierBase"),
-    ("modifier", [
-        "DigitalFilter",
-        "Integrator",
-        "bias",
-        "clip",
-        "scale",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -5,22 +5,8 @@
 
 """Sub-module containing operations based on warp."""
 
-from __future__ import annotations
-
 from . import fabric  # noqa: F401
 
-import typing
+import lazy_loader as lazy
 
-if typing.TYPE_CHECKING:
-    from .ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("ops", [
-        "convert_to_warp_mesh",
-        "raycast_dynamic_meshes",
-        "raycast_mesh",
-        "raycast_single_mesh",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

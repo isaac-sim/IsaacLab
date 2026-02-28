@@ -14,30 +14,6 @@ on the configuration, the spawned prim can be:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .shapes import spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
-    from .shapes_cfg import CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, ShapeCfg, SphereCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("shapes", [
-        "spawn_capsule",
-        "spawn_cone",
-        "spawn_cuboid",
-        "spawn_cylinder",
-        "spawn_sphere",
-    ]),
-    ("shapes_cfg", [
-        "CapsuleCfg",
-        "ConeCfg",
-        "CuboidCfg",
-        "CylinderCfg",
-        "ShapeCfg",
-        "SphereCfg",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

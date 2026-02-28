@@ -4,16 +4,3 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Locomotion environments for legged robots."""
-
-from __future__ import annotations
-
-import typing
-
-if typing.TYPE_CHECKING:
-    from .velocity import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["velocity"],
-)

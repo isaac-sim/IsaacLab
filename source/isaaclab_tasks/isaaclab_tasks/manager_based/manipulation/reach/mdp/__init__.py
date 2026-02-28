@@ -5,17 +5,6 @@
 
 """This sub-module contains the functions that are specific to the locomotion environments."""
 
-from __future__ import annotations
+from isaaclab.utils.module import lazy_export
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .rewards import *  # noqa: F403
-    from isaaclab.envs.mdp import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["rewards"],
-    packages=["isaaclab.envs.mdp"],
-)
+lazy_export(packages=["isaaclab.envs.mdp"])

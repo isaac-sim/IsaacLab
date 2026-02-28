@@ -13,29 +13,6 @@ Currently, the following spawners are supported:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .from_files import spawn_from_mjcf, spawn_from_urdf, spawn_from_usd, spawn_from_usd_with_compliant_contact_material, spawn_ground_plane
-    from .from_files_cfg import GroundPlaneCfg, MjcfFileCfg, UrdfFileCfg, UsdFileCfg, UsdFileWithCompliantContactCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("from_files", [
-        "spawn_from_mjcf",
-        "spawn_from_urdf",
-        "spawn_from_usd",
-        "spawn_from_usd_with_compliant_contact_material",
-        "spawn_ground_plane",
-    ]),
-    ("from_files_cfg", [
-        "GroundPlaneCfg",
-        "MjcfFileCfg",
-        "UrdfFileCfg",
-        "UsdFileCfg",
-        "UsdFileWithCompliantContactCfg",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

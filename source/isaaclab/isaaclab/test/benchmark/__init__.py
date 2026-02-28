@@ -8,38 +8,6 @@
 This package provides benchmarking utilities used across different test modules.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .benchmark_core import BaseIsaacLabBenchmark, get_default_output_filename
-    from .benchmark_monitor import BenchmarkMonitor
-    from .method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
-    from .measurements import BooleanMeasurement, DictMeasurement, DictMetadata, FloatMetadata, IntMetadata, ListMeasurement, Measurement, MetadataBase, SingleMeasurement, StatisticalMeasurement, StringMetadata, TestPhase
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("benchmark_core", ["BaseIsaacLabBenchmark", "get_default_output_filename"]),
-    ("benchmark_monitor", "BenchmarkMonitor"),
-    ("method_benchmark", [
-        "MethodBenchmarkDefinition",
-        "MethodBenchmarkRunner",
-        "MethodBenchmarkRunnerConfig",
-    ]),
-    ("measurements", [
-        "BooleanMeasurement",
-        "DictMeasurement",
-        "DictMetadata",
-        "FloatMetadata",
-        "IntMetadata",
-        "ListMeasurement",
-        "Measurement",
-        "MetadataBase",
-        "SingleMeasurement",
-        "StatisticalMeasurement",
-        "StringMetadata",
-        "TestPhase",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

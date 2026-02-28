@@ -5,28 +5,6 @@
 
 """Sub-module for ray-casting patterns used by the ray-caster."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .patterns import bpearl_pattern, grid_pattern, lidar_pattern, pinhole_camera_pattern
-    from .patterns_cfg import BpearlPatternCfg, GridPatternCfg, LidarPatternCfg, PatternBaseCfg, PinholeCameraPatternCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("patterns", [
-        "bpearl_pattern",
-        "grid_pattern",
-        "lidar_pattern",
-        "pinhole_camera_pattern",
-    ]),
-    ("patterns_cfg", [
-        "BpearlPatternCfg",
-        "GridPatternCfg",
-        "LidarPatternCfg",
-        "PatternBaseCfg",
-        "PinholeCameraPatternCfg",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

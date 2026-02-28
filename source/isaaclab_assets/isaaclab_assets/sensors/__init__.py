@@ -3,16 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .gelsight import *  # noqa: F403
-    from .velodyne import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["gelsight", "velodyne"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

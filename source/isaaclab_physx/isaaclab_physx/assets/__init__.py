@@ -38,23 +38,6 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .articulation import Articulation, ArticulationData
-    from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
-    from .rigid_object import RigidObject, RigidObjectData
-    from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionData
-    from .surface_gripper import SurfaceGripper, SurfaceGripperCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("articulation", ["Articulation", "ArticulationData"]),
-    ("deformable_object", ["DeformableObject", "DeformableObjectCfg", "DeformableObjectData"]),
-    ("rigid_object", ["RigidObject", "RigidObjectData"]),
-    ("rigid_object_collection", ["RigidObjectCollection", "RigidObjectCollectionData"]),
-    ("surface_gripper", ["SurfaceGripper", "SurfaceGripperCfg"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

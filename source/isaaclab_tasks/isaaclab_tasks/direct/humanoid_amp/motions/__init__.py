@@ -7,17 +7,6 @@
 AMP Motion Loader and motion files.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .motion_loader import MotionLoader
-    from .motion_viewer import MotionViewer
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("motion_loader", "MotionLoader"),
-    ("motion_viewer", "MotionViewer"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -3,17 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .pbt import MultiObserver, PbtAlgoObserver
-    from .pbt_cfg import PbtCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("pbt", ["MultiObserver", "PbtAlgoObserver"]),
-    ("pbt_cfg", "PbtCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

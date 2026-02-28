@@ -5,15 +5,6 @@
 
 """Sub-package for Newton sensor implementations."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .contact_sensor import ContactSensor, ContactSensorData, NewtonContactSensorCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("contact_sensor", ["ContactSensor", "ContactSensorData", "NewtonContactSensorCfg"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

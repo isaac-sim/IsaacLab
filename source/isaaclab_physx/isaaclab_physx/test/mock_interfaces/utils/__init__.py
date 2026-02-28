@@ -5,24 +5,6 @@
 
 """Utilities for mock PhysX interfaces."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .mock_shared_metatype import MockSharedMetatype
-    from .patching import mock_articulation_view, mock_rigid_body_view, mock_rigid_contact_view, patch_articulation_view, patch_rigid_body_view, patch_rigid_contact_view
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("mock_shared_metatype", "MockSharedMetatype"),
-    ("patching", [
-        "mock_articulation_view",
-        "mock_rigid_body_view",
-        "mock_rigid_contact_view",
-        "patch_articulation_view",
-        "patch_rigid_body_view",
-        "patch_rigid_contact_view",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

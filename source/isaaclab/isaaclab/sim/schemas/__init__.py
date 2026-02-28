@@ -32,54 +32,6 @@ Locally, the schemas are defined in the following files:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .schemas import MESH_APPROXIMATION_TOKENS, PHYSX_MESH_COLLISION_CFGS, USD_MESH_COLLISION_CFGS, activate_contact_sensors, define_articulation_root_properties, define_collision_properties, define_deformable_body_properties, define_mass_properties, define_mesh_collision_properties, define_rigid_body_properties, modify_articulation_root_properties, modify_collision_properties, modify_deformable_body_properties, modify_fixed_tendon_properties, modify_joint_drive_properties, modify_mass_properties, modify_mesh_collision_properties, modify_rigid_body_properties, modify_spatial_tendon_properties
-    from .schemas_cfg import ArticulationRootPropertiesCfg, BoundingCubePropertiesCfg, BoundingSpherePropertiesCfg, CollisionPropertiesCfg, ConvexDecompositionPropertiesCfg, ConvexHullPropertiesCfg, DeformableBodyPropertiesCfg, FixedTendonPropertiesCfg, JointDrivePropertiesCfg, MassPropertiesCfg, MeshCollisionPropertiesCfg, RigidBodyPropertiesCfg, SDFMeshPropertiesCfg, SpatialTendonPropertiesCfg, TriangleMeshPropertiesCfg, TriangleMeshSimplificationPropertiesCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("schemas", [
-        "MESH_APPROXIMATION_TOKENS",
-        "PHYSX_MESH_COLLISION_CFGS",
-        "USD_MESH_COLLISION_CFGS",
-        "activate_contact_sensors",
-        "define_articulation_root_properties",
-        "define_collision_properties",
-        "define_deformable_body_properties",
-        "define_mass_properties",
-        "define_mesh_collision_properties",
-        "define_rigid_body_properties",
-        "modify_articulation_root_properties",
-        "modify_collision_properties",
-        "modify_deformable_body_properties",
-        "modify_fixed_tendon_properties",
-        "modify_joint_drive_properties",
-        "modify_mass_properties",
-        "modify_mesh_collision_properties",
-        "modify_rigid_body_properties",
-        "modify_spatial_tendon_properties",
-    ]),
-    ("schemas_cfg", [
-        "ArticulationRootPropertiesCfg",
-        "BoundingCubePropertiesCfg",
-        "BoundingSpherePropertiesCfg",
-        "CollisionPropertiesCfg",
-        "ConvexDecompositionPropertiesCfg",
-        "ConvexHullPropertiesCfg",
-        "DeformableBodyPropertiesCfg",
-        "FixedTendonPropertiesCfg",
-        "JointDrivePropertiesCfg",
-        "MassPropertiesCfg",
-        "MeshCollisionPropertiesCfg",
-        "RigidBodyPropertiesCfg",
-        "SDFMeshPropertiesCfg",
-        "SpatialTendonPropertiesCfg",
-        "TriangleMeshPropertiesCfg",
-        "TriangleMeshSimplificationPropertiesCfg",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

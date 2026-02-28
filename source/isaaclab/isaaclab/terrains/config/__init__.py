@@ -5,15 +5,6 @@
 
 """Pre-defined terrain configurations for the terrain generator."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .rough import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["rough"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

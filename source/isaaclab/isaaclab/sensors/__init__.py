@@ -35,29 +35,6 @@ interpretation of the prim paths for different sensor types:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .sensor_base import SensorBase
-    from .sensor_base_cfg import SensorBaseCfg
-    from .camera import *  # noqa: F403
-    from .contact_sensor import *  # noqa: F403
-    from .frame_transformer import *  # noqa: F403
-    from .imu import *  # noqa: F403
-    from .ray_caster import *  # noqa: F403
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("sensor_base", "SensorBase"),
-    ("sensor_base_cfg", "SensorBaseCfg"),
-    submodules=[
-        "camera",
-        "contact_sensor",
-        "frame_transformer",
-        "imu",
-        "ray_caster",
-    ],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

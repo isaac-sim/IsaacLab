@@ -16,29 +16,6 @@ The following converters are currently supported:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .asset_converter_base import AssetConverterBase
-    from .asset_converter_base_cfg import AssetConverterBaseCfg
-    from .mesh_converter import MeshConverter
-    from .mesh_converter_cfg import MeshConverterCfg
-    from .mjcf_converter import MjcfConverter
-    from .mjcf_converter_cfg import MjcfConverterCfg
-    from .urdf_converter import UrdfConverter
-    from .urdf_converter_cfg import UrdfConverterCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("asset_converter_base", "AssetConverterBase"),
-    ("asset_converter_base_cfg", "AssetConverterBaseCfg"),
-    ("mesh_converter", "MeshConverter"),
-    ("mesh_converter_cfg", "MeshConverterCfg"),
-    ("mjcf_converter", "MjcfConverter"),
-    ("mjcf_converter_cfg", "MjcfConverterCfg"),
-    ("urdf_converter", "UrdfConverter"),
-    ("urdf_converter_cfg", "UrdfConverterCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -26,34 +26,11 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
-from __future__ import annotations
-
 import warnings
 
-import typing
+import lazy_loader as lazy
 
-if typing.TYPE_CHECKING:
-    from .simulation_cfg import RenderCfg, SimulationCfg
-    from .simulation_context import SimulationContext, build_simulation_context
-    from .converters import *  # noqa: F403
-    from .schemas import *  # noqa: F403
-    from .spawners import *  # noqa: F403
-    from .utils import *  # noqa: F403
-    from .views import *  # noqa: F403
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("simulation_cfg", ["RenderCfg", "SimulationCfg"]),
-    ("simulation_context", ["SimulationContext", "build_simulation_context"]),
-    submodules=[
-        "converters",
-        "schemas",
-        "spawners",
-        "utils",
-        "views",
-    ],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
 
 try:
     from isaaclab_physx.physics import PhysxCfg as _PhysxCfg

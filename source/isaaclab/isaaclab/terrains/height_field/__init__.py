@@ -25,25 +25,6 @@ the corresponding x and y coordinates.
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .hf_terrains_cfg import HfDiscreteObstaclesTerrainCfg, HfInvertedPyramidSlopedTerrainCfg, HfInvertedPyramidStairsTerrainCfg, HfPyramidSlopedTerrainCfg, HfPyramidStairsTerrainCfg, HfRandomUniformTerrainCfg, HfSteppingStonesTerrainCfg, HfTerrainBaseCfg, HfWaveTerrainCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("hf_terrains_cfg", [
-        "HfDiscreteObstaclesTerrainCfg",
-        "HfInvertedPyramidSlopedTerrainCfg",
-        "HfInvertedPyramidStairsTerrainCfg",
-        "HfPyramidSlopedTerrainCfg",
-        "HfPyramidStairsTerrainCfg",
-        "HfRandomUniformTerrainCfg",
-        "HfSteppingStonesTerrainCfg",
-        "HfTerrainBaseCfg",
-        "HfWaveTerrainCfg",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

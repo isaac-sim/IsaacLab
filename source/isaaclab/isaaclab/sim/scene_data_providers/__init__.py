@@ -5,17 +5,6 @@
 
 """Scene data providers for visualizers and renderers."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .physx_scene_data_provider import PhysxSceneDataProvider
-    from .scene_data_provider import SceneDataProvider
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("physx_scene_data_provider", "PhysxSceneDataProvider"),
-    ("scene_data_provider", "SceneDataProvider"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -11,21 +11,6 @@ or inverse kinematics control. The controller is responsible for generating the 
 commands to be sent to the robot.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .differential_ik import DifferentialIKController
-    from .differential_ik_cfg import DifferentialIKControllerCfg
-    from .operational_space import OperationalSpaceController
-    from .operational_space_cfg import OperationalSpaceControllerCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("differential_ik", "DifferentialIKController"),
-    ("differential_ik_cfg", "DifferentialIKControllerCfg"),
-    ("operational_space", "OperationalSpaceController"),
-    ("operational_space_cfg", "OperationalSpaceControllerCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

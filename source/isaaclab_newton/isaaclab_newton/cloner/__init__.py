@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .newton_replicate import newton_replicate
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("newton_replicate", "newton_replicate"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

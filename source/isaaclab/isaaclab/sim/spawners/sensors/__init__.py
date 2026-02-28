@@ -11,17 +11,6 @@ Currently, the following sensors are supported:
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .sensors import spawn_camera
-    from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("sensors", "spawn_camera"),
-    ("sensors_cfg", ["FisheyeCameraCfg", "PinholeCameraCfg"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

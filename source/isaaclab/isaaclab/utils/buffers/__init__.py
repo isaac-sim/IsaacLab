@@ -5,21 +5,6 @@
 
 """Sub-module containing different buffers."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .circular_buffer import CircularBuffer
-    from .delay_buffer import DelayBuffer
-    from .timestamped_buffer import TimestampedBuffer
-    from .timestamped_buffer_warp import TimestampedBufferWarp
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("circular_buffer", "CircularBuffer"),
-    ("delay_buffer", "DelayBuffer"),
-    ("timestamped_buffer", "TimestampedBuffer"),
-    ("timestamped_buffer_warp", "TimestampedBufferWarp"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

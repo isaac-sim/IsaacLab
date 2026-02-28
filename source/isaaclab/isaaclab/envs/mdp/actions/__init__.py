@@ -5,27 +5,6 @@
 
 """Various action terms that can be used in the environment."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .actions_cfg import *  # noqa: F403
-    from .binary_joint_actions import *  # noqa: F403
-    from .joint_actions import *  # noqa: F403
-    from .joint_actions_to_limits import *  # noqa: F403
-    from .non_holonomic_actions import *  # noqa: F403
-    from .surface_gripper_actions import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=[
-        "actions_cfg",
-        "binary_joint_actions",
-        "joint_actions",
-        "joint_actions_to_limits",
-        "non_holonomic_actions",
-        "surface_gripper_actions",
-    ],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -3,18 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .cloner_cfg import TemplateCloneCfg
-    from .cloner_strategies import *  # noqa: F403
-    from .cloner_utils import *  # noqa: F403
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("cloner_cfg", "TemplateCloneCfg"),
-    submodules=["cloner_strategies", "cloner_utils"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

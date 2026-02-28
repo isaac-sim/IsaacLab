@@ -52,30 +52,6 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .physics_materials import spawn_deformable_body_material, spawn_rigid_body_material
-    from .physics_materials_cfg import DeformableBodyMaterialCfg, PhysicsMaterialCfg, RigidBodyMaterialCfg
-    from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
-    from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("physics_materials", ["spawn_deformable_body_material", "spawn_rigid_body_material"]),
-    ("physics_materials_cfg", [
-        "DeformableBodyMaterialCfg",
-        "PhysicsMaterialCfg",
-        "RigidBodyMaterialCfg",
-    ]),
-    ("visual_materials", ["spawn_from_mdl_file", "spawn_preview_surface"]),
-    ("visual_materials_cfg", [
-        "GlassMdlCfg",
-        "MdlFileCfg",
-        "PreviewSurfaceCfg",
-        "VisualMaterialCfg",
-    ]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

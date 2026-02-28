@@ -4,16 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Various recorder terms that can be used in the environment."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .recorders import *  # noqa: F403
-    from .recorders_cfg import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["recorders", "recorders_cfg"],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

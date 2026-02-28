@@ -10,51 +10,6 @@ and observations. Each manager implements a specific functionality for the envir
 designed to be modular and can be easily extended to support new functionality.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .action_manager import ActionManager, ActionTerm
-    from .command_manager import CommandManager, CommandTerm
-    from .curriculum_manager import CurriculumManager
-    from .event_manager import EventManager
-    from .manager_base import ManagerBase, ManagerTermBase
-    from .manager_term_cfg import ActionTermCfg, CommandTermCfg, CurriculumTermCfg, EventTermCfg, ManagerTermBaseCfg, ObservationGroupCfg, ObservationTermCfg, RecorderTermCfg, RewardTermCfg, TerminationTermCfg
-    from .observation_manager import ObservationManager
-    from .recorder_manager import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm
-    from .reward_manager import RewardManager
-    from .scene_entity_cfg import SceneEntityCfg
-    from .termination_manager import TerminationManager
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("action_manager", ["ActionManager", "ActionTerm"]),
-    ("command_manager", ["CommandManager", "CommandTerm"]),
-    ("curriculum_manager", "CurriculumManager"),
-    ("event_manager", "EventManager"),
-    ("manager_base", ["ManagerBase", "ManagerTermBase"]),
-    ("manager_term_cfg", [
-        "ActionTermCfg",
-        "CommandTermCfg",
-        "CurriculumTermCfg",
-        "EventTermCfg",
-        "ManagerTermBaseCfg",
-        "ObservationGroupCfg",
-        "ObservationTermCfg",
-        "RecorderTermCfg",
-        "RewardTermCfg",
-        "TerminationTermCfg",
-    ]),
-    ("observation_manager", "ObservationManager"),
-    ("recorder_manager", [
-        "DatasetExportMode",
-        "RecorderManager",
-        "RecorderManagerBaseCfg",
-        "RecorderTerm",
-    ]),
-    ("reward_manager", "RewardManager"),
-    ("scene_entity_cfg", "SceneEntityCfg"),
-    ("termination_manager", "TerminationManager"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

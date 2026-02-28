@@ -5,17 +5,6 @@
 
 """Sub-module for PhysX IMU sensor."""
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .imu import Imu
-    from .imu_data import ImuData
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("imu", "Imu"),
-    ("imu_data", "ImuData"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

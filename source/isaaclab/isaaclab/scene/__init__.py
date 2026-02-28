@@ -25,17 +25,6 @@ actions to the scene. All these are handled by different "managers" in the frame
 :mod:`isaaclab.managers` sub-package for more details.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .interactive_scene import InteractiveScene
-    from .interactive_scene_cfg import InteractiveSceneCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("interactive_scene", "InteractiveScene"),
-    ("interactive_scene_cfg", "InteractiveSceneCfg"),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

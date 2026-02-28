@@ -7,17 +7,6 @@
 Submodules for files IO operations.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .torchscript import load_torchscript_model
-    from .yaml import dump_yaml, load_yaml
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("torchscript", "load_torchscript_model"),
-    ("yaml", ["dump_yaml", "load_yaml"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -16,19 +16,6 @@
     :mod:`isaaclab_teleop.xr_anchor_utils`.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .manus_vive import ManusVive, ManusViveCfg
-    from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
-    from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("manus_vive", ["ManusVive", "ManusViveCfg"]),
-    ("openxr_device", ["OpenXRDevice", "OpenXRDeviceCfg"]),
-    ("xr_cfg", ["XrAnchorRotationMode", "XrCfg", "remove_camera_configs"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

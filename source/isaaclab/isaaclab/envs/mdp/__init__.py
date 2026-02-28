@@ -15,31 +15,6 @@ are used to define the environment through their managers.
 
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .actions import *  # noqa: F403
-    from .commands import *  # noqa: F403
-    from .curriculums import *  # noqa: F403
-    from .events import *  # noqa: F403
-    from .observations import *  # noqa: F403
-    from .recorders import *  # noqa: F403
-    from .rewards import *  # noqa: F403
-    from .terminations import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=[
-        "actions",
-        "commands",
-        "curriculums",
-        "events",
-        "observations",
-        "recorders",
-        "rewards",
-        "terminations",
-    ],
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

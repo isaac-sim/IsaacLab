@@ -15,19 +15,6 @@
     :class:`DeprecationWarning` at instantiation time.
 """
 
-from __future__ import annotations
+import lazy_loader as lazy
 
-import typing
-
-if typing.TYPE_CHECKING:
-    from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs
-    from .manus_vive import ManusVive, ManusViveCfg
-    from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export(
-    ("xr_cfg", ["XrAnchorRotationMode", "XrCfg", "remove_camera_configs"]),
-    ("manus_vive", ["ManusVive", "ManusViveCfg"]),
-    ("openxr_device", ["OpenXRDevice", "OpenXRDeviceCfg"]),
-)
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -5,16 +5,3 @@
 
 
 """This sub-module contains the functions that are specific to the locomanipulation environments."""
-
-from __future__ import annotations
-
-import typing
-
-if typing.TYPE_CHECKING:
-    from .tracking import *  # noqa: F403
-
-from isaaclab.utils.module import cascading_export
-
-cascading_export(
-    submodules=["tracking"],
-)
