@@ -4,15 +4,27 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "ConstantNoiseCfg",
+    "GaussianNoiseCfg",
     "NoiseCfg",
     "NoiseModel",
+    "NoiseModelCfg",
     "NoiseModelWithAdditiveBias",
+    "NoiseModelWithAdditiveBiasCfg",
+    "UniformNoiseCfg",
     "constant_noise",
     "gaussian_noise",
     "uniform_noise",
 ]
 
-from .noise_cfg import NoiseCfg
+from .noise_cfg import (
+    ConstantNoiseCfg,
+    GaussianNoiseCfg,
+    NoiseCfg,
+    NoiseModelCfg,
+    NoiseModelWithAdditiveBiasCfg,
+    UniformNoiseCfg,
+)
 from .noise_model import (
     NoiseModel,
     NoiseModelWithAdditiveBias,
