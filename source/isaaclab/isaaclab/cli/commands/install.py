@@ -220,6 +220,27 @@ def command_install(install_type: str = "all") -> None:
         print_info("ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
         saved_ld_preload = os.environ.pop("LD_PRELOAD")
 
+    # Temporarily filter Isaac Sim pre-bundled package paths from PYTHONPATH during all pip operations.
+    # This prevents pip from scanning and managing packages in Isaac Sim's pip_prebundle directories,
+    # which can cause those packages to be deleted or modified. This is especially important
+    # in conda environments where Isaac Sim setup scripts add these paths to PYTHONPATH.
+    saved_pythonpath = None
+    filtered_pythonpath = None
+    if "PYTHONPATH" in os.environ:
+        saved_pythonpath = os.environ["PYTHONPATH"]
+        # Filter out any paths containing pip_prebundle (pre-bundled packages that pip shouldn't manage)
+        paths = saved_pythonpath.split(os.pathsep)
+        filtered_paths = [p for p in paths if p and "pip_prebundle" not in p]
+
+        if len(filtered_paths) != len(paths):
+            filtered_pythonpath = os.pathsep.join(filtered_paths)
+            os.environ["PYTHONPATH"] = filtered_pythonpath
+            filtered_count = len(paths) - len(filtered_paths)
+            print_info(
+                f"Temporarily filtering {filtered_count} Isaac Sim pre-bundled package path(s) from PYTHONPATH "
+                "during pip operations to prevent interference with pre-bundled packages."
+            )
+
     try:
         # Upgrade pip first to avoid compatibility issues.
         print_info("Upgrading pip...")
@@ -243,6 +264,9 @@ def command_install(install_type: str = "all") -> None:
         # Restore LD_PRELOAD if we cleared it.
         if saved_ld_preload:
             os.environ["LD_PRELOAD"] = saved_ld_preload
+        # Restore PYTHONPATH if we filtered it.
+        if saved_pythonpath is not None:
+            os.environ["PYTHONPATH"] = saved_pythonpath
 
     # Install vscode update unless we're in docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
