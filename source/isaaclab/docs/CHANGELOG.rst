@@ -7,12 +7,12 @@ Changelog
 Changed
 ^^^^^^^
 
-* Refined lazy-loading behavior for config-only import paths to keep environment
-  config construction backend-free. This includes stricter cascading namespace
-  resolution in :func:`~isaaclab.utils.module.attach_cascading`, avoiding eager
-  callable resolution during deepcopy of :class:`~isaaclab.utils.string.ResolvableString`,
-  and updating locomanipulation MDP exports/import boundaries so
-  ``test_env_cfg_no_forbidden_imports.py`` passes without importing runtime modules.
+* Migrated lazy-loading to ``lazy_loader.attach_stub`` with ``.pyi`` stubs as the
+  single source of truth for module exports.  Removed the old ``attach_cascading``
+  helper, avoided eager callable resolution during deepcopy of
+  :class:`~isaaclab.utils.string.ResolvableString`, and updated MDP
+  exports/import boundaries so ``test_env_cfg_no_forbidden_imports.py`` passes
+  without importing runtime modules.
 
 4.3.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
