@@ -152,7 +152,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
     ):
         """Test that null space Jacobian is identity when no frame tasks are defined."""
         # Create null space task without frame task controlled joints
-        null_space_task = NullSpacePostureTask(NullSpacePostureTaskCfg(cost=1.0, controlled_frames=[], controlled_joints=[]))
+        null_space_task = NullSpacePostureTask(
+            NullSpacePostureTaskCfg(cost=1.0, controlled_frames=[], controlled_joints=[])
+        )
 
         # Set specific joint configuration
         robot_configuration.q = joint_configurations["sequential"]
@@ -235,7 +237,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
 
         # Create task with specific controlled joints
         null_space_task = NullSpacePostureTask(
-            NullSpacePostureTaskCfg(cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=controlled_joint_names)
+            NullSpacePostureTaskCfg(
+                cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=controlled_joint_names
+            )
         )
 
         # Find the joint indexes in robot_configuration.model.names.tolist()[1:]
