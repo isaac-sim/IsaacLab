@@ -20,8 +20,9 @@ Forbidden categories
 
 Remediation patterns
 --------------------
-* Use ``lazy_loader`` (``lazy.attach``) in ``__init__.py`` files so that
-  implementation modules are only imported when first accessed.
+* Use ``lazy_loader.attach_stub`` in ``__init__.py`` files with a
+  corresponding ``.pyi`` stub so that implementation modules are only
+  imported when first accessed.
 * Guard annotation-only imports with ``TYPE_CHECKING``.
 * Store ``class_type`` / ``func`` fields as fully-qualified strings
   (e.g. ``"isaaclab.assets.articulation:Articulation"``); ``cfg.validate()``
@@ -156,9 +157,9 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
     Config classes are pure data.  They must not pull in backend modules
     (pxr, omni, carb, isaacsim) or heavyweight libraries (scipy).
 
-    Fix: use lazy_loader (lazy.attach) in __init__.py files, TYPE_CHECKING
-    guards for annotation-only imports, and string references for
-    class_type/func fields in cfg files.
+    Fix: use lazy_loader.attach_stub with .pyi stubs in __init__.py files,
+    TYPE_CHECKING guards for annotation-only imports, and string references
+    for class_type/func fields in cfg files.
     """
     if "__subprocess_crash__" in all_cfg_check_results:
         pytest.fail(f"Batch check subprocess crashed:\n{all_cfg_check_results['__subprocess_crash__']}")
@@ -182,7 +183,7 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
         f"Config loading for '{task_name}' imported forbidden backend modules.\n"
         f"Forbidden prefixes: {_FORBIDDEN_PREFIXES}\n"
         + "\n".join(messages)
-        + "\n\nFix: use lazy_loader (lazy.attach) in the offending __init__.py, "
-        "or move the import under TYPE_CHECKING and use a string reference "
-        "for isinstance checks."
+        + "\n\nFix: use lazy_loader.attach_stub with a .pyi stub in the offending "
+        "__init__.py, or move the import under TYPE_CHECKING and use a string "
+        "reference for isinstance checks."
     )
