@@ -57,6 +57,10 @@ Changed
   for config defaults. ``"{DIR}.module:Symbol"`` now expands to the declaring config
   module directory before resolution.
 
+* Updated :func:`~isaaclab.utils.dict.update_class_from_dict` to stop eagerly resolving
+  callable strings during updates. Callable-string inputs are now preserved as lazy
+  :class:`~isaaclab.utils.string.ResolvableString` values and resolve only on first use.
+
 
 4.2.2 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~
