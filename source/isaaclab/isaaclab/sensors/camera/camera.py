@@ -127,7 +127,7 @@ class Camera(SensorBase):
         # This is only introduced in isaac sim 6.0
         isaac_sim_version = get_isaac_sim_version()
         if isaac_sim_version.major >= 6:
-            # Set RTX flag to enable fast path if only depth or albedo is requested
+            # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
             needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
             if not needs_color_render:
                 settings.set_bool("/rtx/sdg/force/disableColorRender", True)
