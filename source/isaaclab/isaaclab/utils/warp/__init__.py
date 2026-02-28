@@ -5,7 +5,10 @@
 
 """Sub-module containing operations based on warp."""
 
-from . import fabric  # noqa: F401
+import warp as wp
+
+wp.config.quiet = True
+wp.init()
 
 import lazy_loader as lazy
 
