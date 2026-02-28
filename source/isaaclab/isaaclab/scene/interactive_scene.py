@@ -733,10 +733,9 @@ class InteractiveScene:
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                    asset_cfg.filter_prim_paths_expr = [
+                        p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
+                    ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(

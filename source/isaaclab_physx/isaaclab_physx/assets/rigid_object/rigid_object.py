@@ -332,6 +332,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+        else:
+            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim,
             dim=env_ids.shape[0],
@@ -412,6 +416,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+        else:
+            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim,
             dim=env_ids.shape[0],
@@ -499,6 +507,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+        else:
+            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim,
             dim=env_ids.shape[0],
@@ -588,6 +600,10 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+        else:
+            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Access body_com_pose_b and root_link_pose_w properties to ensure they are current.
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim,
@@ -683,6 +699,10 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+        else:
+            self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -766,6 +786,10 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+        else:
+            self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer,
@@ -848,13 +872,18 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+        else:
+            self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_single_body_inertia_to_buffer,
+            shared_kernels.write_body_inertia_to_buffer,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
                 env_ids,
+                self._ALL_BODY_INDICES,
                 full_data,
             ],
             outputs=[
@@ -867,7 +896,7 @@ class RigidObject(BaseRigidObject):
             cpu_env_ids = wp.clone(env_ids, device="cpu")
         else:
             cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
+        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu").flatten(), indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,

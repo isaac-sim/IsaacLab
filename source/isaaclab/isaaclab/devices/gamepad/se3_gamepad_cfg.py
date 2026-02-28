@@ -7,13 +7,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from isaaclab.utils import configclass
 
 from ..device_base import DeviceCfg
-from .se3_gamepad import Se3Gamepad
+
+if TYPE_CHECKING:
+    from .se3_gamepad import Se3Gamepad
 
 
-@dataclass
+@configclass
 class Se3GamepadCfg(DeviceCfg):
     """Configuration for SE3 gamepad devices."""
 
@@ -21,4 +25,4 @@ class Se3GamepadCfg(DeviceCfg):
     dead_zone: float = 0.01
     pos_sensitivity: float = 1.0
     rot_sensitivity: float = 1.6
-    class_type: type | str = Se3Gamepad
+    class_type: type[Se3Gamepad] | str = "{DIR}.se3_gamepad:Se3Gamepad"

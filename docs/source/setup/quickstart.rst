@@ -40,7 +40,7 @@ To begin, we first define our virtual environment.
          # activate the virtual environment
          conda activate env_isaaclab
 
-   .. tab-item:: uv (experimental)
+   .. tab-item:: uv
 
       .. tab-set::
          :sync-group: os

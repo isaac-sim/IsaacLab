@@ -8,17 +8,15 @@ from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.managers.recorder_manager import RecorderTerm, RecorderTermCfg
+from isaaclab.managers.recorder_manager import RecorderTermCfg
 from isaaclab.utils import configclass
-
-from .locomanipulation_sdg_env import LocomanipulationSDGOutputDataRecorder
 
 
 @configclass
 class LocomanipulationSDGOutputDataRecorderCfg(RecorderTermCfg):
     """Configuration for the step policy observation recorder term."""
 
-    class_type: type[RecorderTerm] = LocomanipulationSDGOutputDataRecorder
+    class_type: type | str = "{DIR}.locomanipulation_sdg_env:LocomanipulationSDGOutputDataRecorder"
 
 
 @configclass
