@@ -139,7 +139,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, expe
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
-        # randomly sample a seed if seed = -1
+    # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
 

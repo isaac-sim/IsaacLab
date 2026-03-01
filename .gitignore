@@ -74,6 +74,8 @@ tests/
 **/tactile_record/*
 **/gelsight_r15_data/*
 
+# Downloaded assets
+offline_assets/*
 # No benchmarks output
 /benchmarks/
 

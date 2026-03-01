@@ -63,6 +63,7 @@ Guidelines for modifications:
 * Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
+* Clayton Littlejohn
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Leon
