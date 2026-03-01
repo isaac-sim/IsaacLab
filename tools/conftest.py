@@ -83,6 +83,9 @@ def capture_test_output_with_timeout(cmd, timeout, env):
                             chunk = process.stderr.read(1024)
                             if chunk:
                                 stderr_data += chunk
+                                # Print to stderr in real-time
+                                sys.stderr.buffer.write(chunk)
+                                sys.stderr.buffer.flush()
             except OSError:
                 # select failed, fall back to simple polling
                 time.sleep(0.1)

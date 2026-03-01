@@ -238,7 +238,6 @@ def setup_sim():
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.skip(reason="env_1 double-replicated under new cloner, causing mismatched physics buffers")
 def test_constant_velocity(setup_sim):
     """Test the Imu sensor with a constant velocity.
 
@@ -246,7 +245,6 @@ def test_constant_velocity(setup_sim):
     the same velocity and therefore reset the physx buffers.
     """
     sim, scene = setup_sim
-    scene.cfg.replicate_physics = False
     prev_lin_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
     prev_ang_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
     prev_lin_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
@@ -329,11 +327,9 @@ def test_constant_velocity(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.skip(reason="env_1 double-replicated under new cloner, causing mismatched physics buffers")
 def test_constant_acceleration(setup_sim):
     """Test the Imu sensor with a constant acceleration."""
     sim, scene = setup_sim
-    scene.cfg.replicate_physics = False
     for idx in range(100):
         # set acceleration
         scene.rigid_objects["balls"].write_root_velocity_to_sim(
