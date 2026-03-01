@@ -100,19 +100,16 @@ def _make_mock_physx_rep_detailed():
 @pytest.mark.parametrize(
     "num_envs,src,expected_worlds",
     [
-        (3, "/World/envs/env_0", [2]),
-        (1, "/World/envs/env_0", []),
+        (3, "/World/envs/env_0", [3]),
+        (1, "/World/envs/env_0", [1]),
         (3, "/World/template/Robot", [3]),
     ],
 )
-def test_physx_replicate_excludes_self_world(sim, num_envs, src, expected_worlds):
-    """physx_replicate skips rep.replicate when all worlds are self-copies.
+def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
+    """physx_replicate calls rep.replicate with the correct world count (include-self).
 
-    attach_fn returns only the template path so the replicator's stage parse registers all
-    existing env prims as simulation bodies. rep.replicate is only called for the non-self
-    replica worlds. When filtering removes all worlds (isolated single-env case, or global
-    num_envs=1), rep.replicate is skipped entirely — the source prim is already registered
-    by the stage parse and no replication is needed.
+    All mapped worlds are passed to rep.replicate, including the source environment
+    itself. This means a source that maps to N environments will replicate to N worlds.
     """
     from unittest.mock import patch
 
@@ -140,15 +137,11 @@ def test_physx_replicate_excludes_self_world(sim, num_envs, src, expected_worlds
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_physx_replicate_isolated_source_loaded_without_replication(sim, device):
-    """An isolated source (worlds=[self]) is registered by the stage parse, not rep.replicate.
+    """A single-env source (worlds=[self]) is correctly loaded after physx_replicate.
 
-    When physx_replicate encounters a source whose only world is itself, it skips rep.replicate
-    (self-exclusion → empty worlds list → continue). The prim must already be in the stage
-    (put there by proto_mask usd_replicate) so the replicator's stage parse picks it up as a
-    simulation body. This test verifies:
-      1. rep.replicate is NOT called for the isolated source (no self-copy).
-      2. After sim.reset(), PhysX can find the rigid body at the isolated env path — i.e. the
-         first instance IS loaded even though rep.replicate was never invoked for it.
+    When there is only one environment and the source maps to itself, physx_replicate
+    calls rep.replicate with 1 world (include-self). After sim.reset(), PhysX must be
+    able to find the rigid body at the env path.
     """
     stage = sim_utils.get_current_stage()
 
@@ -176,27 +169,21 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim, device)
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Sphere")
     assert physx_view is not None and physx_view.count == 1, (
-        f"Expected 1 rigid body at /World/envs/env_0/Sphere, got "
-        f"{'None (prim not found by PhysX)' if physx_view is None else physx_view.count}. "
-        "Isolated source (worlds=[self]) must be registered by the stage parse when "
-        "rep.replicate is skipped — verify attach_fn does not exclude env prim paths."
+        f"Expected 1 rigid body at /World/envs/env_0/Sphere, got {'None' if physx_view is None else physx_view.count}."
     )
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
-    """physx_replicate handles heterogeneous sources where some map only to themselves.
+    """physx_replicate handles heterogeneous sources including self in all world lists.
 
     This is the Dexsuite scenario: multiple object types, each with a designated proto-env.
-    Some types are assigned to only one environment (themselves), making them 'isolated'.
-    Isolated sources must be skipped by rep.replicate — they are already registered by the
-    replicator's stage parse (attach_fn does not exclude env paths). Multi-world sources
-    must replicate only to their non-self worlds.
+    With include-self, every source replicates to all its mapped worlds (including itself).
 
     Sources and expected behaviour:
-      env_0/Object → worlds [0, 2, 4]   → self-excluded → replicate to [2, 4]  (2 worlds)
-      env_5/Object → worlds [5]          → self-excluded → skip (isolated)       (0 worlds)
-      env_7/Object → worlds [7, 11]      → self-excluded → replicate to [11]    (1 world)
+      env_0/Object → worlds [0, 2, 4]   → replicate to [0, 2, 4]  (3 worlds)
+      env_5/Object → worlds [5]          → replicate to [5]         (1 world)
+      env_7/Object → worlds [7, 11]      → replicate to [7, 11]    (2 worlds)
     """
     from unittest.mock import patch
 
@@ -223,14 +210,11 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
         )
 
     expected = [
-        ("/World/envs/env_0/Object", 2),
-        ("/World/envs/env_7/Object", 1),
+        ("/World/envs/env_0/Object", 3),
+        ("/World/envs/env_5/Object", 1),
+        ("/World/envs/env_7/Object", 2),
     ]
-    assert replicate_calls == expected, (
-        f"Expected {expected}, got {replicate_calls}. "
-        "env_5/Object (isolated, worlds=[5]) must be skipped — it is registered by the "
-        "replicator's stage parse, not by rep.replicate."
-    )
+    assert replicate_calls == expected, f"Expected {expected}, got {replicate_calls}."
 
 
 def test_clone_from_template(sim):
@@ -398,27 +382,11 @@ def test_colocation_collision_filter_heterogeneous(sim):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize(
-    "exclude_self",
-    [
-        pytest.param(False, id="include_self"),
-        pytest.param(
-            True,
-            id="exclude_self",
-            marks=pytest.mark.xfail(
-                reason="exclude_self_replication=True causes undefined PhysX backend behaviour "
-                "(velocity divergence on CPU)",
-                strict=False,
-            ),
-        ),
-    ],
-)
-def test_rigid_object_consistency_with_physx_replicate(sim, exclude_self):
-    """Test that physx_replicate produces consistent env velocities.
+def test_rigid_object_consistency_with_physx_replicate(sim):
+    """Test that physx_replicate (include-self) produces consistent env velocities.
 
     Spawn a rigid sphere into env_0, physx_replicate, then USD-replicate to env_1.
-    With exclude_self=False (include self) behaviour is consistent across envs.
-    With exclude_self=True the PhysX backend misbehaves (known issue, marked xfail).
+    Both envs should have matching velocities when driven with the same input.
     """
     num_envs = 2
     spacing = 5.0
@@ -446,7 +414,6 @@ def test_rigid_object_consistency_with_physx_replicate(sim, exclude_self):
         env_ids=env_ids,
         mapping=mapping,
         device=sim.cfg.device,
-        exclude_self_replication=exclude_self,
     )
     usd_replicate(
         stage,
@@ -456,7 +423,6 @@ def test_rigid_object_consistency_with_physx_replicate(sim, exclude_self):
         mask=mapping,
         positions=positions,
     )
-    tag = "physx_rep_exclude_self" if exclude_self else "physx_rep_include_self"
 
     sim.reset()
 
@@ -474,4 +440,4 @@ def test_rigid_object_consistency_with_physx_replicate(sim, exclude_self):
 
         v = wp.to_torch(ball_view.get_velocities())
         diff = (v[0] - v[1]).abs().max().item()
-        assert diff < 1e-3, f"[{tag}] step {idx}: env_1 diverges from env_0, max diff = {diff}"
+        assert diff < 1e-3, f"step {idx}: env_1 diverges from env_0, max diff = {diff}"
