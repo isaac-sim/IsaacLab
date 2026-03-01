@@ -20,7 +20,7 @@ import warp as wp
 from isaaclab_physx.cloner import physx_replicate
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import TemplateCloneCfg, clone_from_template, sequential
+from isaaclab.cloner import TemplateCloneCfg, clone_from_template, sequential, usd_replicate
 from isaaclab.sim import build_simulation_context
 
 
@@ -395,3 +395,83 @@ def test_colocation_collision_filter_heterogeneous(sim):
         ),
         expected_types=["Cone", "Cube", "Sphere"],
     )
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize(
+    "exclude_self",
+    [
+        pytest.param(False, id="include_self"),
+        pytest.param(
+            True,
+            id="exclude_self",
+            marks=pytest.mark.xfail(
+                reason="exclude_self_replication=True causes undefined PhysX backend behaviour "
+                "(velocity divergence on CPU)",
+                strict=False,
+            ),
+        ),
+    ],
+)
+def test_rigid_object_consistency_with_physx_replicate(sim, exclude_self):
+    """Test that physx_replicate produces consistent env velocities.
+
+    Spawn a rigid sphere into env_0, physx_replicate, then USD-replicate to env_1.
+    With exclude_self=False (include self) behaviour is consistent across envs.
+    With exclude_self=True the PhysX backend misbehaves (known issue, marked xfail).
+    """
+    num_envs = 2
+    spacing = 5.0
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+
+    sphere_cfg = sim_utils.SphereCfg(
+        radius=0.25,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+    sphere_cfg.func("/World/envs/env_0/ball", sphere_cfg, translation=(0.0, 0.0, 0.5))
+
+    env_ids = torch.arange(num_envs, dtype=torch.long)
+    positions = torch.tensor([[0.0, 0.0, 0.0], [spacing, 0.0, 0.0]])
+    mapping = torch.ones((1, num_envs), dtype=torch.bool)
+
+    physx_replicate(
+        stage,
+        sources=["/World/envs/env_0/ball"],
+        destinations=["/World/envs/env_{}/ball"],
+        env_ids=env_ids,
+        mapping=mapping,
+        device=sim.cfg.device,
+        exclude_self_replication=exclude_self,
+    )
+    usd_replicate(
+        stage,
+        sources=["/World/envs/env_0"],
+        destinations=["/World/envs/env_{}"],
+        env_ids=env_ids,
+        mask=mapping,
+        positions=positions,
+    )
+    tag = "physx_rep_exclude_self" if exclude_self else "physx_rep_include_self"
+
+    sim.reset()
+
+    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
+    assert ball_view.count == num_envs, f"Expected {num_envs} balls, got {ball_view.count}"
+
+    device = sim.cfg.device
+    vel = wp.from_torch(torch.tensor([[10.0, 0.0, 0.0, 0.0, 0.0, 0.0]] * num_envs, dtype=torch.float32, device=device))
+    indices = wp.from_torch(torch.arange(num_envs, dtype=torch.int32, device=device))
+
+    for idx in range(10):
+        ball_view.set_velocities(vel, indices)
+        sim.step()
+
+        v = wp.to_torch(ball_view.get_velocities())
+        diff = (v[0] - v[1]).abs().max().item()
+        assert diff < 1e-3, f"[{tag}] step {idx}: env_1 diverges from env_0, max diff = {diff}"

@@ -21,12 +21,19 @@ def physx_replicate(
     quaternions: torch.Tensor | None = None,
     use_fabric: bool = False,
     device: str = "cpu",
+    exclude_self_replication: bool = False,
 ) -> None:
     """Replicate prims via PhysX replicator with per-row mapping.
 
     Builds per-source destination lists from ``mapping`` and calls PhysX ``replicate``.
     Rows covering all environments use ``useEnvIds=True``; partial rows use ``False``.
     The replicator is registered for the call and then unregistered.
+
+    .. note::
+        The PhysX replicator always includes the source environment in its replication
+        targets. Skipping the source (exclude-self) causes undefined behaviour in the
+        PhysX backend (inconsistencies across environments). This means the source env
+        receives a duplicate PhysX body on top of the USD-parsed original.
 
     Args:
         stage: USD stage.
@@ -38,6 +45,9 @@ def physx_replicate(
         quaternions: Optional orientations (unused, for API compatibility).
         use_fabric: Use Fabric for replication.
         device: Torch device for determining replication mode.
+        exclude_self_replication: If True, skip replicating a source prim onto itself.
+            Default is False. Warning: setting this to True causes undefined behaviour
+            in the PhysX backend (device mismatches on CUDA, velocity divergence on CPU).
 
     Returns:
         None
@@ -63,19 +73,19 @@ def physx_replicate(
         for i, src in enumerate(sources):
             current_template = destinations[i]
             worlds = env_ids[mapping[i]].tolist()
-            # Exclude the world whose destination resolves to the source itself — replicating
-            # a prim onto itself creates a duplicate PhysX body that conflicts with the
-            # USD-parsed original, causing erratic joint behaviour.
-            pre, _, suf = current_template.partition("{}")
-            self_id = src.removeprefix(pre).removesuffix(suf)
-            current_worlds[:] = [w for w in worlds if w != int(self_id)] if self_id.isdigit() else worlds
+            if exclude_self_replication:
+                pre, _, suf = current_template.partition("{}")
+                self_id = src.removeprefix(pre).removesuffix(suf)
+                current_worlds[:] = [w for w in worlds if w != int(self_id)] if self_id.isdigit() else worlds
+            else:
+                current_worlds[:] = worlds
             if not current_worlds:
                 continue
             rep.replicate(
                 _stage_id,
                 src,
                 len(current_worlds),
-                useEnvIds=(len(worlds) == num_envs) and device != "cpu",
+                useEnvIds=(len(current_worlds) == num_envs) and device != "cpu",
                 useFabricForReplication=use_fabric,
             )
         # unregister only AFTER all replicate() calls completed
