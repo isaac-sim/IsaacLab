@@ -78,7 +78,7 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
         return 0
 
 
-def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = True) -> str:
+def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
     If the file exists locally, then the absolute path to the file is returned.
@@ -90,7 +90,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         download_dir: The directory where the file should be downloaded. Defaults to None, in which
             case the file is downloaded to the system's temporary directory.
         force_download: Whether to force download the file from the Nucleus Server. This will overwrite
-            the local file if it exists. Defaults to True.
+            the local file if it exists. Defaults to False.
 
     Returns:
         The path to the file on the local machine.
