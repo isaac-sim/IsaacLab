@@ -50,8 +50,6 @@ ISAAC_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
 ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
-USD_EXTENSIONS = {".usd", ".usda", ".usdz"}
-
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
     """Checks if a file exists on the Nucleus Server or locally.
@@ -139,7 +137,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 local_root = target_path
 
             # recurse into USD dependencies and referenced assets
-            if Path(target_path).suffix.lower() in USD_EXTENSIONS:
+            if Path(target_path).suffix.lower() in {".usd", ".usda", ".usdz"}:
                 for ref in _find_usd_references(target_path):
                     ref_url = _resolve_reference_url(cur_url, ref)
                     if ref_url and ref_url not in visited:
