@@ -53,6 +53,7 @@ def setup_environment(
     factory_envs: bool | None = None,
     multi_agent: bool | None = None,
     teleop_envs: bool | None = None,
+    cartpole_showcase_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -71,6 +72,10 @@ def setup_environment(
             - True: include only teleop environments (those requiring isaacteleop)
             - False: exclude teleop environments
             - None: include all environments regardless of teleop dependency
+        cartpole_showcase_envs:
+            - True: include only Cartpole Showcase environments
+            - False: exclude Cartpole Showcase environments
+            - None: include all environments regardless of showcase type
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -94,6 +99,13 @@ def setup_environment(
         # apply factory filter
         if (factory_envs is True and ("Factory" not in task_spec.id and "Forge" not in task_spec.id)) or (
             factory_envs is False and ("Factory" in task_spec.id or "Forge" in task_spec.id)
+        ):
+            continue
+        # if None: no filter
+
+        # apply cartpole showcase filter
+        if (cartpole_showcase_envs is True and "Showcase" not in task_spec.id) or (
+            cartpole_showcase_envs is False and "Showcase" in task_spec.id
         ):
             continue
         # if None: no filter

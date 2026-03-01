@@ -19,9 +19,9 @@ PER_TEST_TIMEOUTS = {
     "test_articulation.py": 500,
     "test_stage_in_memory.py": 500,
     "test_imu.py": 750,
-    "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
+    "test_environments.py": 5000,  # This test runs through all the environments for 100 steps each
     "test_environments_with_stage_in_memory.py": (
-        10000
+        5000
     ),  # Like the above, with stage in memory and with and without fabric cloning
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
@@ -33,8 +33,10 @@ PER_TEST_TIMEOUTS = {
     ),  # This test runs through training for several environments and compares thresholds
     "test_environments_skillgen.py": 1000,
     "test_environments_automate.py": 2500,
-    "test_teleop_environments.py": 10000,
-    "test_teleop_environments_with_stage_in_memory.py": 10000,
+    "test_teleop_environments.py": 5000,
+    "test_teleop_environments_with_stage_in_memory.py": 5000,
+    "test_cartpole_showcase_environments.py": 5000,
+    "test_cartpole_showcase_environments_with_stage_in_memory.py": 5000,
     "test_simulation_render_config.py": 500,
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
@@ -46,7 +48,7 @@ PER_TEST_TIMEOUTS = {
     "test_manager_based_rl_env_obs_spaces.py": 500,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 500,
-    "test_rigid_object_collection.py": 1000,
+    "test_rigid_object_collection.py": 500,
     "test_outdated_sensor.py": 500,
     "test_multi_tiled_camera.py": 1000,
 }
