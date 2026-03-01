@@ -24,6 +24,8 @@ import warp as wp
 from flaky import flaky
 from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 
+import carb
+
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sim import build_simulation_context
@@ -103,7 +105,10 @@ def test_initialization(sim, num_cubes, material_path):
     cube_object = generate_cubes_scene(num_cubes=num_cubes, material_path=material_path)
 
     # Check that boundedness of deformable object is correct
-    assert ctypes.c_long.from_address(id(cube_object)).value == 1
+    # Note: refcount is read before the assert to avoid pytest assertion rewriting
+    # inflating the reference count with temporary variables.
+    refcount = ctypes.c_long.from_address(id(cube_object)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -182,7 +187,8 @@ def test_initialization_on_device_cpu():
         cube_object = generate_cubes_scene(num_cubes=5, device="cpu")
 
         # Check that boundedness of deformable object is correct
-        assert ctypes.c_long.from_address(id(cube_object)).value == 1
+        refcount = ctypes.c_long.from_address(id(cube_object)).value
+        assert refcount == 1
 
         # Play sim
         with pytest.raises(RuntimeError):
@@ -196,7 +202,8 @@ def test_initialization_with_kinematic_enabled(sim, num_cubes):
     cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
 
     # Check that boundedness of deformable object is correct
-    assert ctypes.c_long.from_address(id(cube_object)).value == 1
+    refcount = ctypes.c_long.from_address(id(cube_object)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -246,7 +253,7 @@ def test_set_nodal_state(sim, num_cubes):
                     ],
                     dim=-1,
                 )
-                cube_object.write_nodal_state_to_sim_index(nodal_state)
+                cube_object.write_nodal_state_to_sim(nodal_state)
 
                 torch.testing.assert_close(
                     wp.to_torch(cube_object.data.nodal_state_w), nodal_state, rtol=1e-5, atol=1e-5
@@ -263,9 +270,8 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.isaacsim_ci
 def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
-    from isaaclab.app.settings_manager import get_settings_manager
-
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    carb_settings_iface = carb.settings.get_settings()
+    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     # Create simulation context with gravity disabled (no fixture needed)
     with build_simulation_context(auto_add_lighting=True, gravity_enabled=False) as sim:
@@ -295,7 +301,7 @@ def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, random
             else:
                 torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
 
-            cube_object.write_nodal_state_to_sim_index(nodal_state)
+            cube_object.write_nodal_state_to_sim(nodal_state)
             cube_object.reset()
 
             for _ in range(50):
@@ -318,7 +324,7 @@ def test_set_kinematic_targets(sim, num_cubes):
     nodal_kinematic_targets = wp.to_torch(cube_object.root_view.get_sim_kinematic_targets()).clone()
 
     for _ in range(5):
-        cube_object.write_nodal_state_to_sim_index(wp.to_torch(cube_object.data.default_nodal_state_w))
+        cube_object.write_nodal_state_to_sim(wp.to_torch(cube_object.data.default_nodal_state_w))
 
         default_root_pos = wp.to_torch(cube_object.data.default_nodal_state_w).mean(dim=1)
 
@@ -327,8 +333,8 @@ def test_set_kinematic_targets(sim, num_cubes):
         nodal_kinematic_targets[1:, :, 3] = 1.0
         nodal_kinematic_targets[0, :, 3] = 0.0
         nodal_kinematic_targets[0, :, :3] = wp.to_torch(cube_object.data.default_nodal_state_w)[0, :, :3]
-        cube_object.write_nodal_kinematic_target_to_sim_index(
-            nodal_kinematic_targets[0].unsqueeze(0), env_ids=torch.tensor([0], device=sim.device)
+        cube_object.write_nodal_kinematic_target_to_sim(
+            nodal_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
         )
 
         for _ in range(20):

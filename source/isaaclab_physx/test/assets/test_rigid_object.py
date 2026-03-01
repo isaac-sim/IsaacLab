@@ -108,7 +108,8 @@ def test_initialization(num_cubes, device):
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
         # Check that boundedness of rigid object is correct
-        assert ctypes.c_long.from_address(id(cube_object)).value == 1
+        refcount = ctypes.c_long.from_address(id(cube_object)).value
+        assert refcount == 1
 
         # Play sim
         sim.reset()
@@ -142,7 +143,8 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
         cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True, device=device)
 
         # Check that boundedness of rigid object is correct
-        assert ctypes.c_long.from_address(id(cube_object)).value == 1
+        refcount = ctypes.c_long.from_address(id(cube_object)).value
+        assert refcount == 1
 
         # Play sim
         sim.reset()
@@ -180,7 +182,8 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="none", device=device)
 
         # Check that boundedness of rigid object is correct
-        assert ctypes.c_long.from_address(id(cube_object)).value == 1
+        refcount = ctypes.c_long.from_address(id(cube_object)).value
+        assert refcount == 1
 
         # Play sim
         with pytest.raises(RuntimeError):
@@ -198,7 +201,8 @@ def test_initialization_with_articulation_root(num_cubes, device):
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="articulation_root", device=device)
 
         # Check that boundedness of rigid object is correct
-        assert ctypes.c_long.from_address(id(cube_object)).value == 1
+        refcount = ctypes.c_long.from_address(id(cube_object)).value
+        assert refcount == 1
 
         # Play sim
         with pytest.raises(RuntimeError):

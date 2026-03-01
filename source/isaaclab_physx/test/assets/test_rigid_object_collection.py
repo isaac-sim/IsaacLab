@@ -116,7 +116,8 @@ def test_initialization(sim, num_envs, num_cubes, device):
     object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
 
     # Check that boundedness of rigid object is correct
-    assert ctypes.c_long.from_address(id(object_collection)).value == 1
+    refcount = ctypes.c_long.from_address(id(object_collection)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -183,7 +184,8 @@ def test_initialization_with_kinematic_enabled(sim, num_envs, num_cubes, device)
     )
 
     # Check that boundedness of rigid object is correct
-    assert ctypes.c_long.from_address(id(object_collection)).value == 1
+    refcount = ctypes.c_long.from_address(id(object_collection)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -215,7 +217,8 @@ def test_initialization_with_no_rigid_body(sim, num_cubes, device):
     object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
     # Check that boundedness of rigid object is correct
-    assert ctypes.c_long.from_address(id(object_collection)).value == 1
+    refcount = ctypes.c_long.from_address(id(object_collection)).value
+    assert refcount == 1
 
     # Play sim
     with pytest.raises(RuntimeError):

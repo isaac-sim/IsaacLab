@@ -223,7 +223,8 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -280,7 +281,8 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -337,7 +339,8 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -403,7 +406,8 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -468,7 +472,8 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -524,7 +529,8 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -585,7 +591,8 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -640,7 +647,8 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     with pytest.raises(ValueError):
@@ -664,7 +672,8 @@ def test_out_of_range_default_joint_vel(sim, device):
     articulation = Articulation(articulation_cfg)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     with pytest.raises(ValueError):
@@ -1672,7 +1681,8 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
     env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1, "Boundedness of articulation is incorrect"
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1, "Boundedness of articulation is incorrect"
     # Play sim
     sim.reset()
     # Check if articulation is initialized
@@ -1954,7 +1964,8 @@ def test_setting_articulation_root_prim_path(sim, device):
     articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
@@ -1973,7 +1984,8 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     with pytest.raises(RuntimeError):
@@ -2108,7 +2120,8 @@ def test_spatial_tendons(sim, num_articulations, device):
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that boundedness of articulation is correct
-    assert ctypes.c_long.from_address(id(articulation)).value == 1
+    refcount = ctypes.c_long.from_address(id(articulation)).value
+    assert refcount == 1
 
     # Play sim
     sim.reset()
