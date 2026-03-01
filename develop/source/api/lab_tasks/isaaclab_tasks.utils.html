@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 28, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
   </head>
   
   
@@ -683,8 +683,8 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.import_packages"><code class="docutils literal notranslate"><span class="pre">import_packages()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.get_checkpoint_path"><code class="docutils literal notranslate"><span class="pre">get_checkpoint_path()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.import_packages"><code class="docutils literal notranslate"><span class="pre">import_packages()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.load_cfg_from_registry"><code class="docutils literal notranslate"><span class="pre">load_cfg_from_registry()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.parse_env_cfg"><code class="docutils literal notranslate"><span class="pre">parse_env_cfg()</span></code></a></li>
 </ul>
@@ -704,11 +704,11 @@
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.import_packages" title="isaaclab_tasks.utils.import_packages"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_packages</span></code></a>(package_name[, blacklist_pkgs])</p></td>
-<td><p>Import all sub-packages in a package recursively.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.get_checkpoint_path" title="isaaclab_tasks.utils.get_checkpoint_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_checkpoint_path</span></code></a>(log_path[, run_dir, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.get_checkpoint_path" title="isaaclab_tasks.utils.get_checkpoint_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_checkpoint_path</span></code></a>(log_path[, run_dir, ...])</p></td>
 <td><p>Get path to the model checkpoint in input directory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.import_packages" title="isaaclab_tasks.utils.import_packages"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_packages</span></code></a>(package_name[, blacklist_pkgs])</p></td>
+<td><p>Import all sub-packages in a package recursively.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.load_cfg_from_registry" title="isaaclab_tasks.utils.load_cfg_from_registry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_cfg_from_registry</span></code></a>(task_name, ...)</p></td>
 <td><p>Load default configuration given its entry point from the gym registry.</p></td>
@@ -719,29 +719,6 @@
 </tbody>
 </table>
 </div>
-<dl class="py function">
-<dt class="sig sig-object py" id="isaaclab_tasks.utils.import_packages">
-<span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">import_packages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">package_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">blacklist_pkgs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/importer.html#import_packages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.import_packages" title="Permalink to this definition">#</a></dt>
-<dd><p>Import all sub-packages in a package recursively.</p>
-<p>It is easier to use this function to import all sub-packages in a package recursively
-than to manually import each sub-package.</p>
-<p>It replaces the need of the following code snippet on the top of each package’s <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> file:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">.locomotion.velocity</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">.manipulation.reach</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">.manipulation.lift</span>
-</pre></div>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>package_name</strong> – The package name.</p></li>
-<li><p><strong>blacklist_pkgs</strong> – The list of blacklisted packages to skip. Defaults to None,
-which means no packages are blacklisted.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab_tasks.utils.get_checkpoint_path">
 <span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">get_checkpoint_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">log_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.*'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.*'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_dirs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sort_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/parse_cfg.html#get_checkpoint_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.get_checkpoint_path" title="Permalink to this definition">#</a></dt>
@@ -771,6 +748,29 @@ If False, the folders in <code class="xref py py-attr docutils literal notransla
 <dd class="field-odd"><ul class="simple">
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – When no runs are found in the input directory.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – When no checkpoints are found in the input directory.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab_tasks.utils.import_packages">
+<span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">import_packages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">package_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">blacklist_pkgs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/importer.html#import_packages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.import_packages" title="Permalink to this definition">#</a></dt>
+<dd><p>Import all sub-packages in a package recursively.</p>
+<p>It is easier to use this function to import all sub-packages in a package recursively
+than to manually import each sub-package.</p>
+<p>It replaces the need of the following code snippet on the top of each package’s <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> file:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">.locomotion.velocity</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">.manipulation.reach</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">.manipulation.lift</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>package_name</strong> – The package name.</p></li>
+<li><p><strong>blacklist_pkgs</strong> – The list of blacklisted packages to skip. Defaults to None,
+which means no packages are blacklisted.</p></li>
 </ul>
 </dd>
 </dl>
@@ -886,8 +886,8 @@ Defaults to None, in which case it is left unchanged.</p></li>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.import_packages"><code class="docutils literal notranslate"><span class="pre">import_packages()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.get_checkpoint_path"><code class="docutils literal notranslate"><span class="pre">get_checkpoint_path()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.import_packages"><code class="docutils literal notranslate"><span class="pre">import_packages()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.load_cfg_from_registry"><code class="docutils literal notranslate"><span class="pre">load_cfg_from_registry()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.parse_env_cfg"><code class="docutils literal notranslate"><span class="pre">parse_env_cfg()</span></code></a></li>
 </ul>
@@ -923,7 +923,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 28, 2026.
+  Last updated on Mar 01, 2026.
   <br/>
 </p>
   </div>

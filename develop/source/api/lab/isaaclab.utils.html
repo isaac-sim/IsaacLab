@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 28, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
   </head>
   
   
@@ -690,7 +690,6 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.io">IO operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.io.load_torchscript_model"><code class="docutils literal notranslate"><span class="pre">load_torchscript_model()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.io.dump_yaml"><code class="docutils literal notranslate"><span class="pre">dump_yaml()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.io.load_yaml"><code class="docutils literal notranslate"><span class="pre">load_yaml()</span></code></a></li>
 </ul>
@@ -750,7 +749,57 @@
 </li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.datasets">Datasets operations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.datasets">Datasets operations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.open"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.open()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.create"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.create()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_env_name"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.get_env_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.write_episode"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.write_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.flush"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.flush()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.close"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.close()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.load_episode"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.load_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_num_episodes"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.get_num_episodes()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData"><code class="docutils literal notranslate"><span class="pre">EpisodeData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.data"><code class="docutils literal notranslate"><span class="pre">EpisodeData.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.seed"><code class="docutils literal notranslate"><span class="pre">EpisodeData.seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.env_id"><code class="docutils literal notranslate"><span class="pre">EpisodeData.env_id</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.next_action_index"><code class="docutils literal notranslate"><span class="pre">EpisodeData.next_action_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.next_state_index"><code class="docutils literal notranslate"><span class="pre">EpisodeData.next_state_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.success"><code class="docutils literal notranslate"><span class="pre">EpisodeData.success</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.is_empty"><code class="docutils literal notranslate"><span class="pre">EpisodeData.is_empty()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.add"><code class="docutils literal notranslate"><span class="pre">EpisodeData.add()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_initial_state"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_initial_state()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_action"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_action()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_next_action"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_next_action()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_state"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_state()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_next_state"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_next_state()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_joint_target"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_joint_target()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_next_joint_target"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_next_joint_target()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.pre_export"><code class="docutils literal notranslate"><span class="pre">EpisodeData.pre_export()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.open"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.open()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.create"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.create()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.add_env_args"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.add_env_args()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.set_env_name"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.set_env_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_env_name"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_env_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_episode_names"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_episode_names()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_num_episodes"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_num_episodes()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.demo_count"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.demo_count</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_format_version"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_format_version()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.is_legacy_quaternion_format"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.is_legacy_quaternion_format()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.load_episode"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.load_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.write_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.flush"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.flush()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.close"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.close()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.convert_dataset_to_xyzw"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.convert_dataset_to_xyzw()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.dict">Dictionary operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.dict.class_to_dict"><code class="docutils literal notranslate"><span class="pre">class_to_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.dict.update_class_from_dict"><code class="docutils literal notranslate"><span class="pre">update_class_from_dict()</span></code></a></li>
@@ -856,15 +905,6 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.modifiers">Modifier operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg"><code class="docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg.params"><code class="docutils literal notranslate"><span class="pre">ModifierCfg.params</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase"><code class="docutils literal notranslate"><span class="pre">ModifierBase</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.reset"><code class="docutils literal notranslate"><span class="pre">ModifierBase.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.__call__"><code class="docutils literal notranslate"><span class="pre">ModifierBase.__call__()</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.DigitalFilter"><code class="docutils literal notranslate"><span class="pre">DigitalFilter</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.DigitalFilter.reset"><code class="docutils literal notranslate"><span class="pre">DigitalFilter.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.DigitalFilter.__call__"><code class="docutils literal notranslate"><span class="pre">DigitalFilter.__call__()</span></code></a></li>
@@ -886,16 +926,21 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.IntegratorCfg.dt"><code class="docutils literal notranslate"><span class="pre">IntegratorCfg.dt</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase"><code class="docutils literal notranslate"><span class="pre">ModifierBase</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.reset"><code class="docutils literal notranslate"><span class="pre">ModifierBase.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.__call__"><code class="docutils literal notranslate"><span class="pre">ModifierBase.__call__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg"><code class="docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg.params"><code class="docutils literal notranslate"><span class="pre">ModifierCfg.params</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.bias"><code class="docutils literal notranslate"><span class="pre">bias()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.clip"><code class="docutils literal notranslate"><span class="pre">clip()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.scale"><code class="docutils literal notranslate"><span class="pre">scale()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.noise">Noise operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">NoiseCfg.operation</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantNoiseCfg.bias"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.bias</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.operation</span></code></a></li>
@@ -907,9 +952,21 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">NoiseCfg.operation</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg.class_type"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.class_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg.noise_cfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.noise_cfg</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -925,20 +982,9 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.UniformNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.constant_noise"><code class="docutils literal notranslate"><span class="pre">constant_noise()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.gaussian_noise"><code class="docutils literal notranslate"><span class="pre">gaussian_noise()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.uniform_noise"><code class="docutils literal notranslate"><span class="pre">uniform_noise()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantBiasNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.AdditiveUniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.AdditiveGaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.seed">Seed operations</a><ul class="nav section-nav flex-column">
@@ -1168,43 +1214,15 @@ conversion and easily copying class instances.</p>
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.io.load_torchscript_model" title="isaaclab.utils.io.load_torchscript_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_torchscript_model</span></code></a>(model_path[, device])</p></td>
-<td><p>Load a TorchScript model from the specified path.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.io.dump_yaml" title="isaaclab.utils.io.dump_yaml"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dump_yaml</span></code></a>(filename, data[, sort_keys])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.io.dump_yaml" title="isaaclab.utils.io.dump_yaml"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dump_yaml</span></code></a>(filename, data[, sort_keys])</p></td>
 <td><p>Saves data into a YAML file safely.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.io.load_yaml" title="isaaclab.utils.io.load_yaml"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_yaml</span></code></a>(filename)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.io.load_yaml" title="isaaclab.utils.io.load_yaml"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_yaml</span></code></a>(filename)</p></td>
 <td><p>Loads an input PKL file safely.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<dl class="py function">
-<dt class="sig sig-object py" id="isaaclab.utils.io.load_torchscript_model">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.io.</span></span><span class="sig-name descname"><span class="pre">load_torchscript_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cpu'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.10)"><span class="pre">torch.nn.Module</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/io/torchscript.html#load_torchscript_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.io.load_torchscript_model" title="Permalink to this definition">#</a></dt>
-<dd><p>Load a TorchScript model from the specified path.</p>
-<p>This function only loads TorchScript models (.pt or .pth files created with torch.jit.save).
-It will not work with raw PyTorch checkpoints (.pth files created with torch.save).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Path to the TorchScript model file (.pt or .pth)</p></li>
-<li><p><strong>device</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – Device to load the model on. Defaults to ‘cpu’.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The loaded TorchScript model in evaluation mode</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.10)">torch.nn.Module</a></p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#FileNotFoundError" title="(in Python v3.14)"><strong>FileNotFoundError</strong></a> – If the model file does not exist</p>
-</dd>
-</dl>
-</dd></dl>
-
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.io.dump_yaml">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.io.</span></span><span class="sig-name descname"><span class="pre">dump_yaml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">sort_keys</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/io/yaml.html#dump_yaml"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.io.dump_yaml" title="Permalink to this definition">#</a></dt>
@@ -1903,6 +1921,483 @@ initialization and should use data.assign(…) whenever possible.</p>
 <section id="module-isaaclab.utils.datasets">
 <span id="datasets-operations"></span><h2>Datasets operations<a class="headerlink" href="#module-isaaclab.utils.datasets" title="Permalink to this heading">#</a></h2>
 <p>Submodule for datasets classes and methods.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase" title="isaaclab.utils.datasets.DatasetFileHandlerBase"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DatasetFileHandlerBase</span></code></a></p></td>
+<td><p>Abstract class for handling dataset files.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData" title="isaaclab.utils.datasets.EpisodeData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EpisodeData</span></code></a></p></td>
+<td><p>Class to store episode data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler" title="isaaclab.utils.datasets.HDF5DatasetFileHandler"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler</span></code></a></p></td>
+<td><p>HDF5 dataset file handler for storing and loading episode data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.datasets.</span></span><span class="sig-name descname"><span class="pre">DatasetFileHandlerBase</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></a></p>
+<p>Abstract class for handling dataset files.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.open" title="isaaclab.utils.datasets.DatasetFileHandlerBase.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a>(file_path[, mode])</p></td>
+<td><p>Open a file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.create" title="isaaclab.utils.datasets.DatasetFileHandlerBase.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a>(file_path[, env_name])</p></td>
+<td><p>Create a new file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_env_name" title="isaaclab.utils.datasets.DatasetFileHandlerBase.get_env_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_env_name</span></code></a>()</p></td>
+<td><p>Get the environment name.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.write_episode" title="isaaclab.utils.datasets.DatasetFileHandlerBase.write_episode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_episode</span></code></a>(episode)</p></td>
+<td><p>Write episode data to the file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.flush" title="isaaclab.utils.datasets.DatasetFileHandlerBase.flush"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flush</span></code></a>()</p></td>
+<td><p>Flush the file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.close" title="isaaclab.utils.datasets.DatasetFileHandlerBase.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<td><p>Close the file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.load_episode" title="isaaclab.utils.datasets.DatasetFileHandlerBase.load_episode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_episode</span></code></a>(episode_name)</p></td>
+<td><p>Load episode data from the file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_num_episodes" title="isaaclab.utils.datasets.DatasetFileHandlerBase.get_num_episodes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_num_episodes</span></code></a>()</p></td>
+<td><p>Get number of episodes in the file.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.open">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'r'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.open" title="Permalink to this definition">#</a></dt>
+<dd><p>Open a file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.create">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.create" title="Permalink to this definition">#</a></dt>
+<dd><p>Create a new file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.get_env_name">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_env_name</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.get_env_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_env_name" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the environment name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.write_episode">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">write_episode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">episode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData" title="isaaclab.utils.datasets.episode_data.EpisodeData"><span class="pre">EpisodeData</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.write_episode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.write_episode" title="Permalink to this definition">#</a></dt>
+<dd><p>Write episode data to the file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.flush">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">flush</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.flush"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.flush" title="Permalink to this definition">#</a></dt>
+<dd><p>Flush the file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.close">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.close" title="Permalink to this definition">#</a></dt>
+<dd><p>Close the file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.load_episode">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_episode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">episode_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData" title="isaaclab.utils.datasets.episode_data.EpisodeData"><span class="pre">EpisodeData</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.load_episode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.load_episode" title="Permalink to this definition">#</a></dt>
+<dd><p>Load episode data from the file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.DatasetFileHandlerBase.get_num_episodes">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_num_episodes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/dataset_file_handler_base.html#DatasetFileHandlerBase.get_num_episodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_num_episodes" title="Permalink to this definition">#</a></dt>
+<dd><p>Get number of episodes in the file.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.datasets.</span></span><span class="sig-name descname"><span class="pre">EpisodeData</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Class to store episode data.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.data" title="isaaclab.utils.datasets.EpisodeData.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<td><p>Returns the episode data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.seed" title="isaaclab.utils.datasets.EpisodeData.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
+<td><p>Returns the random number generator seed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.env_id" title="isaaclab.utils.datasets.EpisodeData.env_id"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_id</span></code></a></p></td>
+<td><p>Returns the environment ID.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.next_action_index" title="isaaclab.utils.datasets.EpisodeData.next_action_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">next_action_index</span></code></a></p></td>
+<td><p>Returns the next action index.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.next_state_index" title="isaaclab.utils.datasets.EpisodeData.next_state_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">next_state_index</span></code></a></p></td>
+<td><p>Returns the next state index.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.success" title="isaaclab.utils.datasets.EpisodeData.success"><code class="xref py py-obj docutils literal notranslate"><span class="pre">success</span></code></a></p></td>
+<td><p>Returns the success value.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.is_empty" title="isaaclab.utils.datasets.EpisodeData.is_empty"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_empty</span></code></a>()</p></td>
+<td><p>Check if the episode data is empty.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.add" title="isaaclab.utils.datasets.EpisodeData.add"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add</span></code></a>(key, value)</p></td>
+<td><p>Add a key-value pair to the dataset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_initial_state" title="isaaclab.utils.datasets.EpisodeData.get_initial_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_initial_state</span></code></a>()</p></td>
+<td><p>Get the initial state from the dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_action" title="isaaclab.utils.datasets.EpisodeData.get_action"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_action</span></code></a>(action_index)</p></td>
+<td><p>Get the action of the specified index from the dataset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_next_action" title="isaaclab.utils.datasets.EpisodeData.get_next_action"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_next_action</span></code></a>()</p></td>
+<td><p>Get the next action from the dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_state" title="isaaclab.utils.datasets.EpisodeData.get_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_state</span></code></a>(state_index)</p></td>
+<td><p>Get the state of the specified index from the dataset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_next_state" title="isaaclab.utils.datasets.EpisodeData.get_next_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_next_state</span></code></a>()</p></td>
+<td><p>Get the next state from the dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_joint_target" title="isaaclab.utils.datasets.EpisodeData.get_joint_target"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_joint_target</span></code></a>(joint_target_index)</p></td>
+<td><p>Get the joint target of the specified index from the dataset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.get_next_joint_target" title="isaaclab.utils.datasets.EpisodeData.get_next_joint_target"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_next_joint_target</span></code></a>()</p></td>
+<td><p>Get the next joint target from the dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData.pre_export" title="isaaclab.utils.datasets.EpisodeData.pre_export"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pre_export</span></code></a>()</p></td>
+<td><p>Prepare data for export by converting lists to tensors.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.data">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.data" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the episode data.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.seed">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">seed</span></span><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.seed" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the random number generator seed.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.env_id">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">env_id</span></span><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.env_id" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment ID.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.next_action_index">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">next_action_index</span></span><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.next_action_index" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the next action index.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.next_state_index">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">next_state_index</span></span><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.next_state_index" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the next state index.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.success">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">success</span></span><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.success" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the success value.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.is_empty">
+<span class="sig-name descname"><span class="pre">is_empty</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.is_empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.is_empty" title="Permalink to this definition">#</a></dt>
+<dd><p>Check if the episode data is empty.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.add"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.add" title="Permalink to this definition">#</a></dt>
+<dd><p>Add a key-value pair to the dataset.</p>
+<p>The key can be nested by using the “/” character.
+For example: “obs/joint_pos”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – The key name.</p></li>
+<li><p><strong>value</strong> – The corresponding value of tensor type or of dict type.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_initial_state">
+<span class="sig-name descname"><span class="pre">get_initial_state</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_initial_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_initial_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the initial state from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_action">
+<span class="sig-name descname"><span class="pre">get_action</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action_index</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_action"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_action" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the action of the specified index from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_next_action">
+<span class="sig-name descname"><span class="pre">get_next_action</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_next_action"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_next_action" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the next action from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_state">
+<span class="sig-name descname"><span class="pre">get_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state_index</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the state of the specified index from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_next_state">
+<span class="sig-name descname"><span class="pre">get_next_state</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_next_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_next_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the next state from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_joint_target">
+<span class="sig-name descname"><span class="pre">get_joint_target</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">joint_target_index</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_joint_target"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_joint_target" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the joint target of the specified index from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.get_next_joint_target">
+<span class="sig-name descname"><span class="pre">get_next_joint_target</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.get_next_joint_target"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.get_next_joint_target" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the next joint target from the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.EpisodeData.pre_export">
+<span class="sig-name descname"><span class="pre">pre_export</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/episode_data.html#EpisodeData.pre_export"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.EpisodeData.pre_export" title="Permalink to this definition">#</a></dt>
+<dd><p>Prepare data for export by converting lists to tensors.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.datasets.</span></span><span class="sig-name descname"><span class="pre">HDF5DatasetFileHandler</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.utils.datasets.DatasetFileHandlerBase" title="isaaclab.utils.datasets.dataset_file_handler_base.DatasetFileHandlerBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">DatasetFileHandlerBase</span></code></a></p>
+<p>HDF5 dataset file handler for storing and loading episode data.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.open" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a>(file_path[, mode])</p></td>
+<td><p>Open an existing dataset file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.create" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a>(file_path[, env_name])</p></td>
+<td><p>Create a new dataset file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.add_env_args" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.add_env_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_env_args</span></code></a>(env_args)</p></td>
+<td><p>Add environment arguments to the dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.set_env_name" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.set_env_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_env_name</span></code></a>(env_name)</p></td>
+<td><p>Set the environment name.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_env_name" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_env_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_env_name</span></code></a>()</p></td>
+<td><p>Get the environment name.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_episode_names" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_episode_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_episode_names</span></code></a>()</p></td>
+<td><p>Get the names of the episodes in the file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_num_episodes" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_num_episodes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_num_episodes</span></code></a>()</p></td>
+<td><p>Get number of episodes in the file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_format_version" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_format_version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_format_version</span></code></a>()</p></td>
+<td><p>Get the dataset format version.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.is_legacy_quaternion_format" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.is_legacy_quaternion_format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_legacy_quaternion_format</span></code></a>()</p></td>
+<td><p>Check if the dataset uses the legacy WXYZ quaternion format.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.load_episode" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.load_episode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_episode</span></code></a>(episode_name, device[, ...])</p></td>
+<td><p>Load episode data from the file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_episode</span></code></a>(episode[, demo_id])</p></td>
+<td><p>Add an episode to the dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.flush" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.flush"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flush</span></code></a>()</p></td>
+<td><p>Flush the episode data to disk.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.close" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<td><p>Close the dataset file handler.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.convert_dataset_to_xyzw" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.convert_dataset_to_xyzw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_dataset_to_xyzw</span></code></a>(input_path[, ...])</p></td>
+<td><p>Convert a legacy dataset from WXYZ to XYZW quaternion format.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.demo_count" title="isaaclab.utils.datasets.HDF5DatasetFileHandler.demo_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">demo_count</span></code></a></p></td>
+<td><p>The number of demos collected so far.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.open">
+<span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'r'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.open" title="Permalink to this definition">#</a></dt>
+<dd><p>Open an existing dataset file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.create">
+<span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.create" title="Permalink to this definition">#</a></dt>
+<dd><p>Create a new dataset file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.add_env_args">
+<span class="sig-name descname"><span class="pre">add_env_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.add_env_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.add_env_args" title="Permalink to this definition">#</a></dt>
+<dd><p>Add environment arguments to the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.set_env_name">
+<span class="sig-name descname"><span class="pre">set_env_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.set_env_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.set_env_name" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the environment name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_env_name">
+<span class="sig-name descname"><span class="pre">get_env_name</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.get_env_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_env_name" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the environment name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_episode_names">
+<span class="sig-name descname"><span class="pre">get_episode_names</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Iterable" title="(in trimesh)"><span class="pre">Iterable</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.get_episode_names"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_episode_names" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the names of the episodes in the file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_num_episodes">
+<span class="sig-name descname"><span class="pre">get_num_episodes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.get_num_episodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_num_episodes" title="Permalink to this definition">#</a></dt>
+<dd><p>Get number of episodes in the file.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.demo_count">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">demo_count</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.demo_count" title="Permalink to this definition">#</a></dt>
+<dd><p>The number of demos collected so far.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.get_format_version">
+<span class="sig-name descname"><span class="pre">get_format_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.get_format_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_format_version" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the dataset format version.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The format version number. Returns 0 for legacy datasets without version info.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.is_legacy_quaternion_format">
+<span class="sig-name descname"><span class="pre">is_legacy_quaternion_format</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.is_legacy_quaternion_format"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.is_legacy_quaternion_format" title="Permalink to this definition">#</a></dt>
+<dd><p>Check if the dataset uses the legacy WXYZ quaternion format.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True if the dataset uses WXYZ format (version 0), False if it uses XYZW format.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.load_episode">
+<span class="sig-name descname"><span class="pre">load_episode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">episode_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">convert_legacy_quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData" title="isaaclab.utils.datasets.episode_data.EpisodeData"><span class="pre">EpisodeData</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.load_episode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.load_episode" title="Permalink to this definition">#</a></dt>
+<dd><p>Load episode data from the file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>episode_name</strong> – Name of the episode to load.</p></li>
+<li><p><strong>device</strong> – Device to load tensors to.</p></li>
+<li><p><strong>convert_legacy_quat</strong> – If True, convert quaternions from legacy WXYZ to XYZW format.
+If None (default), auto-detect based on dataset version.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The loaded episode data, or None if the episode doesn’t exist.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode">
+<span class="sig-name descname"><span class="pre">write_episode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">episode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.utils.datasets.EpisodeData" title="isaaclab.utils.datasets.episode_data.EpisodeData"><span class="pre">EpisodeData</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">demo_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.write_episode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode" title="Permalink to this definition">#</a></dt>
+<dd><p>Add an episode to the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>episode</strong> – The episode data to add.</p></li>
+<li><p><strong>demo_id</strong> – Custom index for the episode. If None, uses default index.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.flush">
+<span class="sig-name descname"><span class="pre">flush</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.flush"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.flush" title="Permalink to this definition">#</a></dt>
+<dd><p>Flush the episode data to disk.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.close" title="Permalink to this definition">#</a></dt>
+<dd><p>Close the dataset file handler.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.datasets.HDF5DatasetFileHandler.convert_dataset_to_xyzw">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">convert_dataset_to_xyzw</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/datasets/hdf5_dataset_file_handler.html#HDF5DatasetFileHandler.convert_dataset_to_xyzw"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.convert_dataset_to_xyzw" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert a legacy dataset from WXYZ to XYZW quaternion format.</p>
+<p>This method reads a dataset file, converts all quaternions from the legacy WXYZ format
+to the current XYZW format, and writes the result to a new file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_path</strong> – Path to the input dataset file (legacy WXYZ format).</p></li>
+<li><p><strong>output_path</strong> – Path for the output dataset file. If None, appends ‘_xyzw’ to input filename.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Path to the converted dataset file.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#FileNotFoundError" title="(in Python v3.14)"><strong>FileNotFoundError</strong></a> – If the input file does not exist.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the dataset is already in XYZW format.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 <section id="module-isaaclab.utils.dict">
 <span id="dictionary-operations"></span><h2>Dictionary operations<a class="headerlink" href="#module-isaaclab.utils.dict" title="Permalink to this heading">#</a></h2>
@@ -3934,12 +4429,6 @@ the <a class="reference internal" href="isaaclab.managers.html#isaaclab.managers
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierCfg" title="isaaclab.utils.modifiers.ModifierCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a></p></td>
-<td><p>Configuration parameters modifiers</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierBase" title="isaaclab.utils.modifiers.ModifierBase"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModifierBase</span></code></a></p></td>
-<td><p>Base class for modifiers implemented as classes.</p></td>
-</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.DigitalFilter" title="isaaclab.utils.modifiers.DigitalFilter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DigitalFilter</span></code></a></p></td>
 <td><p>Modifier used to apply digital filtering to the input data.</p></td>
 </tr>
@@ -3951,6 +4440,12 @@ the <a class="reference internal" href="isaaclab.managers.html#isaaclab.managers
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.IntegratorCfg" title="isaaclab.utils.modifiers.IntegratorCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">IntegratorCfg</span></code></a></p></td>
 <td><p>Configuration parameters for an integrator modifier.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierBase" title="isaaclab.utils.modifiers.ModifierBase"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModifierBase</span></code></a></p></td>
+<td><p>Base class for modifiers implemented as classes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierCfg" title="isaaclab.utils.modifiers.ModifierCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a></p></td>
+<td><p>Configuration parameters modifiers</p></td>
 </tr>
 </tbody>
 </table>
@@ -3970,93 +4465,6 @@ the <a class="reference internal" href="isaaclab.managers.html#isaaclab.managers
 </tbody>
 </table>
 </div>
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.modifiers.</span></span><span class="sig-name descname"><span class="pre">ModifierCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_cfg.html#ModifierCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Configuration parameters modifiers</p>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierCfg.params" title="isaaclab.utils.modifiers.ModifierCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
-<td><p>The parameters to be passed to the function or callable class as keyword arguments.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierCfg.params">
-<span class="sig-name descname"><span class="pre">params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierCfg.params" title="Permalink to this definition">#</a></dt>
-<dd><p>The parameters to be passed to the function or callable class as keyword arguments. Defaults to
-an empty dictionary.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierBase">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.modifiers.</span></span><span class="sig-name descname"><span class="pre">ModifierBase</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_base.html#ModifierBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierBase" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></a></p>
-<p>Base class for modifiers implemented as classes.</p>
-<p>Modifiers implementations can be functions or classes. If a modifier is a class, it should
-inherit from this class and implement the required methods.</p>
-<p>A class implementation of a modifier can be used to store state information between calls.
-This is useful for modifiers that require stateful operations, such as rolling averages
-or delays or decaying filters.</p>
-<p>Example pseudo-code to create and use the class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
-
-<span class="c1"># define custom keyword arguments to pass to ModifierCfg</span>
-<span class="n">kwarg_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;arg_1&quot;</span><span class="p">:</span> <span class="n">VAL_1</span><span class="p">,</span> <span class="s2">&quot;arg_2&quot;</span><span class="p">:</span> <span class="n">VAL_2</span><span class="p">}</span>
-
-<span class="c1"># create modifier configuration object</span>
-<span class="c1"># func is the class name of the modifier and params is the dictionary of arguments</span>
-<span class="n">modifier_config</span> <span class="o">=</span> <span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierCfg</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierBase</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">kwarg_dict</span><span class="p">)</span>
-
-<span class="c1"># define modifier instance</span>
-<span class="n">my_modifier</span> <span class="o">=</span> <span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierBase</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">modifier_config</span><span class="p">)</span>
-</pre></div>
-</div>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierBase.reset" title="isaaclab.utils.modifiers.ModifierBase.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
-<td><p>Resets the Modifier.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierBase.__call__" title="isaaclab.utils.modifiers.ModifierBase.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(data)</p></td>
-<td><p>Abstract method for defining the modification function.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierBase.reset">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_base.html#ModifierBase.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierBase.reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Resets the Modifier.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids. Defaults to None, in which case
-all environments are considered.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierBase.__call__">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_base.html#ModifierBase.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierBase.__call__" title="Permalink to this definition">#</a></dt>
-<dd><p>Abstract method for defining the modification function.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>data</strong> – The data to be modified. Shape should match the data_dim passed during initialization.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Modified data. Shape is the same as the input data.</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.utils.modifiers.DigitalFilter">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.modifiers.</span></span><span class="sig-name descname"><span class="pre">DigitalFilter</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier.html#DigitalFilter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.DigitalFilter" title="Permalink to this definition">#</a></dt>
@@ -4283,6 +4691,93 @@ an empty dictionary.</p>
 
 </dd></dl>
 
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierBase">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.modifiers.</span></span><span class="sig-name descname"><span class="pre">ModifierBase</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_base.html#ModifierBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierBase" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></a></p>
+<p>Base class for modifiers implemented as classes.</p>
+<p>Modifiers implementations can be functions or classes. If a modifier is a class, it should
+inherit from this class and implement the required methods.</p>
+<p>A class implementation of a modifier can be used to store state information between calls.
+This is useful for modifiers that require stateful operations, such as rolling averages
+or delays or decaying filters.</p>
+<p>Example pseudo-code to create and use the class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
+
+<span class="c1"># define custom keyword arguments to pass to ModifierCfg</span>
+<span class="n">kwarg_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;arg_1&quot;</span><span class="p">:</span> <span class="n">VAL_1</span><span class="p">,</span> <span class="s2">&quot;arg_2&quot;</span><span class="p">:</span> <span class="n">VAL_2</span><span class="p">}</span>
+
+<span class="c1"># create modifier configuration object</span>
+<span class="c1"># func is the class name of the modifier and params is the dictionary of arguments</span>
+<span class="n">modifier_config</span> <span class="o">=</span> <span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierCfg</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierBase</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">kwarg_dict</span><span class="p">)</span>
+
+<span class="c1"># define modifier instance</span>
+<span class="n">my_modifier</span> <span class="o">=</span> <span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierBase</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">modifier_config</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierBase.reset" title="isaaclab.utils.modifiers.ModifierBase.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<td><p>Resets the Modifier.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierBase.__call__" title="isaaclab.utils.modifiers.ModifierBase.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(data)</p></td>
+<td><p>Abstract method for defining the modification function.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierBase.reset">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_base.html#ModifierBase.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierBase.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets the Modifier.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids. Defaults to None, in which case
+all environments are considered.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierBase.__call__">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_base.html#ModifierBase.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierBase.__call__" title="Permalink to this definition">#</a></dt>
+<dd><p>Abstract method for defining the modification function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The data to be modified. Shape should match the data_dim passed during initialization.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Modified data. Shape is the same as the input data.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.modifiers.</span></span><span class="sig-name descname"><span class="pre">ModifierCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier_cfg.html#ModifierCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration parameters modifiers</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.modifiers.ModifierCfg.params" title="isaaclab.utils.modifiers.ModifierCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function or callable class as keyword arguments.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.utils.modifiers.ModifierCfg.params">
+<span class="sig-name descname"><span class="pre">params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.utils.modifiers.ModifierCfg.params" title="Permalink to this definition">#</a></dt>
+<dd><p>The parameters to be passed to the function or callable class as keyword arguments. Defaults to
+an empty dictionary.</p>
+</dd></dl>
+
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.modifiers.bias">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.modifiers.</span></span><span class="sig-name descname"><span class="pre">bias</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/modifiers/modifier.html#bias"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.modifiers.bias" title="Permalink to this definition">#</a></dt>
@@ -4343,13 +4838,13 @@ If the value is None, that bound is not applied.</p></li>
 with the noise applied. These functions are then used in the <a class="reference internal" href="#isaaclab.utils.noise.NoiseCfg" title="isaaclab.utils.noise.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a> configuration class.</p>
 <p>Usage:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdditiveGaussianNoiseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">GaussianNoiseCfg</span>
 
 <span class="c1"># create a random tensor</span>
 <span class="n">my_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
 
 <span class="c1"># create a noise configuration</span>
-<span class="n">cfg</span> <span class="o">=</span> <span class="n">AdditiveGaussianNoiseCfg</span><span class="p">(</span><span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">cfg</span> <span class="o">=</span> <span class="n">GaussianNoiseCfg</span><span class="p">(</span><span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
 
 <span class="c1"># apply the noise</span>
 <span class="n">my_noisified_tensor</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">my_tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
@@ -4358,38 +4853,29 @@ with the noise applied. These functions are then used in the <a class="reference
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.ConstantNoiseCfg" title="isaaclab.utils.noise.ConstantNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p></td>
+<td><p>Configuration for an additive constant noise term.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg" title="isaaclab.utils.noise.GaussianNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p></td>
+<td><p>Configuration for an additive gaussian noise term.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseCfg" title="isaaclab.utils.noise.NoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></p></td>
 <td><p>Base configuration for a noise term.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.ConstantNoiseCfg" title="isaaclab.utils.noise.ConstantNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p></td>
-<td><p>Configuration for an additive constant noise term.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.NoiseModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p></td>
+<td><p>Base class for noise models.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg" title="isaaclab.utils.noise.GaussianNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p></td>
-<td><p>Configuration for an additive gaussian noise term.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelCfg" title="isaaclab.utils.noise.NoiseModelCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelCfg" title="isaaclab.utils.noise.NoiseModelCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a></p></td>
 <td><p>Configuration for a noise model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias" title="isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a></p></td>
+<td><p>Noise model with an additive bias.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a></p></td>
 <td><p>Configuration for an additive gaussian noise with bias model.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.UniformNoiseCfg" title="isaaclab.utils.noise.UniformNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a></p></td>
 <td><p>Configuration for a additive uniform noise term.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.NoiseModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p></td>
-<td><p>Base class for noise models.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias" title="isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a></p></td>
-<td><p>Noise model with an additive bias.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.ConstantBiasNoiseCfg" title="isaaclab.utils.noise.ConstantBiasNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a></p></td>
-<td><p>alias of <a class="reference internal" href="#isaaclab.utils.noise.ConstantNoiseCfg" title="isaaclab.utils.noise.noise_cfg.ConstantNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.noise.AdditiveUniformNoiseCfg" title="isaaclab.utils.noise.AdditiveUniformNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a></p></td>
-<td><p>alias of <a class="reference internal" href="#isaaclab.utils.noise.UniformNoiseCfg" title="isaaclab.utils.noise.noise_cfg.UniformNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.AdditiveGaussianNoiseCfg" title="isaaclab.utils.noise.AdditiveGaussianNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a></p></td>
-<td><p>alias of <a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg" title="isaaclab.utils.noise.noise_cfg.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p></td>
 </tr>
 </tbody>
 </table>
@@ -4409,28 +4895,6 @@ with the noise applied. These functions are then used in the <a class="reference
 </tbody>
 </table>
 </div>
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_cfg.html#NoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Base configuration for a noise term.</p>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseCfg.operation" title="isaaclab.utils.noise.NoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
-<td><p>The operation to apply the noise on the data.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseCfg.operation">
-<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.utils.noise.NoiseCfg.operation" title="Permalink to this definition">#</a></dt>
-<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
-</dd></dl>
-
-</dd></dl>
-
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.utils.noise.ConstantNoiseCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">ConstantNoiseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_cfg.html#ConstantNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.ConstantNoiseCfg" title="Permalink to this definition">#</a></dt>
@@ -4503,6 +4967,58 @@ with the noise applied. These functions are then used in the <a class="reference
 </dd></dl>
 
 <dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_cfg.html#NoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Base configuration for a noise term.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseCfg.operation" title="isaaclab.utils.noise.NoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
+<td><p>The operation to apply the noise on the data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseCfg.operation">
+<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.utils.noise.NoiseCfg.operation" title="Permalink to this definition">#</a></dt>
+<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModel</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModel" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Base class for noise models.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModel.reset" title="isaaclab.utils.noise.NoiseModel.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<td><p>Reset the noise model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModel.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModel.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModel.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the noise model.</p>
+<p>This method can be implemented by derived classes to reset the noise model.
+This is useful when implementing temporal noise models such as random walk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for. Defaults to None,
+in which case all environments are considered.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_cfg.html#NoiseModelCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
@@ -4529,6 +5045,36 @@ with the noise applied. These functions are then used in the <a class="reference
 <dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelCfg.noise_cfg">
 <span class="sig-name descname"><span class="pre">noise_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.utils.noise.NoiseCfg" title="isaaclab.utils.noise.NoiseCfg"><span class="pre">NoiseCfg</span></a></em><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelCfg.noise_cfg" title="Permalink to this definition">#</a></dt>
 <dd><p>The noise configuration to use.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelWithAdditiveBias">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelWithAdditiveBias</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p>
+<p>Noise model with an additive bias.</p>
+<p>The bias term is sampled from a the specified distribution on reset.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset" title="isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<td><p>Reset the noise model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the noise model.</p>
+<p>This method resets the bias term for the specified environments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for. Defaults to None,
+in which case all environments are considered.</p>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
@@ -4624,66 +5170,6 @@ with the noise applied. These functions are then used in the <a class="reference
 
 </dd></dl>
 
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModel">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModel</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModel" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Base class for noise models.</p>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModel.reset" title="isaaclab.utils.noise.NoiseModel.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
-<td><p>Reset the noise model.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModel.reset">
-<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModel.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModel.reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Reset the noise model.</p>
-<p>This method can be implemented by derived classes to reset the noise model.
-This is useful when implementing temporal noise models such as random walk.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for. Defaults to None,
-in which case all environments are considered.</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelWithAdditiveBias">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelWithAdditiveBias</span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p>
-<p>Noise model with an additive bias.</p>
-<p>The bias term is sampled from a the specified distribution on reset.</p>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset" title="isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
-<td><p>Reset the noise model.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset">
-<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Reset the noise model.</p>
-<p>This method resets the bias term for the specified environments.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for. Defaults to None,
-in which case all environments are considered.</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.noise.constant_noise">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">constant_noise</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.utils.noise.ConstantNoiseCfg" title="isaaclab.utils.noise.noise_cfg.ConstantNoiseCfg"><span class="pre">noise_cfg.ConstantNoiseCfg</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/noise/noise_model.html#constant_noise"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.noise.constant_noise" title="Permalink to this definition">#</a></dt>
@@ -4733,24 +5219,6 @@ in which case all environments are considered.</p>
 <dd class="field-even"><p>The data modified by the noise parameters provided.</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.ConstantBiasNoiseCfg">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">ConstantBiasNoiseCfg</span></span><a class="headerlink" href="#isaaclab.utils.noise.ConstantBiasNoiseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>alias of <a class="reference internal" href="#isaaclab.utils.noise.ConstantNoiseCfg" title="isaaclab.utils.noise.noise_cfg.ConstantNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.AdditiveUniformNoiseCfg">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">AdditiveUniformNoiseCfg</span></span><a class="headerlink" href="#isaaclab.utils.noise.AdditiveUniformNoiseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>alias of <a class="reference internal" href="#isaaclab.utils.noise.UniformNoiseCfg" title="isaaclab.utils.noise.noise_cfg.UniformNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a></p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.utils.noise.AdditiveGaussianNoiseCfg">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">AdditiveGaussianNoiseCfg</span></span><a class="headerlink" href="#isaaclab.utils.noise.AdditiveGaussianNoiseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>alias of <a class="reference internal" href="#isaaclab.utils.noise.GaussianNoiseCfg" title="isaaclab.utils.noise.noise_cfg.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p>
 </dd></dl>
 
 </section>
@@ -5722,7 +6190,6 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.io">IO operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.io.load_torchscript_model"><code class="docutils literal notranslate"><span class="pre">load_torchscript_model()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.io.dump_yaml"><code class="docutils literal notranslate"><span class="pre">dump_yaml()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.io.load_yaml"><code class="docutils literal notranslate"><span class="pre">load_yaml()</span></code></a></li>
 </ul>
@@ -5782,7 +6249,57 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.datasets">Datasets operations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.datasets">Datasets operations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.open"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.open()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.create"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.create()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_env_name"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.get_env_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.write_episode"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.write_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.flush"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.flush()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.close"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.close()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.load_episode"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.load_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.DatasetFileHandlerBase.get_num_episodes"><code class="docutils literal notranslate"><span class="pre">DatasetFileHandlerBase.get_num_episodes()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData"><code class="docutils literal notranslate"><span class="pre">EpisodeData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.data"><code class="docutils literal notranslate"><span class="pre">EpisodeData.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.seed"><code class="docutils literal notranslate"><span class="pre">EpisodeData.seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.env_id"><code class="docutils literal notranslate"><span class="pre">EpisodeData.env_id</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.next_action_index"><code class="docutils literal notranslate"><span class="pre">EpisodeData.next_action_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.next_state_index"><code class="docutils literal notranslate"><span class="pre">EpisodeData.next_state_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.success"><code class="docutils literal notranslate"><span class="pre">EpisodeData.success</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.is_empty"><code class="docutils literal notranslate"><span class="pre">EpisodeData.is_empty()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.add"><code class="docutils literal notranslate"><span class="pre">EpisodeData.add()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_initial_state"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_initial_state()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_action"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_action()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_next_action"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_next_action()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_state"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_state()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_next_state"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_next_state()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_joint_target"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_joint_target()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.get_next_joint_target"><code class="docutils literal notranslate"><span class="pre">EpisodeData.get_next_joint_target()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.EpisodeData.pre_export"><code class="docutils literal notranslate"><span class="pre">EpisodeData.pre_export()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.open"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.open()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.create"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.create()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.add_env_args"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.add_env_args()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.set_env_name"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.set_env_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_env_name"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_env_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_episode_names"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_episode_names()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_num_episodes"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_num_episodes()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.demo_count"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.demo_count</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.get_format_version"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.get_format_version()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.is_legacy_quaternion_format"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.is_legacy_quaternion_format()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.load_episode"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.load_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.write_episode()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.flush"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.flush()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.close"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.close()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.datasets.HDF5DatasetFileHandler.convert_dataset_to_xyzw"><code class="docutils literal notranslate"><span class="pre">HDF5DatasetFileHandler.convert_dataset_to_xyzw()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.dict">Dictionary operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.dict.class_to_dict"><code class="docutils literal notranslate"><span class="pre">class_to_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.dict.update_class_from_dict"><code class="docutils literal notranslate"><span class="pre">update_class_from_dict()</span></code></a></li>
@@ -5888,15 +6405,6 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.modifiers">Modifier operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg"><code class="docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg.params"><code class="docutils literal notranslate"><span class="pre">ModifierCfg.params</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase"><code class="docutils literal notranslate"><span class="pre">ModifierBase</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.reset"><code class="docutils literal notranslate"><span class="pre">ModifierBase.reset()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.__call__"><code class="docutils literal notranslate"><span class="pre">ModifierBase.__call__()</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.DigitalFilter"><code class="docutils literal notranslate"><span class="pre">DigitalFilter</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.DigitalFilter.reset"><code class="docutils literal notranslate"><span class="pre">DigitalFilter.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.DigitalFilter.__call__"><code class="docutils literal notranslate"><span class="pre">DigitalFilter.__call__()</span></code></a></li>
@@ -5918,16 +6426,21 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.IntegratorCfg.dt"><code class="docutils literal notranslate"><span class="pre">IntegratorCfg.dt</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase"><code class="docutils literal notranslate"><span class="pre">ModifierBase</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.reset"><code class="docutils literal notranslate"><span class="pre">ModifierBase.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierBase.__call__"><code class="docutils literal notranslate"><span class="pre">ModifierBase.__call__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg"><code class="docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg.params"><code class="docutils literal notranslate"><span class="pre">ModifierCfg.params</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.bias"><code class="docutils literal notranslate"><span class="pre">bias()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.clip"><code class="docutils literal notranslate"><span class="pre">clip()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.scale"><code class="docutils literal notranslate"><span class="pre">scale()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.noise">Noise operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">NoiseCfg.operation</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantNoiseCfg.bias"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.bias</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.operation</span></code></a></li>
@@ -5939,9 +6452,21 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">NoiseCfg.operation</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg.class_type"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.class_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelCfg.noise_cfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.noise_cfg</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -5957,20 +6482,9 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.UniformNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.constant_noise"><code class="docutils literal notranslate"><span class="pre">constant_noise()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.gaussian_noise"><code class="docutils literal notranslate"><span class="pre">gaussian_noise()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.uniform_noise"><code class="docutils literal notranslate"><span class="pre">uniform_noise()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.ConstantBiasNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.AdditiveUniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.noise.AdditiveGaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.seed">Seed operations</a><ul class="nav section-nav flex-column">
@@ -6070,7 +6584,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 28, 2026.
+  Last updated on Mar 01, 2026.
   <br/>
 </p>
   </div>

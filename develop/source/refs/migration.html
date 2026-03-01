@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 28, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
   </head>
   
   
@@ -689,6 +689,8 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-omni-isaac-core-classes">Renaming of omni.isaac.core Classes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-exporting-and-resolvable-strings">Lazy Exporting and Resolvable Strings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-exporting-in-user-code">Lazy Exporting in User Code</a></li>
 </ul>
             </nav>
         </div>
@@ -805,6 +807,65 @@ subdirectories. This allows for clearer separation between the pre-defined confi
 For any existing imports such as <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">omni.isaac.lab_assets.anymal</span> <span class="pre">import</span> <span class="pre">ANYMAL_C_CFG</span></code>, please replace it with
 <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.robots.anymal</span> <span class="pre">import</span> <span class="pre">ANYMAL_C_CFG</span></code>.</p>
 </section>
+<section id="lazy-exporting-and-resolvable-strings">
+<h2>Lazy Exporting and Resolvable Strings<a class="headerlink" href="#lazy-exporting-and-resolvable-strings" title="Permalink to this heading">#</a></h2>
+<p>Isaac Lab now uses <strong>lazy exporting</strong> throughout all packages so that importing a top-level
+module (e.g. <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaaclab.sensors</span></code>) no longer eagerly pulls in heavyweight
+dependencies such as <code class="docutils literal notranslate"><span class="pre">pxr</span></code>, <code class="docutils literal notranslate"><span class="pre">omni</span></code>, or <code class="docutils literal notranslate"><span class="pre">scipy</span></code>. This is critical because Kit and the
+Isaac Sim viewer do <strong>not</strong> tolerate imports of <code class="docutils literal notranslate"><span class="pre">pxr</span></code>, <code class="docutils literal notranslate"><span class="pre">omni</span></code>, or <code class="docutils literal notranslate"><span class="pre">scipy</span></code> before the
+application is launched — doing so will cause crashes or undefined behavior. With lazy
+exporting, config objects can be constructed <em>before</em> <code class="docutils literal notranslate"><span class="pre">SimulationApp</span></code> is launched, which
+enables automatic physics-backend selection without requiring flags like
+<code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>.</p>
+<p>Two key patterns support this:</p>
+<ol class="arabic simple">
+<li><p><strong>Lazy exports</strong> — Every <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> uses <code class="xref py py-func docutils literal notranslate"><span class="pre">lazy_export()</span></code>
+together with an adjacent <code class="docutils literal notranslate"><span class="pre">.pyi</span></code> stub to defer submodule and symbol imports until
+first access.</p></li>
+<li><p><strong>Resolvable strings</strong> — Config fields such as <code class="docutils literal notranslate"><span class="pre">class_type</span></code> store implementation
+references as strings (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;{DIR}.sensor:Sensor&quot;</span></code>) instead of direct class imports.
+The string is resolved to the actual class only after <code class="docutils literal notranslate"><span class="pre">SimulationApp</span></code> has been
+initialized.</p></li>
+</ol>
+<p>For full details, examples, and the <code class="docutils literal notranslate"><span class="pre">{DIR}</span></code> placeholder convention, see the
+<a class="reference external" href="https://numpy.org/doc/stable/dev/howto-docs.html#contributing" title="(in NumPy v2.4)"><span>More on contributing</span></a> guide — in particular the
+<a class="reference external" href="contributing.html#lazy-loading-module-exports">Lazy Loading &amp; Module Exports</a>,
+<a class="reference external" href="contributing.html#resolvable-strings">Resolvable Strings</a>, and
+<a class="reference external" href="contributing.html#config-implementation-file-split">Config + Implementation File Split</a>
+sections.</p>
+</section>
+<section id="lazy-exporting-in-user-code">
+<h2>Lazy Exporting in User Code<a class="headerlink" href="#lazy-exporting-in-user-code" title="Permalink to this heading">#</a></h2>
+<p>If your own project imports Isaac Lab symbols eagerly (i.e. via normal <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">...</span> <span class="pre">import</span></code>
+statements in <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>), those imports may trigger heavyweight modules before the
+simulation app is ready. This prevents automatic backend selection and may require you to
+pass explicit flags like <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> or <code class="docutils literal notranslate"><span class="pre">--kit</span></code>.</p>
+<p>To fix this, adopt the same lazy-exporting pattern used throughout Isaac Lab:</p>
+<ol class="arabic simple">
+<li><p>Rename your existing <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> to <code class="docutils literal notranslate"><span class="pre">__init__.pyi</span></code> (this becomes the type stub).</p></li>
+<li><p>Create a new <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> that calls <code class="docutils literal notranslate"><span class="pre">lazy_export()</span></code>:</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># my_package/__init__.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.module</span><span class="w"> </span><span class="kn">import</span> <span class="n">lazy_export</span>
+
+<span class="n">lazy_export</span><span class="p">()</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>Ensure the <code class="docutils literal notranslate"><span class="pre">.pyi</span></code> stub uses <strong>relative imports</strong> and declares <code class="docutils literal notranslate"><span class="pre">__all__</span></code>:</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># my_package/__init__.pyi</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;MyCfg&quot;</span><span class="p">,</span> <span class="s2">&quot;MyClass&quot;</span><span class="p">]</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.my_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.my_class</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyClass</span>
+</pre></div>
+</div>
+<p>With this in place, <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">my_package</span></code> will not eagerly import any submodules. Symbols
+are loaded on first access, giving <code class="docutils literal notranslate"><span class="pre">SimulationApp</span></code> time to initialize and auto-detect the
+correct backend.</p>
+<p>For more details, refer to the <a class="reference external" href="https://numpy.org/doc/stable/dev/howto-docs.html#contributing" title="(in NumPy v2.4)"><span>More on contributing</span></a> guide.</p>
+</section>
 </section>
 
 
@@ -859,6 +920,8 @@ For any existing imports such as <code class="docutils literal notranslate"><spa
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-omni-isaac-core-classes">Renaming of omni.isaac.core Classes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-exporting-and-resolvable-strings">Lazy Exporting and Resolvable Strings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-exporting-in-user-code">Lazy Exporting in User Code</a></li>
 </ul>
   </nav></div>
 
@@ -892,7 +955,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 28, 2026.
+  Last updated on Mar 01, 2026.
   <br/>
 </p>
   </div>

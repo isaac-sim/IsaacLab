@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 28, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
   </head>
   
   
@@ -645,6 +645,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app.settings_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SettingsManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_new_stage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">has_kit</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">KitVisualizerCfg</span><span class="p">,</span> <span class="n">NewtonVisualizerCfg</span><span class="p">,</span> <span class="n">RerunVisualizerCfg</span><span class="p">,</span> <span class="n">Visualizer</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.scene_data_providers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneDataProvider</span>
@@ -746,7 +747,7 @@
 
         <span class="c1"># When Kit is running, attach the stage to Kit&#39;s USD context so that</span>
         <span class="c1"># Kit extensions (PhysX views, Articulation, viewport) can discover it.</span>
-        <span class="k">if</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">has_kit</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">has_kit</span><span class="p">():</span>
             <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 
             <span class="n">kit_context</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span>
@@ -1367,7 +1368,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 28, 2026.
+  Last updated on Mar 01, 2026.
   <br/>
 </p>
   </div>

@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Feb 28, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
   </head>
   
   
@@ -690,6 +690,9 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coding-style">Coding Style</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#code-structure">Code Structure</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#circular-imports">Circular Imports</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-loading-module-exports">Lazy Loading &amp; Module Exports</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resolvable-strings">Resolvable Strings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#config-implementation-file-split">Config + Implementation File Split</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#type-hinting">Type-hinting</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#documenting-the-code">Documenting the code</a></li>
 </ul>
@@ -930,6 +933,9 @@ understand.</p>
 <p>Imports are sorted by the pre-commit hooks. Unless there is a good reason to do otherwise, please do not
 import the modules inside functions or classes. To deal with circular imports, we use the
 <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TYPE_CHECKING</span></code></a> variable. Please refer to the <a class="reference internal" href="#circular-imports">Circular Imports</a> section for more details.</p>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> files are an exception to the above: they use
+<code class="xref py py-func docutils literal notranslate"><span class="pre">lazy_export()</span></code> instead of traditional imports.
+See the <a class="reference internal" href="#lazy-loading-module-exports">Lazy Loading &amp; Module Exports</a> section for details.</p>
 <p>Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
@@ -1125,11 +1131,152 @@ due to our specific code structure. We organize classes or functions and their c
 objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
 it can result in circular imports because, in many configuration objects, we specify classes or functions
 as default values using the attributes <code class="docutils literal notranslate"><span class="pre">class_type</span></code> and <code class="docutils literal notranslate"><span class="pre">func</span></code> respectively.</p>
-<p>To address circular imports, we leverage the <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING">typing.TYPE_CHECKING</a> variable. This special variable is
-evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
-without triggering circular imports.</p>
-<p>It is important to note that this is the sole instance within our codebase where circular imports are used
-and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.</p>
+<p>To address this, we use two complementary techniques:</p>
+<ol class="arabic simple">
+<li><p><strong>Resolvable strings</strong> — Store <code class="docutils literal notranslate"><span class="pre">class_type</span></code> and <code class="docutils literal notranslate"><span class="pre">func</span></code> as <code class="docutils literal notranslate"><span class="pre">{DIR}</span></code>-based strings
+(e.g. <code class="docutils literal notranslate"><span class="pre">&quot;{DIR}.sensor:Sensor&quot;</span></code>) so the implementation module is never imported at config
+construction time. The string is resolved to the actual class (via <a class="reference internal" href="../api/lab/isaaclab.utils.html#isaaclab.utils.string.ResolvableString" title="isaaclab.utils.string.ResolvableString"><code class="xref py py-class docutils literal notranslate"><span class="pre">ResolvableString</span></code></a>)
+after <code class="docutils literal notranslate"><span class="pre">SimulationApp</span></code> launches.</p></li>
+<li><p><strong>TYPE_CHECKING guards</strong> — Import the implementation class under <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING">typing.TYPE_CHECKING</a> so that IDEs and type
+checkers can provide autocomplete on the type annotation without triggering a runtime import.</p></li>
+</ol>
+<p>See the <a class="reference internal" href="#resolvable-strings">Resolvable Strings</a> and <a class="reference internal" href="#lazy-loading-module-exports">Lazy Loading &amp; Module Exports</a> sections for full
+examples of both patterns.</p>
+</section>
+<section id="lazy-loading-module-exports">
+<h3>Lazy Loading &amp; Module Exports<a class="headerlink" href="#lazy-loading-module-exports" title="Permalink to this heading">#</a></h3>
+<p>Every <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> in Isaac Lab uses <strong>lazy loading</strong> so that importing a top-level package
+(e.g. <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaaclab.sensors</span></code>) does not eagerly pull in heavyweight dependencies like
+<code class="docutils literal notranslate"><span class="pre">pxr</span></code>, <code class="docutils literal notranslate"><span class="pre">omni</span></code>, or <code class="docutils literal notranslate"><span class="pre">scipy</span></code>. This is critical because config classes must be constructable
+<em>before</em> <code class="docutils literal notranslate"><span class="pre">SimulationApp</span></code> is launched.</p>
+<p>We follow <a class="reference external" href="https://scientific-python.org/specs/spec-0001/">SPEC 1 — Lazy Loading of Submodules and Functions</a> and use the <a class="reference external" href="https://pypi.org/project/lazy-loader/">lazy_loader</a> library (endorsed by NumPy, SciPy, scikit-image,
+scikit-learn, NetworkX) with <code class="docutils literal notranslate"><span class="pre">.pyi</span></code> type-stub files. The stub is the <strong>single source of
+truth</strong> for both IDE autocomplete and runtime lazy loading.</p>
+<p><strong>Standard pattern</strong> — the vast majority of <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> files:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># mypackage/__init__.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.module</span><span class="w"> </span><span class="kn">import</span> <span class="n">lazy_export</span>
+
+<span class="n">lazy_export</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>With a corresponding type stub adjacent to it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># mypackage/__init__.pyi</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;MyClass&quot;</span><span class="p">,</span> <span class="s2">&quot;MyOtherClass&quot;</span><span class="p">,</span> <span class="s2">&quot;my_function&quot;</span><span class="p">]</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.my_module</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyClass</span><span class="p">,</span> <span class="n">MyOtherClass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.my_other_module</span><span class="w"> </span><span class="kn">import</span> <span class="n">my_function</span>
+</pre></div>
+</div>
+<p>Key rules for <code class="docutils literal notranslate"><span class="pre">.pyi</span></code> stubs:</p>
+<ul class="simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">__all__</span></code> list at the top marks names as public re-exports (per <a class="reference external" href="https://peps.python.org/pep-0484/#stub-files">PEP 484</a>).</p></li>
+<li><p>Group imports from the same submodule on one line. Use parenthesized multi-line
+imports if the line exceeds 100 characters.</p></li>
+<li><p>Only use <strong>relative imports</strong> (<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">.something</span> <span class="pre">import</span> <span class="pre">...</span></code>) — <code class="docutils literal notranslate"><span class="pre">lazy_loader</span></code>
+does not support absolute imports in stubs.</p></li>
+<li><p>Include the standard Isaac Lab license header.</p></li>
+</ul>
+<p><strong>Cross-package fallback</strong> — for modules that re-export names from another package
+(e.g. task MDP modules that delegate to <code class="docutils literal notranslate"><span class="pre">isaaclab.envs.mdp</span></code>):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># isaaclab_tasks/.../mdp/__init__.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.module</span><span class="w"> </span><span class="kn">import</span> <span class="n">lazy_export</span>
+
+<span class="n">lazy_export</span><span class="p">(</span><span class="n">packages</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;isaaclab.envs.mdp&quot;</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">lazy_export</span></code> helper in <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.utils.module</span></code> wraps <code class="docutils literal notranslate"><span class="pre">lazy_loader.attach_stub</span></code>
+and, when <code class="docutils literal notranslate"><span class="pre">packages</span></code> is provided, adds a runtime fallback that scans the specified
+packages for names not found in the local stub.</p>
+<p><strong>Ensuring .pyi stubs are distributed</strong></p>
+<p>The <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> for each package includes <code class="docutils literal notranslate"><span class="pre">package_data={&quot;&quot;:</span> <span class="pre">[&quot;*.pyi&quot;]}</span></code> so that stub
+files are included in sdist and wheel distributions. The pre-commit <code class="docutils literal notranslate"><span class="pre">insert-license</span></code> hook
+is configured to add license headers to <code class="docutils literal notranslate"><span class="pre">.pyi</span></code> files automatically (<code class="docutils literal notranslate"><span class="pre">\.(pyi?|ya?ml)$</span></code>).</p>
+</section>
+<section id="resolvable-strings">
+<h3>Resolvable Strings<a class="headerlink" href="#resolvable-strings" title="Permalink to this heading">#</a></h3>
+<p>When a config field needs to reference a class or callable that depends on the simulator
+runtime, store it as a <a class="reference internal" href="../api/lab/isaaclab.utils.html#isaaclab.utils.string.ResolvableString" title="isaaclab.utils.string.ResolvableString"><code class="xref py py-class docutils literal notranslate"><span class="pre">ResolvableString</span></code></a> rather than a
+direct reference. This avoids eagerly importing heavyweight modules (<code class="docutils literal notranslate"><span class="pre">omni</span></code>, <code class="docutils literal notranslate"><span class="pre">pxr</span></code>,
+etc.) at config construction time — the string is resolved to the actual callable only
+after <code class="docutils literal notranslate"><span class="pre">SimulationApp</span></code> has been initialized.</p>
+<p>You can use either the <code class="docutils literal notranslate"><span class="pre">{DIR}</span></code> shorthand or a fully-qualified module path:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Good — {DIR} shorthand (resolved to the current package at runtime)</span>
+<span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Sensor</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.sensor:Sensor&quot;</span>
+
+<span class="c1"># Good — fully-qualified path (useful for cross-package references)</span>
+<span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Sensor</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaaclab.sensors.my_sensor.sensor:Sensor&quot;</span>
+
+<span class="c1"># Bad — eagerly imports the implementation module</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sensor</span>
+<span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Sensor</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">{DIR}</span></code> placeholder is resolved at runtime to the fully-qualified package name of the
+directory containing the config file (e.g. <code class="docutils literal notranslate"><span class="pre">isaaclab.sensors.my_sensor</span></code>). Prefer <code class="docutils literal notranslate"><span class="pre">{DIR}</span></code>
+for references within the same package since it stays correct across renames and moves.</p>
+<p>For the type annotation (<code class="docutils literal notranslate"><span class="pre">type[Sensor]</span></code>), import the class under a <code class="docutils literal notranslate"><span class="pre">TYPE_CHECKING</span></code> guard
+so that the IDE can still provide autocomplete without triggering a runtime import:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
+
+<span class="k">if</span> <span class="n">typing</span><span class="o">.</span><span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sensor</span>
+</pre></div>
+</div>
+</section>
+<section id="config-implementation-file-split">
+<h3>Config + Implementation File Split<a class="headerlink" href="#config-implementation-file-split" title="Permalink to this heading">#</a></h3>
+<p>Classes and their configuration objects live in separate files. This keeps config classes
+free of heavy runtime imports:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>my_sensor/
+├── __init__.py          # lazy_export()
+├── __init__.pyi         # re-exports: SensorCfg, Sensor
+├── sensor_cfg.py        # pure data — no runtime deps
+└── sensor.py            # implementation — may import omni, pxr, etc.
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> — uses <code class="docutils literal notranslate"><span class="pre">lazy_export()</span></code> to lazily load names from the stub:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># my_sensor/__init__.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.module</span><span class="w"> </span><span class="kn">import</span> <span class="n">lazy_export</span>
+
+<span class="n">lazy_export</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">__init__.pyi</span></code> — declares the public API for both IDE autocomplete and lazy loading:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># my_sensor/__init__.pyi</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;SensorCfg&quot;</span><span class="p">,</span> <span class="s2">&quot;Sensor&quot;</span><span class="p">]</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sensor_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sensor</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">sensor_cfg.py</span></code> — pure data; references the implementation class by resolvable string
+to avoid importing it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># my_sensor/sensor_cfg.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="k">if</span> <span class="n">typing</span><span class="o">.</span><span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sensor</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SensorCfg</span><span class="p">:</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Sensor</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{DIR}</span><span class="s2">.sensor:Sensor&quot;</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">sensor.py</span></code> — the implementation; may freely import heavyweight dependencies:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># my_sensor/sensor.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni.isaac.core</span>  <span class="c1"># heavy — only loaded when this module is accessed</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sensor_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorCfg</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Sensor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">SensorCfg</span><span class="p">):</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
 </section>
 <section id="type-hinting">
 <h3>Type-hinting<a class="headerlink" href="#type-hinting" title="Permalink to this heading">#</a></h3>
@@ -1382,6 +1529,9 @@ following command in the terminal:</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coding-style">Coding Style</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#code-structure">Code Structure</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#circular-imports">Circular Imports</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-loading-module-exports">Lazy Loading &amp; Module Exports</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resolvable-strings">Resolvable Strings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#config-implementation-file-split">Config + Implementation File Split</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#type-hinting">Type-hinting</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#documenting-the-code">Documenting the code</a></li>
 </ul>
@@ -1421,7 +1571,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Feb 28, 2026.
+  Last updated on Mar 01, 2026.
   <br/>
 </p>
   </div>
