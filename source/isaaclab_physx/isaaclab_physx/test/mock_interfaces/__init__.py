@@ -9,35 +9,6 @@ This module provides mock implementations of PhysX TensorAPI views for unit test
 without requiring Isaac Sim or GPU simulation.
 """
 
-from .factories import (
-    create_mock_articulation_view,
-    create_mock_humanoid_view,
-    create_mock_quadruped_view,
-    create_mock_rigid_body_view,
-    create_mock_rigid_contact_view,
-)
-from .views import (
-    MockArticulationView,
-    MockArticulationViewWarp,
-    MockRigidBodyView,
-    MockRigidBodyViewWarp,
-    MockRigidContactView,
-    MockRigidContactViewWarp,
-)
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    # Views (torch)
-    "MockRigidBodyView",
-    "MockArticulationView",
-    "MockRigidContactView",
-    # Views (warp)
-    "MockRigidBodyViewWarp",
-    "MockArticulationViewWarp",
-    "MockRigidContactViewWarp",
-    # Factories
-    "create_mock_rigid_body_view",
-    "create_mock_articulation_view",
-    "create_mock_rigid_contact_view",
-    "create_mock_quadruped_view",
-    "create_mock_humanoid_view",
-]
+lazy_export()

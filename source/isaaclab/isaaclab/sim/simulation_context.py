@@ -23,6 +23,7 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage
+from isaaclab.utils.version import has_kit
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
@@ -124,7 +125,7 @@ class SimulationContext:
 
         # When Kit is running, attach the stage to Kit's USD context so that
         # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        if sim_utils.has_kit():
+        if has_kit():
             import omni.usd
 
             kit_context = omni.usd.get_context()
