@@ -14,7 +14,7 @@ The following configuration parameters are available:
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
 
 # Note: This data was collected by the Boston Dynamics AI Institute.
 joint_parameter_lookup = [

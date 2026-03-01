@@ -16,7 +16,7 @@ There are two main ways of using the spawners:
    .. code-block:: python
 
     import isaaclab.sim as sim_utils
-    from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
@@ -30,7 +30,7 @@ There are two main ways of using the spawners:
    .. code-block:: python
 
     import isaaclab.sim as sim_utils
-    from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")

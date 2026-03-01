@@ -12,7 +12,8 @@ from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 

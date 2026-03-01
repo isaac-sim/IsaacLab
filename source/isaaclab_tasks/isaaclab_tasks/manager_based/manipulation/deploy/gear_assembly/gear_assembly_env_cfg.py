@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp

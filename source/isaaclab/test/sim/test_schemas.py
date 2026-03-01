@@ -21,7 +21,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
 

@@ -25,7 +25,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import retrieve_file_path
 
 
 def random_quaternion():

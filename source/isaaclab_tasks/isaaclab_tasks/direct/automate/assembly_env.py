@@ -14,7 +14,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     combine_frame_transforms,

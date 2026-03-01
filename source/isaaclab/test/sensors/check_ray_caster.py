@@ -50,7 +50,7 @@ from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
 

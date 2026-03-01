@@ -16,7 +16,8 @@ import tempfile
 
 import pytest
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import retrieve_file_path
 
 DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0")
 NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(

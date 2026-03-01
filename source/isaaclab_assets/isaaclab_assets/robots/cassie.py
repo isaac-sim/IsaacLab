@@ -15,7 +15,7 @@ Reference: https://github.com/UMich-BipedLab/Cassie_Model/blob/master/urdf/cassi
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration

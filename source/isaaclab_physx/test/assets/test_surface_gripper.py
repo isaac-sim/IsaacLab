@@ -30,7 +30,7 @@ from isaaclab.assets import (
     RigidObjectCfg,
 )
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView

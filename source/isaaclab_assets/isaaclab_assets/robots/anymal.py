@@ -23,7 +23,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sensors import RayCasterCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_assets.sensors.velodyne import VELODYNE_VLP_16_RAYCASTER_CFG
 

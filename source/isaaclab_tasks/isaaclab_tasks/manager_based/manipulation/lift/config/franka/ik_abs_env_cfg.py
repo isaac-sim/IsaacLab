@@ -11,7 +11,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim.spawners import UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.manager_based.manipulation.lift.mdp as mdp
 

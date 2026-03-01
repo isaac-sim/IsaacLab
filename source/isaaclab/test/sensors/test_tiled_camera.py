@@ -28,7 +28,7 @@ from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
 
