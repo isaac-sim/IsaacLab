@@ -25,13 +25,13 @@ import warp as wp
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
-from isaaclab.assets import Articulation, BaseArticulation, BaseRigidObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
 
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.terrains import TerrainImporter
 
@@ -81,7 +81,7 @@ def randomize_rigid_body_scale(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    if isinstance(asset, Articulation):
+    if any(cls.__name__ == "Articulation" for cls in type(asset).__mro__):
         raise ValueError(
             "Scaling an articulation randomly is not supported, as it affects joint attributes and can cause"
             " unexpected behavior. To achieve different scales, we recommend generating separate USD files for"
@@ -189,6 +189,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         Raises:
             ValueError: If the asset is not a RigidObject or an Articulation.
         """
+        from isaaclab.assets import BaseArticulation, BaseRigidObject
+
         super().__init__(cfg, env)
 
         # extract the used quantities (to enable type-hinting)
@@ -204,7 +206,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         # obtain number of shapes per body (needed for indexing the material properties correctly)
         # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
         #  per body. We use the physics simulation view to obtain the number of shapes per body.
-        if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
+        if isinstance(self.asset, BaseArticulation) and self.asset_cfg.body_ids != slice(None):
             self.num_shapes_per_body = []
             for link_path in self.asset.root_view.link_paths[0]:
                 link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
