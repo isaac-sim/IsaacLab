@@ -25,6 +25,7 @@ Changed
   curriculums, events) so that heavy simulation-backend imports (``pxr``, ``omni``, ``carb``,
   ``scipy``) are not triggered when task configs are loaded without a running simulator.
 
+
 1.1.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
 
@@ -79,6 +80,17 @@ Changed
 ^^^^^^^
 
 * Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.11.14 (2026-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refactored automation scripts (``run_w_id.py`` and ``run_disassembly_w_id.py``) to use list-based command execution
+  via ``subprocess.run``. This avoids potential command injection risks by disabling shell execution and
+  properly handling environment variables.
 
 
 0.11.13 (2026-02-04)

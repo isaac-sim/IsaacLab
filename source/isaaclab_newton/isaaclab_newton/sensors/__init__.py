@@ -5,10 +5,6 @@
 
 """Sub-package for Newton sensor implementations."""
 
-from .contact_sensor import ContactSensor, ContactSensorData, NewtonContactSensorCfg
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "ContactSensor",
-    "ContactSensorData",
-    "NewtonContactSensorCfg",
-]
+lazy_export()

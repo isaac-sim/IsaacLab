@@ -55,6 +55,7 @@ INSTALL_REQUIRES = [
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
+    "lazy_loader>=0.4",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
@@ -111,6 +112,7 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,

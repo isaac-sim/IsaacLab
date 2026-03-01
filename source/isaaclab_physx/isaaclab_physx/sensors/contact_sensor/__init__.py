@@ -5,7 +5,6 @@
 
 """Sub-module for PhysX rigid contact sensor."""
 
-from .contact_sensor import ContactSensor
-from .contact_sensor_data import ContactSensorData
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["ContactSensor", "ContactSensorData"]
+lazy_export()

@@ -10,31 +10,14 @@ from specific types. Configs can create visualizers via the
 `create_visualizer()` factory method.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any
-
-from .kit_visualizer_cfg import KitVisualizerCfg
-from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
-from .visualizer_cfg import VisualizerCfg
+from typing import Any
 
-if TYPE_CHECKING:
-    from .kit_visualizer import KitVisualizer
-    from .newton_visualizer import NewtonVisualizer
-    from .rerun_visualizer import RerunVisualizer
+from isaaclab.utils.module import lazy_export
+
+lazy_export()
 
 _VISUALIZER_REGISTRY: dict[str, Any] = {}
-
-__all__ = [
-    "Visualizer",
-    "VisualizerCfg",
-    "NewtonVisualizerCfg",
-    "KitVisualizerCfg",
-    "RerunVisualizerCfg",
-    "get_visualizer_class",
-]
 
 
 def get_visualizer_class(name: str) -> type[Visualizer] | None:

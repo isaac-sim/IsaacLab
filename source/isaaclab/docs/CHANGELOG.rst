@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.4.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated lazy-loading to ``lazy_loader.attach_stub`` with ``.pyi`` stubs as the
+  single source of truth for module exports.  Removed the old ``attach_cascading``
+  helper, avoided eager callable resolution during deepcopy of
+  :class:`~isaaclab.utils.string.ResolvableString`, and updated MDP
+  exports/import boundaries so ``test_env_cfg_no_forbidden_imports.py`` passes
+  without importing runtime modules.
 
 4.3.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
@@ -56,6 +68,21 @@ Changed
 * Added ``{DIR}`` callable-string shorthand support in :mod:`isaaclab.utils.configclass`
   for config defaults. ``"{DIR}.module:Symbol"`` now expands to the declaring config
   module directory before resolution.
+
+* Updated :func:`~isaaclab.utils.dict.update_class_from_dict` to stop eagerly resolving
+  callable strings during updates. Callable-string inputs are now preserved as lazy
+  :class:`~isaaclab.utils.string.ResolvableString` values and resolve only on first use.
+
+
+4.2.3 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.cloner.usd_replicate` and :func:`~isaaclab.cloner.physx_replicate`
+  skipping ``Sdf.CopySpec`` when the source and destination paths are identical (self-copy),
+  avoiding a redundant and potentially destructive USD spec overwrite.
 
 
 4.2.2 (2026-02-26)

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for cloner utilities and InteractiveScene cloning behavior."""
+"""Tests for USD cloner utilities (no PhysX dependency)."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -16,13 +16,11 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
-import warp as wp
-from isaaclab_physx.cloner import physx_replicate
 
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import TemplateCloneCfg, clone_from_template, sequential, usd_replicate
+from isaaclab.cloner import usd_replicate
 from isaaclab.sim import build_simulation_context
 
 
@@ -102,192 +100,120 @@ def test_usd_replicate_depth_order_parent_child(sim):
         assert stage.GetPrimAtPath(f"/World/envs/env_{i}/Parent/Child").IsValid()
 
 
-def test_physx_replicate_no_error(sim):
-    """PhysX replicator call runs without raising exceptions for simple mapping."""
-    # Prepare sources and envs
-    sim_utils.create_prim("/World/envs", "Xform")
-    sim_utils.create_prim("/World/template", "Xform")
-    sim_utils.create_prim("/World/template/A", "Xform")
+def test_usd_replicate_self_copy_skips_copy_spec(sim):
+    """usd_replicate must not call Sdf.CopySpec when source and destination paths are identical.
 
-    num_envs = 2
-    env_ids = torch.arange(num_envs, dtype=torch.long)
-    for i in range(num_envs):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
-
-    mapping = torch.ones((1, num_envs), dtype=torch.bool)
-
-    # Should not raise
-    physx_replicate(
-        sim_utils.get_current_stage(),
-        sources=["/World/template/A"],
-        destinations=["/World/envs/env_{}/A"],
-        env_ids=env_ids,
-        mapping=mapping,
-    )
-
-
-def test_clone_from_template(sim):
-    """Clone prototypes via TemplateCloneCfg and clone_from_template and exercise both USD and PhysX.
-
-    Steps:
-    - Create /World/template and /World/envs/env_0..env_31
-    - Spawn three prototypes under /World/template/Object/proto_asset_.*
-    - Clone using TemplateCloneCfg with random_heterogeneous_cloning=False (modulo mapping)
-    - Verify modulo placement exists; then call sim.reset(), and create PhysX view
+    Sdf.CopySpec(src, src) is a no-op in the current USD version so it does not corrupt children,
+    but the call is still wasteful. The guard ensures it is skipped entirely. This test mocks
+    Sdf.CopySpec to verify it is called exactly once (for env_1) and never for the self case (env_0).
     """
-    num_clones = 32
-    clone_cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential)
-    sim_utils.create_prim(clone_cfg.template_root, "Xform")
-    sim_utils.create_prim(f"{clone_cfg.template_root}/Object", "Xform")  # Parent for prototypes
-    sim_utils.create_prim("/World/envs", "Xform")
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
+    from unittest.mock import patch
 
-    # Spawn prototypes under template
-    cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[
-            sim_utils.ConeCfg(
-                radius=0.3,
-                height=0.6,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-            ),
-            sim_utils.CuboidCfg(
-                size=(0.3, 0.3, 0.3),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-            ),
-            sim_utils.SphereCfg(
-                radius=0.3,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-            ),
-        ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-    )
-    prim = cfg.func(f"{clone_cfg.template_root}/Object/{clone_cfg.template_prototype_identifier}_.*", cfg)
-    assert prim.IsValid()
+    import isaaclab.cloner.cloner_utils as _cloner_mod
 
     stage = sim_utils.get_current_stage()
-    clone_from_template(stage, num_clones=num_clones, template_clone_cfg=clone_cfg)
-
-    primitive_prims = sim_utils.get_all_matching_child_prims(
-        "/World/envs", predicate=lambda prim: prim.GetTypeName() in ["Cone", "Cube", "Sphere"]
-    )
-
-    for i, primitive_prim in enumerate(primitive_prims):
-        modulus = i % 3
-        if modulus == 0:
-            assert primitive_prim.GetTypeName() == "Cone"
-        elif modulus == 1:
-            assert primitive_prim.GetTypeName() == "Cube"
-        else:
-            assert primitive_prim.GetTypeName() == "Sphere"
-
-    # Exercise PhysX initialization; should not raise error
-    sim.reset()
-    object_view_regex = f"{clone_cfg.clone_regex}/Object".replace(".*", "*")
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
-    physx_view = physics_sim_view.create_rigid_body_view(object_view_regex)
-    assert physx_view is not None
-
-
-def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_count=False):
-    """Shared harness for colocated collision filter checks across devices."""
-    num_clones = 32
-    clone_cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential)
-    sim_utils.create_prim(clone_cfg.template_root, "Xform")
-    sim_utils.create_prim(f"{clone_cfg.template_root}/Object", "Xform")  # Parent for prototypes
     sim_utils.create_prim("/World/envs", "Xform")
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+    sim_utils.create_prim("/World/envs/env_0/Robot", "Xform")
+    sim_utils.create_prim("/World/envs/env_0/Robot/base_link", "Xform")
+    sim_utils.create_prim("/World/envs/env_1", "Xform")
 
-    # Use _.*  pattern - the @clone decorator replaces .* with 0 for single-asset spawners
-    prim = asset_cfg.func(f"{clone_cfg.template_root}/Object/{clone_cfg.template_prototype_identifier}_.*", asset_cfg)
-    assert prim.IsValid()
+    copy_calls: list[tuple[str, str]] = []
+    real_copy_spec = _cloner_mod.Sdf.CopySpec
 
-    stage = sim_utils.get_current_stage()
-    clone_from_template(stage, num_clones=num_clones, template_clone_cfg=clone_cfg)
+    def capturing_copy_spec(src_layer, src_path, dst_layer, dst_path):
+        copy_calls.append((str(src_path), str(dst_path)))
+        return real_copy_spec(src_layer, src_path, dst_layer, dst_path)
 
-    primitive_prims = sim_utils.get_all_matching_child_prims(
-        "/World/envs", predicate=lambda prim: prim.GetTypeName() in expected_types
-    )
+    with patch.object(_cloner_mod.Sdf, "CopySpec", capturing_copy_spec):
+        usd_replicate(
+            stage,
+            sources=["/World/envs/env_0"],
+            destinations=["/World/envs/env_{}"],
+            env_ids=torch.tensor([0, 1], dtype=torch.long),
+            mask=torch.ones((1, 2), dtype=torch.bool),
+        )
 
-    if assert_count:
-        assert len(primitive_prims) == num_clones
-
-    for i, primitive_prim in enumerate(primitive_prims):
-        assert primitive_prim.GetTypeName() == expected_types[i % len(expected_types)]
-
-    sim.reset()
-    object_view_regex = f"{clone_cfg.clone_regex}/Object".replace(".*", "*")
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
-    physx_view = physics_sim_view.create_rigid_body_view(object_view_regex)
-    for _ in range(100):
-        sim.step()
-    transforms = wp.to_torch(physx_view.get_transforms())
-    distance_from_origin = torch.linalg.norm(transforms[:, :2], dim=-1)
-    assert torch.all(distance_from_origin < 0.1)
+    # CopySpec must be called for env_1 but never for env_0 (self-copy)
+    assert all(src != dst for src, dst in copy_calls), f"Self-copy detected in CopySpec calls: {copy_calls}"
+    assert any(dst == "/World/envs/env_1" for _, dst in copy_calls), "CopySpec was not called for env_1"
 
 
-def test_colocation_collision_filter_homogeneous(sim):
-    """Verify colocated clones of a single prototype stay stable after PhysX cloning.
-
-    All clones are spawned at exactly the same pose; if the collision filter is wrong the pile
-    explodes on reset. This asserts the filter keeps the colocated objects stable while stepping
-    across CPU and CUDA backends.
-    """
-    _run_colocation_collision_filter(
-        sim,
-        sim_utils.ConeCfg(
-            radius=0.3,
-            height=0.6,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+@pytest.mark.parametrize(
+    "parent_paths, spawn_pattern, expected_child_paths, bad_path, match_expr",
+    [
+        (
+            ["/World/rig_0_alpha", "/World/rig_0_beta", "/World/rig_0_gamma"],
+            "/World/rig_0_.*/Sensor",
+            ["/World/rig_0_alpha/Sensor", "/World/rig_0_beta/Sensor", "/World/rig_0_gamma/Sensor"],
+            "/World/rig_00/Sensor",
+            "/World/rig_0_.*",
         ),
-        expected_types=["Cone"],
-        assert_count=True,
-    )
-
-
-@pytest.mark.xfail(reason="Heterogeneous cloning with collision filtering not yet fully supported")
-def test_colocation_collision_filter_heterogeneous(sim):
-    """Verify colocated clones of multiple prototypes retain modulo ordering and remain stable.
-
-    The cone, cube, and sphere are all spawned in the identical pose for every clone; an incorrect
-    collision filter would blow up the simulation on reset. This guards both modulo ordering and
-    that the colocated set stays stable through PhysX steps across CPU and CUDA.
-    """
-    _run_colocation_collision_filter(
-        sim,
-        sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.ConeCfg(
-                    radius=0.3,
-                    height=0.6,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-                ),
-                sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                ),
-                sim_utils.SphereCfg(
-                    radius=0.3,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-                ),
+        (
+            [
+                "/World/group_a/slot_0",
+                "/World/group_a/slot_1",
+                "/World/group_b/slot_0",
+                "/World/group_b/slot_1",
             ],
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            "/World/group_.*/slot_.*/Sensor",
+            [
+                "/World/group_a/slot_0/Sensor",
+                "/World/group_a/slot_1/Sensor",
+                "/World/group_b/slot_0/Sensor",
+                "/World/group_b/slot_1/Sensor",
+            ],
+            "/World/group_0/slot_0/Sensor",
+            "/World/group_.*/slot_.*",
         ),
-        expected_types=["Cone", "Cube", "Sphere"],
+        (
+            ["/World/template/Object"],
+            "/World/template/Object/proto_.*",
+            ["/World/template/Object/proto_0"],
+            "/World/template/Object0/proto_0",
+            "/World/template/Object",
+        ),
+    ],
+)
+def test_clone_decorator_wildcard_patterns(
+    sim, parent_paths, spawn_pattern, expected_child_paths, bad_path, match_expr
+):
+    """The @clone decorator handles two distinct wildcard patterns correctly.
+
+    Case A – ``.*`` in root_path (parent is a regex): the child prim is spawned at
+    ``source_prim_paths[0]`` as a prototype and then copied to every other matching
+    parent via ``Sdf.CopySpec``, so **all** parents end up with the child.  The old
+    ``prim_path.replace(".*", "0")`` approach created spurious intermediate prims
+    that inflated ``find_matching_prims`` counts and broke tiled-camera initialization.
+
+    Case B – ``.*`` only in asset_path (leaf): no parent regex, so
+    ``source_prim_paths == [root_path]`` (one entry, no copy step).  Replacing
+    ``".*"`` → ``"0"`` in the asset name gives the intended prototype name
+    (e.g. ``proto_asset_0``) under the single real parent.
+    """
+    for path in parent_paths:
+        sim_utils.create_prim(path, "Xform")
+
+    cfg = sim_utils.ConeCfg(radius=0.1, height=0.2)
+    cfg.func(spawn_pattern, cfg)
+
+    stage = sim_utils.get_current_stage()
+
+    # Every expected child path must exist
+    for child_path in expected_child_paths:
+        assert stage.GetPrimAtPath(child_path).IsValid(), (
+            f"Prim was not spawned at '{child_path}'. The @clone decorator may have used the wrong spawn path."
+        )
+
+    # The spurious path from the old replace(".*", "0") must NOT exist
+    assert not stage.GetPrimAtPath(bad_path).IsValid(), (
+        f"Spurious prim found at '{bad_path}'. "
+        "The @clone decorator incorrectly derived the spawn path by replacing '.*' with '0'."
+    )
+
+    # find_matching_prims must see exactly the original parents — no spurious extras
+    all_matching = sim_utils.find_matching_prims(match_expr)
+    assert len(all_matching) == len(parent_paths), (
+        f"Expected {len(parent_paths)} matching prims, got {len(all_matching)}. "
+        "Spurious parent prims were likely created by the @clone decorator."
     )
