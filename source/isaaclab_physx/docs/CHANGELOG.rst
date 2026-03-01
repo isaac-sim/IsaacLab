@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.5.4 (2026-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* fixed :func:`~isaaclab_physx.cloner.physx_replicate` to not exclude self replication by default.
+
+
 0.5.3 (2026-02-27)
 ~~~~~~~~~~~~~~~~~~
 

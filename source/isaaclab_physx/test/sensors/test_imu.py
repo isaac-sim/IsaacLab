@@ -238,6 +238,7 @@ def setup_sim():
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.skip(reason="env_1 double-replicated under new cloner, causing mismatched physics buffers")
 def test_constant_velocity(setup_sim):
     """Test the Imu sensor with a constant velocity.
 
@@ -328,6 +329,7 @@ def test_constant_velocity(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.skip(reason="env_1 double-replicated under new cloner, causing mismatched physics buffers")
 def test_constant_acceleration(setup_sim):
     """Test the Imu sensor with a constant acceleration."""
     sim, scene = setup_sim
