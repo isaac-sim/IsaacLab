@@ -14,7 +14,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.sensors import SensorBaseCfg, TiledCameraCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
     from .visuotactile_sensor import VisuoTactileSensor

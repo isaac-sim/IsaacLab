@@ -21,7 +21,8 @@ import pytest
 import torch
 
 from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
 
 

@@ -12,7 +12,8 @@ import yaml
 from dex_retargeting.retargeting_config import RetargetingConfig
 from scipy.spatial.transform import Rotation as R
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import retrieve_file_path
 
 # import logger
 logger = logging.getLogger(__name__)

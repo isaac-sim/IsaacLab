@@ -55,7 +55,7 @@ from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCf
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_euler_xyz
 from isaaclab.utils.timer import Timer
 

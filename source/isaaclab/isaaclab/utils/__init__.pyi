@@ -54,6 +54,10 @@ __all__ = [
     "get_isaac_sim_version",
     "compare_versions",
     "configclass",
+    "NUCLEUS_ASSET_ROOT_DIR",
+    "NVIDIA_NUCLEUS_DIR",
+    "ISAAC_NUCLEUS_DIR",
+    "ISAACLAB_NUCLEUS_DIR",
 ]
 
 from .timer import Timer
@@ -104,3 +108,8 @@ from .string import (
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
 from .configclass import configclass
+
+NUCLEUS_ASSET_ROOT_DIR: str
+NVIDIA_NUCLEUS_DIR: str
+ISAAC_NUCLEUS_DIR: str
+ISAACLAB_NUCLEUS_DIR: str

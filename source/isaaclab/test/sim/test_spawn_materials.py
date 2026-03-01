@@ -19,7 +19,7 @@ from pxr import UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.utils import NVIDIA_NUCLEUS_DIR
 
 
 @pytest.fixture

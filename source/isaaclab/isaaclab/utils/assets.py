@@ -16,37 +16,16 @@ For more information, please check information on `Omniverse Nucleus`_.
 import io
 import logging
 import os
+import posixpath
 import tempfile
+from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
+
+import omni.client
+from pxr import Sdf
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_kit_asset_root() -> str:
-    """Parse ``persistent.isaac.asset_root.cloud`` from ``apps/isaaclab.python.kit``."""
-    import re
-
-    _ISAACLAB_ROOT = os.path.join(os.path.dirname(__file__), *([".."] * 4))
-    kit_path = os.path.normpath(os.path.join(_ISAACLAB_ROOT, "apps", "isaaclab.python.kit"))
-    with open(kit_path) as f:
-        for line in reversed(f.readlines()):  # read from the last line since it's the last setting defined
-            m = re.match(r'\s*persistent\.isaac\.asset_root\.cloud\s*=\s*"([^"]*)"', line)
-            if m:
-                return m.group(1)
-    return ""
-
-
-NUCLEUS_ASSET_ROOT_DIR: str = _parse_kit_asset_root()
-"""Path to the root directory on the Nucleus Server."""
-
-NVIDIA_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
-"""Path to the root directory on the NVIDIA Nucleus Server."""
-
-ISAAC_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
-"""Path to the ``Isaac`` directory on the NVIDIA Nucleus Server."""
-
-ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
-"""Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
@@ -64,16 +43,14 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
-    import omni.client
 
-    # we need to convert backslash to forward slash on Windows for omni.client API
     if omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
         return 2
     else:
         return 0
 
 
-def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = True) -> str:
+def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
     If the file exists locally, then the absolute path to the file is returned.
@@ -85,7 +62,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         download_dir: The directory where the file should be downloaded. Defaults to None, in which
             case the file is downloaded to the system's temporary directory.
         force_download: Whether to force download the file from the Nucleus Server. This will overwrite
-            the local file if it exists. Defaults to True.
+            the local file if it exists. Defaults to False.
 
     Returns:
         The path to the file on the local machine.
@@ -108,18 +85,38 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         # create download directory if it does not exist
         if not os.path.exists(download_dir):
             os.makedirs(download_dir)
-        import omni.client
+        # recursive download: mirror remote tree under download_dir
+        remote_url = path.replace(os.sep, "/")
+        to_visit = [remote_url]
+        visited = set()
+        local_root = None
 
-        # download file in temp directory using os
-        file_name = os.path.basename(omni.client.break_url(path.replace(os.sep, "/")).path)
-        target_path = os.path.join(download_dir, file_name)
-        # check if file already exists locally
-        if not os.path.isfile(target_path) or force_download:
-            # copy file to local machine
-            result = omni.client.copy(path.replace(os.sep, "/"), target_path, omni.client.CopyBehavior.OVERWRITE)
-            if result != omni.client.Result.OK and force_download:
-                raise RuntimeError(f"Unable to copy file: '{path}'. Is the Nucleus Server running?")
-        return os.path.abspath(target_path)
+        while to_visit:
+            cur_url = to_visit.pop()
+            if cur_url in visited:
+                continue
+            visited.add(cur_url)
+
+            cur_rel = urlparse(cur_url).path.lstrip("/")
+            target_path = os.path.join(download_dir, cur_rel)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+            if not os.path.isfile(target_path) or force_download:
+                result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
+                if result != omni.client.Result.OK and force_download:
+                    raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+
+            if local_root is None:
+                local_root = target_path
+
+            # recurse into USD dependencies and referenced assets
+            if Path(target_path).suffix.lower() in {".usd", ".usda", ".usdz"}:
+                for ref in _find_usd_references(target_path):
+                    ref_url = _resolve_reference_url(cur_url, ref)
+                    if ref_url and ref_url not in visited:
+                        to_visit.append(ref_url)
+
+        return os.path.abspath(local_root)
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
@@ -142,92 +139,113 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        import omni.client
-
         file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-"""
-Nucleus Connection.
-"""
+def _is_downloadable_asset(path: str) -> bool:
+    """Return True for USD or other asset types we mirror locally (textures, etc.)."""
+    clean = path.split("?", 1)[0].split("#", 1)[0]
+    suffix = Path(clean).suffix.lower()
+
+    if suffix == ".mdl":
+        # MDL modules (OmniPBR.mdl, OmniSurface.mdl, ...) come from MDL search paths
+        return False
+    if not suffix:
+        return False
+    if suffix not in {".usd", ".usda", ".usdz", ".png", ".jpg", ".jpeg", ".exr", ".hdr", ".tif", ".tiff"}:
+        return False
+    return True
 
 
-def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interval: float = 30) -> bool:
-    """Checks whether the given USD file path is available on the NVIDIA Nucleus server.
-
-    This function synchronously runs an asynchronous USD path availability check,
-    logging progress periodically until it completes. The file is available on the server
-    if the HTTP status code is 200. Otherwise, the file is not available on the server.
-
-    This is useful for checking server responsiveness before attempting to load a remote
-    asset. It will block execution until the check completes or times out.
-
-    Args:
-        usd_path: The remote USD file path to check.
-        timeout: Maximum time (in seconds) to wait for the server check.
-        log_interval: Interval (in seconds) at which progress is logged.
-
-    Returns:
-        Whether the given USD path is available on the server.
-    """
-    import asyncio
-    import time
-
-    start_time = time.time()
-    loop = asyncio.get_event_loop()
-
-    coroutine = _is_usd_path_available(usd_path, timeout)
-    task = asyncio.ensure_future(coroutine)
-
-    next_log_time = start_time + log_interval
-
-    first_log = True
-    while not task.done():
-        now = time.time()
-        if now >= next_log_time:
-            elapsed = int(now - start_time)
-            if first_log:
-                logger.warning(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
-                first_log = False
-            logger.warning(f"Waiting for server response... ({elapsed}s elapsed)")
-            next_log_time += log_interval
-        loop.run_until_complete(asyncio.sleep(0.1))  # Yield to allow async work
-
-    return task.result()
-
-
-"""
-Helper functions.
-"""
-
-
-async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
-    """Checks whether the given USD path is available on the Omniverse Nucleus server.
-
-    This function is a asynchronous routine to check the availability of the given USD path on
-    the Omniverse Nucleus server. It will return True if the USD path is available on the server,
-    False otherwise.
-
-    Args:
-        usd_path: The remote or local USD file path to check.
-        timeout: Timeout in seconds for the async stat call.
-
-    Returns:
-        Whether the given USD path is available on the server.
-    """
-    import asyncio
-
-    import omni.client
-
+def _find_usd_references(local_usd_path: str) -> set[str]:
+    """Use Sdf API to collect referenced assets from a USD layer."""
     try:
-        result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
-        return result == omni.client.Result.OK
-    except asyncio.TimeoutError:
-        logger.warning(f"Timed out after {timeout}s while checking for USD: {usd_path}")
-        return False
-    except Exception as ex:
-        logger.warning(f"Exception during USD file check: {type(ex).__name__}: {ex}")
-        return False
+        layer = Sdf.Layer.FindOrOpen(local_usd_path)
+    except Exception:
+        logger.warning("Failed to open USD layer: %s", local_usd_path, exc_info=True)
+        return set()
+
+    if layer is None:
+        return set()
+
+    refs: set[str] = set()
+
+    # Sublayers
+    for sub_path in getattr(layer, "subLayerPaths", []) or []:
+        if sub_path and _is_downloadable_asset(sub_path):
+            refs.add(str(sub_path))
+
+    def _walk_prim(prim_spec: Sdf.PrimSpec) -> None:
+        # References
+        ref_list = prim_spec.referenceList
+        for field in ("addedItems", "prependedItems", "appendedItems", "explicitItems"):
+            items = getattr(ref_list, field, None)
+            if not items:
+                continue
+            for ref in items:
+                asset_path = getattr(ref, "assetPath", None)
+                if asset_path and _is_downloadable_asset(asset_path):
+                    refs.add(str(asset_path))
+
+        # Payloads
+        payload_list = prim_spec.payloadList
+        for field in ("addedItems", "prependedItems", "appendedItems", "explicitItems"):
+            items = getattr(payload_list, field, None)
+            if not items:
+                continue
+            for payload in items:
+                asset_path = getattr(payload, "assetPath", None)
+                if asset_path and _is_downloadable_asset(asset_path):
+                    refs.add(str(asset_path))
+
+        # AssetPath-valued attributes (this is where OmniPBR.mdl, textures, etc. show up)
+        for attr_spec in prim_spec.attributes.values():
+            default = attr_spec.default
+            if isinstance(default, Sdf.AssetPath):
+                if default.path and _is_downloadable_asset(default.path):
+                    refs.add(default.path)
+            elif isinstance(default, Sdf.AssetPathArray):
+                for ap in default:
+                    if ap.path and _is_downloadable_asset(ap.path):
+                        refs.add(ap.path)
+
+        # Variants - each variant set can have multiple variants with their own prim content
+        for variant_set_spec in prim_spec.variantSets.values():
+            for variant_spec in variant_set_spec.variants.values():
+                variant_prim_spec = variant_spec.primSpec
+                if variant_prim_spec is not None:
+                    _walk_prim(variant_prim_spec)
+
+        for child in prim_spec.nameChildren.values():
+            _walk_prim(child)
+
+    for root_prim in layer.rootPrims.values():
+        _walk_prim(root_prim)
+
+    return refs
+
+
+def _resolve_reference_url(base_url: str, ref: str) -> str:
+    """Resolve a USD asset reference against a base URL (http/local)."""
+    ref = ref.strip()
+    if not ref:
+        return ref
+
+    parsed_ref = urlparse(ref)
+    if parsed_ref.scheme:
+        return ref
+
+    base = urlparse(base_url)
+    if base.scheme == "":
+        base_dir = os.path.dirname(base_url)
+        return os.path.normpath(os.path.join(base_dir, ref))
+
+    base_dir = posixpath.dirname(base.path)
+    if ref.startswith("/"):
+        new_path = posixpath.normpath(ref)
+    else:
+        new_path = posixpath.normpath(posixpath.join(base_dir, ref))
+    return f"{base.scheme}://{base.netloc}{new_path}"

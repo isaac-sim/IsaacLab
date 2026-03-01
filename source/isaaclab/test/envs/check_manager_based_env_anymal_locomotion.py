@@ -47,7 +47,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR, check_file_path, read_file
+from isaaclab.utils import ISAACLAB_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
+from isaaclab.utils.assets import check_file_path, read_file
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 ##
