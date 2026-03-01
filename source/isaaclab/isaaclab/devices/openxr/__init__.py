@@ -15,17 +15,6 @@
     :class:`DeprecationWarning` at instantiation time.
 """
 
-try:
+from isaaclab.utils.module import lazy_export
 
-    from isaaclab_teleop.deprecated.openxr import (  # noqa: F401
-        ManusVive,
-        ManusViveCfg,
-        OpenXRDevice,
-        OpenXRDeviceCfg,
-        XrAnchorRotationMode,
-        XrCfg,
-        remove_camera_configs,
-    )
-except ImportError:
-    print("isaaclab_teleop is not installed. OpenXR teleoperation features will not be available.")
-    pass
+lazy_export()

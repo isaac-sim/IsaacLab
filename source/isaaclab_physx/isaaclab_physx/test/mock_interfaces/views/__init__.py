@@ -5,18 +5,6 @@
 
 """Mock PhysX TensorAPI views."""
 
-from .mock_articulation_view import MockArticulationView
-from .mock_articulation_view_warp import MockArticulationViewWarp
-from .mock_rigid_body_view import MockRigidBodyView
-from .mock_rigid_body_view_warp import MockRigidBodyViewWarp
-from .mock_rigid_contact_view import MockRigidContactView
-from .mock_rigid_contact_view_warp import MockRigidContactViewWarp
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "MockRigidBodyView",
-    "MockRigidBodyViewWarp",
-    "MockArticulationView",
-    "MockArticulationViewWarp",
-    "MockRigidContactView",
-    "MockRigidContactViewWarp",
-]
+lazy_export()

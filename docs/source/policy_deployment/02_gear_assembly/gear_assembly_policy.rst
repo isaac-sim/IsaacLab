@@ -96,7 +96,7 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
 
 .. code-block:: python
 
-    from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+    from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
     @configclass
     class PolicyCfg(ObsGroup):
