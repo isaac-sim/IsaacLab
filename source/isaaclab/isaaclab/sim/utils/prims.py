@@ -214,18 +214,12 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
 
-    if has_kit():
-        # delete prims
-        import omni.kit.commands
-
-        success, _ = omni.kit.commands.execute(
-            "DeletePrimsCommand",
-            paths=prim_path,
-            stage=stage,
-        )
-        return success
-    return True
-
+    # delete prims via the Sdf API directly
+    success = True
+    for path in prim_path:
+        if not stage.RemovePrim(path):
+            success = False
+    return success
 
 """
 USD Prim properties and attributes.

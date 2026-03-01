@@ -17,20 +17,20 @@ import io
 import logging
 import os
 import posixpath
+import re
 import tempfile
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
 import omni.client
+from pxr import Sdf
 
 logger = logging.getLogger(__name__)
 
 
 def _parse_kit_asset_root() -> str:
     """Parse ``persistent.isaac.asset_root.cloud`` from ``apps/isaaclab.python.kit``."""
-    import re
-
     _ISAACLAB_ROOT = os.path.join(os.path.dirname(__file__), *([".."] * 4))
     kit_path = os.path.normpath(os.path.join(_ISAACLAB_ROOT, "apps", "isaaclab.python.kit"))
     with open(kit_path) as f:
@@ -105,8 +105,6 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     if file_status == 1:
         return os.path.abspath(path)
     elif file_status == 2:
-        import omni.client
-
         # resolve download directory
         if download_dir is None:
             download_dir = tempfile.gettempdir()
@@ -169,8 +167,6 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        import omni.client
-
         file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
@@ -194,8 +190,6 @@ def _is_downloadable_asset(path: str) -> bool:
 
 def _find_usd_references(local_usd_path: str) -> set[str]:
     """Use Sdf API to collect referenced assets from a USD layer."""
-    from pxr import Sdf
-
     try:
         layer = Sdf.Layer.FindOrOpen(local_usd_path)
     except Exception:
