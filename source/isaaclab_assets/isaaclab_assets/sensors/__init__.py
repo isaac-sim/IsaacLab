@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-##
-# Configuration for different assets.
-##
+from isaaclab.utils.module import lazy_export
 
-from .gelsight import *
-from .velodyne import *
+lazy_export()

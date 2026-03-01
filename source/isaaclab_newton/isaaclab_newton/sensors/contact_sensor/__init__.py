@@ -5,12 +5,6 @@
 
 """Sub-module for contact sensor based on :class:`newton.SensorContact`."""
 
-from .contact_sensor import ContactSensor
-from .contact_sensor_cfg import NewtonContactSensorCfg
-from .contact_sensor_data import ContactSensorData
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "ContactSensor",
-    "ContactSensorData",
-    "NewtonContactSensorCfg",
-]
+lazy_export()
