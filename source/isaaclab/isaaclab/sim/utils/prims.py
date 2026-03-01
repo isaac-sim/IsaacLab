@@ -224,6 +224,7 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
             stage=stage,
         )
         return success
+    return True
 
 
 """
