@@ -371,9 +371,7 @@ For deploying XR teleoperation on a Kubernetes cluster, see :ref:`cloudxr-teleop
 ..
   References
 .. _`Apple Vision Pro`: https://www.apple.com/apple-vision-pro/
-.. _`Docker Compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
-.. _`Docker`: https://docs.docker.com/desktop/install/linux-install/
 .. _`NVIDIA CloudXR`: https://developer.nvidia.com/cloudxr-sdk
-.. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
+.. _`CloudXR.js`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
