@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.5.0 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced ``omni.kit.commands`` and async Nucleus calls in asset utilities, prim
+  helpers.
+
+
 4.4.0 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~
 
