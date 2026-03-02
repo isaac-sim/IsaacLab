@@ -26,15 +26,10 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 @pytest.mark.parametrize(
     "task_name",
     setup_environment(
-        include_play=False,
-        factory_envs=False,
-        multi_agent=False,
-        teleop_envs=False,
-        cartpole_showcase_envs=False,
-        pickplace_stack_envs=False,
+        include_play=False, factory_envs=False, multi_agent=False, teleop_envs=False, cartpole_showcase_envs=True
     ),
 )
 @pytest.mark.isaacsim_ci
-def test_environments(task_name, num_envs, device):
-    # run environments without stage in memory
+def test_cartpole_showcase_environments(task_name, num_envs, device):
+    # run cartpole showcase environments without stage in memory
     _run_environments(task_name, device, num_envs, create_stage_in_memory=False)

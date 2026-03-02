@@ -48,11 +48,18 @@ def _is_teleop_env(task_spec) -> bool:
     return False
 
 
+def _is_pickplace_stack_env(task_id: str) -> bool:
+    """Check if a task is a PickPlace or Stack environment based on its ID."""
+    return any(keyword in task_id for keyword in ("Place", "Stack", "NutPour", "ExhaustPipe"))
+
+
 def setup_environment(
     include_play: bool = False,
     factory_envs: bool | None = None,
     multi_agent: bool | None = None,
     teleop_envs: bool | None = None,
+    cartpole_showcase_envs: bool | None = None,
+    pickplace_stack_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -71,6 +78,14 @@ def setup_environment(
             - True: include only teleop environments (those requiring isaacteleop)
             - False: exclude teleop environments
             - None: include all environments regardless of teleop dependency
+        cartpole_showcase_envs:
+            - True: include only Cartpole Showcase environments
+            - False: exclude Cartpole Showcase environments
+            - None: include all environments regardless of showcase type
+        pickplace_stack_envs:
+            - True: include only PickPlace/Stack environments
+            - False: exclude PickPlace/Stack environments
+            - None: include all environments regardless of pick-place/stack type
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -96,6 +111,22 @@ def setup_environment(
             factory_envs is False and ("Factory" in task_spec.id or "Forge" in task_spec.id)
         ):
             continue
+        # if None: no filter
+
+        # apply cartpole showcase filter
+        if (cartpole_showcase_envs is True and "Showcase" not in task_spec.id) or (
+            cartpole_showcase_envs is False and "Showcase" in task_spec.id
+        ):
+            continue
+        # if None: no filter
+
+        # apply pickplace/stack filter
+        if pickplace_stack_envs is not None:
+            is_pickplace_stack = _is_pickplace_stack_env(task_spec.id)
+            if (pickplace_stack_envs is True and not is_pickplace_stack) or (
+                pickplace_stack_envs is False and is_pickplace_stack
+            ):
+                continue
         # if None: no filter
 
         # apply teleop filter
@@ -162,6 +193,7 @@ def _run_environments(
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+        "Isaac-PickPlace-G1-InspireFTP-Abs-v0",
     ]:
         return
 

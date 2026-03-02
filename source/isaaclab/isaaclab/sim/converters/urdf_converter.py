@@ -179,6 +179,16 @@ class UrdfConverter(AssetConverterBase):
             profile_json_path=asset_structure_profile_json_path,
         )
 
+        # step 6b: fix ArticulationRootAPI placement for fixed-base articulations.
+        # After the asset transformer, ArticulationRootAPI ends up on the root rigid body.
+        # Having a FixedJoint on the same rigid body that has ArticulationRootAPI causes
+        # PhysX to treat the articulation as a floating-base + constraint (maximal coordinate
+        # tree) rather than a fixed-base reduced-coordinate articulation.
+        # Moving ArticulationRootAPI to the parent of the root rigid body resolves this.
+        if cfg.fix_base:
+            final_usd_path = os.path.join(usd_path, robot_name, f"{robot_name}.usda")
+            self._fix_articulation_root_for_fixed_base(final_usd_path)
+
         # step 7: clean up intermediate files
         if os.path.exists(usdex_path):
             shutil.rmtree(usdex_path)
@@ -262,6 +272,101 @@ class UrdfConverter(AssetConverterBase):
         fixed_joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
         # `body0` left empty => connected to the world frame
         fixed_joint.CreateBody1Rel().SetTargets([root_link.GetPath()])
+
+    @staticmethod
+    def _fix_articulation_root_for_fixed_base(usd_path: str):
+        """Move ArticulationRootAPI from the root rigid body to its parent prim.
+
+        After the asset transformer, ArticulationRootAPI ends up on the root rigid body.
+        When combined with a FixedJoint on that same body (``fix_base_joint``), PhysX treats
+        the articulation as a floating-base + external constraint (maximal coordinate tree)
+        rather than a proper fixed-base reduced-coordinate articulation.
+
+        Moving ArticulationRootAPI to the parent of the root rigid body (a non-rigid Xform /
+        Scope ancestor) resolves this, matching the pattern used by ``schemas.py``'s
+        ``fix_root_link``.
+
+        Changes are authored as **local opinions in the root layer** of the stage, which are
+        stronger than the variant-payload-sublayer opinions written by the asset transformer.
+        This means the root layer's ``delete apiSchemas`` overrides the ``prepend apiSchemas``
+        in the deeper sublayers without modifying those files.
+
+        Args:
+            usd_path: Absolute path to the final ``.usda`` file produced by the asset transformer.
+        """
+        from pxr import Usd, UsdPhysics
+
+        stage = Usd.Stage.Open(usd_path)
+        if not stage:
+            carb.log_warn(
+                f"UrdfConverter: Cannot open final stage at '{usd_path}'"
+                " for fix_base ArticulationRootAPI post-processing."
+            )
+            return
+
+        # Find the root rigid body that incorrectly has ArticulationRootAPI applied.
+        root_body_prim = None
+        for prim in stage.Traverse():
+            if prim.HasAPI(UsdPhysics.ArticulationRootAPI) and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                root_body_prim = prim
+                break
+
+        if root_body_prim is None:
+            # ArticulationRootAPI is already on a non-rigid ancestor (correct) or not present.
+            return
+
+        parent_prim = root_body_prim.GetParent()
+        if not parent_prim or not parent_prim.IsValid():
+            carb.log_warn("UrdfConverter: Root rigid body has no valid parent prim — skipping ArticulationRootAPI fix.")
+            return
+
+        # Collect all articulation-related schema names applied to the root rigid body.
+        articulation_api_names = [
+            name
+            for name in root_body_prim.GetAppliedSchemas()
+            if "ArticulationRoot" in name or name == "PhysxArticulationAPI"
+        ]
+
+        # --- Apply ArticulationRootAPI schemas to the parent prim ---
+        # (edit target is the root layer by default; writes local opinions)
+        UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
+        already_on_parent = set(parent_prim.GetAppliedSchemas())
+        for name in articulation_api_names:
+            if name != "PhysicsArticulationRootAPI" and name not in already_on_parent:
+                parent_prim.AddAppliedSchema(name)
+
+        # --- Copy USD articulation attributes to the parent prim ---
+        usd_art_api = UsdPhysics.ArticulationRootAPI(root_body_prim)
+        for attr_name in usd_art_api.GetSchemaAttributeNames():
+            attr = root_body_prim.GetAttribute(attr_name)
+            val = attr.Get() if attr else None
+            if val is not None:
+                parent_attr = parent_prim.GetAttribute(attr_name)
+                if not parent_attr:
+                    parent_attr = parent_prim.CreateAttribute(attr_name, attr.GetTypeName())
+                parent_attr.Set(val)
+
+        # --- Copy physxArticulation:* attributes to the parent prim ---
+        for attr in root_body_prim.GetAttributes():
+            aname = attr.GetName()
+            if aname.startswith("physxArticulation:"):
+                val = attr.Get()
+                if val is not None:
+                    parent_attr = parent_prim.GetAttribute(aname)
+                    if not parent_attr:
+                        parent_attr = parent_prim.CreateAttribute(aname, attr.GetTypeName())
+                    parent_attr.Set(val)
+
+        # --- Remove ArticulationRootAPI schemas from the root rigid body ---
+        # Writing "delete" list-ops in the root layer overrides "prepend" in sublayers.
+        root_body_prim.RemoveAppliedSchema("PhysxArticulationAPI")
+        root_body_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+        for name in articulation_api_names:
+            if name not in ("PhysicsArticulationRootAPI", "PhysxArticulationAPI"):
+                root_body_prim.RemoveAppliedSchema(name)
+
+        # Save only the root layer (sublayers produced by the asset transformer are untouched).
+        stage.GetRootLayer().Save()
 
     @staticmethod
     def _apply_link_density(stage, density: float):

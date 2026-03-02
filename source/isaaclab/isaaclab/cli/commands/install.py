@@ -271,6 +271,11 @@ def command_install(install_type: str = "all") -> None:
                 print_warning(f"Unknown sub-package '{name}'. Valid values: {', '.join(valid)}. Skipping.")
         framework_type = "none"  # RL frameworks not applied in selective mode
 
+    # Configure extra package indexes for NVIDIA and MuJoCo wheels.
+    os.environ.setdefault("UV_INDEX", "https://pypi.nvidia.com")
+    os.environ.setdefault("PIP_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
+    os.environ.setdefault("PIP_FIND_LINKS", "https://py.mujoco.org/")
+
     # if on ARM arch, temporarily clear LD_PRELOAD
     # LD_PRELOAD is restored below, after installation
     saved_ld_preload = None

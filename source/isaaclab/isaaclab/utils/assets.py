@@ -19,7 +19,6 @@ import os
 import posixpath
 import re
 import tempfile
-from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -136,9 +135,10 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             if local_root is None:
                 local_root = target_path
 
-            # recurse into USD dependencies and referenced assets
-            if Path(target_path).suffix.lower() in {".usd", ".usda", ".usdz"}:
-                for ref in _find_usd_references(target_path):
+            # recurse into USD dependencies (sublayers, references, payloads, textures, etc.)
+            suffix = os.path.splitext(target_path)[1].lower()
+            if suffix in {".usd", ".usda", ".usdc", ".usdz"}:
+                for ref in _find_usd_dependencies(target_path):
                     ref_url = _resolve_reference_url(cur_url, ref)
                     if ref_url and ref_url not in visited:
                         to_visit.append(ref_url)
@@ -174,24 +174,21 @@ def read_file(path: str) -> io.BytesIO:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-def _is_downloadable_asset(path: str) -> bool:
-    """Return True for USD or other asset types we mirror locally (textures, etc.)."""
-    clean = path.split("?", 1)[0].split("#", 1)[0]
-    suffix = Path(clean).suffix.lower()
+def _find_usd_dependencies(local_usd_path: str) -> set[str]:
+    """Use UsdUtils to collect all asset dependencies from a USD file.
 
-    if suffix == ".mdl":
-        # MDL modules (OmniPBR.mdl, OmniSurface.mdl, ...) come from MDL search paths
-        return False
-    if not suffix:
-        return False
-    if suffix not in {".usd", ".usda", ".usdz", ".png", ".jpg", ".jpeg", ".exr", ".hdr", ".tif", ".tiff"}:
-        return False
-    return True
+    This uses :func:`UsdUtils.ComputeAllDependencies` — the same approach as
+    ``isaacsim.storage.native`` — to discover sublayers, references, payloads,
+    and non-layer assets (textures, etc.) without maintaining a hardcoded list
+    of file extensions.
 
+    Args:
+        local_usd_path: Path to a local USD file.
 
-def _find_usd_references(local_usd_path: str) -> set[str]:
-    """Use Sdf API to collect referenced assets from a USD layer."""
-    from pxr import Sdf  # noqa: PLC0415
+    Returns:
+        Set of asset path strings as they appear in the USD layer (unresolved).
+    """
+    from pxr import Sdf, UsdUtils  # noqa: PLC0415
 
     try:
         layer = Sdf.Layer.FindOrOpen(local_usd_path)
@@ -202,59 +199,17 @@ def _find_usd_references(local_usd_path: str) -> set[str]:
     if layer is None:
         return set()
 
+    # Collect every asset path referenced from this layer.
+    # UsdUtils.ModifyAssetPaths walks sublayers, references, payloads,
+    # variant selections, and attribute values — exactly the set we need.
     refs: set[str] = set()
 
-    # Sublayers
-    for sub_path in getattr(layer, "subLayerPaths", []) or []:
-        if sub_path and _is_downloadable_asset(sub_path):
-            refs.add(str(sub_path))
+    def _collect(path: str) -> str:
+        if path:
+            refs.add(path)
+        return path  # return unchanged — we are only reading, not modifying
 
-    def _walk_prim(prim_spec: Sdf.PrimSpec) -> None:
-        # References
-        ref_list = prim_spec.referenceList
-        for field in ("addedItems", "prependedItems", "appendedItems", "explicitItems"):
-            items = getattr(ref_list, field, None)
-            if not items:
-                continue
-            for ref in items:
-                asset_path = getattr(ref, "assetPath", None)
-                if asset_path and _is_downloadable_asset(asset_path):
-                    refs.add(str(asset_path))
-
-        # Payloads
-        payload_list = prim_spec.payloadList
-        for field in ("addedItems", "prependedItems", "appendedItems", "explicitItems"):
-            items = getattr(payload_list, field, None)
-            if not items:
-                continue
-            for payload in items:
-                asset_path = getattr(payload, "assetPath", None)
-                if asset_path and _is_downloadable_asset(asset_path):
-                    refs.add(str(asset_path))
-
-        # AssetPath-valued attributes (this is where OmniPBR.mdl, textures, etc. show up)
-        for attr_spec in prim_spec.attributes.values():
-            default = attr_spec.default
-            if isinstance(default, Sdf.AssetPath):
-                if default.path and _is_downloadable_asset(default.path):
-                    refs.add(default.path)
-            elif isinstance(default, Sdf.AssetPathArray):
-                for ap in default:
-                    if ap.path and _is_downloadable_asset(ap.path):
-                        refs.add(ap.path)
-
-        # Variants - each variant set can have multiple variants with their own prim content
-        for variant_set_spec in prim_spec.variantSets.values():
-            for variant_spec in variant_set_spec.variants.values():
-                variant_prim_spec = variant_spec.primSpec
-                if variant_prim_spec is not None:
-                    _walk_prim(variant_prim_spec)
-
-        for child in prim_spec.nameChildren.values():
-            _walk_prim(child)
-
-    for root_prim in layer.rootPrims.values():
-        _walk_prim(root_prim)
+    UsdUtils.ModifyAssetPaths(layer, _collect)
 
     return refs
 

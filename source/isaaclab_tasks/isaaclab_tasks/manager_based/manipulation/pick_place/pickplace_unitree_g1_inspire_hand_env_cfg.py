@@ -6,6 +6,7 @@ import os
 import tempfile
 
 import torch
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
@@ -585,6 +586,11 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
+
+        self.sim.physics = PhysxCfg(
+            gpu_found_lost_pairs_capacity=2**26,
+            gpu_found_lost_aggregate_pairs_capacity=2**25,
+        )
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.pink_ik_cfg.controller.usd_path = self.scene.robot.spawn.usd_path
