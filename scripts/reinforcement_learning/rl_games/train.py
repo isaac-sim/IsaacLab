@@ -88,7 +88,7 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils import hydra_task_config
 
 # import logger
 logger = logging.getLogger(__name__)
