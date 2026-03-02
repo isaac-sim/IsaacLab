@@ -809,6 +809,33 @@ def test_camera_resolution_depth_only(setup_sim_camera):
     assert output["depth"].dtype == torch.float
 
 
+def test_camera_resolution_depth_new_only(setup_sim_camera):
+    """Test camera resolution is correctly set for depth_new only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = ["depth_new"]
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["depth_new"].shape == hw_1c_shape
+    # access image data and compare dtype
+    assert output["depth_new"].dtype == torch.float
+
+
 def test_throughput(setup_sim_camera):
     """Checks that the single camera gets created properly with a rig."""
     # Create directory temp dir to dump the results
