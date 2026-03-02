@@ -488,6 +488,11 @@ class PhysxManager(PhysicsManager):
         )
         sim_utils.safe_set_attribute_on_usd_prim(scene_prim, "physxScene:enableGPUDynamics", is_gpu, camel_case=False)
 
+        # scene query support (from SimulationCfg, not PhysxCfg)
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:enableSceneQuerySupport", sim_cfg.enable_scene_query_support, camel_case=False
+        )
+
         # ccd (not supported on gpu)
         enable_ccd = cfg.enable_ccd and not is_gpu
         if cfg.enable_ccd and is_gpu:
@@ -593,12 +598,7 @@ class PhysxManager(PhysicsManager):
         is_gpu = "cuda" in PhysicsManager.get_device()
 
         # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
-        # For CPU, the old SimulationManager never called attach_stage() explicitly.
-        # Calling attach_stage() + force_load_physics_from_usd() together causes a
-        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
-        # causing objects to fall through surfaces non-deterministically.
-        if is_gpu:
-            cls._physx_sim.attach_stage(stage_id)
+        cls._physx_sim.attach_stage(stage_id)
 
         # warmup physx
         cls._physx.force_load_physics_from_usd()
