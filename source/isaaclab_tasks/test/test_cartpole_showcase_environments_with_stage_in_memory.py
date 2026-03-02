@@ -30,9 +30,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
         include_play=False, factory_envs=False, multi_agent=False, teleop_envs=False, cartpole_showcase_envs=True
     ),
 )
-def test_cartpole_showcase_environments_with_stage_in_memory_and_clone_in_fabric_disabled(
-    task_name, num_envs, device
-):
+def test_cartpole_showcase_environments_with_stage_in_memory_and_clone_in_fabric_disabled(task_name, num_envs, device):
     # skip test if stage in memory is not supported
     if get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")

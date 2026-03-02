@@ -317,10 +317,7 @@ class UrdfConverter(AssetConverterBase):
 
         parent_prim = root_body_prim.GetParent()
         if not parent_prim or not parent_prim.IsValid():
-            carb.log_warn(
-                "UrdfConverter: Root rigid body has no valid parent prim"
-                " — skipping ArticulationRootAPI fix."
-            )
+            carb.log_warn("UrdfConverter: Root rigid body has no valid parent prim — skipping ArticulationRootAPI fix.")
             return
 
         # Collect all articulation-related schema names applied to the root rigid body.
