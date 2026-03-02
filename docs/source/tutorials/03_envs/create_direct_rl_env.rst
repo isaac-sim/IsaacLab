@@ -263,7 +263,7 @@ Below is an example of a configuration class for domain randomization:
 
 Each ``EventTerm`` object is of the :class:`~managers.EventTermCfg` class and takes in a ``func`` parameter
 for specifying the function to call during randomization, a ``mode`` parameter, which can be ``startup``,
-``reset`` or ``interval``. THe ``params`` dictionary should provide the necessary arguments to the
+``reset`` or ``interval``. The ``params`` dictionary should provide the necessary arguments to the
 function that is specified in the ``func`` parameter.
 Functions specified as ``func`` for the ``EventTerm`` can be found in the :class:`~envs.mdp.events` module.
 
