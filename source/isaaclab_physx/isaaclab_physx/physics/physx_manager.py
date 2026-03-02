@@ -502,9 +502,9 @@ class PhysxManager(PhysicsManager):
             cfg.solve_articulation_contact_last
         )
 
-        # scene query support: forward SimulationCfg alias and override for GUI
-        if getattr(sim_cfg, "enable_scene_query_support", False):
-            cfg.enable_scene_query_support = True
+        # scene query support: forward SimulationCfg value and override for GUI
+        if hasattr(sim_cfg, "enable_scene_query_support"):
+            cfg.enable_scene_query_support = sim_cfg.enable_scene_query_support
         if bool(sim.get_setting("/isaaclab/has_gui")):
             cfg.enable_scene_query_support = True
 
