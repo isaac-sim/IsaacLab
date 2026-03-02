@@ -27,6 +27,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.version import has_kit
 
 from .visualization_markers_cfg import VisualizationMarkersCfg
 
@@ -353,8 +354,6 @@ class VisualizationMarkers:
         Args:
             prim: The prim to check.
         """
-        import omni.physx.scripts.utils as physx_utils
-
         # check if prim is valid
         if not prim.IsValid():
             raise ValueError(f"Prim at path '{prim.GetPrimAtPath()}' is not valid.")
@@ -388,4 +387,7 @@ class VisualizationMarkers:
             all_prims += child_prim.GetChildren()
 
         # remove any physics on the markers because they are only for visualization!
-        physx_utils.removeRigidBodySubtree(prim)
+        if has_kit():
+            import omni.physx.scripts.utils as physx_utils
+
+            physx_utils.removeRigidBodySubtree(prim)
