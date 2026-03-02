@@ -153,7 +153,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             f"--config-file={workspace_root}/pyproject.toml",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
             "--tb=short",
-            "-v",
         ]
 
         if isaacsim_ci:
@@ -270,6 +269,7 @@ def pytest_sessionstart(session):
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
+    cuda_issue_only = os.environ.get("TEST_CUDA_ISSUE_ONLY", "false") == "true"
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
@@ -285,9 +285,11 @@ def pytest_sessionstart(session):
     print(f"Filter pattern: '{filter_pattern}'")
     print(f"Exclude pattern: '{exclude_pattern}'")
     print(f"Curobo-only mode: {curobo_only}")
+    print(f"CUDA-issue-only mode: {cuda_issue_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
+    print(f"TEST_CUDA_ISSUE_ONLY env var: '{os.environ.get('TEST_CUDA_ISSUE_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -306,6 +308,12 @@ def pytest_sessionstart(session):
                         # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
                         # these tests (which are skipped in base-image jobs) can execute.
                         if file not in test_settings.CUROBO_TESTS:
+                            continue
+                    elif cuda_issue_only:
+                        # In cuda-issue-only mode, run exclusively the CUDA issue tests.
+                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
+                        # these tests (which are skipped in base-image jobs) can execute.
+                        if file not in test_settings.CUDA_ISSUE_TESTS:
                             continue
                     else:
                         # Skip if the file is in TESTS_TO_SKIP

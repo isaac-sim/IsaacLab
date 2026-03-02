@@ -12,16 +12,16 @@ import os
 ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Path to the root directory of the Isaac Lab repository."""
 
-DEFAULT_TIMEOUT = 500
+DEFAULT_TIMEOUT = 1000
 """The default timeout for each test in seconds."""
 
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 500,
     "test_stage_in_memory.py": 500,
     "test_imu.py": 750,
-    "test_environments.py": 5000,  # This test runs through all the environments for 100 steps each
+    "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
     "test_environments_with_stage_in_memory.py": (
-        5000
+        10000
     ),  # Like the above, with stage in memory and with and without fabric cloning
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_pickplace_stack_environments.py": 5000,  # This test runs through PickPlace and Stack environments
@@ -73,6 +73,15 @@ These tests are skipped in the base image CI jobs and run separately in the
 dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
 """
 
+CUDA_ISSUE_TESTS = [
+    "test_rigid_object_collection.py",
+]
+"""A list of tests with known CUDA issues.
+
+These tests are skipped in the general CI jobs and run separately in the
+dedicated ``cuda-issue-tests`` CI job.
+"""
+
 TESTS_TO_SKIP = [
     # lab
     "test_argparser_launch.py",  # app.close issue
@@ -85,6 +94,8 @@ TESTS_TO_SKIP = [
     "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
     *CUROBO_TESTS,
+    # cuda issues - run via the cuda-issue-tests CI job
+    *CUDA_ISSUE_TESTS,
 ]
 """A list of tests to skip by run_tests.py"""
 

@@ -219,7 +219,9 @@ def setup_sim():
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # construct scene
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg = MySceneCfg(
+            num_envs=2, env_spacing=5.0, lazy_sensor_update=False, replicate_physics=False
+        )
         scene = InteractiveScene(scene_cfg)
         # Both pendulum and pendulum2 use merge_fixed_joints=True, so the
         # fixed-joint child link imu_link is removed from the URDF before USD
