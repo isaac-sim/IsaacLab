@@ -528,8 +528,9 @@ class ObservationManager(ManagerBase):
                 # circular buffer is not capture safe
                 if wp.get_device().is_capturing:
                     raise RuntimeError(
-                        "ObservationManager.reset requires env_mask(wp.array[bool]) during capture. "
-                        "Do not pass env_ids on captured paths."
+                        "Observation terms with history (circular buffer) are not CUDA-graph-capture-safe yet. "
+                        "Disable history for observation terms used inside a captured graph, or restructure "
+                        "the graph to exclude history-buffered terms."
                     )
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
                 if update_history:

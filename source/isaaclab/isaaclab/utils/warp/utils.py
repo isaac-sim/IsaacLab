@@ -254,6 +254,10 @@ def resolve_1d_mask(
     Returns:
         A ``wp.array(dtype=wp.bool)`` mask.
     """
+    # Normalize slice(None) to None so the capture guard treats it identically to ids=None.
+    if isinstance(ids, slice) and ids == slice(None):
+        ids = None
+
     if wp.get_device().is_capturing:
         # The only capturable path is
         # 1. both ids and mask are None.
@@ -306,6 +310,8 @@ def resolve_1d_mask(
     elif isinstance(ids, wp.array):
         if ids.shape[0] == 0:
             return scratch_mask
+        if ids.dtype != wp.int32:
+            raise TypeError(f"Unsupported wp.array dtype for ids: {ids.dtype}. Expected wp.int32 index array.")
         ids_wp = ids
     else:
         if len(ids) == 0:
