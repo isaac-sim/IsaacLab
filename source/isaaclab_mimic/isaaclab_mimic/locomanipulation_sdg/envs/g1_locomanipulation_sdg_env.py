@@ -33,8 +33,8 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g
 from .locomanipulation_sdg_env import LocomanipulationSDGEnv
 from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, LocomanipulationSDGRecorderManagerCfg
 
-NUM_FORKLIFTS = 6
-NUM_BOXES = 12
+NUM_FORKLIFTS = 0
+NUM_BOXES = 0
 
 
 @configclass
@@ -129,7 +129,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=True
+        num_envs=1, env_spacing=2.5, replicate_physics=False
     )
     recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
     observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()
