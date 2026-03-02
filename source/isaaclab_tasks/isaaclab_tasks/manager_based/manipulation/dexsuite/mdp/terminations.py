@@ -30,7 +30,7 @@ class out_of_bound(ManagerTermBase):
     to avoid recomputing them on every call.
     """
 
-    def __init__(self, cfg: TerminationTermCfg, env: "ManagerBasedRLEnv"):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         """Initialize the termination term.
 
         Args:
@@ -50,7 +50,7 @@ class out_of_bound(ManagerTermBase):
 
     def __call__(
         self,
-        env: "ManagerBasedRLEnv",
+        env: ManagerBasedRLEnv,
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         in_bound_range: dict[str, tuple[float, float]] = {},
     ) -> torch.Tensor:
@@ -67,6 +67,7 @@ class out_of_bound(ManagerTermBase):
         object_pos_local = wp.to_torch(self._object.data.root_pos_w) - env.scene.env_origins
         outside_bounds = ((object_pos_local < self._ranges[:, 0]) | (object_pos_local > self._ranges[:, 1])).any(dim=1)
         return outside_bounds
+
 
 def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminating environment when violation of velocity limits detects, this usually indicates unstable physics caused

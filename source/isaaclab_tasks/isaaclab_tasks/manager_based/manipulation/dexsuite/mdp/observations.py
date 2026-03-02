@@ -16,6 +16,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_m
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import TiledCamera
 
 
 def object_pos_b(
@@ -207,14 +208,18 @@ def fingers_contact_force_b(
     forces_b = quat_apply_inverse(root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
     return forces_b.view(env.num_envs, -1)
 
-class vision_camera(ManagerTermBase):
 
+class vision_camera(ManagerTermBase):
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
         self.sensor: TiledCamera = env.scene.sensors[sensor_cfg.name]
         self.sensor_type = self.sensor.cfg.data_types[0]
-        self.norm_fn = self._depth_norm if self.sensor_type == "distance_to_image_plane" or self.sensor_type == "depth" else self._rgb_norm
+        self.norm_fn = (
+            self._depth_norm
+            if self.sensor_type == "distance_to_image_plane" or self.sensor_type == "depth"
+            else self._rgb_norm
+        )
 
     def __call__(
         self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
@@ -240,7 +245,6 @@ class vision_camera(ManagerTermBase):
     def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
         import numpy as np
         from matplotlib import cm
-
         from PIL import Image
 
         a = images.detach().cpu().numpy()

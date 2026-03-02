@@ -122,7 +122,6 @@ class NewtonSceneDataProvider:
         """
         try:
             import warp as wp
-
             from isaaclab_newton.physics import NewtonManager
 
             state = NewtonManager.get_state_0()
@@ -145,7 +144,6 @@ class NewtonSceneDataProvider:
         """Return body velocities from Newton state."""
         try:
             import warp as wp
-
             from isaaclab_newton.physics import NewtonManager
 
             state = NewtonManager.get_state_0()

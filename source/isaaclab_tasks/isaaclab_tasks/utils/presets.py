@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+from isaaclab.utils import configclass
+
 from isaaclab_tasks.utils import PresetCfg
 
 

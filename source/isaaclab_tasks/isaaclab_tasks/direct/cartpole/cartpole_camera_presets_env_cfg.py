@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
@@ -13,11 +16,11 @@ from isaaclab.sensors import TiledCameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
 
 @configclass
 class PhysicsCfg(PresetCfg):
@@ -28,11 +31,12 @@ class PhysicsCfg(PresetCfg):
 
 @configclass
 class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
-    
     @configclass
     class CartpoleTiledCameraCfg(TiledCameraCfg):
         prim_path: str = "/World/envs/env_.*/Camera"
-        offset: TiledCameraCfg.OffsetCfg = TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world")
+        offset: TiledCameraCfg.OffsetCfg = TiledCameraCfg.OffsetCfg(
+            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
+        )
         data_types: list[str] = []
         spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -40,7 +44,7 @@ class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
         width: int = 100
         height: int = 100
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
-    
+
     default = CartpoleTiledCameraCfg(data_types=["rgb"])
     depth = CartpoleTiledCameraCfg(data_types=["depth"])
     albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
@@ -49,9 +53,9 @@ class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
     simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
     rgb = default
 
+
 @configclass
 class CartpoleCameraPresetsEnvCfg(PresetCfg):
-
     @configclass
     class BaseCartpoleCameraEnvCfg(DirectRLEnvCfg):
         # env

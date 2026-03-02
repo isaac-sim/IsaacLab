@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import inspect
 import logging
 import math

@@ -6,10 +6,13 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
+
 import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -19,10 +22,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import RayCasterCfg, patterns
-from isaaclab.sensors import ContactSensorCfg
-from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
-from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -40,12 +40,14 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 # Scene definition
 ##
 
+
 @configclass
 class VelocityEnvContactSensorCfg:
     presets: dict[str, ContactSensorCfg] = {
         "default": PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True),
-        "newton": NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+        "newton": NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True),
     }
+
 
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
@@ -160,6 +162,7 @@ class ObservationsCfg:
 @configclass
 class VelocityEnvEventsCfg:
     """Configuration for events."""
+
     # reset
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
@@ -203,6 +206,7 @@ class VelocityEnvEventsCfg:
         interval_range_s=(10.0, 15.0),
         params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
     )
+
 
 @configclass
 class EventsCfg(VelocityEnvEventsCfg):
@@ -301,11 +305,12 @@ class CurriculumCfg:
 # Environment configuration
 ##
 
+
 @configclass
 class PhysicsCfg:
     presets = {
-        "default" : PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15),
-        "newton" : NewtonCfg(
+        "default": PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15),
+        "newton": NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=170,
                 nconmax=30,
@@ -319,7 +324,6 @@ class PhysicsCfg:
             debug_mode=False,
         ),
     }
-
 
 
 @configclass
