@@ -24,6 +24,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.hydra import (
     PresetCfg,
+    _resolve_preset_defaults,
     apply_overrides,
     collect_presets,
     parse_overrides,
@@ -583,3 +584,93 @@ def test_nested_presetcfg_path_selection():
     assert isinstance(env_cfg.scene, BaseSceneCfg)
     assert isinstance(env_cfg.scene.camera, CameraLargeCfg)
     assert env_cfg.scene.camera.width == 256
+
+
+# =============================================================================
+# Tests: root-level PresetCfg with nested PresetCfg inside alternatives
+# (mirrors CartpoleCameraPresetsEnvCfg structure)
+# =============================================================================
+
+
+@configclass
+class RendererACfg:
+    backend: str = "rtx"
+
+@configclass
+class RendererBCfg:
+    backend: str = "warp"
+
+@configclass
+class RendererPresetCfg(PresetCfg):
+    default: RendererACfg = RendererACfg()
+    newton: RendererBCfg = RendererBCfg()
+
+@configclass
+class SensorBaseCfg:
+    data_types: list[str] = []
+    width: int = 100
+    height: int = 100
+    renderer: RendererPresetCfg = RendererPresetCfg()
+
+@configclass
+class SensorPresetCfg(PresetCfg):
+    default: SensorBaseCfg = SensorBaseCfg(data_types=["rgb"])
+    depth: SensorBaseCfg = SensorBaseCfg(data_types=["depth"])
+
+@configclass
+class RootEnvBaseCfg:
+    decimation: int = 2
+    sensor: SensorPresetCfg = SensorPresetCfg()
+    obs_shape: list[int] = [100, 100, 3]
+
+@configclass
+class RootPresetEnvCfg(PresetCfg):
+    default: RootEnvBaseCfg = RootEnvBaseCfg()
+    depth: RootEnvBaseCfg = RootEnvBaseCfg(obs_shape=[100, 100, 1])
+
+
+def test_root_presetcfg_with_nested_preset_collect():
+    """collect_presets discovers nested PresetCfg inside root PresetCfg alternatives."""
+    presets = collect_presets(RootPresetEnvCfg())
+    assert "" in presets
+    assert set(presets[""].keys()) == {"default", "depth"}
+    assert "sensor" in presets
+    assert set(presets["sensor"].keys()) == {"default", "depth"}
+    assert "sensor.renderer" in presets
+    assert set(presets["sensor.renderer"].keys()) == {"default", "newton"}
+
+
+def test_root_presetcfg_resolve_defaults():
+    """_resolve_preset_defaults resolves nested PresetCfg inside root."""
+    resolved = _resolve_preset_defaults(RootPresetEnvCfg())
+    assert isinstance(resolved, RootEnvBaseCfg)
+    assert isinstance(resolved.sensor, SensorBaseCfg)
+    assert resolved.sensor.data_types == ["rgb"]
+    assert isinstance(resolved.sensor.renderer, RendererACfg)
+    assert resolved.sensor.renderer.backend == "rtx"
+
+
+def test_root_presetcfg_global_depth_resolves_nested():
+    """Global preset=depth on root PresetCfg also resolves nested sensor and renderer."""
+    env_cfg = RootPresetEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+
+    env_cfg = _resolve_preset_defaults(env_cfg)
+    agent_cfg_resolved = _resolve_preset_defaults(agent_cfg)
+
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg_resolved.to_dict()}
+
+    env_cfg, agent_cfg = apply_overrides(
+        env_cfg, agent_cfg_resolved, hydra_cfg, ["depth"], [], [], presets
+    )
+
+    assert isinstance(env_cfg, RootEnvBaseCfg)
+    assert env_cfg.obs_shape == [100, 100, 1]
+    assert isinstance(env_cfg.sensor, SensorBaseCfg), (
+        f"sensor should be SensorBaseCfg, got {type(env_cfg.sensor).__name__}"
+    )
+    assert env_cfg.sensor.data_types == ["depth"]
+    assert isinstance(env_cfg.sensor.renderer, RendererACfg), (
+        f"renderer should be RendererACfg (default), got {type(env_cfg.sensor.renderer).__name__}"
+    )

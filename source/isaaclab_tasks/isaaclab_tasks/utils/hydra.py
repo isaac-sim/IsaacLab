@@ -95,6 +95,9 @@ def collect_presets(cfg, path: str = "") -> dict:
         for field_name in cfg.__dataclass_fields__:
             preset_dict[field_name] = getattr(cfg, field_name)
         result[path] = preset_dict
+        for alt in preset_dict.values():
+            if hasattr(alt, "__dataclass_fields__"):
+                result.update(collect_presets(alt, path))
         return result
 
     # Check if this config has presets
