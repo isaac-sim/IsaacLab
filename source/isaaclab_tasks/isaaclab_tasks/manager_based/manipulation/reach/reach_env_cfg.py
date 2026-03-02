@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -35,6 +35,23 @@ import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
 @configclass
 class ReachSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
+
+    # Test
+    kitchen = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/kitchen",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Arena/assets/background_library/kitchen_scene_teleop_v3/kitchen_scene_teleop_v3.usd"
+        ),
+    )
+    # WORKS.
+    # drawer = AssetBaseCfg(
+    #     prim_path="{ENV_REGEX_NS}/kitchen/Cabinet_B_02",
+    # )
+    # FAILS with:
+    # RuntimeError: Could not find prim with path /World/envs/env_.*/kitchen/Cabinet_B_02.
+    drawer = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/kitchen/Cabinet_B_02",
+    )
 
     # world
     ground = AssetBaseCfg(
