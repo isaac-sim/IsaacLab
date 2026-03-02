@@ -357,8 +357,13 @@ class MockContactSensor:
         return self._num_instances
 
     @property
+    def num_sensors(self) -> int:
+        """Number of sensors (primary property)."""
+        return self._num_bodies
+
+    @property
     def num_bodies(self) -> int:
-        """Number of bodies with contact sensors."""
+        """Number of bodies with contact sensors (deprecated, use num_sensors)."""
         return self._num_bodies
 
     @property
@@ -378,8 +383,20 @@ class MockContactSensor:
 
     # -- Methods --
 
+    def find_sensors(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+        """Find sensors by name regex patterns (primary method).
+
+        Args:
+            name_keys: Regex pattern(s) to match sensor/body names.
+            preserve_order: If True, preserve order of name_keys in output.
+
+        Returns:
+            Tuple of (sensor_indices, sensor_names) matching the patterns.
+        """
+        return self.find_bodies(name_keys, preserve_order)
+
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
-        """Find bodies by name regex patterns.
+        """Find bodies by name regex patterns (deprecated, use find_sensors).
 
         Args:
             name_keys: Regex pattern(s) to match body names.
@@ -412,7 +429,7 @@ class MockContactSensor:
 
         return matched_indices, matched_names
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
         """Check which bodies established contact within dt seconds.
 
         Args:
@@ -420,11 +437,12 @@ class MockContactSensor:
             abs_tol: Absolute tolerance for contact time comparison.
 
         Returns:
-            Boolean tensor of shape (N, B) indicating first contact.
+            Boolean warp array of shape (N, B) indicating first contact.
         """
-        return wp.to_torch(self._data.current_contact_time) < (dt + abs_tol)
+        result = wp.to_torch(self._data.current_contact_time) < (dt + abs_tol)
+        return wp.from_torch(result)
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
         """Check which bodies broke contact within dt seconds.
 
         Args:
@@ -432,9 +450,10 @@ class MockContactSensor:
             abs_tol: Absolute tolerance for air time comparison.
 
         Returns:
-            Boolean tensor of shape (N, B) indicating first air.
+            Boolean warp array of shape (N, B) indicating first air.
         """
-        return wp.to_torch(self._data.current_air_time) < (dt + abs_tol)
+        result = wp.to_torch(self._data.current_air_time) < (dt + abs_tol)
+        return wp.from_torch(result)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Reset sensor state for specified environments.

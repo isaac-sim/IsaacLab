@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .articulation import Articulation, ArticulationData
-from .rigid_object import RigidObject, RigidObjectData
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["Articulation", "ArticulationData", "RigidObject", "RigidObjectData"]
+lazy_export()

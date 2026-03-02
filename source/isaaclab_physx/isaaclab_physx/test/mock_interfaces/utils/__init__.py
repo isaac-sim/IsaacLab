@@ -5,22 +5,6 @@
 
 """Utilities for mock PhysX interfaces."""
 
-from .mock_shared_metatype import MockSharedMetatype
-from .patching import (
-    mock_articulation_view,
-    mock_rigid_body_view,
-    mock_rigid_contact_view,
-    patch_articulation_view,
-    patch_rigid_body_view,
-    patch_rigid_contact_view,
-)
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "MockSharedMetatype",
-    "patch_rigid_body_view",
-    "patch_articulation_view",
-    "patch_rigid_contact_view",
-    "mock_rigid_body_view",
-    "mock_articulation_view",
-    "mock_rigid_contact_view",
-]
+lazy_export()

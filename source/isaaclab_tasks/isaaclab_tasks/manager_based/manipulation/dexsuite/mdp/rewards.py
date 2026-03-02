@@ -10,14 +10,14 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensor
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import ContactSensor
 
 
 def action_rate_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -126,7 +126,7 @@ def orientation_command_error_tanh(
     command = env.command_manager.get_command(command_name)
     # obtain the desired and current orientations
     des_quat_b = command[:, 3:7]
-    des_quat_w = math_utils.quat_mul(wp.to_torch(asset.data.root_state_w)[:, 3:7], des_quat_b)
+    des_quat_w = math_utils.quat_mul(wp.to_torch(asset.data.root_link_pose_w)[:, 3:7], des_quat_b)
     quat_distance = math_utils.quat_error_magnitude(wp.to_torch(object.data.root_quat_w), des_quat_w)
 
     return (1 - torch.tanh(quat_distance / std)) * contacts(env, 1.0).float()

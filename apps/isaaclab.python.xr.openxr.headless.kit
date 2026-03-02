@@ -36,6 +36,9 @@ cameras_enabled = true
 [settings]
 xr.profile.ar.enabled = true
 
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
 interceptSysStdOutput = false
@@ -57,6 +60,10 @@ folders = [
     "${app}", # needed to find other app files
     "${app}/../source", # needed to find extensions in Isaac Lab
 ]
+
+[settings.persistent]
+UJITSO.geometry = true
+UJITSO.enabled = true
 
 [settings]
 persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

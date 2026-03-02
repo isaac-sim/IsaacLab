@@ -16,13 +16,16 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-import omni.kit.app
+from isaaclab.utils.version import has_kit
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+if has_kit():
+    import omni.kit.app
 
 
 class CommandTerm(ManagerTermBase):
@@ -103,7 +106,7 @@ class CommandTerm(ManagerTermBase):
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
-        if debug_vis:
+        if debug_vis and has_kit():
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 app_interface = omni.kit.app.get_app_interface()

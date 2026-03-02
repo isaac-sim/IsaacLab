@@ -16,15 +16,15 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-import omni.kit.commands
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import has_kit
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
-from .stage import get_current_stage, get_current_stage_id, resolve_paths
+from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
@@ -213,12 +213,12 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     stage_id = stage_cache.GetId(stage).ToLongInt()
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
-    # delete prims
-    success, _ = omni.kit.commands.execute(
-        "DeletePrimsCommand",
-        paths=prim_path,
-        stage=stage,
-    )
+
+    # delete prims via the Sdf API directly
+    success = True
+    for path in prim_path:
+        if not stage.RemovePrim(path):
+            success = False
     return success
 
 
@@ -669,8 +669,21 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning
-        prim_spawn_path = prim_path.replace(".*", "0")
+        # Build a prototype prim path to spawn once, then copy to ALL matching parents.
+        #
+        # Octi: Leaf note wild card and root not wild card should be treated differently:
+        #   (A) ".*" in root_path  e.g. /World/Origin_0.*/CameraSensor
+        #       source_prim_paths holds ALL matching parent prims already in the stage.
+        #       We spawn the child once at source_prim_paths[0] as the prototype, then
+        #       Sdf.CopySpec it to every remaining parent so every parent ends up with
+        #       the child prim.
+        #
+        #   (B) ".*" in asset_path only  e.g. /World/template/Object/proto_asset_.*
+        #       No matching prims exist yet; source_prim_paths == [root_path] (one entry).
+        #       Replacing ".*" → "0" in asset_path gives the intended name proto_asset_0.
+        #       No copy step runs because there is only one parent.
+        #
+        prim_spawn_path = f"{source_prim_paths[0]}/{asset_path.replace('.*', '0')}"
         # spawn single instance
         prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
@@ -687,27 +700,33 @@ def clone(func: Callable) -> Callable:
                 # deal with spaces by replacing them with underscores
                 semantic_type_sanitized = semantic_type.replace(" ", "_")
                 semantic_value_sanitized = semantic_value.replace(" ", "_")
-                # add labels to the prim
-                add_labels(
-                    prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized, overwrite=False
-                )
+                instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
+
+                type_attr_name = f"semantic:{instance_name}:semantic:type"
+                type_attr = prim.GetAttribute(type_attr_name)
+                if not type_attr:
+                    type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
+                type_attr.Set(semantic_type)
+
+                data_attr_name = f"semantic:{instance_name}:semantic:data"
+                data_attr = prim.GetAttribute(data_attr_name)
+                if not data_attr:
+                    data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
+                data_attr.Set(semantic_value)
         # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
-        if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:  # type: ignore
+        if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas
 
             _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
         if len(source_prim_paths) > 1:
-            # lazy import to avoid circular import
-            from isaaclab.cloner import usd_replicate
-
-            formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
-            usd_replicate(
-                stage=stage,
-                sources=[formattable_path.format(0)],
-                destinations=[formattable_path],
-                env_ids=torch.arange(len(source_prim_paths)),
-            )
+            sanitized_asset = asset_path.replace(".*", "0")
+            rl = stage.GetRootLayer()
+            with Sdf.ChangeBlock():
+                for src_parent in source_prim_paths[1:]:
+                    dest_path = f"{src_parent}/{sanitized_asset}"
+                    Sdf.CreatePrimInLayer(rl, dest_path)
+                    Sdf.CopySpec(rl, Sdf.Path(prim_spawn_path), rl, Sdf.Path(dest_path))
         # return the source prim
         return prim
 
@@ -747,6 +766,8 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
+    if not has_kit():
+        return None
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -765,6 +786,8 @@ def bind_visual_material(
         binding_strength = "weakerThanDescendants"
     # obtain material binding API
     # note: we prefer using the command here as it is more robust than the USD API
+    import omni.kit.commands
+
     success, _ = omni.kit.commands.execute(
         "BindMaterialCommand",
         prim_path=prim_path,
@@ -878,6 +901,16 @@ def add_usd_reference(
     Raises:
         FileNotFoundError: When the input USD file is not found at the specified path.
     """
+    # resolve remote USD paths to local (same as Newton / add_reference_to_stage)
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
+    if file_status == 2:
+        try:
+            usd_path = retrieve_file_path(usd_path, force_download=False)
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
+
     # get current stage
     stage = get_current_stage() if stage is None else stage
     # get prim at path
@@ -894,32 +927,6 @@ def add_usd_reference(
             )
         return prim
 
-    # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
-    if get_isaac_sim_version().major < 5:
-        return _add_reference_to_prim(prim)
-
-    # check if the USD file is valid and add reference to the prim
-    sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
-    if not sdf_layer:
-        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
-
-    # import metrics assembler interface
-    # note: this is only available in Isaac Sim 5.0 and above
-    from omni.metrics.assembler.core import get_metrics_assembler_interface
-
-    # obtain the stage ID
-    stage_id = get_current_stage_id()
-    # check if the layers are compatible (i.e. the same units)
-    ret_val = get_metrics_assembler_interface().check_layers(
-        stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
-    )
-    # log that metric assembler did not detect any issues
-    if ret_val["ret_val"]:
-        logger.info(
-            "Metric assembler detected no issues between the current stage and the referenced USD file at path:"
-            f" {usd_path}"
-        )
-    # add reference to the prim
     return _add_reference_to_prim(prim)
 
 

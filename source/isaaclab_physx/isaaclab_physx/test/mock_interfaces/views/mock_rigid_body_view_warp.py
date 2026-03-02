@@ -381,18 +381,18 @@ class MockRigidBodyViewWarp:
 
     def apply_forces_and_torques_at_position(
         self,
-        forces: wp.array | None = None,
-        torques: wp.array | None = None,
-        positions: wp.array | None = None,
+        force_data: wp.array | None = None,
+        torque_data: wp.array | None = None,
+        position_data: wp.array | None = None,
         indices: wp.array | None = None,
         is_global: bool = True,
     ) -> None:
         """Apply forces and torques at positions (no-op in mock).
 
         Args:
-            forces: Forces to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
-            torques: Torques to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
-            positions: Positions to apply forces at, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            force_data: Forces to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            torque_data: Torques to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            position_data: Positions to apply forces at, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
             indices: Optional indices of bodies to apply to.
             is_global: Whether forces/torques are in global frame.
         """

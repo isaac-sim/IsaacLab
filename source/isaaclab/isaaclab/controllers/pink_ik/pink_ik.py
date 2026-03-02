@@ -14,17 +14,21 @@ Reference:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import torch
 from pink import solve_ik
+from pink.tasks import Task
 
 from isaaclab.assets import ArticulationCfg
+from isaaclab.controllers import utils as controller_utils
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.string import resolve_matching_names_values
 
 from .null_space_posture_task import NullSpacePostureTask
 from .pink_kinematics_configuration import PinkKinematicsConfiguration
+from .pink_task_cfg import PinkIKTaskCfg
 
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg
@@ -74,10 +78,25 @@ class PinkIKController:
         # Validate consistency between controlled_joint_indices and configuration
         self._validate_consistency(cfg, controlled_joint_indices)
 
+        # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
+        if cfg.urdf_path is None and cfg.usd_path is not None:
+            import tempfile
+
+            urdf_output_dir = cfg.urdf_output_dir or tempfile.gettempdir()
+            urdf_path, mesh_path = controller_utils.convert_usd_to_urdf(
+                cfg.usd_path, urdf_output_dir, force_conversion=True
+            )
+        else:
+            urdf_path = retrieve_file_path(cfg.urdf_path) if cfg.urdf_path else cfg.urdf_path
+            mesh_path = retrieve_file_path(cfg.mesh_path) if cfg.mesh_path else cfg.mesh_path
+
+        if urdf_path is None:
+            raise ValueError("Either urdf_path or usd_path must be provided in the controller configuration")
+
         # Initialize the Kinematics model used by pink IK to control robot
         self.pink_configuration = PinkKinematicsConfiguration(
-            urdf_path=cfg.urdf_path,
-            mesh_path=cfg.mesh_path,
+            urdf_path=urdf_path,
+            mesh_path=mesh_path,
             controlled_joint_names=cfg.joint_names,
         )
 
@@ -93,16 +112,19 @@ class PinkIKController:
         )
         self.init_joint_positions = np.zeros(len(pink_joint_names))
         self.init_joint_positions[indices] = np.array(values)
+        self._variable_input_tasks = [task_cfg.class_type(task_cfg) for task_cfg in cfg.variable_input_tasks]
+        self._fixed_input_tasks = [task_cfg.class_type(task_cfg) for task_cfg in cfg.fixed_input_tasks]
+        self.cfg.variable_input_tasks = cast(list[Task | PinkIKTaskCfg], self._variable_input_tasks)
+        self.cfg.fixed_input_tasks = cast(list[Task | PinkIKTaskCfg], self._fixed_input_tasks)
 
-        # Set the default targets for each task from the configuration
-        for task in cfg.variable_input_tasks:
+        for task in self._variable_input_tasks:
             # If task is a NullSpacePostureTask, set the target to the initial joint positions
             if isinstance(task, NullSpacePostureTask):
                 task.set_target(self.init_joint_positions)
                 continue
-            task.set_target_from_configuration(self.pink_configuration)
-        for task in cfg.fixed_input_tasks:
-            task.set_target_from_configuration(self.pink_configuration)
+            getattr(task, "set_target_from_configuration")(self.pink_configuration)
+        for task in self._fixed_input_tasks:
+            getattr(task, "set_target_from_configuration")(self.pink_configuration)
 
         # Create joint ordering mappings
         self._setup_joint_ordering_mappings()
@@ -127,6 +149,8 @@ class PinkIKController:
             )
 
         # Check: Joint name consistency - verify that the indices point to the expected joint names
+        if cfg.all_joint_names is None:
+            raise ValueError("cfg.all_joint_names cannot be None")
         actual_joint_names = [cfg.all_joint_names[idx] for idx in controlled_joint_indices]
         if actual_joint_names != cfg.joint_names:
             mismatches = []
@@ -184,7 +208,7 @@ class PinkIKController:
         Args:
             curr_joint_pos: The current joint positions of shape (num_joints,).
         """
-        for task in self.cfg.variable_input_tasks:
+        for task in self._variable_input_tasks:
             if isinstance(task, NullSpacePostureTask):
                 task.set_target(curr_joint_pos)
 
@@ -220,11 +244,12 @@ class PinkIKController:
         try:
             velocity = solve_ik(
                 self.pink_configuration,
-                self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks,
+                self._variable_input_tasks + self._fixed_input_tasks,
                 dt,
                 solver="daqp",
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
+            assert not np.isnan(velocity).any(), "Solution to IK contains NaN."
             joint_angle_changes = velocity * dt
         except (AssertionError, Exception) as e:
             # Print warning and return the current joint positions as the target

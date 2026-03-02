@@ -14,5 +14,6 @@ sphinx-multiversion==0.2.4
 numpy
 matplotlib
 warp-lang
+lazy_loader>=0.4
 # learning
 gymnasium

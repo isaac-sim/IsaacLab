@@ -20,7 +20,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import CapsuleCfg, ConeCfg, CuboidCfg, RigidBodyMaterialCfg, SphereCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from . import mdp
 from .adr_curriculum import CurriculumCfg
@@ -423,6 +423,9 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.sim.physics = PhysxCfg(
             bounce_threshold_velocity=0.01,
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
+            gpu_found_lost_pairs_capacity=2**26,
+            gpu_found_lost_aggregate_pairs_capacity=2**29,
+            gpu_total_aggregate_pairs_capacity=2**25,
         )
 
         if self.curriculum is not None:

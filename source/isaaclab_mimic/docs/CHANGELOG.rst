@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.2.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo planner quaternion handling and Warp API compatibility for Isaac Lab 3.0.
+* Fixed Rerun visualization in cuRobo plan visualizer.
+* Added ``--visualizer kit`` to SkillGen documentation for all non-headless commands.
+
+
 1.2.0 (2026-02-23)
 ~~~~~~~~~~~~~~~~~~~
 

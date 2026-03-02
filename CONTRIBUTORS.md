@@ -38,6 +38,7 @@ Guidelines for modifications:
 * Sheikh Dawood
 * Ossama Ahmed
 * Greg Attra
+* Gavriel State
 
 ## Contributors
 
@@ -139,6 +140,7 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* RinZ27
 * Ritvik Singh
 * Rosario Scalise
 * Ryan Gresia
@@ -185,7 +187,6 @@ Guidelines for modifications:
 * Ajay Mandlekar
 * Animesh Garg
 * Buck Babich
-* Gavriel State
 * Hammad Mazhar
 * Marco Hutter
 * Yan Chang

@@ -834,6 +834,150 @@ wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
    )
 
 
+URDF Importer
+~~~~~~~~~~~~~
+
+The URDF importer in Isaac Sim was rewritten to version 3.0, using the ``urdf-usd-converter``
+library and the ``isaacsim.asset.transformer.rules`` extension to produce structured USD output.
+The old C++ binding-based API (using Kit commands ``URDFParseFile``/``URDFImportRobot`` and the
+``_urdf`` interface from ``acquire_urdf_interface()``) has been replaced with a new Python-based
+pipeline.
+
+The IsaacLab :class:`~sim.converters.UrdfConverter` has been updated to replicate the new
+``URDFImporter.import_urdf()`` pipeline, inserting IsaacLab-specific post-processing (fix base,
+joint drives, link density) on the intermediate USD stage before the asset transformer
+restructures the output.
+
+.. important::
+
+   The previous version-pinning mechanism that locked the URDF importer extension to
+   ``isaacsim.asset.importer.urdf-2.4.31`` has been removed. The converter now uses whichever
+   version of the extension is available in your Isaac Sim installation.
+
+
+Deprecated Settings
+-------------------
+
+The following :class:`~sim.converters.UrdfConverterCfg` settings are **deprecated** because
+the new URDF importer 3.0 no longer supports them. They are kept for backward compatibility
+but will log warnings if enabled:
+
++-----------------------------------------------------------+-----------------------------------------------------+
+| Setting                                                   | Notes                                               |
++===========================================================+=====================================================+
+| ``convert_mimic_joints_to_normal_joints``                 | No longer supported by the importer.                |
++-----------------------------------------------------------+-----------------------------------------------------+
+| ``replace_cylinders_with_capsules``                       | No longer supported by the importer.                |
++-----------------------------------------------------------+-----------------------------------------------------+
+| ``root_link_name``                                        | No longer supported by the importer.                |
++-----------------------------------------------------------+-----------------------------------------------------+
+
+.. note::
+
+   The ``merge_fixed_joints`` setting is **still supported**. It is now implemented as a URDF XML
+   pre-processing step that runs before the USD conversion. Fixed joints are removed and child
+   link elements (visual, collision, inertial) are merged into the parent link with correct
+   transform composition.
+
+Additionally, the :class:`~sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg`
+gains mode is **deprecated**. The ``compute_natural_stiffness`` function that it depended on has
+been removed from the importer. If ``NaturalFrequencyGainsCfg`` is used, a
+:exc:`DeprecationWarning` is emitted and joint drive gains are left at the values produced by the
+URDF importer. Use :class:`~sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg` instead.
+
+The :attr:`~sim.converters.AssetConverterBaseCfg.make_instanceable` setting from the base class
+is also no longer supported and will be ignored. Assets will be made instanceable by default.
+
+
+Updated CLI Tool
+----------------
+
+The ``convert_urdf.py`` script has been updated. The ``usd_file_name`` is now determined
+automatically by the importer based on the robot name and cannot be overridden.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+     robot.urdf \
+     /output/dir/robot.usd \
+     --fix-base \
+     --merge-joints
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+     robot.urdf \
+     /output/dir \
+     --fix-base \
+     --joint-stiffness 100.0 \
+     --joint-damping 1.0
+
+.. note::
+
+   The ``--merge-joints`` flag is still accepted and correctly triggers the pre-processing
+   step to merge fixed joints.
+
+
+Updated Python API
+------------------
+
+If you use :class:`~sim.converters.UrdfConverter` or :class:`~sim.converters.UrdfConverterCfg`
+directly in your code, note the following changes:
+
+1. The ``usd_file_name`` is now set automatically by the converter based on the URDF file name.
+   The importer generates output at ``{usd_dir}/{robot_name}/{robot_name}.usda``.
+
+2. The ``make_instanceable`` setting is no longer supported. Assets will be made instanceable
+   by default.
+
+3. The ``merge_fixed_joints`` parameter is now implemented as a pre-processing step.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
+   cfg = UrdfConverterCfg(
+       asset_path="robot.urdf",
+       usd_dir="/output/dir",
+       usd_file_name="robot.usd",
+       fix_base=True,
+       merge_fixed_joints=True,
+       make_instanceable=True,
+       joint_drive=UrdfConverterCfg.JointDriveCfg(
+           gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+               stiffness=None,  # use URDF values
+               damping=None,
+           ),
+       ),
+   )
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
+   cfg = UrdfConverterCfg(
+       asset_path="robot.urdf",
+       usd_dir="/output/dir",
+       # usd_file_name is determined automatically from the robot name
+       fix_base=True,
+       merge_fixed_joints=True,  # supported via pre-processing
+       joint_drive=UrdfConverterCfg.JointDriveCfg(
+           gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+               stiffness=None,  # use URDF values
+               damping=None,
+           ),
+       ),
+   )
+
+
 MJCF Importer
 ~~~~~~~~~~~~~
 

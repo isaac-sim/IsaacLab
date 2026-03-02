@@ -5,14 +5,6 @@
 
 """Test cases for LocalFrameTask class."""
 
-# Import pinocchio in the main script to force the use of the dependencies installed
-# by IsaacLab and not the one installed by Isaac Sim
-# pinocchio is required by the Pink IK controller
-import sys
-
-if sys.platform != "win32":
-    import pinocchio  # noqa: F401
-
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -24,8 +16,8 @@ import numpy as np
 import pinocchio as pin
 import pytest
 
-from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
+from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 
 # class TestLocalFrameTask:
 #     """Test suite for LocalFrameTask class."""

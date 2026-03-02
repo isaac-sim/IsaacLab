@@ -5,7 +5,6 @@
 
 """Sub-module for PhysX IMU sensor."""
 
-from .imu import Imu
-from .imu_data import ImuData
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["Imu", "ImuData"]
+lazy_export()

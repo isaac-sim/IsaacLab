@@ -35,6 +35,14 @@ inputs:
     description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
     default: 'false'
     required: false
+  cuda-issue-only:
+    description: 'Run only tests with known CUDA issues (isolated from general tests)'
+    default: 'false'
+    required: false
+  include-files:
+    description: 'Comma-separated list of specific test file paths to include (e.g., source/pkg/test/test_a.py,source/pkg/test/test_b.py)'
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -52,6 +60,8 @@ runs:
           local pytest_options="$6"
           local filter_pattern="$7"
           local curobo_only="$8"
+          local cuda_issue_only="$9"
+          local include_files="${10}"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -62,6 +72,12 @@ runs:
           fi
           if [ "$curobo_only" = "true" ]; then
             echo "cuRobo-only mode enabled: running only cuRobo and SkillGen tests"
+          fi
+          if [ "$cuda_issue_only" = "true" ]; then
+            echo "cuda-issue-only mode enabled: running only CUDA issue tests"
+          fi
+          if [ -n "$include_files" ]; then
+            echo "Include files: $include_files"
           fi
 
           # Create reports directory
@@ -84,6 +100,16 @@ runs:
           if [ "$curobo_only" = "true" ]; then
             docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
             echo "Setting TEST_CUROBO_ONLY=true"
+          fi
+
+          if [ "$cuda_issue_only" = "true" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_CUDA_ISSUE_ONLY=true"
+            echo "Setting TEST_CUDA_ISSUE_ONLY=true"
+          fi
+
+          if [ -n "$include_files" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_INCLUDE_FILES=$include_files"
+            echo "Setting TEST_INCLUDE_FILES=$include_files"
           fi
 
           if [ -n "$filter_pattern" ]; then
@@ -167,4 +193,4 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.cuda-issue-only }}" "${{ inputs.include-files }}"

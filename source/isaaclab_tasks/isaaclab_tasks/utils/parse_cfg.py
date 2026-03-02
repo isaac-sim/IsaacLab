@@ -5,16 +5,20 @@
 
 """Sub-module with utilities for parsing and loading configurations."""
 
+from __future__ import annotations
+
 import collections
 import importlib
 import inspect
 import os
 import re
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import yaml
 
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:

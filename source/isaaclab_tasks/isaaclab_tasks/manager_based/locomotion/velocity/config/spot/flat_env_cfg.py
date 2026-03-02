@@ -14,7 +14,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp

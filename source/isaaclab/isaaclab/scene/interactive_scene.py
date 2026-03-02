@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from isaaclab_physx.assets import DeformableObject, SurfaceGripper
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
 
 from pxr import Sdf
 
@@ -135,13 +137,12 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        # physics backend and clone fn (PhysX uses PhysxSchema/physx_replicate; Newton uses its own worlds)
-        self.physics_backend = self.sim.physics_manager.__name__
-        if "Physx" in self.physics_backend:
+        self.physics_backend = self.sim.physics_manager.__name__.lower()
+        if "physx" in self.physics_backend:
             from isaaclab_physx.cloner import physx_replicate
 
             physics_clone_fn = physx_replicate
-        elif "Newton" in self.physics_backend:
+        elif "newton" in self.physics_backend:
             from isaaclab_newton.cloner import newton_replicate
 
             physics_clone_fn = newton_replicate
@@ -176,7 +177,7 @@ class InteractiveScene:
             self._add_entities_from_cfg()
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
-            if self.cfg.filter_collisions and "Physx" in self.physics_backend:
+            if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -188,7 +189,7 @@ class InteractiveScene:
             may increase). Defaults to False.
         """
         # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
-        if self.cfg.replicate_physics and "Physx" in self.physics_backend:
+        if self.cfg.replicate_physics and "physx" in self.physics_backend:
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
@@ -454,38 +455,39 @@ class InteractiveScene:
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
             # root state
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
+            articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
             # joint state
-            joint_position = asset_state["joint_position"].clone()
-            joint_velocity = asset_state["joint_velocity"].clone()
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            joint_position = asset_state["joint_position"].clone().to(self.device)
+            joint_velocity = asset_state["joint_velocity"].clone().to(self.device)
+            articulation.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)
+            articulation.write_joint_velocity_to_sim_index(velocity=joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
-            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
-            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
+            articulation.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
+            articulation.set_joint_velocity_target_index(target=joint_velocity, env_ids=env_ids)
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
-            nodal_position = asset_state["nodal_position"].clone()
+            nodal_position = asset_state["nodal_position"].clone().to(self.device)
             if is_relative:
                 nodal_position[:, :3] += self.env_origins[env_ids]
-            nodal_velocity = asset_state["nodal_velocity"].clone()
+            nodal_velocity = asset_state["nodal_velocity"].clone().to(self.device)
             deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
             deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
         # rigid objects
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = state["rigid_object"][asset_name]
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
+            rigid_object.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
         # surface grippers
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
@@ -654,6 +656,8 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
+        from isaaclab_physx.assets import DeformableObjectCfg, SurfaceGripperCfg  # noqa: PLC0415
+
         # store paths that are in global collision filter
         self._global_prim_paths = list()
         # Process non-sensor entities before sensors so that asset prims exist in the template
@@ -728,10 +732,9 @@ class InteractiveScene:
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                    asset_cfg.filter_prim_paths_expr = [
+                        p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
+                    ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(

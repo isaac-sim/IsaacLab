@@ -7,5 +7,6 @@
 AMP Motion Loader and motion files.
 """
 
-from .motion_loader import MotionLoader
-from .motion_viewer import MotionViewer
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

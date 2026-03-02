@@ -33,12 +33,6 @@ parser.add_argument(
     help="pause after every subtask during generation for debugging - only useful with render flag",
 )
 parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
-parser.add_argument(
     "--use_skillgen",
     action="store_true",
     default=False,
@@ -48,12 +42,6 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version
-    # installed by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -73,10 +61,6 @@ import torch
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
 import isaaclab_mimic.envs  # noqa: F401
-
-if args_cli.enable_pinocchio:
-    import isaaclab_mimic.envs.pinocchio_envs  # noqa: F401
-
 from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
 from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output_paths
 
