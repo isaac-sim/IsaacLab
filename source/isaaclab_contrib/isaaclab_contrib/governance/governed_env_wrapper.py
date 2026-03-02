@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 import numpy as np
@@ -22,6 +21,10 @@ from .governance_policy import GovernancePolicy
 from .provenance_logger import ProvenanceLogger
 
 logger = logging.getLogger(__name__)
+
+# Default max elements logged per action vector. Configurable via
+# GovernedEnvWrapper(max_log_dims=N).
+_DEFAULT_MAX_LOG_DIMS = 64
 
 
 def _point_in_polygon(x: float, y: float, polygon: list[tuple[float, float]]) -> bool:
@@ -91,6 +94,8 @@ class GovernedEnvWrapper:
         env: Any,
         governance_policy: GovernancePolicy,
         log_path: str | None = None,
+        position_extractor: Any | None = None,
+        max_log_dims: int = _DEFAULT_MAX_LOG_DIMS,
     ) -> None:
         """Initialize the governance wrapper.
 
@@ -98,12 +103,24 @@ class GovernedEnvWrapper:
             env: The Isaac Lab environment to wrap.
             governance_policy: Safety policy to enforce.
             log_path: Optional path for persistent provenance logging.
+            position_extractor: Optional callable ``(env, agent_id) -> dict``
+                that returns ``{"x": float, "y": float, "z": float}`` for
+                the agent's current position. Required for spatial_bounds
+                and geofence enforcement. If ``None``, spatial checks that
+                need position data are skipped with a warning on first use.
+            max_log_dims: Maximum action dimensions to include in provenance
+                records. Set to ``0`` to log all dimensions. Default 64.
         """
         self.env = env
         self.policy = governance_policy
         self.provenance = ProvenanceLogger(log_path=log_path)
         self.step_count = 0
-        self._prev_actions: torch.Tensor | np.ndarray | None = None
+        self._prev_actions: dict[str, np.ndarray] = {}
+        self._position_extractor = position_extractor
+        self._max_log_dims = max_log_dims
+        self._warned_no_extractor = False
+        # Track latest governed actions per agent for multi-agent separation
+        self._latest_actions: dict[str, np.ndarray] = {}
 
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the wrapped environment."""
@@ -120,10 +137,11 @@ class GovernedEnvWrapper:
         """
         result = self.env.reset(**kwargs)
         self.step_count = 0
-        self._prev_actions = None
+        self._prev_actions.clear()
+        self._latest_actions.clear()
         return result
 
-    def step(self, actions: torch.Tensor | np.ndarray | dict) -> Any:
+    def step(self, actions: Any) -> Any:
         """Apply governance checks then step the environment.
 
         Args:
@@ -139,9 +157,11 @@ class GovernedEnvWrapper:
             # Multi-agent: govern each agent independently
             governed_actions = {}
             gov_info: dict[str, Any] = {}
+            all_agent_ids = list(actions.keys())
             for agent_id, agent_actions in actions.items():
                 governed, decision, violations = self._govern_actions(
-                    agent_actions, agent_id=str(agent_id)
+                    agent_actions, agent_id=str(agent_id),
+                    all_agent_ids=all_agent_ids,
                 )
                 governed_actions[agent_id] = governed
                 gov_info[str(agent_id)] = {
@@ -149,19 +169,21 @@ class GovernedEnvWrapper:
                     "violations": violations,
                 }
             result = self.env.step(governed_actions)
-            # Inject governance info
+            # Inject governance info — preserve existing info dict
             if isinstance(result, tuple) and len(result) >= 4:
-                info = result[-1] if isinstance(result[-1], dict) else {}
+                last = result[-1]
+                info = last if isinstance(last, dict) else {"_original": last}
                 info["governance"] = gov_info
                 result = (*result[:-1], info)
         else:
             # Single-agent
             governed, decision, violations = self._govern_actions(
-                actions, agent_id="0"
+                actions, agent_id="0",
             )
             result = self.env.step(governed)
             if isinstance(result, tuple) and len(result) >= 4:
-                info = result[-1] if isinstance(result[-1], dict) else {}
+                last = result[-1]
+                info = last if isinstance(last, dict) else {"_original": last}
                 info["governance"] = {
                     "decision": decision,
                     "violations": violations,
@@ -171,16 +193,52 @@ class GovernedEnvWrapper:
         self.step_count += 1
         return result
 
+    def _get_agent_position(self, agent_id: str) -> dict[str, float] | None:
+        """Get agent position via the position extractor.
+
+        Returns:
+            Position dict with x/y/z keys, or None if unavailable.
+        """
+        if self._position_extractor is None:
+            if not self._warned_no_extractor:
+                has_spatial = (
+                    self.policy.spatial_bounds is not None
+                    or self.policy.geofence_polygons is not None
+                )
+                if has_spatial:
+                    logger.warning(
+                        "Spatial governance checks configured but no "
+                        "position_extractor provided — spatial_bounds and "
+                        "geofence checks will be skipped. Pass a "
+                        "position_extractor to GovernedEnvWrapper to enable."
+                    )
+                self._warned_no_extractor = True
+            return None
+        try:
+            return self._position_extractor(self.env, agent_id)
+        except Exception:
+            logger.debug("position_extractor failed for agent %s", agent_id)
+            return None
+
     def _govern_actions(
         self,
-        actions: torch.Tensor | np.ndarray,
+        actions: Any,
         agent_id: str = "0",
-    ) -> tuple[torch.Tensor | np.ndarray, str, list[str]]:
+        all_agent_ids: list[str] | None = None,
+    ) -> tuple[Any, str, list[str]]:
         """Apply governance policy to proposed actions.
+
+        Enforces all configured checks in order:
+        1. Action bounds (soft — CLAMP)
+        2. Rate-of-change limits (soft — CLAMP)
+        3. Spatial bounds (hard — DENY if fail_closed)
+        4. Geofence containment (hard — DENY if fail_closed)
+        5. Minimum agent separation (hard — DENY if fail_closed)
 
         Args:
             actions: Proposed action tensor or array.
             agent_id: Identifier for provenance logging.
+            all_agent_ids: All agent IDs in multi-agent step (for separation check).
 
         Returns:
             Tuple of (governed_actions, decision, violations).
@@ -196,31 +254,72 @@ class GovernedEnvWrapper:
             actions_np = np.array(actions, copy=True)
 
         proposed = actions_np.flatten().tolist()
-        original = actions_np.copy()
 
-        # 1. Action bounds check
+        # --- Check 1: Action bounds (soft) ---
         if self.policy.action_bounds is not None:
             lo, hi = self.policy.action_bounds
             if np.any(actions_np < lo) or np.any(actions_np > hi):
                 violations.append("action_bounds")
                 actions_np = np.clip(actions_np, lo, hi)
 
-        # 2. Rate-of-change check
-        if self.policy.max_rate_of_change is not None and self._prev_actions is not None:
-            if torch is not None and isinstance(self._prev_actions, torch.Tensor):
-                prev_np = self._prev_actions.detach().cpu().numpy()
-            else:
-                prev_np = np.asarray(self._prev_actions)
-            delta = actions_np - prev_np
+        # --- Check 2: Rate-of-change (soft) ---
+        prev = self._prev_actions.get(agent_id)
+        if self.policy.max_rate_of_change is not None and prev is not None:
+            delta = actions_np - prev
             max_delta = self.policy.max_rate_of_change
             if np.any(np.abs(delta) > max_delta):
                 violations.append("rate_of_change")
-                actions_np = prev_np + np.clip(delta, -max_delta, max_delta)
+                actions_np = prev + np.clip(delta, -max_delta, max_delta)
 
-        # Store for next rate-of-change check
-        self._prev_actions = actions_np.copy()
+        # Store for next rate-of-change check (per agent)
+        self._prev_actions[agent_id] = actions_np.copy()
 
-        # Determine decision
+        # --- Check 3: Spatial bounds (hard) ---
+        if self.policy.spatial_bounds is not None:
+            pos = self._get_agent_position(agent_id)
+            if pos is not None:
+                for axis, (lo, hi) in self.policy.spatial_bounds.items():
+                    val = pos.get(axis)
+                    if val is not None and (val < lo or val > hi):
+                        violations.append("spatial_bounds")
+                        break
+
+        # --- Check 4: Geofence containment (hard) ---
+        if self.policy.geofence_polygons is not None:
+            pos = self._get_agent_position(agent_id)
+            if pos is not None:
+                px, py = pos.get("x", 0.0), pos.get("y", 0.0)
+                inside_any = any(
+                    _point_in_polygon(px, py, poly)
+                    for poly in self.policy.geofence_polygons
+                )
+                if not inside_any:
+                    violations.append("geofence")
+
+        # --- Check 5: Minimum agent separation (hard) ---
+        if (
+            self.policy.min_separation is not None
+            and all_agent_ids is not None
+            and len(all_agent_ids) > 1
+        ):
+            pos = self._get_agent_position(agent_id)
+            if pos is not None:
+                for other_id in all_agent_ids:
+                    if other_id == agent_id:
+                        continue
+                    other_pos = self._get_agent_position(str(other_id))
+                    if other_pos is None:
+                        continue
+                    dist = (
+                        (pos.get("x", 0.0) - other_pos.get("x", 0.0)) ** 2
+                        + (pos.get("y", 0.0) - other_pos.get("y", 0.0)) ** 2
+                        + (pos.get("z", 0.0) - other_pos.get("z", 0.0)) ** 2
+                    ) ** 0.5
+                    if dist < self.policy.min_separation:
+                        violations.append("min_separation")
+                        break
+
+        # --- Determine decision ---
         if not violations:
             decision = "ALLOW"
         elif self.policy.fail_closed and self._is_hard_violation(violations):
@@ -231,13 +330,17 @@ class GovernedEnvWrapper:
 
         applied = actions_np.flatten().tolist()
 
+        # Truncate action vectors for provenance (configurable)
+        log_proposed = proposed[:self._max_log_dims] if self._max_log_dims else proposed
+        log_applied = applied[:self._max_log_dims] if self._max_log_dims else applied
+
         # Log provenance
         self.provenance.log(
             step=self.step_count,
             agent_id=agent_id,
             decision=decision,
-            proposed_action=proposed[:8],  # truncate for readability
-            applied_action=applied[:8],
+            proposed_action=log_proposed,
+            applied_action=log_applied,
             violations=violations,
             metadata=self.policy.metadata if self.policy.metadata else None,
         )
@@ -247,6 +350,9 @@ class GovernedEnvWrapper:
                 "Governance %s for agent %s at step %d: %s",
                 decision, agent_id, self.step_count, violations,
             )
+
+        # Store governed actions for separation checks on next step
+        self._latest_actions[agent_id] = actions_np.copy()
 
         # Convert back to original format
         if is_torch:
@@ -289,6 +395,9 @@ class GovernedEnvWrapper:
             "policy": {
                 "action_bounds": self.policy.action_bounds,
                 "max_rate_of_change": self.policy.max_rate_of_change,
+                "spatial_bounds": self.policy.spatial_bounds,
+                "geofence_polygons": len(self.policy.geofence_polygons) if self.policy.geofence_polygons else 0,
+                "min_separation": self.policy.min_separation,
                 "fail_closed": self.policy.fail_closed,
             },
         }

@@ -261,5 +261,246 @@ class TestGovernedEnvWrapper(unittest.TestCase):
             self.assertEqual(info["governance"]["decision"], "ALLOW")
 
 
+class TestSpatialBoundsEnforcement(unittest.TestCase):
+    """Tests for spatial bounds checking (hard violation)."""
+
+    @staticmethod
+    def _make_position_extractor(positions: dict[str, dict]):
+        """Create a position extractor from a static position dict."""
+        def extractor(env, agent_id):
+            return positions.get(agent_id)
+        return extractor
+
+    def test_spatial_bounds_allow(self):
+        """Agent inside spatial bounds should be ALLOW."""
+        env = MockEnv()
+        positions = {"0": {"x": 0.0, "y": 0.0, "z": 1.0}}
+        policy = GovernancePolicy(
+            spatial_bounds={"x": (-5.0, 5.0), "y": (-5.0, 5.0), "z": (0.0, 3.0)},
+        )
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["governance"]["decision"], "ALLOW")
+
+    def test_spatial_bounds_deny(self):
+        """Agent outside spatial bounds should be DENY (fail_closed)."""
+        env = MockEnv()
+        positions = {"0": {"x": 10.0, "y": 0.0, "z": 1.0}}  # x=10 > 5
+        policy = GovernancePolicy(
+            spatial_bounds={"x": (-5.0, 5.0), "y": (-5.0, 5.0), "z": (0.0, 3.0)},
+            fail_closed=True,
+        )
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["governance"]["decision"], "DENY")
+        self.assertIn("spatial_bounds", info["governance"]["violations"])
+
+    def test_spatial_bounds_no_extractor_warns_and_allows(self):
+        """Missing position extractor should warn and skip spatial check."""
+        env = MockEnv()
+        policy = GovernancePolicy(
+            spatial_bounds={"x": (-5.0, 5.0)},
+        )
+        governed = GovernedEnvWrapper(env, governance_policy=policy)
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        # Without extractor, spatial check is skipped — action passes
+        self.assertEqual(info["governance"]["decision"], "ALLOW")
+
+
+class TestGeofenceEnforcement(unittest.TestCase):
+    """Tests for geofence polygon containment (hard violation)."""
+
+    @staticmethod
+    def _make_position_extractor(positions: dict[str, dict]):
+        def extractor(env, agent_id):
+            return positions.get(agent_id)
+        return extractor
+
+    def test_inside_geofence_allow(self):
+        """Agent inside geofence polygon should be ALLOW."""
+        env = MockEnv()
+        # Square geofence: (0,0), (10,0), (10,10), (0,10)
+        polygon = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
+        positions = {"0": {"x": 5.0, "y": 5.0, "z": 0.0}}
+        policy = GovernancePolicy(geofence_polygons=[polygon])
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["governance"]["decision"], "ALLOW")
+
+    def test_outside_geofence_deny(self):
+        """Agent outside all geofence polygons should be DENY."""
+        env = MockEnv()
+        polygon = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
+        positions = {"0": {"x": 50.0, "y": 50.0, "z": 0.0}}  # far outside
+        policy = GovernancePolicy(geofence_polygons=[polygon], fail_closed=True)
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["governance"]["decision"], "DENY")
+        self.assertIn("geofence", info["governance"]["violations"])
+
+    def test_multiple_geofences_any_match(self):
+        """Agent inside any one of multiple geofences should be ALLOW."""
+        env = MockEnv()
+        poly1 = [(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)]
+        poly2 = [(100.0, 100.0), (110.0, 100.0), (110.0, 110.0), (100.0, 110.0)]
+        positions = {"0": {"x": 105.0, "y": 105.0, "z": 0.0}}  # inside poly2
+        policy = GovernancePolicy(geofence_polygons=[poly1, poly2])
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["governance"]["decision"], "ALLOW")
+
+
+class TestMinSeparationEnforcement(unittest.TestCase):
+    """Tests for minimum inter-agent separation (hard violation)."""
+
+    @staticmethod
+    def _make_position_extractor(positions: dict[str, dict]):
+        def extractor(env, agent_id):
+            return positions.get(agent_id)
+        return extractor
+
+    def test_agents_far_apart_allow(self):
+        """Agents with sufficient separation should be ALLOW."""
+        env = MockEnv()
+        env.step = MagicMock(return_value=(np.zeros(4), 1.0, False, False, {}))
+        positions = {
+            "robot_0": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "robot_1": {"x": 10.0, "y": 0.0, "z": 0.0},
+        }
+        policy = GovernancePolicy(min_separation=2.0)
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        actions = {
+            "robot_0": np.array([0.1, 0.2]),
+            "robot_1": np.array([0.3, 0.4]),
+        }
+        _, _, _, _, info = governed.step(actions)
+        self.assertEqual(info["governance"]["robot_0"]["decision"], "ALLOW")
+        self.assertEqual(info["governance"]["robot_1"]["decision"], "ALLOW")
+
+    def test_agents_too_close_deny(self):
+        """Agents violating min_separation should be DENY."""
+        env = MockEnv()
+        env.step = MagicMock(return_value=(np.zeros(4), 1.0, False, False, {}))
+        positions = {
+            "robot_0": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "robot_1": {"x": 0.5, "y": 0.0, "z": 0.0},  # 0.5m apart < 2.0m
+        }
+        policy = GovernancePolicy(min_separation=2.0, fail_closed=True)
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        actions = {
+            "robot_0": np.array([0.1, 0.2]),
+            "robot_1": np.array([0.3, 0.4]),
+        }
+        _, _, _, _, info = governed.step(actions)
+        # Both agents should get DENY since they're too close
+        self.assertEqual(info["governance"]["robot_0"]["decision"], "DENY")
+        self.assertIn("min_separation", info["governance"]["robot_0"]["violations"])
+
+    def test_separation_single_agent_no_check(self):
+        """Single-agent env should skip separation check."""
+        env = MockEnv()
+        positions = {"0": {"x": 0.0, "y": 0.0, "z": 0.0}}
+        policy = GovernancePolicy(min_separation=2.0)
+        governed = GovernedEnvWrapper(
+            env, governance_policy=policy,
+            position_extractor=self._make_position_extractor(positions),
+        )
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["governance"]["decision"], "ALLOW")
+
+
+class TestConfigurableLogDims(unittest.TestCase):
+    """Tests for configurable action logging truncation."""
+
+    def test_default_log_dims(self):
+        """Default max_log_dims=64 should truncate long action vectors."""
+        env = MockEnv(obs_shape=(4,))
+        policy = GovernancePolicy()
+        governed = GovernedEnvWrapper(env, governance_policy=policy)
+        governed.reset()
+        # 100-dim action
+        governed.step(np.ones(100))
+        record = governed.provenance.records[0]
+        self.assertEqual(len(record["proposed_action"]), 64)
+
+    def test_custom_log_dims(self):
+        """Custom max_log_dims should control truncation."""
+        env = MockEnv(obs_shape=(4,))
+        policy = GovernancePolicy()
+        governed = GovernedEnvWrapper(env, governance_policy=policy, max_log_dims=10)
+        governed.reset()
+        governed.step(np.ones(50))
+        record = governed.provenance.records[0]
+        self.assertEqual(len(record["proposed_action"]), 10)
+
+    def test_zero_log_dims_logs_all(self):
+        """max_log_dims=0 should log all dimensions."""
+        env = MockEnv(obs_shape=(4,))
+        policy = GovernancePolicy()
+        governed = GovernedEnvWrapper(env, governance_policy=policy, max_log_dims=0)
+        governed.reset()
+        governed.step(np.ones(100))
+        record = governed.provenance.records[0]
+        self.assertEqual(len(record["proposed_action"]), 100)
+
+
+class TestInfoDictPreservation(unittest.TestCase):
+    """Tests that original info dict values are not silently dropped."""
+
+    def test_non_dict_info_preserved(self):
+        """Non-dict last element should be preserved under _original key."""
+        env = MockEnv()
+        env.step = MagicMock(return_value=(np.zeros(4), 1.0, False, False, "custom_info"))
+        policy = GovernancePolicy()
+        governed = GovernedEnvWrapper(env, governance_policy=policy)
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["_original"], "custom_info")
+        self.assertIn("governance", info)
+
+    def test_existing_info_keys_preserved(self):
+        """Existing keys in info dict should not be overwritten."""
+        env = MockEnv()
+        env.step = MagicMock(return_value=(
+            np.zeros(4), 1.0, False, False, {"episode": {"reward": 42.0}}
+        ))
+        policy = GovernancePolicy()
+        governed = GovernedEnvWrapper(env, governance_policy=policy)
+        governed.reset()
+        _, _, _, _, info = governed.step(np.array([0.1, 0.2, 0.3, 0.4]))
+        self.assertEqual(info["episode"]["reward"], 42.0)
+        self.assertIn("governance", info)
+
+
 if __name__ == "__main__":
     unittest.main()
