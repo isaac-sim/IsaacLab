@@ -596,14 +596,17 @@ def test_nested_presetcfg_path_selection():
 class RendererACfg:
     backend: str = "rtx"
 
+
 @configclass
 class RendererBCfg:
     backend: str = "warp"
+
 
 @configclass
 class RendererPresetCfg(PresetCfg):
     default: RendererACfg = RendererACfg()
     newton: RendererBCfg = RendererBCfg()
+
 
 @configclass
 class SensorBaseCfg:
@@ -612,16 +615,19 @@ class SensorBaseCfg:
     height: int = 100
     renderer: RendererPresetCfg = RendererPresetCfg()
 
+
 @configclass
 class SensorPresetCfg(PresetCfg):
     default: SensorBaseCfg = SensorBaseCfg(data_types=["rgb"])
     depth: SensorBaseCfg = SensorBaseCfg(data_types=["depth"])
+
 
 @configclass
 class RootEnvBaseCfg:
     decimation: int = 2
     sensor: SensorPresetCfg = SensorPresetCfg()
     obs_shape: list[int] = [100, 100, 3]
+
 
 @configclass
 class RootPresetEnvCfg(PresetCfg):
@@ -661,9 +667,7 @@ def test_root_presetcfg_global_depth_resolves_nested():
 
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg_resolved.to_dict()}
 
-    env_cfg, agent_cfg = apply_overrides(
-        env_cfg, agent_cfg_resolved, hydra_cfg, ["depth"], [], [], presets
-    )
+    env_cfg, agent_cfg = apply_overrides(env_cfg, agent_cfg_resolved, hydra_cfg, ["depth"], [], [], presets)
 
     assert isinstance(env_cfg, RootEnvBaseCfg)
     assert env_cfg.obs_shape == [100, 100, 1]

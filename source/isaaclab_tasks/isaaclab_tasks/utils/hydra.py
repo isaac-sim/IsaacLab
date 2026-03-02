@@ -23,6 +23,7 @@ Example usage:
     presets=inference env.actions.arm_action.scale=0.5 env.sim.dt=0.01
 """
 
+import contextlib
 import functools
 import sys
 from collections.abc import Callable, Mapping
@@ -485,10 +486,8 @@ def _cleanup_presets(cfg):
     if cfg is None:
         return
     if hasattr(cfg, "presets"):
-        try:
+        with contextlib.suppress(Exception):
             delattr(cfg, "presets")
-        except Exception:
-            pass
     for name in list(getattr(cfg, "__dataclass_fields__", {}).keys()):
         if name == "presets":
             continue
