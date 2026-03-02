@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.interpolate as interpolate
 
-from .utils import height_field_to_mesh
+from .utils import height_field_to_mesh, height_field_to_mesh_v2
 
 if TYPE_CHECKING:
     from . import hf_terrains_cfg
@@ -80,7 +80,7 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
     return np.rint(z_upsampled).astype(np.int16)
 
 
-@height_field_to_mesh
+@height_field_to_mesh_v2(terrain_origin_judge_width=1.0)
 def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlopedTerrainCfg) -> np.ndarray:
     """Generate a terrain with a truncated pyramid structure.
 
