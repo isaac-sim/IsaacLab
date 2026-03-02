@@ -210,39 +210,27 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_scene_partitions_after_clone(self, usd_file_path: str, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
-        import numpy as np
-
         print(f"[OVRTX] Writing scene partitions for {num_envs} environments...")
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
         camera_prim_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
 
         try:
-            env_partition_binding = self._renderer.bind_attribute(
-                prim_paths=env_prim_paths,
-                attribute_name="primvars:omni:scenePartition",
+            self._renderer.write_attribute(
+                env_prim_paths,
+                "primvars:omni:scenePartition",
+                partition_tokens,
                 semantic=Semantic.TOKEN_STRING,
-                prim_mode=PrimMode.EXISTING_ONLY,
             )
-            if env_partition_binding is not None:
-                partition_array = np.array(partition_tokens, dtype="U32")
-                self._renderer.write_attribute(env_partition_binding, tensor=partition_array)
-                print(f"  ✓ Written primvars:omni:scenePartition to {num_envs} environments")
-            else:
-                print(f"  ⚠ Warning: Failed to bind primvars:omni:scenePartition on environments")
+            print(f"  ✓ Written primvars:omni:scenePartition to {num_envs} environments")
 
-            cam_partition_binding = self._renderer.bind_attribute(
-                prim_paths=camera_prim_paths,
-                attribute_name="omni:scenePartition",
+            self._renderer.write_attribute(
+                camera_prim_paths,
+                "omni:scenePartition",
+                partition_tokens,
                 semantic=Semantic.TOKEN_STRING,
-                prim_mode=PrimMode.EXISTING_ONLY,
             )
-            if cam_partition_binding is not None:
-                cam_partition_array = np.array(partition_tokens, dtype="U32")
-                self._renderer.write_attribute(cam_partition_binding, tensor=cam_partition_array)
-                print(f"  ✓ Written omni:scenePartition to {num_envs} cameras")
-            else:
-                print(f"  ⚠ Warning: Failed to bind omni:scenePartition on cameras")
+            print(f"  ✓ Written omni:scenePartition to {num_envs} cameras")
         except Exception as e:
             print(f"  ⚠ Warning: Failed to write scene partitions: {e}")
             import traceback
