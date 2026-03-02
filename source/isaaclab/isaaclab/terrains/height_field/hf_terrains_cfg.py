@@ -92,6 +92,20 @@ class HfInvertedPyramidSlopedTerrainCfg(HfPyramidSlopedTerrainCfg):
 
 
 @configclass
+class HfRoughSlopeTerrainCfg(HfRandomUniformTerrainCfg, HfPyramidSlopedTerrainCfg):
+    "rough slope cfg, combine the cfg of random terrain and smooth slope terrain"
+
+    function = hf_terrains.rough_slope_terrain
+
+
+@configclass
+class HfInvertedRoughSlopeTerrainCfg(HfRandomUniformTerrainCfg, HfInvertedPyramidSlopedTerrainCfg):
+    "rough slope cfg, combine the cfg of random terrain and smooth slope terrain"
+
+    function = hf_terrains.rough_slope_terrain
+
+
+@configclass
 class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid stairs height field terrain."""
 
