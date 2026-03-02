@@ -75,9 +75,12 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
         settings = re.search(
             r"\"python.analysis.extraPaths\": \[.*?\]", vscode_settings, flags=re.MULTILINE | re.DOTALL
         )
-        settings = settings.group(0)
-        settings = settings.split('"python.analysis.extraPaths": [')[-1]
-        settings = settings.split("]")[0]
+        if settings is not None:
+            settings = settings.group(0)
+            settings = settings.split('"python.analysis.extraPaths": [')[-1]
+            settings = settings.split("]")[0]
+        else:
+            settings = ""
 
         # read the path names from the isaac-sim settings file
         path_names = settings.split(",")
