@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_newton.physics.newton_manager_cfg import MJWarpSolverCfg, NewtonCfg
+
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -15,7 +17,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, MJWarpSolverCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -157,7 +158,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
         physics=newton_cfg,
     )
     # robot
-    robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = SHADOW_HAND_NEWTON_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
     actuated_joint_names = [
         "robot0_WRJ1",
