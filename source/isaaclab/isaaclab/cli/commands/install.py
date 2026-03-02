@@ -304,6 +304,9 @@ def command_install(install_type: str = "all") -> None:
         print_info("Upgrading pip...")
         run_command([python_exe, "-m", "pip", "install", "--upgrade", "pip"])
 
+        # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
+        run_command([python_exe, "-m", "pip", "install", "setuptools<82.0.0"])
+
         # Install pytorch (version based on arch).
         _ensure_cuda_torch()
 
