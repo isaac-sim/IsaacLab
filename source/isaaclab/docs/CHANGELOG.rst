@@ -9,7 +9,7 @@ Changed
 
 * Enhanced :class:`~isaaclab.utils.timer.Timer` with configurable time format
   (``s``/``ms``/``us``/``ns``), global enable/disable toggle, display output
-  control, and ``wp.synchronize_device()`` before stopping to ensure accurate
+  control, and ``wp.synchronize()`` before stopping to ensure accurate
   GPU timing.
 
 
