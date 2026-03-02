@@ -297,6 +297,10 @@ class GovernedEnvWrapper:
                     violations.append("geofence")
 
         # --- Check 5: Minimum agent separation (hard) ---
+        # Note: Both agents in a too-close pair receive the violation.
+        # This is intentional — in safety-critical scenarios, both agents
+        # should be denied actuation when separation is violated, not just
+        # the one that happened to be checked second.
         if (
             self.policy.min_separation is not None
             and all_agent_ids is not None
