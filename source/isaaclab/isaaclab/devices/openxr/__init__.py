@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Keyboard device for SE(2) and SE(3) control."""
+"""OpenXR and body tracking devices for teleoperation."""
 
+from .osc_receiver import BODY_JOINT_NAMES, BodyOscReceiver
+from .common import HAND_JOINT_NAMES
 from .manus_vive import ManusVive, ManusViveCfg
-from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
+from .openxr_device import BODY_TRACKER_NAMES, OpenXRDevice, OpenXRDeviceCfg
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs

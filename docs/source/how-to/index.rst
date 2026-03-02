@@ -161,6 +161,18 @@ with directional force feedback in Isaac Lab.
     haply_teleoperation
 
 
+Setting up Meta Quest Body Tracking
+-----------------------------------
+
+This guide explains how to use Meta Quest 3 with ALVR and SteamVR for full-body
+teleoperation in Isaac Lab via OSC protocol.
+
+.. toctree::
+    :maxdepth: 1
+
+    metaquest_body_tracking
+
+
 Understanding Simulation Performance
 ------------------------------------
 

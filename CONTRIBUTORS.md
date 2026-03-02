@@ -52,6 +52,7 @@ Guidelines for modifications:
 * Bikram Pandit
 * Bingjie Tang
 * Brayden Zhang
+* Bruk Gebregziabher
 * Brian Bingham
 * Brian McCann
 * Cameron Upright
