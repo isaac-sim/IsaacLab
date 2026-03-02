@@ -146,6 +146,55 @@ def collect_presets(cfg, path: str = "") -> dict:
     return result
 
 
+def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
+    """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
+
+    Safe to call before Kit is launched — callable config values are stored as
+    :class:`~isaaclab.utils.string.ResolvableString` and resolved lazily on
+    first use, so no implementation modules are imported eagerly.
+
+    Args:
+        task_name: Task name (e.g., "Isaac-Velocity-Flat-Anymal-C-v0").
+        agent_cfg_entry_point: Agent config entry point key (e.g., "rsl_rl_cfg_entry_point").
+
+    Returns:
+        Tuple of (env_cfg, agent_cfg) fully resolved.
+    """
+    task = task_name.split(":")[-1]
+    env_cfg, agent_cfg, presets = register_task(task, agent_cfg_entry_point)
+
+    global_presets, preset_sel, preset_scalar, global_scalar = parse_overrides(sys.argv[1:], presets)
+
+    original_argv, sys.argv = sys.argv, [sys.argv[0]] + global_scalar
+
+    resolved = {}
+
+    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
+        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+        env_cfg, agent_cfg = apply_overrides(
+            env_cfg, agent_cfg, hydra_cfg, global_presets, preset_sel, preset_scalar, presets
+        )
+        _cleanup_presets(env_cfg)
+        _cleanup_presets(agent_cfg)
+        _cleanup_presets_dict(hydra_cfg)
+        env_cfg.from_dict(hydra_cfg["env"])
+        env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
+        if isinstance(agent_cfg, dict) or agent_cfg is None:
+            agent_cfg = hydra_cfg["agent"]
+        else:
+            agent_cfg.from_dict(hydra_cfg["agent"])
+        resolved["env_cfg"] = env_cfg
+        resolved["agent_cfg"] = agent_cfg
+
+    try:
+        hydra_main()
+    finally:
+        sys.argv = original_argv
+
+    return resolved["env_cfg"], resolved["agent_cfg"]
+
+
 def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     """Decorator for Hydra config with REPLACE-only preset semantics.
 
@@ -172,11 +221,12 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
             @hydra.main(config_path=None, config_name=task, version_base="1.3")
             def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
                 hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-                # Apply our preset handling (REPLACE, not merge)
                 env_cfg, agent_cfg = apply_overrides(
                     env_cfg, agent_cfg, hydra_cfg, global_presets, preset_sel, preset_scalar, presets
                 )
-                # Sync dict -> config objects
+                _cleanup_presets(env_cfg)
+                _cleanup_presets(agent_cfg)
+                _cleanup_presets_dict(hydra_cfg)
                 env_cfg.from_dict(hydra_cfg["env"])
                 env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
                 if isinstance(agent_cfg, dict) or agent_cfg is None:
@@ -420,6 +470,41 @@ def apply_overrides(
             _setattr(hydra_cfg, full_path, val)
 
     return cfgs["env"], cfgs["agent"]
+
+
+def _cleanup_presets(cfg):
+    """Recursively remove ``presets`` fields from a config tree after resolution.
+
+    Once all presets have been selected and applied, the ``presets`` metadata
+    is no longer needed and would confuse downstream managers that expect every
+    field to be a term config.
+    """
+    if cfg is None:
+        return
+    if hasattr(cfg, "presets"):
+        try:
+            delattr(cfg, "presets")
+        except Exception:
+            pass
+    for name in list(getattr(cfg, "__dataclass_fields__", {}).keys()):
+        if name == "presets":
+            continue
+        try:
+            value = getattr(cfg, name)
+        except Exception:
+            continue
+        if hasattr(value, "__dataclass_fields__"):
+            _cleanup_presets(value)
+
+
+def _cleanup_presets_dict(d: dict):
+    """Recursively remove ``presets`` keys from a nested dict."""
+    if not isinstance(d, dict):
+        return
+    d.pop("presets", None)
+    for v in d.values():
+        if isinstance(v, dict):
+            _cleanup_presets_dict(v)
 
 
 def _setattr(obj, path: str, val):
