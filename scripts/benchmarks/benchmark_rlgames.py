@@ -8,13 +8,12 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 import sys
 import time
 
-from isaaclab.app import AppLauncher
-
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
+parser = argparse.ArgumentParser(description="Benchmark RL agent with RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
@@ -32,11 +31,23 @@ parser.add_argument(
     choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
     help="Benchmarking backend options, defaults OmniPerfKPIFile",
 )
+parser.add_argument("--output_folder", type=str, default=None, help="Output folder for the benchmark.")
+parser.add_argument(
+    "--kit",
+    action="store_true",
+    default=False,
+    help="Enable Isaac Sim Kit and use isaacsim.benchmark.services. Default: False (uses standalone benchmark).",
+)
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# Conditionally add AppLauncher args only if --kit is enabled
+if "--kit" in sys.argv:
+    from isaaclab.app import AppLauncher
+
+    AppLauncher.add_app_launcher_args(parser)
+
 # parse the arguments
 args_cli, hydra_args = parser.parse_known_args()
+
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -46,19 +57,56 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 app_start_time_begin = time.perf_counter_ns()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+# Conditionally launch Isaac Sim
+simulation_app = None
+app_launcher = None
+if args_cli.kit:
+    # Force Omniverse mode by setting environment variable
+    # This ensures SimulationApp is launched even without explicit visualizers
+    os.environ["LAUNCH_OV_APP"] = "1"
+
+    # launch omniverse app
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
 
 app_start_time_end = time.perf_counter_ns()
 
 """Rest everything follows."""
 
-# enable benchmarking extension
-from isaacsim.core.utils.extensions import enable_extension
+# Import benchmark infrastructure based on kit flag
+if args_cli.kit:
+    # enable benchmarking extension
+    from isaacsim.core.utils.extensions import enable_extension
 
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
+    enable_extension("isaacsim.benchmark.services")
+    from isaacsim.benchmark.services import BaseIsaacBenchmark
+
+    from scripts.benchmarks.utils.benchmark_utils import create_kit_logging_functions, get_timer_value
+
+    # Get all logging functions for kit mode
+    log_funcs = create_kit_logging_functions()
+else:
+    # Use standalone benchmark services
+    from scripts.benchmarks.utils.benchmark_utils import create_standalone_logging_functions, get_timer_value
+    from scripts.benchmarks.utils.standalone_benchmark import StandaloneBenchmark
+
+    # Get all logging functions for standalone mode
+    log_funcs = create_standalone_logging_functions()
+
+# Extract individual functions from the dictionary for easier use
+get_isaaclab_version = log_funcs["get_isaaclab_version"]
+get_mujoco_warp_version = log_funcs["get_mujoco_warp_version"]
+get_newton_version = log_funcs["get_newton_version"]
+log_app_start_time = log_funcs["log_app_start_time"]
+log_python_imports_time = log_funcs["log_python_imports_time"]
+log_task_start_time = log_funcs["log_task_start_time"]
+log_scene_creation_time = log_funcs["log_scene_creation_time"]
+log_simulation_start_time = log_funcs["log_simulation_start_time"]
+log_total_start_time = log_funcs["log_total_start_time"]
+log_runtime_step_times = log_funcs["log_runtime_step_times"]
+log_rl_policy_rewards = log_funcs["log_rl_policy_rewards"]
+log_rl_policy_episode_lengths = log_funcs["log_rl_policy_episode_lengths"]
+parse_tf_logs = log_funcs["parse_tf_logs"]
 
 imports_time_begin = time.perf_counter_ns()
 
@@ -84,22 +132,6 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 imports_time_end = time.perf_counter_ns()
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-
-from isaaclab.utils.timer import Timer
-from scripts.benchmarks.utils import (
-    log_app_start_time,
-    log_python_imports_time,
-    log_rl_policy_episode_lengths,
-    log_rl_policy_rewards,
-    log_runtime_step_times,
-    log_scene_creation_time,
-    log_simulation_start_time,
-    log_task_start_time,
-    log_total_start_time,
-    parse_tf_logs,
-)
-
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
@@ -107,18 +139,40 @@ torch.backends.cudnn.benchmark = False
 
 
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
-    benchmark_name="benchmark_rlgames_train",
-    workflow_metadata={
-        "metadata": [
-            {"name": "task", "data": args_cli.task},
-            {"name": "seed", "data": args_cli.seed},
-            {"name": "num_envs", "data": args_cli.num_envs},
-            {"name": "max_iterations", "data": args_cli.max_iterations},
-        ]
-    },
-    backend_type=args_cli.benchmark_backend,
-)
+if args_cli.kit:
+    benchmark = BaseIsaacBenchmark(
+        benchmark_name="benchmark_rlgames_train",
+        workflow_metadata={
+            "metadata": [
+                {"name": "task", "data": args_cli.task},
+                {"name": "seed", "data": args_cli.seed},
+                {"name": "num_envs", "data": args_cli.num_envs},
+                {"name": "max_iterations", "data": args_cli.max_iterations},
+                {"name": "Mujoco Warp Info", "data": get_mujoco_warp_version()},
+                {"name": "Isaac Lab Info", "data": get_isaaclab_version()},
+                {"name": "Newton Info", "data": get_newton_version()},
+            ]
+        },
+        backend_type=args_cli.benchmark_backend,
+    )
+else:
+    benchmark = StandaloneBenchmark(
+        benchmark_name="benchmark_rlgames_train",
+        workflow_metadata={
+            "metadata": [
+                {"name": "task", "data": args_cli.task},
+                {"name": "seed", "data": args_cli.seed},
+                {"name": "num_envs", "data": args_cli.num_envs},
+                {"name": "max_iterations", "data": args_cli.max_iterations},
+                {"name": "Mujoco Warp Info", "data": get_mujoco_warp_version()},
+                {"name": "Isaac Lab Info", "data": get_isaaclab_version()},
+                {"name": "Newton Info", "data": get_newton_version()},
+            ]
+        },
+        backend_type=args_cli.benchmark_backend,
+        output_folder=args_cli.output_folder,
+        randomize_filename_prefix=True,
+    )
 
 
 @hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
@@ -127,7 +181,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    if args_cli.kit and hasattr(args_cli, "device") and args_cli.device is not None:
+        env_cfg.sim.device = args_cli.device
 
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
@@ -137,9 +192,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # process distributed
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
-        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
-        world_rank = app_launcher.global_rank
+        if args_cli.kit:
+            env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+            agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
+            world_rank = app_launcher.global_rank
+        else:
+            print("[WARNING] Distributed mode is only supported with --kit flag.")
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
@@ -153,7 +211,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
 
     # multi-gpu training config
-    if args_cli.distributed:
+    if args_cli.distributed and args_cli.kit:
         agent_cfg["params"]["seed"] += app_launcher.global_rank
         agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
         agent_cfg["params"]["config"]["device_name"] = f"cuda:{app_launcher.local_rank}"
@@ -229,24 +287,29 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
         # prepare RL timing dict
         rl_training_times = {
-            "Environment only step time": log_data["performance/step_time"],
-            "Environment + Inference step time": log_data["performance/step_inference_time"],
-            "Environment + Inference + Policy update time": log_data["performance/rl_update_time"],
-            "Environment only FPS": log_data["performance/step_fps"],
-            "Environment + Inference FPS": log_data["performance/step_inference_fps"],
-            "Environment + Inference + Policy update FPS": log_data["performance/step_inference_rl_update_fps"],
+            "Environment only step time": log_data.get("performance/step_time", []),
+            "Environment + Inference step time": log_data.get("performance/step_inference_time", []),
+            "Environment + Inference + Policy update time": log_data.get("performance/rl_update_time", []),
+            "Environment only FPS": log_data.get("performance/step_fps", []),
+            "Environment + Inference FPS": log_data.get("performance/step_inference_fps", []),
+            "Environment + Inference + Policy update FPS": log_data.get("performance/step_inference_rl_update_fps", []),
         }
 
         # log additional metrics to benchmark services
         log_app_start_time(benchmark, (app_start_time_end - app_start_time_begin) / 1e6)
         log_python_imports_time(benchmark, (imports_time_end - imports_time_begin) / 1e6)
         log_task_start_time(benchmark, (task_startup_time_end - task_startup_time_begin) / 1e6)
-        log_scene_creation_time(benchmark, Timer.get_timer_info("scene_creation") * 1000)
-        log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
+
+        # Timer may not be available in standalone mode
+        scene_creation_time = get_timer_value("scene_creation")
+        simulation_start_time = get_timer_value("simulation_start")
+
+        log_scene_creation_time(benchmark, scene_creation_time * 1000 if scene_creation_time else None)
+        log_simulation_start_time(benchmark, simulation_start_time * 1000 if simulation_start_time else None)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
-        log_rl_policy_rewards(benchmark, log_data["rewards/iter"])
-        log_rl_policy_episode_lengths(benchmark, log_data["episode_lengths/iter"])
+        log_rl_policy_rewards(benchmark, log_data.get("rewards/iter", []))
+        log_rl_policy_episode_lengths(benchmark, log_data.get("episode_lengths/iter", []))
 
         benchmark.stop()
 
@@ -258,4 +321,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()
