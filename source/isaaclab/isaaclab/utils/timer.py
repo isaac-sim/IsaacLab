@@ -102,6 +102,8 @@ class Timer(ContextDecorator):
         self._enable = enable if Timer.enable else False
         self._format = format
 
+        wp.init()
+
         # Check if the format is valid
         assert format in ["s", "ms", "us", "ns"], f"Invalid format, {format} is not in [s, ms, us, ns]"
         # Convert the format to a multiplier

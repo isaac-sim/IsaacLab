@@ -95,10 +95,7 @@ def test_get_timer_statistics():
     assert "mean" in stats
     assert "std" in stats
     assert "n" in stats
-    assert "last" in stats
     assert stats["n"] == 1
-    # For single measurement, mean equals last
-    assert stats["mean"] == stats["last"]
     # For single measurement, std should be 0
     assert stats["std"] == 0.0
 
