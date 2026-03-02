@@ -220,11 +220,6 @@ def setup_sim():
         sim._app_control_on_stop_handle = None
         # construct scene
         scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
-        # Disable PhysX replication to prevent the self-replication cloner from creating
-        # a duplicate PhysX body on the source env (env_0). With self-replication, env_0
-        # receives a copy on top of the USD-parsed original, causing overlapping rigid
-        # bodies, contact forces, and mismatched physics buffers — breaking IMU readings.
-        scene_cfg.replicate_physics = False
         scene = InteractiveScene(scene_cfg)
         # Both pendulum and pendulum2 use merge_fixed_joints=True, so the
         # fixed-joint child link imu_link is removed from the URDF before USD

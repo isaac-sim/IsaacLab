@@ -24,6 +24,7 @@ PER_TEST_TIMEOUTS = {
         5000
     ),  # Like the above, with stage in memory and with and without fabric cloning
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
+    "test_pickplace_stack_environments.py": 5000,  # This test runs through PickPlace and Stack environments
     "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
     "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
