@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
@@ -348,12 +347,11 @@ class MultiMeshRayCaster(RayCaster):
                 self._num_envs, self.num_rays, 1, device=self.device, dtype=torch.int16
             )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
-        """Fills the buffers of the sensor data.
-
-        Args:
-            env_ids: The environment ids to update.
-        """
+    def _update_buffers_impl(self, env_mask: wp.array):
+        """Fills the buffers of the sensor data."""
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
 
         self._update_ray_infos(env_ids)
 

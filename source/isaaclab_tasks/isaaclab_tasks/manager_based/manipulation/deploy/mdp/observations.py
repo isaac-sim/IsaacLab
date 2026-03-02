@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets import RigidObject
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
     from .events import randomize_gear_type

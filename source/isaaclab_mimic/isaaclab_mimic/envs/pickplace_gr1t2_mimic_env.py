@@ -62,8 +62,8 @@ class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
         target_left_eef_pos, left_target_rot = PoseUtils.unmake_pose(target_eef_pose_dict["left"])
         target_right_eef_pos, right_target_rot = PoseUtils.unmake_pose(target_eef_pose_dict["right"])
 
-        target_left_eef_rot_quat = PoseUtils.quat_from_matrix(left_target_rot)
-        target_right_eef_rot_quat = PoseUtils.quat_from_matrix(right_target_rot)
+        target_left_eef_rot_quat = PoseUtils.quat_unique(PoseUtils.quat_from_matrix(left_target_rot))
+        target_right_eef_rot_quat = PoseUtils.quat_unique(PoseUtils.quat_from_matrix(right_target_rot))
 
         # gripper actions
         left_gripper_action = gripper_action_dict["left"]
@@ -75,10 +75,10 @@ class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
             quat_noise_left = action_noise_dict["left"] * torch.randn_like(target_left_eef_rot_quat)
             quat_noise_right = action_noise_dict["right"] * torch.randn_like(target_right_eef_rot_quat)
 
-            target_left_eef_pos += pos_noise_left
-            target_right_eef_pos += pos_noise_right
-            target_left_eef_rot_quat += quat_noise_left
-            target_right_eef_rot_quat += quat_noise_right
+            target_left_eef_pos = target_left_eef_pos + pos_noise_left
+            target_right_eef_pos = target_right_eef_pos + pos_noise_right
+            target_left_eef_rot_quat = target_left_eef_rot_quat + quat_noise_left
+            target_right_eef_rot_quat = target_right_eef_rot_quat + quat_noise_right
 
         return torch.cat(
             (

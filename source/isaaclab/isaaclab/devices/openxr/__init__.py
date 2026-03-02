@@ -15,12 +15,6 @@
     :class:`DeprecationWarning` at instantiation time.
 """
 
-from isaaclab_teleop.deprecated.openxr import (  # noqa: F401
-    ManusVive,
-    ManusViveCfg,
-    OpenXRDevice,
-    OpenXRDeviceCfg,
-    XrAnchorRotationMode,
-    XrCfg,
-    remove_camera_configs,
-)
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

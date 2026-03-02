@@ -1,6 +1,74 @@
 Changelog
 ---------
 
+0.5.4 (2026-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* fixed :func:`~isaaclab_physx.cloner.physx_replicate` to not exclude self replication by default.
+
+
+0.5.3 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ContactSensor ``body_names`` property to use ``num_sensors`` instead of
+  deprecated ``num_bodies``.
+
+
+0.5.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned asset API with the multi-backend architecture. Base class abstract methods
+  in :class:`~isaaclab.assets.BaseArticulation` and :class:`~isaaclab.assets.BaseRigidObject`
+  have been refined so that PhysX and Newton backends share a consistent interface.
+
+* Improved docstrings across all asset classes with precise shape and dtype annotations
+  for warp array properties and write methods.
+
+* Migrated tests to use the new ``_index`` / ``_mask`` write method APIs, removing
+  usage of deprecated write methods.
+
+
 0.4.1 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
 

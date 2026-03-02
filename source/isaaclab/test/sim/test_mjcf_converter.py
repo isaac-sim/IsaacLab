@@ -38,9 +38,7 @@ def test_setup_teardown():
     extension_path = get_extension_path_from_name("isaacsim.asset.importer.mjcf")
     config = MjcfConverterCfg(
         asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
-        import_sites=True,
-        fix_base=False,
-        make_instanceable=True,
+        self_collision=False,
     )
 
     # Yield the resources for the test
@@ -79,7 +77,7 @@ def test_config_change(test_setup_teardown):
 
     # change the config
     new_config = mjcf_config
-    new_config.fix_base = not mjcf_config.fix_base
+    new_config.self_collision = not mjcf_config.self_collision
     # define the usd directory
     new_config.usd_dir = mjcf_converter.usd_dir
     # convert to usd but this time in the same directory as previous step
@@ -94,9 +92,9 @@ def test_create_prim_from_usd(test_setup_teardown):
     """Call conversion and create a prim from it."""
     sim, mjcf_config = test_setup_teardown
 
-    urdf_converter = MjcfConverter(mjcf_config)
+    mjcf_converter = MjcfConverter(mjcf_config)
 
     prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
 
     assert sim.stage.GetPrimAtPath(prim_path).IsValid()

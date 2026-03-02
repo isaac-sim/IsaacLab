@@ -12,10 +12,13 @@ configuring the environment instances, viewer settings, and simulation parameter
 from __future__ import annotations
 
 from dataclasses import MISSING, field
+from typing import TYPE_CHECKING
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import XrCfg
+
+if TYPE_CHECKING:
+    from isaaclab.devices.openxr import XrCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -23,7 +26,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from .common import ViewerCfg
-from .ui import BaseEnvWindow
 
 
 @configclass
@@ -49,7 +51,7 @@ class ManagerBasedEnvCfg:
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | None = BaseEnvWindow
+    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.

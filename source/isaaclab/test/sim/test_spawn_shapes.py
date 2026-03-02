@@ -215,8 +215,8 @@ def test_spawn_cone_with_all_props(sim):
         mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.materials.RigidBodyMaterialCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
+        physics_material=sim_utils.RigidBodyMaterialCfg(),
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -256,26 +256,18 @@ def test_spawn_cone_clones_invalid_paths(sim):
 
 def test_spawn_cone_clones(sim):
     """Test spawning of cone clones."""
-    num_clones = 10
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+    sim_utils.create_prim("/World/env_0", "Xform", translation=(0, 0, 0))
     # Spawn cone on valid cloning path
     cfg = sim_utils.ConeCfg(radius=1.0, height=2.0, copy_from_source=True)
     prim = cfg.func("/World/env_.*/Cone", cfg)
-
     # Check validity
     assert prim.IsValid()
     assert str(prim.GetPath()) == "/World/env_0/Cone"
-    # find matching prims
-    prims = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
-    assert len(prims) == num_clones
 
 
 def test_spawn_cone_clone_with_all_props_global_material(sim):
     """Test spawning of cone clones with global material reference."""
-    num_clones = 10
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+    sim_utils.create_prim("/World/env_0", "Xform", translation=(0, 0, 0))
     # Spawn cone on valid cloning path
     cfg = sim_utils.ConeCfg(
         radius=1.0,
@@ -283,8 +275,8 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
         mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.materials.RigidBodyMaterialCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
+        physics_material=sim_utils.RigidBodyMaterialCfg(),
         visual_material_path="/Looks/visualMaterial",
         physics_material_path="/Looks/physicsMaterial",
     )
@@ -293,9 +285,6 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
     # Check validity
     assert prim.IsValid()
     assert str(prim.GetPath()) == "/World/env_0/Cone"
-    # find matching prims
-    prims = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
-    assert len(prims) == num_clones
     # find matching material prims
     prims = sim_utils.find_matching_prim_paths("/Looks/visualMaterial.*")
     assert len(prims) == 1

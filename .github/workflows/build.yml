@@ -59,6 +59,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
+        include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
 
     - name: Copy Test Results from IsaacLab Tasks Container
       run: |
@@ -83,6 +84,67 @@ jobs:
         if [ -f "reports/isaaclab-tasks-report.xml" ]; then
           # Check if the test results contain any failures
           if grep -q 'failures="[1-9]' reports/isaaclab-tasks-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
+  test-isaaclab-tasks-2:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run IsaacLab Tasks Tests 2
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "isaaclab-tasks-2-report.xml"
+        container-name: "isaac-lab-tasks-2-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
+
+    - name: Copy Test Results from IsaacLab Tasks 2 Container
+      run: |
+        CONTAINER_NAME="isaac-lab-tasks-2-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from IsaacLab Tasks 2 container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-2-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks 2 container"
+        fi
+
+    - name: Upload IsaacLab Tasks 2 Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: isaaclab-tasks-2-test-results
+        path: reports/isaaclab-tasks-2-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/isaaclab-tasks-2-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/isaaclab-tasks-2-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-2-report.xml; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
@@ -151,8 +213,131 @@ jobs:
           exit 1
         fi
 
+  test-curobo:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image (cuRobo)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: 'docker/Dockerfile.curobo'
+
+    - name: Run cuRobo and SkillGen Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "curobo-tests-report.xml"
+        container-name: "isaac-lab-curobo-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        pytest-options: ""
+        filter-pattern: ""
+        curobo-only: "true"
+
+    - name: Copy Test Results from cuRobo Container
+      run: |
+        CONTAINER_NAME="isaac-lab-curobo-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from cuRobo container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/curobo-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
+        fi
+
+    - name: Upload cuRobo Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: curobo-test-results
+        path: reports/curobo-tests-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/curobo-tests-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/curobo-tests-report.xml || grep -q 'errors="[1-9]' reports/curobo-tests-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
+  cuda-issue-tests:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run CUDA Issue Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "cuda-issue-tests-report.xml"
+        container-name: "isaac-lab-cuda-issue-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: ""
+        cuda-issue-only: "true"
+
+    - name: Copy Test Results from CUDA Issue Tests Container
+      run: |
+        CONTAINER_NAME="isaac-lab-cuda-issue-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from CUDA Issue Tests container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/cuda-issue-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from CUDA Issue Tests container"
+        fi
+
+    - name: Upload CUDA Issue Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: cuda-issue-test-results
+        path: reports/cuda-issue-tests-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/cuda-issue-tests-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/cuda-issue-tests-report.xml || grep -q 'errors="[1-9]' reports/cuda-issue-tests-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
   combine-results:
-    needs: [test-isaaclab-tasks, test-general]
+    needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo, cuda-issue-tests]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -174,11 +359,32 @@ jobs:
         path: reports/
       continue-on-error: true
 
+    - name: Download IsaacLab Tasks 2 Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: isaaclab-tasks-2-test-results
+        path: reports/
+      continue-on-error: true
+
     - name: Download General Test Results
       uses: actions/download-artifact@v4
       with:
         name: general-test-results
         path: reports/
+
+    - name: Download cuRobo Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: curobo-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download CUDA Issue Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: cuda-issue-test-results
+        path: reports/
+      continue-on-error: true
 
     - name: Combine All Test Results
       uses: ./.github/actions/combine-results

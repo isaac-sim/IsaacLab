@@ -3,33 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
-
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from isaaclab.utils import configclass
 
 
 @configclass
 class MjcfConverterCfg(AssetConverterBaseCfg):
-    """The configuration class for MjcfConverter."""
+    """The configuration class for MjcfConverter.
 
-    link_density = 0.0
-    """Default density used for links. Defaults to 0.
+    .. note::
+        From Isaac Sim 5.0 onwards, the MJCF importer was rewritten to use the ``mujoco-usd-converter``
+        library. Several settings from the old importer (``fix_base``, ``link_density``,
+        ``import_inertia_tensor``, ``import_sites``) are no longer available as they are handled
+        automatically by the converter based on the MJCF file content.
 
-    This setting is only effective if ``"inertial"`` properties are missing in the MJCF.
+    .. note::
+        The :attr:`~AssetConverterBaseCfg.make_instanceable` setting from the base class is not
+        supported by the new MJCF importer and will be ignored.
     """
 
-    import_inertia_tensor: bool = True
-    """Import the inertia tensor from mjcf. Defaults to True.
+    merge_mesh: bool = False
+    """Merge meshes where possible to optimize the model. Defaults to False."""
 
-    If the ``"inertial"`` tag is missing, then it is imported as an identity.
+    collision_from_visuals: bool = False
+    """Generate collision geometry from visual geometries. Defaults to False."""
+
+    collision_type: str = "default"
+    """Type of collision geometry to use. Defaults to ``"default"``.
+
+    Supported values are ``"default"``, ``"Convex Hull"``, and ``"Convex Decomposition"``.
     """
-
-    fix_base: bool = MISSING
-    """Create a fix joint to the root/base link. Defaults to True."""
-
-    import_sites: bool = True
-    """Import the sites from the MJCF. Defaults to True."""
 
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""

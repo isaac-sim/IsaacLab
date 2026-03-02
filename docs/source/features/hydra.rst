@@ -108,7 +108,7 @@ are modified.
 
 For example, for the configuration of the Cartpole camera depth environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env_cfg.py
     :language: python
     :start-at: class CartpoleDepthCameraEnvCfg
     :end-at: tiled_camera.width

@@ -12,4 +12,6 @@ These include:
 
 """
 
-from .app_launcher import AppLauncher  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

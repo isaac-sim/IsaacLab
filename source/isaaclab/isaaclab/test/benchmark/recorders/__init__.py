@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .record_cpu_info import CPUInfoRecorder
-from .record_gpu_info import GPUInfoRecorder
-from .record_memory_info import MemoryInfoRecorder
-from .record_version_info import VersionInfoRecorder
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["CPUInfoRecorder", "GPUInfoRecorder", "MemoryInfoRecorder", "VersionInfoRecorder"]
+lazy_export()

@@ -39,12 +39,6 @@ parser.add_argument(
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -52,11 +46,6 @@ args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
 
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and
-    # not the one installed by Isaac Sim pinocchio is required by the Pink IK controllers and the
-    # GR1T2 retargeter
-    import pinocchio  # noqa: F401
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
@@ -72,8 +61,7 @@ import logging
 import gymnasium as gym
 import torch
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
@@ -83,10 +71,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
 from isaaclab_tasks.utils import parse_env_cfg
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -319,7 +303,7 @@ if __name__ == "__main__":
     main()
     # Close the USD stage and pump the event loop so the viewport widget
     # processes the closure before the app teardown destroys it.
-    omni.usd.get_context().close_stage()
+    sim_utils.close_stage()
     simulation_app.update()
     # close sim app
     simulation_app.close()

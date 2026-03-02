@@ -8,8 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import omni.kit.commands
-from pxr import Gf, Sdf, Usd
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
@@ -25,7 +24,8 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.utils.assets import check_usd_path_with_timeout
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -238,9 +238,12 @@ def spawn_ground_plane(
             stage=stage,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
         )
-    # Remove the light from the ground plane
+    # Remove the light from the ground plane (USD API, works without Kit/Newton)
     # It isn't bright enough and messes up with the user's lighting settings
-    omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"], stage=stage)
+    light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
+    if light_prim.IsValid():
+        imageable = UsdGeom.Imageable(light_prim)
+        imageable.MakeInvisible()
 
     prim = stage.GetPrimAtPath(prim_path)
     # Apply semantic tags
@@ -296,15 +299,15 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # check if usd path exists with periodic logging until timeout
-    if not check_usd_path_with_timeout(usd_path):
-        if "4.5" in usd_path:
-            usd_5_0_path = usd_path.replace("http", "https").replace("/4.5", "/5.0")
-            if not check_usd_path_with_timeout(usd_5_0_path):
-                raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
-            usd_path = usd_5_0_path
-        else:
-            raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
+    # check file path exists (supports local paths, S3, HTTP/HTTPS URLs)
+    # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
+
+    # Download remote files (S3, HTTP, HTTPS) to local cache
+    if file_status == 2:
+        usd_path = retrieve_file_path(usd_path, force_download=False)
 
     # Obtain current stage
     stage = get_current_stage()
@@ -356,6 +359,9 @@ def _spawn_from_usd_file(
 
     # apply visual material
     if cfg.visual_material is not None:
+        if not has_kit():
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
+            return stage.GetPrimAtPath(prim_path)
         if not cfg.visual_material_path.startswith("/"):
             material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:

@@ -16,10 +16,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import carb
-import omni.usd
 from isaacsim.core.utils.extensions import enable_extension
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
@@ -78,9 +77,11 @@ def test_ui_window():
     """Test UI window of ManagerBasedRLEnv."""
     device = "cuda:0"
     # override sim setting to enable UI
-    carb.settings.get_settings().set_bool("/app/window/enabled", True)
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    get_settings_manager().set_bool("/app/window/enabled", True)
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     # create environment
     env = ManagerBasedRLEnv(cfg=get_empty_base_env_cfg(device=device))
     # close the environment

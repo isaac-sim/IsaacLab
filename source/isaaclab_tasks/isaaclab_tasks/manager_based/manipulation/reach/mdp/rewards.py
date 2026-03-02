@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
 

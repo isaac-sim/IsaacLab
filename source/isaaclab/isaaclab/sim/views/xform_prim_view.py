@@ -12,10 +12,10 @@ import numpy as np
 import torch
 import warp as wp
 
-import carb
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
@@ -128,6 +128,7 @@ class XformPrimView:
         # Validate all prims have standard xform operations
         if validate_xform_ops:
             for prim in self._prims:
+                sim_utils.standardize_xform_ops(prim)
                 if not sim_utils.validate_standard_xform_ops(prim):
                     raise ValueError(
                         f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
@@ -136,7 +137,8 @@ class XformPrimView:
                     )
 
         # Determine if Fabric is supported on the device
-        self._use_fabric = carb.settings.get_settings().get("/physics/fabricEnabled")
+        settings = SettingsManager.instance()
+        self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
         logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination

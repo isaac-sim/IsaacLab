@@ -5,6 +5,12 @@
 
 """Unit tests for mock sensor interfaces."""
 
+from isaaclab.app import AppLauncher
+
+# launch the simulator
+app_launcher = AppLauncher(headless=True)
+simulation_app = app_launcher.app
+
 import pytest
 import torch
 
@@ -159,23 +165,27 @@ class TestMockContactSensor:
 
     def test_compute_first_contact(self, sensor):
         """Test first contact computation."""
+        import warp as wp
+
         # Set contact time to 0.5 for all bodies
         sensor.data.set_current_contact_time(torch.full((4, 4), 0.5))
 
         # Check with dt=1.0 - should be True (0.5 < 1.0)
         first_contact = sensor.compute_first_contact(dt=1.0)
-        assert torch.all(first_contact)
+        assert torch.all(wp.to_torch(first_contact))
 
         # Check with dt=0.1 - should be False (0.5 > 0.1)
         first_contact = sensor.compute_first_contact(dt=0.1)
-        assert torch.all(~first_contact)
+        assert torch.all(~wp.to_torch(first_contact))
 
     def test_compute_first_air(self, sensor):
         """Test first air computation."""
+        import warp as wp
+
         sensor.data.set_current_air_time(torch.full((4, 4), 0.2))
 
         first_air = sensor.compute_first_air(dt=0.5)
-        assert torch.all(first_air)
+        assert torch.all(wp.to_torch(first_air))
 
     def test_history_buffer(self):
         """Test history buffer when enabled."""

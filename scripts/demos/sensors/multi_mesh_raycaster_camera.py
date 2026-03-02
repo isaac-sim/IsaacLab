@@ -49,7 +49,6 @@ import random
 import torch
 import warp as wp
 
-import omni.usd
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
@@ -215,8 +214,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
 def randomize_shape_color(prim_path_expr: str):
     """Randomize the color of the geometry."""
 
-    # acquire stage
-    stage = omni.usd.get_context().get_stage()
+    stage = sim_utils.get_current_stage()
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(prim_path_expr)
     # manually clone prims if the source prim path is a regex expression
@@ -308,7 +306,7 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
     # design scene
-    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
+    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
     scene = InteractiveScene(scene_cfg)
 
     if args_cli.asset_type == "objects":

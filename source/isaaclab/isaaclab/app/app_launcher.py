@@ -28,6 +28,8 @@ with contextlib.suppress(ModuleNotFoundError):
 
 from isaacsim import SimulationApp
 
+from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -125,9 +127,6 @@ class AppLauncher:
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
-
-        # Internal: Override SimulationApp._start_app method to apply patches after app has started.
-        self.__patch_simulation_start_app(launcher_args)
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
@@ -867,33 +866,25 @@ class AppLauncher:
 
     def _load_extensions(self):
         """Load correct extensions based on AppLauncher's resolved config member variables."""
-        # These have to be loaded after SimulationApp is initialized
-        import carb
+        # These have to be loaded after SimulationApp is initialized.
+        # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
+        initialize_carb_settings()
+        settings = get_settings_manager()
 
-        # Retrieve carb settings for modification
-        carb_settings_iface = carb.settings.get_settings()
+        # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
+        settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
-        # set carb setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
-        # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
-        # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
+        # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
+        settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
-        # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
-        # this flag is used by the SimulationContext class to enable the render_viewport pipeline
-        # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
-
-        # set carb setting to indicate no RTX sensors are used
-        # this flag is set to True when an RTX-rendering related sensor is created
-        # for example: the `Camera` sensor class
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
+        # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
+        settings.set_bool("/isaaclab/render/rtx_sensors", False)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
-        carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
+        settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
-        # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
-        # for now, we use the custom loop runner from Isaac Sim to achieve this
-        carb_settings_iface.set_bool("/app/player/useFixedTimeStepping", False)
+        # use fixed time stepping disabled; custom loop runner from Isaac Sim is used instead
+        settings.set_bool("/app/player/useFixedTimeStepping", False)
 
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.
@@ -915,9 +906,7 @@ class AppLauncher:
                 play_button_group._stop_button = None  # type: ignore
 
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Store RTX rendering mode in carb settings."""
-        import carb
-
+        """Store RTX rendering mode in settings."""
         rendering_mode = launcher_args.get("rendering_mode")
 
         if rendering_mode is None:
@@ -926,15 +915,10 @@ class AppLauncher:
                 return
             rendering_mode = ""
 
-        # store rendering mode in carb settings
-        carb_settings = carb.settings.get_settings()
-        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
+        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
-        """Store animation recording settings in carb settings."""
-        import carb
-
-        # check if recording is enabled
+        """Store animation recording settings in settings."""
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
         if not recording_enabled:
             return
@@ -946,26 +930,22 @@ class AppLauncher:
                 f" 'anim_recording_stop_time' {launcher_args.get('anim_recording_stop_time')}"
             )
 
-        # grab config
         start_time = launcher_args.get("anim_recording_start_time")
         stop_time = launcher_args.get("anim_recording_stop_time")
 
-        # store config in carb settings
-        carb_settings = carb.settings.get_settings()
-        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
-        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
-        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
+        settings = get_settings_manager()
+        settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
-        """Store visualizer selection in carb settings."""
+        """Store visualizer selection in settings."""
         visualizers = launcher_args.get("visualizer")
         if not visualizers:
             return
         with contextlib.suppress(Exception):
-            import carb
-
             visualizer_str = " ".join(visualizers)
-            carb.settings.get_settings().set_string("/isaaclab/visualizer", visualizer_str)
+            get_settings_manager().set_string("/isaaclab/visualizer", visualizer_str)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
@@ -1019,97 +999,3 @@ class AppLauncher:
         """Handle the abort/segmentation/kill signals."""
         # close the app
         self._app.close()
-
-    def __patch_simulation_start_app(self, launcher_args: dict):
-        if not launcher_args.get("enable_pinocchio", False):
-            return
-
-        if launcher_args.get("disable_pinocchio_patch", False):
-            return
-
-        original_start_app = SimulationApp._start_app
-
-        def _start_app_patch(sim_app_instance, *args, **kwargs):
-            original_start_app(sim_app_instance, *args, **kwargs)
-            self.__patch_pxr_gf_matrix4d(launcher_args)
-
-        SimulationApp._start_app = _start_app_patch
-
-    def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
-        import traceback
-
-        from pxr import Gf
-
-        logger.warning(
-            "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
-            " into a list of floats."
-        )
-
-        # Store the original Matrix4d constructor
-        original_matrix4d = Gf.Matrix4d.__init__
-
-        # Define a wrapper function to handle different input types
-        def patch_matrix4d(self, *args, **kwargs):
-            try:
-                # Case 1: No arguments (identity matrix)
-                if len(args) == 0:
-                    original_matrix4d(self, *args, **kwargs)
-                    return
-
-                # Case 2: Single argument
-                elif len(args) == 1:
-                    arg = args[0]
-
-                    # Case 2a: Already a Matrix4d
-                    if isinstance(arg, Gf.Matrix4d):
-                        original_matrix4d(self, arg)
-                        return
-
-                    # Case 2b: Tuple of tuples (4x4 matrix) OR List of lists (4x4 matrix)
-                    elif (isinstance(arg, tuple) and len(arg) == 4 and all(isinstance(row, tuple) for row in arg)) or (
-                        isinstance(arg, list) and len(arg) == 4 and all(isinstance(row, list) for row in arg)
-                    ):
-                        float_list = [float(item) for row in arg for item in row]
-                        original_matrix4d(self, *float_list)
-                        return
-
-                    # Case 2c: Flat list of 16 elements
-                    elif isinstance(arg, (list, tuple)) and len(arg) == 16:
-                        float_list = [float(item) for item in arg]
-                        original_matrix4d(self, *float_list)
-                        return
-
-                    # Case 2d: Another matrix-like object with elements accessible via indexing
-                    elif hasattr(arg, "__getitem__") and hasattr(arg, "__len__"):
-                        with contextlib.suppress(IndexError, TypeError):
-                            if len(arg) == 16:
-                                float_list = [float(arg[i]) for i in range(16)]
-                                original_matrix4d(self, *float_list)
-                                return
-                            # Try to extract as 4x4 matrix
-                            elif len(arg) == 4 and all(len(row) == 4 for row in arg):
-                                float_list = [float(arg[i][j]) for i in range(4) for j in range(4)]
-                                original_matrix4d(self, *float_list)
-                                return
-
-                # Case 3: 16 separate arguments (individual matrix elements)
-                elif len(args) == 16:
-                    float_list = [float(arg) for arg in args]
-                    original_matrix4d(self, *float_list)
-                    return
-
-                # Default: Use original constructor
-                original_matrix4d(self, *args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Matrix4d wrapper error: {e}")
-                traceback.print_stack()
-                # Fall back to original constructor as last resort
-                try:
-                    original_matrix4d(self, *args, **kwargs)
-                except Exception as inner_e:
-                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
-                    # Initialize as identity matrix if all else fails
-                    original_matrix4d(self)
-
-        Gf.Matrix4d.__init__ = patch_matrix4d

@@ -174,7 +174,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.0, 0.9801, 0.0, -0.19848), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.9801, 0.0, 0.0, -0.19848), convention="ros"),
     )
 
     # Ground plane
@@ -361,6 +361,8 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 100
         self.sim.render_interval = 2
+        # scene settings
+        self.scene.replicate_physics = False
 
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 3

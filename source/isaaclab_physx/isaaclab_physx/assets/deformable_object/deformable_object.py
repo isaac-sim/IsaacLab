@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 import omni.physics.tensors.impl.api as physx
-from pxr import PhysxSchema, UsdShade
+from pxr import UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -78,6 +78,8 @@ class DeformableObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        # Register custom vec6f type for nodal state validation.
+        self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
 
     """
     Properties
@@ -152,8 +154,14 @@ class DeformableObject(AssetBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
-        # Think: Should we reset the kinematic targets when resetting the object?
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+        """Reset the deformable object.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        # TODO: Should we reset the kinematic targets when resetting the object?
         #  This is not done in the current implementation. We assume users will reset the kinematic targets.
         pass
 
@@ -231,6 +239,14 @@ class DeformableObject(AssetBase):
         """
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                nodal_pos, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                nodal_pos, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos"
+            )
         # convert torch to warp if needed
         if isinstance(nodal_pos, torch.Tensor):
             nodal_pos = wp.from_torch(nodal_pos.contiguous(), dtype=wp.vec3f)
@@ -291,6 +307,14 @@ class DeformableObject(AssetBase):
         """
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                nodal_vel, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                nodal_vel, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel"
+            )
         # convert torch to warp if needed
         if isinstance(nodal_vel, torch.Tensor):
             nodal_vel = wp.from_torch(nodal_vel.contiguous(), dtype=wp.vec3f)
@@ -355,6 +379,14 @@ class DeformableObject(AssetBase):
         """
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                targets, (self.num_instances, self.max_sim_vertices_per_body), wp.vec4f, "targets"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                targets, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec4f, "targets"
+            )
         # convert torch to warp if needed, ensuring 2D (num_envs, V, 4) -> (num_envs, V) vec4f
         if isinstance(targets, torch.Tensor):
             if targets.dim() == 2:
@@ -509,13 +541,13 @@ class DeformableObject(AssetBase):
         # find deformable root prims
         root_prims = sim_utils.get_all_matching_child_prims(
             template_prim_path,
-            predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI),
+            predicate=lambda prim: "PhysxDeformableBodyAPI" in prim.GetAppliedSchemas(),
             traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(
                 f"Failed to find a deformable body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'PhysxSchema.PhysxDeformableBodyAPI' applied."
+                " Please ensure that the prim has 'PhysxDeformableBodyAPI' applied."
             )
         if len(root_prims) > 1:
             raise RuntimeError(
@@ -539,7 +571,7 @@ class DeformableObject(AssetBase):
             if len(material_paths) > 0:
                 for mat_path in material_paths:
                     mat_prim = root_prim.GetStage().GetPrimAtPath(mat_path)
-                    if mat_prim.HasAPI(PhysxSchema.PhysxDeformableBodyMaterialAPI):
+                    if "PhysxDeformableBodyMaterialAPI" in mat_prim.GetAppliedSchemas():
                         material_prim = mat_prim
                         break
         if material_prim is None:

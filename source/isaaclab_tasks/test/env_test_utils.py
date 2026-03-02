@@ -5,16 +5,17 @@
 
 """Shared test utilities for Isaac Lab environments."""
 
+import importlib
 import inspect
 import os
+import sys
 
 import gymnasium as gym
 import pytest
 import torch
 
-import carb
-import omni.usd
-
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
@@ -22,10 +23,43 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
+def _is_teleop_env(task_spec) -> bool:
+    """Check if a task's environment config has teleop dependencies.
+
+    Inspects the class hierarchy of the env config to check if any base
+    class module defines ``_TELEOP_AVAILABLE``, indicating the environment
+    uses isaacteleop / isaaclab_teleop.
+    """
+    env_cfg_entry_point = task_spec.kwargs.get("env_cfg_entry_point")
+    if not isinstance(env_cfg_entry_point, str) or ":" not in env_cfg_entry_point:
+        return False
+    try:
+        mod_name, attr_name = env_cfg_entry_point.split(":")
+        mod = importlib.import_module(mod_name)
+        cfg_cls = getattr(mod, attr_name, None)
+        if cfg_cls is None:
+            return False
+        for cls in cfg_cls.__mro__:
+            cls_module = sys.modules.get(cls.__module__)
+            if cls_module is not None and hasattr(cls_module, "_TELEOP_AVAILABLE"):
+                return True
+    except (ImportError, AttributeError):
+        pass
+    return False
+
+
+def _is_pickplace_stack_env(task_id: str) -> bool:
+    """Check if a task is a PickPlace or Stack environment based on its ID."""
+    return any(keyword in task_id for keyword in ("Place", "Stack", "NutPour", "ExhaustPipe"))
+
+
 def setup_environment(
     include_play: bool = False,
     factory_envs: bool | None = None,
     multi_agent: bool | None = None,
+    teleop_envs: bool | None = None,
+    cartpole_showcase_envs: bool | None = None,
+    pickplace_stack_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -40,6 +74,18 @@ def setup_environment(
             - True: include only multi-agent environments
             - False: include only single-agent environments
             - None: include all environments regardless of agent type
+        teleop_envs:
+            - True: include only teleop environments (those requiring isaacteleop)
+            - False: exclude teleop environments
+            - None: include all environments regardless of teleop dependency
+        cartpole_showcase_envs:
+            - True: include only Cartpole Showcase environments
+            - False: exclude Cartpole Showcase environments
+            - None: include all environments regardless of showcase type
+        pickplace_stack_envs:
+            - True: include only PickPlace/Stack environments
+            - False: exclude PickPlace/Stack environments
+            - None: include all environments regardless of pick-place/stack type
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -67,6 +113,29 @@ def setup_environment(
             continue
         # if None: no filter
 
+        # apply cartpole showcase filter
+        if (cartpole_showcase_envs is True and "Showcase" not in task_spec.id) or (
+            cartpole_showcase_envs is False and "Showcase" in task_spec.id
+        ):
+            continue
+        # if None: no filter
+
+        # apply pickplace/stack filter
+        if pickplace_stack_envs is not None:
+            is_pickplace_stack = _is_pickplace_stack_env(task_spec.id)
+            if (pickplace_stack_envs is True and not is_pickplace_stack) or (
+                pickplace_stack_envs is False and is_pickplace_stack
+            ):
+                continue
+        # if None: no filter
+
+        # apply teleop filter
+        if teleop_envs is not None:
+            is_teleop = _is_teleop_env(task_spec)
+            if (teleop_envs is True and not is_teleop) or (teleop_envs is False and is_teleop):
+                continue
+        # if None: no filter
+
         # apply multi agent filter
         if multi_agent is not None:
             # parse config
@@ -82,8 +151,8 @@ def setup_environment(
     # sort environments alphabetically
     registered_tasks.sort()
 
-    # this flag is necessary to prevent a bug where the simulation gets stuck randomy when running many environments
-    carb.settings.get_settings().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
@@ -124,6 +193,7 @@ def _run_environments(
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+        "Isaac-PickPlace-G1-InspireFTP-Abs-v0",
     ]:
         return
 
@@ -137,6 +207,11 @@ def _run_environments(
 
     # skip automate environments as they require cuda installation
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
+        return
+
+    # skip skillgen environments as they require cuRobo installation;
+    # tested separately via test_environments_skillgen.py
+    if "Skillgen" in task_name:
         return
 
     # Check if this is the teddy bear environment and if it's being called from the right test file
@@ -190,10 +265,10 @@ def _check_random_actions(
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
 
-    # reset the rtx sensors carb setting to False
-    carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    # reset the rtx sensors setting to False
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
         # parse config
@@ -262,7 +337,7 @@ def _check_random_actions(
         if env is not None:
             env.close()
 
-        # Always clear the simulation context singleton to allow next test to run
+        # Clear the simulation context singleton (also closes the USD context stage)
         SimulationContext.clear_instance()
 
 

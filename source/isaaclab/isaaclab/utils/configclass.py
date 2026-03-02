@@ -6,6 +6,7 @@
 """Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
 
 import inspect
+import re
 import types
 from collections.abc import Callable
 from copy import deepcopy
@@ -13,6 +14,10 @@ from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
+from .string import ResolvableString
+
+_CALLABLE_STR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$")
+_CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
@@ -84,6 +89,11 @@ def configclass(cls, **kwargs):
 
     .. _dataclass: https://docs.python.org/3/library/dataclasses.html
     """
+    # snapshot field names declared in *this* class body before configclass
+    # merges parent fields — used by _field_module_dir to resolve {DIR} correctly.
+    _own_ann = set(cls.__dict__.get("__annotations__", {}).keys())
+    _own_body = {k for k in cls.__dict__ if not k.startswith("__")}
+    cls.__configclass_own_fields__ = frozenset(_own_ann | _own_body)
     # add type annotations
     _add_annotation_types(cls)
     # add field factory
@@ -172,6 +182,71 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
 def _copy_class(obj: object) -> object:
     """Return a new object with the same fields as the original."""
     return replace(obj)
+
+
+def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
+    """Return module parent package path for an object or one of its declared fields."""
+    cls = type(obj)
+    if key is not None:
+        # Use nearest declaration in MRO (subclass override wins).
+        # We prefer __configclass_own_fields__ (the snapshot taken before
+        # _process_mutable_types copies parent fields into every subclass's
+        # __dict__) so that {DIR} resolves relative to the class that
+        # *originally* declared the field, not the subclass that inherited it.
+        for mro_cls in cls.__mro__:
+            if mro_cls is object:
+                continue
+            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+            if own_fields is not None:
+                if key in own_fields:
+                    cls = mro_cls
+                    break
+            elif key in mro_cls.__dict__:
+                cls = mro_cls
+                break
+    module_name = getattr(cls, "__module__", "")
+    return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
+
+
+def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: set[int] | None = None) -> Any:
+    """Recursively wrap callable-like strings with :class:`ResolvableString`."""
+    if isinstance(value, str) and (_CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value)):
+        if "{DIR}" in value:
+            if module_dir is None:
+                raise ValueError(f"Cannot resolve '{{DIR}}' in '{value}' because no module context is available.")
+            value = value.replace("{DIR}", module_dir)
+        return ResolvableString(value)
+    is_dataclass_instance = hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
+    is_container = isinstance(value, (list, tuple, dict))
+    if is_dataclass_instance or is_container:
+        if _seen is None:
+            _seen = set()
+        value_id = id(value)
+        if value_id in _seen:
+            return value
+        _seen.add(value_id)
+    if isinstance(value, list):
+        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value]
+        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+            return value
+        return wrapped
+    if isinstance(value, tuple):
+        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value)
+        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+            return value
+        return wrapped
+    if isinstance(value, dict):
+        wrapped = {
+            key: _wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for key, item in value.items()
+        }
+        if len(wrapped) == len(value) and all(wrapped[key] is value[key] for key in value):
+            return value
+        return wrapped
+    if is_dataclass_instance:
+        for key, item in value.__dict__.items():
+            nested_module_dir = _field_module_dir(value, key)
+            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
+    return value
 
 
 """
@@ -399,7 +474,8 @@ def _custom_post_init(obj):
         ann = obj.__class__.__dict__.get(key)
         # duplicate data members that are mutable
         if not callable(value) and not isinstance(ann, property):
-            setattr(obj, key, deepcopy(value))
+            copied_value = deepcopy(value)
+            setattr(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
 
 
 def _combined_function(f1: Callable, f2: Callable) -> Callable:

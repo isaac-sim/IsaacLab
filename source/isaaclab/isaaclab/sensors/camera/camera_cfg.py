@@ -5,14 +5,19 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
-from typing import Literal
+from dataclasses import MISSING, field
+from typing import TYPE_CHECKING, Literal
 
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
 from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .camera import Camera
+
+if TYPE_CHECKING:
+    from .camera import Camera
 
 
 @configclass
@@ -39,7 +44,7 @@ class CameraCfg(SensorBaseCfg):
 
         """
 
-    class_type: type = Camera
+    class_type: type[Camera] | str = "{DIR}.camera:Camera"
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity.
@@ -143,3 +148,6 @@ class CameraCfg(SensorBaseCfg):
         }
 
     """
+
+    renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)
+    """Renderer configuration for camera sensor."""
