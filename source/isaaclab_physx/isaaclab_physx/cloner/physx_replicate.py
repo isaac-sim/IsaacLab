@@ -101,7 +101,8 @@ def physx_replicate(
                     _stage_id,
                     src,
                     len(current_worlds),
-                    useEnvIds=(len(current_worlds) == num_envs) and device != "cpu",
+                    # TODO: envIds needs to support heterogeneous setup. for now, we rely on USD collision filtering
+                    useEnvIds=False,  # (len(current_worlds) == num_envs - 1) and device != "cpu",
                     useFabricForReplication=use_fabric,
                 )
             # unregister only AFTER all replicate() calls completed
