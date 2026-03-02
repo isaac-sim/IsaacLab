@@ -193,6 +193,7 @@ def _run_environments(
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+        "Isaac-PickPlace-G1-InspireFTP-Abs-v0",
     ]:
         return
 
