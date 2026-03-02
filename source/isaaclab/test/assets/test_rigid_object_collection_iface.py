@@ -23,11 +23,12 @@ HEADLESS = True
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
-import warp as wp
 import torch
+import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
@@ -48,9 +49,14 @@ Check which backends are available.
 BACKENDS = ["Mock"]  # Mock backend is always available.
 
 try:
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection as PhysXRigidObjectCollection
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData as PhysXRigidObjectCollectionData
+    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
+        RigidObjectCollection as PhysXRigidObjectCollection,
+    )
+    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import (
+        RigidObjectCollectionData as PhysXRigidObjectCollectionData,
+    )
     from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
+
     BACKENDS.append("physx")
 except ImportError:
     pass
@@ -99,7 +105,9 @@ def create_physx_rigid_object_collection(
     object.__setattr__(collection, "_debug_vis_handle", None)
 
     # Set up index arrays
-    object.__setattr__(collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
+    object.__setattr__(
+        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    )
     object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
 
     return collection, mock_view
@@ -111,6 +119,7 @@ def create_mock_rigid_object_collection(
     device: str = "cuda:0",
 ):
     from isaaclab.test.mock_interfaces.assets.mock_rigid_object_collection import MockRigidObjectCollection
+
     obj = MockRigidObjectCollection(
         num_instances=num_instances,
         num_bodies=num_bodies,
@@ -145,6 +154,7 @@ def collection_iface(request):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _check_wp_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
     """Assert that `arr` is a wp.array with the expected shape and dtype."""
@@ -245,6 +255,7 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 # Tests: Collection properties
 # ---------------------------------------------------------------------------
 
+
 class TestCollectionProperties:
     """Test that collection properties return the correct types/values."""
 
@@ -280,7 +291,10 @@ class TestCollectionProperties:
     @_default_bodies
     @_default_devices
     def test_data_returns_collection_data(self, backend, num_instances, num_bodies, device, collection_iface):
-        from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
+        from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import (
+            BaseRigidObjectCollectionData,
+        )
+
         obj, _ = collection_iface
         assert isinstance(obj.data, BaseRigidObjectCollectionData)
 
@@ -288,6 +302,7 @@ class TestCollectionProperties:
 # ---------------------------------------------------------------------------
 # Tests: Collection finder methods
 # ---------------------------------------------------------------------------
+
 
 class TestCollectionFinders:
     """Test that finder methods return correct results."""
@@ -319,6 +334,7 @@ class TestCollectionFinders:
 # Tests: Body state properties
 # ---------------------------------------------------------------------------
 
+
 class TestCollectionDataBodyState:
     """Test data properties for body state."""
 
@@ -329,7 +345,12 @@ class TestCollectionDataBodyState:
     def test_body_link_pose_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_pose_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="body_link_pose_w")
+        _check_wp_array(
+            obj.data.body_link_pose_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="body_link_pose_w",
+        )
 
     @_backends
     @_default_dims
@@ -338,7 +359,12 @@ class TestCollectionDataBodyState:
     def test_body_link_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_link_vel_w")
+        _check_wp_array(
+            obj.data.body_link_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_link_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -347,7 +373,12 @@ class TestCollectionDataBodyState:
     def test_body_com_pose_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_pose_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="body_com_pose_w")
+        _check_wp_array(
+            obj.data.body_com_pose_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="body_com_pose_w",
+        )
 
     @_backends
     @_default_dims
@@ -356,7 +387,12 @@ class TestCollectionDataBodyState:
     def test_body_com_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_com_vel_w")
+        _check_wp_array(
+            obj.data.body_com_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_com_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -365,7 +401,12 @@ class TestCollectionDataBodyState:
     def test_body_com_acc_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_acc_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_com_acc_w")
+        _check_wp_array(
+            obj.data.body_com_acc_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_com_acc_w",
+        )
 
     @_backends
     @_default_dims
@@ -374,12 +415,18 @@ class TestCollectionDataBodyState:
     def test_body_com_pose_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_pose_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="body_com_pose_b")
+        _check_wp_array(
+            obj.data.body_com_pose_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="body_com_pose_b",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: Sliced properties
 # ---------------------------------------------------------------------------
+
 
 class TestCollectionDataSliced:
     """Test sliced data properties."""
@@ -391,7 +438,12 @@ class TestCollectionDataSliced:
     def test_body_link_pos_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_pos_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_pos_w")
+        _check_wp_array(
+            obj.data.body_link_pos_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_pos_w",
+        )
 
     @_backends
     @_default_dims
@@ -400,7 +452,12 @@ class TestCollectionDataSliced:
     def test_body_link_quat_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_quat_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.quatf, name="body_link_quat_w")
+        _check_wp_array(
+            obj.data.body_link_quat_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.quatf,
+            name="body_link_quat_w",
+        )
 
     @_backends
     @_default_dims
@@ -409,7 +466,12 @@ class TestCollectionDataSliced:
     def test_body_link_lin_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_lin_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_lin_vel_w")
+        _check_wp_array(
+            obj.data.body_link_lin_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_lin_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -418,7 +480,12 @@ class TestCollectionDataSliced:
     def test_body_link_ang_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_ang_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_ang_vel_w")
+        _check_wp_array(
+            obj.data.body_link_ang_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_ang_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -427,7 +494,12 @@ class TestCollectionDataSliced:
     def test_body_com_pos_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_pos_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_pos_w")
+        _check_wp_array(
+            obj.data.body_com_pos_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_pos_w",
+        )
 
     @_backends
     @_default_dims
@@ -436,7 +508,12 @@ class TestCollectionDataSliced:
     def test_body_com_quat_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_quat_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.quatf, name="body_com_quat_w")
+        _check_wp_array(
+            obj.data.body_com_quat_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.quatf,
+            name="body_com_quat_w",
+        )
 
     @_backends
     @_default_dims
@@ -445,7 +522,12 @@ class TestCollectionDataSliced:
     def test_body_com_lin_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_lin_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_lin_vel_w")
+        _check_wp_array(
+            obj.data.body_com_lin_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_lin_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -454,7 +536,12 @@ class TestCollectionDataSliced:
     def test_body_com_ang_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_ang_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_ang_vel_w")
+        _check_wp_array(
+            obj.data.body_com_ang_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_ang_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -463,7 +550,12 @@ class TestCollectionDataSliced:
     def test_body_com_lin_acc_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_lin_acc_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_lin_acc_w")
+        _check_wp_array(
+            obj.data.body_com_lin_acc_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_lin_acc_w",
+        )
 
     @_backends
     @_default_dims
@@ -472,7 +564,12 @@ class TestCollectionDataSliced:
     def test_body_com_ang_acc_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_ang_acc_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_ang_acc_w")
+        _check_wp_array(
+            obj.data.body_com_ang_acc_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_ang_acc_w",
+        )
 
     @_backends
     @_default_dims
@@ -481,7 +578,12 @@ class TestCollectionDataSliced:
     def test_body_com_pos_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_pos_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_pos_b")
+        _check_wp_array(
+            obj.data.body_com_pos_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_pos_b",
+        )
 
     @_backends
     @_default_dims
@@ -490,12 +592,18 @@ class TestCollectionDataSliced:
     def test_body_com_quat_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_quat_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.quatf, name="body_com_quat_b")
+        _check_wp_array(
+            obj.data.body_com_quat_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.quatf,
+            name="body_com_quat_b",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: Derived properties
 # ---------------------------------------------------------------------------
+
 
 class TestCollectionDataDerived:
     """Test derived/computed data properties."""
@@ -507,7 +615,12 @@ class TestCollectionDataDerived:
     def test_projected_gravity_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.projected_gravity_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="projected_gravity_b")
+        _check_wp_array(
+            obj.data.projected_gravity_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="projected_gravity_b",
+        )
 
     @_backends
     @_default_dims
@@ -516,7 +629,9 @@ class TestCollectionDataDerived:
     def test_heading_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.heading_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="heading_w")
+        _check_wp_array(
+            obj.data.heading_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="heading_w"
+        )
 
     @_backends
     @_default_dims
@@ -525,7 +640,12 @@ class TestCollectionDataDerived:
     def test_body_link_lin_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_lin_vel_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_lin_vel_b")
+        _check_wp_array(
+            obj.data.body_link_lin_vel_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_lin_vel_b",
+        )
 
     @_backends
     @_default_dims
@@ -534,7 +654,12 @@ class TestCollectionDataDerived:
     def test_body_link_ang_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_link_ang_vel_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_ang_vel_b")
+        _check_wp_array(
+            obj.data.body_link_ang_vel_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_ang_vel_b",
+        )
 
     @_backends
     @_default_dims
@@ -543,7 +668,12 @@ class TestCollectionDataDerived:
     def test_body_com_lin_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_lin_vel_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_lin_vel_b")
+        _check_wp_array(
+            obj.data.body_com_lin_vel_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_lin_vel_b",
+        )
 
     @_backends
     @_default_dims
@@ -552,12 +682,18 @@ class TestCollectionDataDerived:
     def test_body_com_ang_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_com_ang_vel_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_ang_vel_b")
+        _check_wp_array(
+            obj.data.body_com_ang_vel_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_ang_vel_b",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: Mass properties
 # ---------------------------------------------------------------------------
+
 
 class TestCollectionDataMass:
     """Test body mass/inertia properties."""
@@ -569,7 +705,9 @@ class TestCollectionDataMass:
     def test_body_mass(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_mass, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="body_mass")
+        _check_wp_array(
+            obj.data.body_mass, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="body_mass"
+        )
 
     @_backends
     @_default_dims
@@ -578,12 +716,18 @@ class TestCollectionDataMass:
     def test_body_inertia(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.body_inertia, expected_shape=(num_instances, num_bodies, 9), expected_dtype=wp.float32, name="body_inertia")
+        _check_wp_array(
+            obj.data.body_inertia,
+            expected_shape=(num_instances, num_bodies, 9),
+            expected_dtype=wp.float32,
+            name="body_inertia",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: Default state properties
 # ---------------------------------------------------------------------------
+
 
 class TestCollectionDataDefaults:
     """Test default state properties."""
@@ -595,7 +739,12 @@ class TestCollectionDataDefaults:
     def test_default_body_pose(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.default_body_pose, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="default_body_pose")
+        _check_wp_array(
+            obj.data.default_body_pose,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="default_body_pose",
+        )
 
     @_backends
     @_default_dims
@@ -604,7 +753,12 @@ class TestCollectionDataDefaults:
     def test_default_body_vel(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(obj.data.default_body_vel, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="default_body_vel")
+        _check_wp_array(
+            obj.data.default_body_vel,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="default_body_vel",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -625,7 +779,9 @@ class TestCollectionWritersPose:
     @_default_bodies
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _BODY_POSE_METHODS)
-    def test_write_body_pose_to_sim_index(self, backend, num_instances, num_bodies, device, collection_iface, method_suffix):
+    def test_write_body_pose_to_sim_index(
+        self, backend, num_instances, num_bodies, device, collection_iface, method_suffix
+    ):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_index")
@@ -635,13 +791,23 @@ class TestCollectionWritersPose:
         # torch, subset envs
         method(body_poses=_make_data_torch((1, num_bodies), device, wp.transformf), env_ids=_make_env_ids(device, True))
         # torch, subset bodies
-        method(body_poses=_make_data_torch((num_instances, 1), device, wp.transformf), body_ids=_make_body_ids(device, [0]))
+        method(
+            body_poses=_make_data_torch((num_instances, 1), device, wp.transformf), body_ids=_make_body_ids(device, [0])
+        )
         # torch, subset both
-        method(body_poses=_make_data_torch((1, 1), device, wp.transformf), env_ids=_make_env_ids(device, True), body_ids=_make_body_ids(device, [0]))
+        method(
+            body_poses=_make_data_torch((1, 1), device, wp.transformf),
+            env_ids=_make_env_ids(device, True),
+            body_ids=_make_body_ids(device, [0]),
+        )
         # warp, all envs + all bodies
         method(body_poses=_make_data_warp((num_instances, num_bodies), device, wp.transformf))
         # warp, subset
-        method(body_poses=_make_data_warp((1, 1), device, wp.transformf), env_ids=_make_env_ids(device, True), body_ids=_make_body_ids(device, [0]))
+        method(
+            body_poses=_make_data_warp((1, 1), device, wp.transformf),
+            env_ids=_make_env_ids(device, True),
+            body_ids=_make_body_ids(device, [0]),
+        )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(body_poses=_make_bad_data_torch((num_instances, num_bodies), device, wp.transformf))
@@ -656,7 +822,9 @@ class TestCollectionWritersPose:
     @_default_bodies
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _BODY_VEL_METHODS)
-    def test_write_body_velocity_to_sim_index(self, backend, num_instances, num_bodies, device, collection_iface, method_suffix):
+    def test_write_body_velocity_to_sim_index(
+        self, backend, num_instances, num_bodies, device, collection_iface, method_suffix
+    ):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_index")
@@ -664,15 +832,29 @@ class TestCollectionWritersPose:
         # torch, all envs + all bodies
         method(body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf))
         # torch, subset envs
-        method(body_velocities=_make_data_torch((1, num_bodies), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True))
+        method(
+            body_velocities=_make_data_torch((1, num_bodies), device, wp.spatial_vectorf),
+            env_ids=_make_env_ids(device, True),
+        )
         # torch, subset bodies
-        method(body_velocities=_make_data_torch((num_instances, 1), device, wp.spatial_vectorf), body_ids=_make_body_ids(device, [0]))
+        method(
+            body_velocities=_make_data_torch((num_instances, 1), device, wp.spatial_vectorf),
+            body_ids=_make_body_ids(device, [0]),
+        )
         # torch, subset both
-        method(body_velocities=_make_data_torch((1, 1), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True), body_ids=_make_body_ids(device, [0]))
+        method(
+            body_velocities=_make_data_torch((1, 1), device, wp.spatial_vectorf),
+            env_ids=_make_env_ids(device, True),
+            body_ids=_make_body_ids(device, [0]),
+        )
         # warp, all envs + all bodies
         method(body_velocities=_make_data_warp((num_instances, num_bodies), device, wp.spatial_vectorf))
         # warp, subset
-        method(body_velocities=_make_data_warp((1, 1), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True), body_ids=_make_body_ids(device, [0]))
+        method(
+            body_velocities=_make_data_warp((1, 1), device, wp.spatial_vectorf),
+            env_ids=_make_env_ids(device, True),
+            body_ids=_make_body_ids(device, [0]),
+        )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(body_velocities=_make_bad_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf))
@@ -689,7 +871,9 @@ class TestCollectionWritersPose:
     @_default_bodies
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _BODY_POSE_METHODS)
-    def test_write_body_pose_to_sim_mask(self, backend, num_instances, num_bodies, device, collection_iface, method_suffix):
+    def test_write_body_pose_to_sim_mask(
+        self, backend, num_instances, num_bodies, device, collection_iface, method_suffix
+    ):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
@@ -699,10 +883,16 @@ class TestCollectionWritersPose:
         # torch, no mask (all)
         method(body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf))
         # torch, partial env_mask
-        method(body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf), env_mask=_make_env_mask(num_instances, device, True))
+        method(
+            body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
+            env_mask=_make_env_mask(num_instances, device, True),
+        )
         if has_body_mask:
             # torch, partial body_mask
-            method(body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf), body_mask=_make_item_mask(num_bodies, [0], device))
+            method(
+                body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
+                body_mask=_make_item_mask(num_bodies, [0], device),
+            )
             # torch, both masks
             method(
                 body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
@@ -731,7 +921,9 @@ class TestCollectionWritersPose:
     @_default_bodies
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _BODY_VEL_METHODS)
-    def test_write_body_velocity_to_sim_mask(self, backend, num_instances, num_bodies, device, collection_iface, method_suffix):
+    def test_write_body_velocity_to_sim_mask(
+        self, backend, num_instances, num_bodies, device, collection_iface, method_suffix
+    ):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
@@ -741,7 +933,10 @@ class TestCollectionWritersPose:
         # torch, no mask
         method(body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf))
         # torch, partial env_mask
-        method(body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf), env_mask=_make_env_mask(num_instances, device, True))
+        method(
+            body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf),
+            env_mask=_make_env_mask(num_instances, device, True),
+        )
         if has_body_mask:
             # torch, partial body_mask
             method(
@@ -786,8 +981,9 @@ class TestCollectionWritersBody:
         _BODY_METHODS,
         ids=[m[0] for m in _BODY_METHODS],
     )
-    def test_body_writer_index(self, backend, num_instances, num_bodies, device, collection_iface,
-                               method_base, kwarg, wp_dtype, trailing):
+    def test_body_writer_index(
+        self, backend, num_instances, num_bodies, device, collection_iface, method_base, kwarg, wp_dtype, trailing
+    ):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"{method_base}_index")
@@ -817,19 +1013,23 @@ class TestCollectionWritersBody:
         # torch, all envs + all bodies
         method(**{kwarg: _make_torch(num_instances, num_bodies)})
         # torch, subset
-        method(**{
-            kwarg: _make_torch(1, 1),
-            "body_ids": sub_body_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_torch(1, 1),
+                "body_ids": sub_body_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # warp, all envs + all bodies
         method(**{kwarg: _make_warp(num_instances, num_bodies)})
         # warp, subset
-        method(**{
-            kwarg: _make_warp(1, 1),
-            "body_ids": sub_body_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_warp(1, 1),
+                "body_ids": sub_body_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # negative: bad torch shape (extra env)
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_torch(num_instances + 1, num_bodies)})
@@ -846,8 +1046,9 @@ class TestCollectionWritersBody:
         _BODY_METHODS,
         ids=[m[0] for m in _BODY_METHODS],
     )
-    def test_body_writer_mask(self, backend, num_instances, num_bodies, device, collection_iface,
-                              method_base, kwarg, wp_dtype, trailing):
+    def test_body_writer_mask(
+        self, backend, num_instances, num_bodies, device, collection_iface, method_base, kwarg, wp_dtype, trailing
+    ):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"{method_base}_mask")
@@ -877,19 +1078,23 @@ class TestCollectionWritersBody:
         # torch, no mask
         method(**{kwarg: _make_torch(num_instances, num_bodies)})
         # torch, partial env_mask + body_mask
-        method(**{
-            kwarg: _make_torch(num_instances, num_bodies),
-            "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_torch(num_instances, num_bodies),
+                "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # warp, no mask
         method(**{kwarg: _make_warp(num_instances, num_bodies)})
         # warp, partial env_mask + body_mask
-        method(**{
-            kwarg: _make_warp(num_instances, num_bodies),
-            "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_warp(num_instances, num_bodies),
+                "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_torch(num_instances + 1, num_bodies)})
@@ -901,6 +1106,7 @@ class TestCollectionWritersBody:
 # ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
+
 
 class TestCollectionDataAliases:
     """Test that alias properties return the same shape/dtype as their canonical counterparts."""
