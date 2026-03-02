@@ -4318,7 +4318,7 @@ class Articulation(BaseArticulation):
         if joint_mask is not None:
             if isinstance(joint_mask, wp.array):
                 joint_mask = wp.to_torch(joint_mask)
-            joint_ids = torch.nonzero(joint_mask)[0].to(torch.int32)
+            joint_ids = torch.nonzero(joint_mask)[:, 0].to(torch.int32)
         else:
             joint_ids = self._ALL_JOINT_INDICES
         return joint_ids

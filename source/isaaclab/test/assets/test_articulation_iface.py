@@ -22,11 +22,12 @@ HEADLESS = True
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
-import warp as wp
 import torch
+import warp as wp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
@@ -45,22 +46,17 @@ SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_si
 Check which backends are available.
 """
 
-BACKENDS = ["Mock"] # Mock backend is always available.
+BACKENDS = ["mock"]  # Mock backend is always available.
 
 try:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
+
     BACKENDS.append("physx")
 except ImportError:
     pass
 
-try:
-    from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
-    from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
-    BACKENDS.append("newton")
-except ImportError:
-    pass
 
 def create_physx_articulation(
     num_instances: int = 2,
@@ -141,8 +137,12 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_ALL_JOINT_INDICES", torch.arange(num_joints, dtype=torch.int32, device=device))
 
     # Tendon index arrays
-    all_fixed_tendon_indices = wp.from_torch(torch.arange(num_fixed_tendons, dtype=torch.int32, device=device), dtype=wp.int32)
-    all_spatial_tendon_indices = wp.from_torch(torch.arange(num_spatial_tendons, dtype=torch.int32, device=device), dtype=wp.int32)
+    all_fixed_tendon_indices = wp.from_torch(
+        torch.arange(num_fixed_tendons, dtype=torch.int32, device=device), dtype=wp.int32
+    )
+    all_spatial_tendon_indices = wp.from_torch(
+        torch.arange(num_spatial_tendons, dtype=torch.int32, device=device), dtype=wp.int32
+    )
     object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", all_fixed_tendon_indices)
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", all_spatial_tendon_indices)
 
@@ -159,6 +159,7 @@ def create_physx_articulation(
 
     return articulation, mock_view
 
+
 def create_newton_articulation(
     num_instances: int = 2,
     num_joints: int = 6,
@@ -166,6 +167,7 @@ def create_newton_articulation(
     device: str = "cuda:0",
 ):
     raise NotImplementedError("Newton articulation is not supported yet")
+
 
 def create_mock_articulation(
     num_instances: int = 2,
@@ -176,6 +178,7 @@ def create_mock_articulation(
     device: str = "cuda:0",
 ):
     from isaaclab.test.mock_interfaces.assets.mock_articulation import MockArticulation
+
     art = MockArticulation(
         num_instances=num_instances,
         num_joints=num_joints,
@@ -185,6 +188,7 @@ def create_mock_articulation(
         device=device,
     )
     return art, None  # No view for mock backend
+
 
 def get_articulation(
     backend: str,
@@ -196,13 +200,18 @@ def get_articulation(
     device: str = "cuda:0",
 ):
     if backend == "physx":
-        return create_physx_articulation(num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device)
+        return create_physx_articulation(
+            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+        )
     elif backend == "newton":
         return create_newton_articulation(num_instances, num_joints, num_bodies, device)
     elif backend.lower() == "mock":
-        return create_mock_articulation(num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device)
+        return create_mock_articulation(
+            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+        )
     else:
         raise ValueError(f"Invalid backend: {backend}")
+
 
 @pytest.fixture
 def articulation_iface(request):
@@ -219,12 +228,15 @@ def articulation_iface(request):
         num_spatial_tendons = request.getfixturevalue("num_spatial_tendons")
     except pytest.FixtureLookupError:
         num_spatial_tendons = 0
-    return get_articulation(backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device)
+    return get_articulation(
+        backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+    )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _check_wp_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
     """Assert that `arr` is a wp.array with the expected shape and dtype."""
@@ -247,6 +259,7 @@ _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 # ---------------------------------------------------------------------------
 # Tests: Articulation properties
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationProperties:
     """Test that articulation properties return the correct types/values."""
@@ -302,8 +315,11 @@ class TestArticulationProperties:
     @_backends
     @_default_dims
     @_default_devices
-    def test_data_returns_articulation_data(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+    def test_data_returns_articulation_data(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
         from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+
         art, _ = articulation_iface
         assert isinstance(art.data, BaseArticulationData)
 
@@ -311,6 +327,7 @@ class TestArticulationProperties:
 # ---------------------------------------------------------------------------
 # Tests: Articulation finder methods
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationFinders:
     """Test that finder methods return (list[int], list[str]) tuples."""
@@ -362,6 +379,7 @@ class TestArticulationFinders:
 # Tests: ArticulationData root state properties
 # ---------------------------------------------------------------------------
 
+
 class TestArticulationDataRootState:
     """Test data properties for root rigid body state."""
 
@@ -371,7 +389,12 @@ class TestArticulationDataRootState:
     def test_root_link_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_pose_w, expected_shape=(num_instances,), expected_dtype=wp.transformf, name="root_link_pose_w")
+        _check_wp_array(
+            art.data.root_link_pose_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.transformf,
+            name="root_link_pose_w",
+        )
 
     @_backends
     @_default_dims
@@ -379,7 +402,12 @@ class TestArticulationDataRootState:
     def test_root_link_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_vel_w, expected_shape=(num_instances,), expected_dtype=wp.spatial_vectorf, name="root_link_vel_w")
+        _check_wp_array(
+            art.data.root_link_vel_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.spatial_vectorf,
+            name="root_link_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -387,7 +415,12 @@ class TestArticulationDataRootState:
     def test_root_com_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_pose_w, expected_shape=(num_instances,), expected_dtype=wp.transformf, name="root_com_pose_w")
+        _check_wp_array(
+            art.data.root_com_pose_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.transformf,
+            name="root_com_pose_w",
+        )
 
     @_backends
     @_default_dims
@@ -395,7 +428,12 @@ class TestArticulationDataRootState:
     def test_root_com_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_vel_w, expected_shape=(num_instances,), expected_dtype=wp.spatial_vectorf, name="root_com_vel_w")
+        _check_wp_array(
+            art.data.root_com_vel_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.spatial_vectorf,
+            name="root_com_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -403,7 +441,9 @@ class TestArticulationDataRootState:
     def test_root_link_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_pos_w")
+        _check_wp_array(
+            art.data.root_link_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_pos_w"
+        )
 
     @_backends
     @_default_dims
@@ -411,7 +451,9 @@ class TestArticulationDataRootState:
     def test_root_link_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_link_quat_w")
+        _check_wp_array(
+            art.data.root_link_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_link_quat_w"
+        )
 
     @_backends
     @_default_dims
@@ -419,7 +461,12 @@ class TestArticulationDataRootState:
     def test_root_link_lin_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_lin_vel_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_lin_vel_w")
+        _check_wp_array(
+            art.data.root_link_lin_vel_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_link_lin_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -427,7 +474,12 @@ class TestArticulationDataRootState:
     def test_root_link_ang_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_ang_vel_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_ang_vel_w")
+        _check_wp_array(
+            art.data.root_link_ang_vel_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_link_ang_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -435,7 +487,9 @@ class TestArticulationDataRootState:
     def test_root_com_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_pos_w")
+        _check_wp_array(
+            art.data.root_com_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_pos_w"
+        )
 
     @_backends
     @_default_dims
@@ -443,7 +497,9 @@ class TestArticulationDataRootState:
     def test_root_com_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_com_quat_w")
+        _check_wp_array(
+            art.data.root_com_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_com_quat_w"
+        )
 
     @_backends
     @_default_dims
@@ -451,7 +507,12 @@ class TestArticulationDataRootState:
     def test_root_com_lin_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_lin_vel_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_lin_vel_w")
+        _check_wp_array(
+            art.data.root_com_lin_vel_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_com_lin_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -459,12 +520,18 @@ class TestArticulationDataRootState:
     def test_root_com_ang_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_ang_vel_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_ang_vel_w")
+        _check_wp_array(
+            art.data.root_com_ang_vel_w,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_com_ang_vel_w",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData derived properties
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationDataDerivedProperties:
     """Test derived/computed data properties."""
@@ -475,7 +542,12 @@ class TestArticulationDataDerivedProperties:
     def test_projected_gravity_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.projected_gravity_b, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="projected_gravity_b")
+        _check_wp_array(
+            art.data.projected_gravity_b,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="projected_gravity_b",
+        )
 
     @_backends
     @_default_dims
@@ -483,7 +555,9 @@ class TestArticulationDataDerivedProperties:
     def test_heading_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.heading_w, expected_shape=(num_instances,), expected_dtype=wp.float32, name="heading_w")
+        _check_wp_array(
+            art.data.heading_w, expected_shape=(num_instances,), expected_dtype=wp.float32, name="heading_w"
+        )
 
     @_backends
     @_default_dims
@@ -491,7 +565,12 @@ class TestArticulationDataDerivedProperties:
     def test_root_link_lin_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_lin_vel_b, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_lin_vel_b")
+        _check_wp_array(
+            art.data.root_link_lin_vel_b,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_link_lin_vel_b",
+        )
 
     @_backends
     @_default_dims
@@ -499,7 +578,12 @@ class TestArticulationDataDerivedProperties:
     def test_root_link_ang_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_link_ang_vel_b, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_ang_vel_b")
+        _check_wp_array(
+            art.data.root_link_ang_vel_b,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_link_ang_vel_b",
+        )
 
     @_backends
     @_default_dims
@@ -507,7 +591,12 @@ class TestArticulationDataDerivedProperties:
     def test_root_com_lin_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_lin_vel_b, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_lin_vel_b")
+        _check_wp_array(
+            art.data.root_com_lin_vel_b,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_com_lin_vel_b",
+        )
 
     @_backends
     @_default_dims
@@ -515,12 +604,18 @@ class TestArticulationDataDerivedProperties:
     def test_root_com_ang_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.root_com_ang_vel_b, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_ang_vel_b")
+        _check_wp_array(
+            art.data.root_com_ang_vel_b,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.vec3f,
+            name="root_com_ang_vel_b",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData body state properties
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationDataBodyState:
     """Test data properties for all body states."""
@@ -531,7 +626,12 @@ class TestArticulationDataBodyState:
     def test_body_link_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_link_pose_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="body_link_pose_w")
+        _check_wp_array(
+            art.data.body_link_pose_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="body_link_pose_w",
+        )
 
     @_backends
     @_default_dims
@@ -539,7 +639,12 @@ class TestArticulationDataBodyState:
     def test_body_link_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_link_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_link_vel_w")
+        _check_wp_array(
+            art.data.body_link_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_link_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -547,7 +652,12 @@ class TestArticulationDataBodyState:
     def test_body_com_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_pose_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="body_com_pose_w")
+        _check_wp_array(
+            art.data.body_com_pose_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="body_com_pose_w",
+        )
 
     @_backends
     @_default_dims
@@ -555,7 +665,12 @@ class TestArticulationDataBodyState:
     def test_body_com_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_com_vel_w")
+        _check_wp_array(
+            art.data.body_com_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_com_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -563,7 +678,12 @@ class TestArticulationDataBodyState:
     def test_body_com_acc_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_acc_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_com_acc_w")
+        _check_wp_array(
+            art.data.body_com_acc_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_com_acc_w",
+        )
 
     @_backends
     @_default_dims
@@ -571,7 +691,12 @@ class TestArticulationDataBodyState:
     def test_body_com_pose_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_pose_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.transformf, name="body_com_pose_b")
+        _check_wp_array(
+            art.data.body_com_pose_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.transformf,
+            name="body_com_pose_b",
+        )
 
     @_backends
     @_default_dims
@@ -579,7 +704,9 @@ class TestArticulationDataBodyState:
     def test_body_mass(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_mass, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="body_mass")
+        _check_wp_array(
+            art.data.body_mass, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="body_mass"
+        )
 
     @_backends
     @_default_dims
@@ -587,15 +714,27 @@ class TestArticulationDataBodyState:
     def test_body_inertia(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_inertia, expected_shape=(num_instances, num_bodies, 9), expected_dtype=wp.float32, name="body_inertia")
+        _check_wp_array(
+            art.data.body_inertia,
+            expected_shape=(num_instances, num_bodies, 9),
+            expected_dtype=wp.float32,
+            name="body_inertia",
+        )
 
     @_backends
     @_default_dims
     @_default_devices
-    def test_body_incoming_joint_wrench_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+    def test_body_incoming_joint_wrench_b(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_incoming_joint_wrench_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.spatial_vectorf, name="body_incoming_joint_wrench_b")
+        _check_wp_array(
+            art.data.body_incoming_joint_wrench_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.spatial_vectorf,
+            name="body_incoming_joint_wrench_b",
+        )
 
     @_backends
     @_default_dims
@@ -603,7 +742,12 @@ class TestArticulationDataBodyState:
     def test_body_link_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_link_pos_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_pos_w")
+        _check_wp_array(
+            art.data.body_link_pos_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_pos_w",
+        )
 
     @_backends
     @_default_dims
@@ -611,7 +755,12 @@ class TestArticulationDataBodyState:
     def test_body_link_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_link_quat_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.quatf, name="body_link_quat_w")
+        _check_wp_array(
+            art.data.body_link_quat_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.quatf,
+            name="body_link_quat_w",
+        )
 
     @_backends
     @_default_dims
@@ -619,7 +768,12 @@ class TestArticulationDataBodyState:
     def test_body_link_lin_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_link_lin_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_lin_vel_w")
+        _check_wp_array(
+            art.data.body_link_lin_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_lin_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -627,7 +781,12 @@ class TestArticulationDataBodyState:
     def test_body_link_ang_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_link_ang_vel_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_link_ang_vel_w")
+        _check_wp_array(
+            art.data.body_link_ang_vel_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_link_ang_vel_w",
+        )
 
     @_backends
     @_default_dims
@@ -635,7 +794,12 @@ class TestArticulationDataBodyState:
     def test_body_com_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_pos_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_pos_w")
+        _check_wp_array(
+            art.data.body_com_pos_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_pos_w",
+        )
 
     @_backends
     @_default_dims
@@ -643,7 +807,12 @@ class TestArticulationDataBodyState:
     def test_body_com_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_quat_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.quatf, name="body_com_quat_w")
+        _check_wp_array(
+            art.data.body_com_quat_w,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.quatf,
+            name="body_com_quat_w",
+        )
 
     @_backends
     @_default_dims
@@ -651,7 +820,12 @@ class TestArticulationDataBodyState:
     def test_body_com_pos_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_pos_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.vec3f, name="body_com_pos_b")
+        _check_wp_array(
+            art.data.body_com_pos_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.vec3f,
+            name="body_com_pos_b",
+        )
 
     @_backends
     @_default_dims
@@ -659,12 +833,18 @@ class TestArticulationDataBodyState:
     def test_body_com_quat_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.body_com_quat_b, expected_shape=(num_instances, num_bodies), expected_dtype=wp.quatf, name="body_com_quat_b")
+        _check_wp_array(
+            art.data.body_com_quat_b,
+            expected_shape=(num_instances, num_bodies),
+            expected_dtype=wp.quatf,
+            name="body_com_quat_b",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData joint state and properties
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationDataJointState:
     """Test data properties for joint state and joint properties."""
@@ -675,7 +855,9 @@ class TestArticulationDataJointState:
     def test_joint_pos(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_pos, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_pos")
+        _check_wp_array(
+            art.data.joint_pos, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_pos"
+        )
 
     @_backends
     @_default_dims
@@ -683,7 +865,9 @@ class TestArticulationDataJointState:
     def test_joint_vel(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_vel, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_vel")
+        _check_wp_array(
+            art.data.joint_vel, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_vel"
+        )
 
     @_backends
     @_default_dims
@@ -691,7 +875,9 @@ class TestArticulationDataJointState:
     def test_joint_acc(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_acc, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_acc")
+        _check_wp_array(
+            art.data.joint_acc, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_acc"
+        )
 
     @_backends
     @_default_dims
@@ -699,7 +885,12 @@ class TestArticulationDataJointState:
     def test_joint_stiffness(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_stiffness, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_stiffness")
+        _check_wp_array(
+            art.data.joint_stiffness,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_stiffness",
+        )
 
     @_backends
     @_default_dims
@@ -707,7 +898,12 @@ class TestArticulationDataJointState:
     def test_joint_damping(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_damping, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_damping")
+        _check_wp_array(
+            art.data.joint_damping,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_damping",
+        )
 
     @_backends
     @_default_dims
@@ -715,7 +911,12 @@ class TestArticulationDataJointState:
     def test_joint_armature(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_armature, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_armature")
+        _check_wp_array(
+            art.data.joint_armature,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_armature",
+        )
 
     @_backends
     @_default_dims
@@ -723,7 +924,12 @@ class TestArticulationDataJointState:
     def test_joint_friction_coeff(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_friction_coeff, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_friction_coeff")
+        _check_wp_array(
+            art.data.joint_friction_coeff,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_friction_coeff",
+        )
 
     @_backends
     @_default_dims
@@ -731,7 +937,12 @@ class TestArticulationDataJointState:
     def test_joint_pos_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_pos_limits, expected_shape=(num_instances, num_joints), expected_dtype=wp.vec2f, name="joint_pos_limits")
+        _check_wp_array(
+            art.data.joint_pos_limits,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.vec2f,
+            name="joint_pos_limits",
+        )
 
     @_backends
     @_default_dims
@@ -739,7 +950,12 @@ class TestArticulationDataJointState:
     def test_joint_vel_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_vel_limits, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_vel_limits")
+        _check_wp_array(
+            art.data.joint_vel_limits,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_vel_limits",
+        )
 
     @_backends
     @_default_dims
@@ -747,7 +963,12 @@ class TestArticulationDataJointState:
     def test_joint_effort_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_effort_limits, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_effort_limits")
+        _check_wp_array(
+            art.data.joint_effort_limits,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_effort_limits",
+        )
 
     @_backends
     @_default_dims
@@ -755,12 +976,18 @@ class TestArticulationDataJointState:
     def test_soft_joint_pos_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.soft_joint_pos_limits, expected_shape=(num_instances, num_joints), expected_dtype=wp.vec2f, name="soft_joint_pos_limits")
+        _check_wp_array(
+            art.data.soft_joint_pos_limits,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.vec2f,
+            name="soft_joint_pos_limits",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData defaults and command targets
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationDataDefaults:
     """Test default state and command target properties."""
@@ -771,7 +998,12 @@ class TestArticulationDataDefaults:
     def test_default_root_pose(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.default_root_pose, expected_shape=(num_instances,), expected_dtype=wp.transformf, name="default_root_pose")
+        _check_wp_array(
+            art.data.default_root_pose,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.transformf,
+            name="default_root_pose",
+        )
 
     @_backends
     @_default_dims
@@ -779,7 +1011,12 @@ class TestArticulationDataDefaults:
     def test_default_root_vel(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.default_root_vel, expected_shape=(num_instances,), expected_dtype=wp.spatial_vectorf, name="default_root_vel")
+        _check_wp_array(
+            art.data.default_root_vel,
+            expected_shape=(num_instances,),
+            expected_dtype=wp.spatial_vectorf,
+            name="default_root_vel",
+        )
 
     @_backends
     @_default_dims
@@ -787,7 +1024,12 @@ class TestArticulationDataDefaults:
     def test_default_joint_pos(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.default_joint_pos, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="default_joint_pos")
+        _check_wp_array(
+            art.data.default_joint_pos,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="default_joint_pos",
+        )
 
     @_backends
     @_default_dims
@@ -795,7 +1037,12 @@ class TestArticulationDataDefaults:
     def test_default_joint_vel(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.default_joint_vel, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="default_joint_vel")
+        _check_wp_array(
+            art.data.default_joint_vel,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="default_joint_vel",
+        )
 
     @_backends
     @_default_dims
@@ -803,7 +1050,12 @@ class TestArticulationDataDefaults:
     def test_joint_pos_target(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_pos_target, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_pos_target")
+        _check_wp_array(
+            art.data.joint_pos_target,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_pos_target",
+        )
 
     @_backends
     @_default_dims
@@ -811,7 +1063,12 @@ class TestArticulationDataDefaults:
     def test_joint_vel_target(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_vel_target, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_vel_target")
+        _check_wp_array(
+            art.data.joint_vel_target,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_vel_target",
+        )
 
     @_backends
     @_default_dims
@@ -819,7 +1076,12 @@ class TestArticulationDataDefaults:
     def test_joint_effort_target(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.joint_effort_target, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_effort_target")
+        _check_wp_array(
+            art.data.joint_effort_target,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="joint_effort_target",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -928,7 +1190,9 @@ class TestArticulationWritersRoot:
     @_default_dims
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
-    def test_write_root_pose_to_sim_index(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix):
+    def test_write_root_pose_to_sim_index(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"write_{method_suffix}_to_sim_index")
@@ -952,7 +1216,9 @@ class TestArticulationWritersRoot:
     @_default_dims
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
-    def test_write_root_velocity_to_sim_index(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix):
+    def test_write_root_velocity_to_sim_index(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"write_{method_suffix}_to_sim_index")
@@ -978,7 +1244,9 @@ class TestArticulationWritersRoot:
     @_default_dims
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
-    def test_write_root_pose_to_sim_mask(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix):
+    def test_write_root_pose_to_sim_mask(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"write_{method_suffix}_to_sim_mask")
@@ -986,11 +1254,17 @@ class TestArticulationWritersRoot:
         # torch, no mask (all)
         method(root_pose=_make_data_torch((num_instances,), device, wp.transformf))
         # torch, partial mask
-        method(root_pose=_make_data_torch((num_instances,), device, wp.transformf), env_mask=_make_env_mask(num_instances, device, True))
+        method(
+            root_pose=_make_data_torch((num_instances,), device, wp.transformf),
+            env_mask=_make_env_mask(num_instances, device, True),
+        )
         # warp, no mask
         method(root_pose=_make_data_warp((num_instances,), device, wp.transformf))
         # warp, partial mask
-        method(root_pose=_make_data_warp((num_instances,), device, wp.transformf), env_mask=_make_env_mask(num_instances, device, True))
+        method(
+            root_pose=_make_data_warp((num_instances,), device, wp.transformf),
+            env_mask=_make_env_mask(num_instances, device, True),
+        )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_pose=_make_bad_data_torch((num_instances,), device, wp.transformf))
@@ -1002,7 +1276,9 @@ class TestArticulationWritersRoot:
     @_default_dims
     @_default_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
-    def test_write_root_velocity_to_sim_mask(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix):
+    def test_write_root_velocity_to_sim_mask(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface, method_suffix
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"write_{method_suffix}_to_sim_mask")
@@ -1010,11 +1286,17 @@ class TestArticulationWritersRoot:
         # torch, no mask
         method(root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf))
         # torch, partial mask
-        method(root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf), env_mask=_make_env_mask(num_instances, device, True))
+        method(
+            root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf),
+            env_mask=_make_env_mask(num_instances, device, True),
+        )
         # warp, no mask
         method(root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf))
         # warp, partial mask
-        method(root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf), env_mask=_make_env_mask(num_instances, device, True))
+        method(
+            root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf),
+            env_mask=_make_env_mask(num_instances, device, True),
+        )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_velocity=_make_bad_data_torch((num_instances,), device, wp.spatial_vectorf))
@@ -1055,8 +1337,19 @@ class TestArticulationWritersJoint:
         _JOINT_METHODS,
         ids=[m[0] for m in _JOINT_METHODS],
     )
-    def test_joint_writer_index(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface,
-                                method_base, kwarg, wp_dtype, accepts_float):
+    def test_joint_writer_index(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        accepts_float,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_index")
@@ -1066,19 +1359,23 @@ class TestArticulationWritersJoint:
         # torch, all envs + all joints
         method(**{kwarg: _make_data_torch((num_instances, num_joints), device, wp_dtype)})
         # torch, subset envs + subset joints
-        method(**{
-            kwarg: _make_data_torch((1, sub_j), device, wp_dtype),
-            "joint_ids": sub_joint_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_torch((1, sub_j), device, wp_dtype),
+                "joint_ids": sub_joint_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # warp, all envs + all joints
         method(**{kwarg: _make_data_warp((num_instances, num_joints), device, wp_dtype)})
         # warp, subset
-        method(**{
-            kwarg: _make_data_warp((1, sub_j), device, wp_dtype),
-            "joint_ids": sub_joint_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_warp((1, sub_j), device, wp_dtype),
+                "joint_ids": sub_joint_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # float scalar (only for accepts_float methods, and NOT for vec2f position_limit)
         if accepts_float and wp_dtype != wp.vec2f:
             method(**{kwarg: 1.0})
@@ -1101,8 +1398,19 @@ class TestArticulationWritersJoint:
         _JOINT_METHODS,
         ids=[m[0] for m in _JOINT_METHODS],
     )
-    def test_joint_writer_mask(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface,
-                               method_base, kwarg, wp_dtype, accepts_float):
+    def test_joint_writer_mask(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        accepts_float,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_mask")
@@ -1111,19 +1419,23 @@ class TestArticulationWritersJoint:
         # torch, no mask
         method(**{kwarg: _make_data_torch((num_instances, num_joints), device, wp_dtype)})
         # torch, partial env_mask + joint_mask
-        method(**{
-            kwarg: _make_data_torch((num_instances, num_joints), device, wp_dtype),
-            "joint_mask": _make_item_mask(num_joints, sub_joint_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_torch((num_instances, num_joints), device, wp_dtype),
+                "joint_mask": _make_item_mask(num_joints, sub_joint_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # warp, no mask
         method(**{kwarg: _make_data_warp((num_instances, num_joints), device, wp_dtype)})
         # warp, partial env_mask + joint_mask
-        method(**{
-            kwarg: _make_data_warp((num_instances, num_joints), device, wp_dtype),
-            "joint_mask": _make_item_mask(num_joints, sub_joint_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_warp((num_instances, num_joints), device, wp_dtype),
+                "joint_mask": _make_item_mask(num_joints, sub_joint_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # float scalar (only for accepts_float methods, and NOT for vec2f)
         if accepts_float and wp_dtype != wp.vec2f:
             method(**{kwarg: 1.0})
@@ -1158,8 +1470,19 @@ class TestArticulationWritersBody:
         _BODY_METHODS,
         ids=[m[0] for m in _BODY_METHODS],
     )
-    def test_body_writer_index(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface,
-                               method_base, kwarg, wp_dtype, trailing):
+    def test_body_writer_index(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        trailing,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_index")
@@ -1197,19 +1520,23 @@ class TestArticulationWritersBody:
         # torch, all envs + all bodies
         method(**{kwarg: _make_torch(num_instances, num_bodies)})
         # torch, subset
-        method(**{
-            kwarg: _make_torch(1, sub_b),
-            "body_ids": sub_body_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_torch(1, sub_b),
+                "body_ids": sub_body_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # warp, all envs + all bodies
         method(**{kwarg: _make_warp(num_instances, num_bodies)})
         # warp, subset
-        method(**{
-            kwarg: _make_warp(1, sub_b),
-            "body_ids": sub_body_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_warp(1, sub_b),
+                "body_ids": sub_body_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # negative: bad torch shape (extra env)
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_torch(num_instances + 1, num_bodies)})
@@ -1225,8 +1552,19 @@ class TestArticulationWritersBody:
         _BODY_METHODS,
         ids=[m[0] for m in _BODY_METHODS],
     )
-    def test_body_writer_mask(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface,
-                              method_base, kwarg, wp_dtype, trailing):
+    def test_body_writer_mask(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        trailing,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_mask")
@@ -1256,19 +1594,23 @@ class TestArticulationWritersBody:
         # torch, no mask
         method(**{kwarg: _make_torch(num_instances, num_bodies)})
         # torch, partial env_mask + body_mask
-        method(**{
-            kwarg: _make_torch(num_instances, num_bodies),
-            "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_torch(num_instances, num_bodies),
+                "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # warp, no mask
         method(**{kwarg: _make_warp(num_instances, num_bodies)})
         # warp, partial env_mask + body_mask
-        method(**{
-            kwarg: _make_warp(num_instances, num_bodies),
-            "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_warp(num_instances, num_bodies),
+                "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_torch(num_instances + 1, num_bodies)})
@@ -1280,6 +1622,7 @@ class TestArticulationWritersBody:
 # ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
+
 
 class TestArticulationDataAliases:
     """Test that alias properties return the same shape/dtype as their canonical counterparts."""
@@ -1337,9 +1680,9 @@ class TestArticulationDataAliases:
 _tendon_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons",
     [
-        (1, 2, 2, 1, 0),      # fixed only
-        (2, 6, 7, 3, 2),      # both types
-        (100, 8, 13, 4, 3),   # large, both types
+        (1, 2, 2, 1, 0),  # fixed only
+        (2, 6, 7, 3, 2),  # both types
+        (100, 8, 13, 4, 3),  # large, both types
     ],
 )
 
@@ -1350,21 +1693,51 @@ class TestArticulationTendonProperties:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_num_fixed_tendons(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_num_fixed_tendons(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         assert art.num_fixed_tendons == num_fixed_tendons
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_num_spatial_tendons(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_num_spatial_tendons(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         assert art.num_spatial_tendons == num_spatial_tendons
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_names(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_names(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         names = art.fixed_tendon_names
         assert isinstance(names, list)
@@ -1374,7 +1747,17 @@ class TestArticulationTendonProperties:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_spatial_tendon_names(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_spatial_tendon_names(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         names = art.spatial_tendon_names
         assert isinstance(names, list)
@@ -1388,7 +1771,17 @@ class TestArticulationTendonFinders:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_find_fixed_tendons_all(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_find_fixed_tendons_all(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -1402,7 +1795,17 @@ class TestArticulationTendonFinders:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_find_fixed_tendons_single(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_find_fixed_tendons_single(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -1414,7 +1817,17 @@ class TestArticulationTendonFinders:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_find_spatial_tendons_all(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_find_spatial_tendons_all(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
@@ -1426,7 +1839,17 @@ class TestArticulationTendonFinders:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_find_spatial_tendons_single(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_find_spatial_tendons_single(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
@@ -1444,47 +1867,132 @@ class TestArticulationDataTendonState:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_stiffness(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_stiffness(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.fixed_tendon_stiffness, expected_shape=(num_instances, num_fixed_tendons), expected_dtype=wp.float32, name="fixed_tendon_stiffness")
+        _check_wp_array(
+            art.data.fixed_tendon_stiffness,
+            expected_shape=(num_instances, num_fixed_tendons),
+            expected_dtype=wp.float32,
+            name="fixed_tendon_stiffness",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_damping(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_damping(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.fixed_tendon_damping, expected_shape=(num_instances, num_fixed_tendons), expected_dtype=wp.float32, name="fixed_tendon_damping")
+        _check_wp_array(
+            art.data.fixed_tendon_damping,
+            expected_shape=(num_instances, num_fixed_tendons),
+            expected_dtype=wp.float32,
+            name="fixed_tendon_damping",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_limit_stiffness(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_limit_stiffness(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.fixed_tendon_limit_stiffness, expected_shape=(num_instances, num_fixed_tendons), expected_dtype=wp.float32, name="fixed_tendon_limit_stiffness")
+        _check_wp_array(
+            art.data.fixed_tendon_limit_stiffness,
+            expected_shape=(num_instances, num_fixed_tendons),
+            expected_dtype=wp.float32,
+            name="fixed_tendon_limit_stiffness",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_rest_length(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_rest_length(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.fixed_tendon_rest_length, expected_shape=(num_instances, num_fixed_tendons), expected_dtype=wp.float32, name="fixed_tendon_rest_length")
+        _check_wp_array(
+            art.data.fixed_tendon_rest_length,
+            expected_shape=(num_instances, num_fixed_tendons),
+            expected_dtype=wp.float32,
+            name="fixed_tendon_rest_length",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_offset(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_offset(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.fixed_tendon_offset, expected_shape=(num_instances, num_fixed_tendons), expected_dtype=wp.float32, name="fixed_tendon_offset")
+        _check_wp_array(
+            art.data.fixed_tendon_offset,
+            expected_shape=(num_instances, num_fixed_tendons),
+            expected_dtype=wp.float32,
+            name="fixed_tendon_offset",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_fixed_tendon_pos_limits(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_fixed_tendon_pos_limits(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         arr = art.data.fixed_tendon_pos_limits
@@ -1503,42 +2011,102 @@ class TestArticulationDataTendonState:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_spatial_tendon_stiffness(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_spatial_tendon_stiffness(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.spatial_tendon_stiffness, expected_shape=(num_instances, num_spatial_tendons), expected_dtype=wp.float32, name="spatial_tendon_stiffness")
+        _check_wp_array(
+            art.data.spatial_tendon_stiffness,
+            expected_shape=(num_instances, num_spatial_tendons),
+            expected_dtype=wp.float32,
+            name="spatial_tendon_stiffness",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_spatial_tendon_damping(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_spatial_tendon_damping(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.spatial_tendon_damping, expected_shape=(num_instances, num_spatial_tendons), expected_dtype=wp.float32, name="spatial_tendon_damping")
+        _check_wp_array(
+            art.data.spatial_tendon_damping,
+            expected_shape=(num_instances, num_spatial_tendons),
+            expected_dtype=wp.float32,
+            name="spatial_tendon_damping",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_spatial_tendon_limit_stiffness(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_spatial_tendon_limit_stiffness(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.spatial_tendon_limit_stiffness, expected_shape=(num_instances, num_spatial_tendons), expected_dtype=wp.float32, name="spatial_tendon_limit_stiffness")
+        _check_wp_array(
+            art.data.spatial_tendon_limit_stiffness,
+            expected_shape=(num_instances, num_spatial_tendons),
+            expected_dtype=wp.float32,
+            name="spatial_tendon_limit_stiffness",
+        )
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_spatial_tendon_offset(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_spatial_tendon_offset(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(art.data.spatial_tendon_offset, expected_shape=(num_instances, num_spatial_tendons), expected_dtype=wp.float32, name="spatial_tendon_offset")
+        _check_wp_array(
+            art.data.spatial_tendon_offset,
+            expected_shape=(num_instances, num_spatial_tendons),
+            expected_dtype=wp.float32,
+            name="spatial_tendon_offset",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1569,8 +2137,21 @@ class TestArticulationWritersFixedTendon:
         _FIXED_TENDON_METHODS,
         ids=[m[0] for m in _FIXED_TENDON_METHODS],
     )
-    def test_fixed_tendon_writer_index(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface,
-                                       method_base, kwarg, wp_dtype, accepts_float):
+    def test_fixed_tendon_writer_index(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        accepts_float,
+    ):
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -1582,19 +2163,23 @@ class TestArticulationWritersFixedTendon:
         # torch, all envs + all tendons
         method(**{kwarg: _make_data_torch((num_instances, num_fixed_tendons), device, wp_dtype)})
         # torch, subset envs + subset tendons
-        method(**{
-            kwarg: _make_data_torch((1, sub_t), device, wp_dtype),
-            "fixed_tendon_ids": sub_tendon_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_torch((1, sub_t), device, wp_dtype),
+                "fixed_tendon_ids": sub_tendon_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # warp, all envs + all tendons
         method(**{kwarg: _make_data_warp((num_instances, num_fixed_tendons), device, wp_dtype)})
         # warp, subset
-        method(**{
-            kwarg: _make_data_warp((1, sub_t), device, wp_dtype),
-            "fixed_tendon_ids": sub_tendon_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_warp((1, sub_t), device, wp_dtype),
+                "fixed_tendon_ids": sub_tendon_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # float scalar (only for accepts_float methods, and NOT for vec2f)
         if accepts_float and wp_dtype != wp.vec2f:
             method(**{kwarg: 1.0})
@@ -1617,8 +2202,21 @@ class TestArticulationWritersFixedTendon:
         _FIXED_TENDON_METHODS,
         ids=[m[0] for m in _FIXED_TENDON_METHODS],
     )
-    def test_fixed_tendon_writer_mask(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface,
-                                      method_base, kwarg, wp_dtype, accepts_float):
+    def test_fixed_tendon_writer_mask(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        accepts_float,
+    ):
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -1629,19 +2227,23 @@ class TestArticulationWritersFixedTendon:
         # torch, no mask
         method(**{kwarg: _make_data_torch((num_instances, num_fixed_tendons), device, wp_dtype)})
         # torch, partial env_mask + tendon_mask
-        method(**{
-            kwarg: _make_data_torch((num_instances, num_fixed_tendons), device, wp_dtype),
-            "fixed_tendon_mask": _make_item_mask(num_fixed_tendons, sub_tendon_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_torch((num_instances, num_fixed_tendons), device, wp_dtype),
+                "fixed_tendon_mask": _make_item_mask(num_fixed_tendons, sub_tendon_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # warp, no mask
         method(**{kwarg: _make_data_warp((num_instances, num_fixed_tendons), device, wp_dtype)})
         # warp, partial env_mask + tendon_mask
-        method(**{
-            kwarg: _make_data_warp((num_instances, num_fixed_tendons), device, wp_dtype),
-            "fixed_tendon_mask": _make_item_mask(num_fixed_tendons, sub_tendon_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_warp((num_instances, num_fixed_tendons), device, wp_dtype),
+                "fixed_tendon_mask": _make_item_mask(num_fixed_tendons, sub_tendon_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # float scalar (only for accepts_float methods, and NOT for vec2f)
         if accepts_float and wp_dtype != wp.vec2f:
             method(**{kwarg: 1.0})
@@ -1676,8 +2278,21 @@ class TestArticulationWritersSpatialTendon:
         _SPATIAL_TENDON_METHODS,
         ids=[m[0] for m in _SPATIAL_TENDON_METHODS],
     )
-    def test_spatial_tendon_writer_index(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface,
-                                         method_base, kwarg, wp_dtype, accepts_float):
+    def test_spatial_tendon_writer_index(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        accepts_float,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
@@ -1689,19 +2304,23 @@ class TestArticulationWritersSpatialTendon:
         # torch, all envs + all tendons
         method(**{kwarg: _make_data_torch((num_instances, num_spatial_tendons), device, wp_dtype)})
         # torch, subset envs + subset tendons
-        method(**{
-            kwarg: _make_data_torch((1, sub_t), device, wp_dtype),
-            "spatial_tendon_ids": sub_tendon_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_torch((1, sub_t), device, wp_dtype),
+                "spatial_tendon_ids": sub_tendon_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # warp, all envs + all tendons
         method(**{kwarg: _make_data_warp((num_instances, num_spatial_tendons), device, wp_dtype)})
         # warp, subset
-        method(**{
-            kwarg: _make_data_warp((1, sub_t), device, wp_dtype),
-            "spatial_tendon_ids": sub_tendon_ids,
-            "env_ids": _make_env_ids(device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_warp((1, sub_t), device, wp_dtype),
+                "spatial_tendon_ids": sub_tendon_ids,
+                "env_ids": _make_env_ids(device, True),
+            }
+        )
         # float scalar
         if accepts_float:
             method(**{kwarg: 1.0})
@@ -1720,8 +2339,21 @@ class TestArticulationWritersSpatialTendon:
         _SPATIAL_TENDON_METHODS,
         ids=[m[0] for m in _SPATIAL_TENDON_METHODS],
     )
-    def test_spatial_tendon_writer_mask(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface,
-                                        method_base, kwarg, wp_dtype, accepts_float):
+    def test_spatial_tendon_writer_mask(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+        method_base,
+        kwarg,
+        wp_dtype,
+        accepts_float,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
@@ -1732,19 +2364,23 @@ class TestArticulationWritersSpatialTendon:
         # torch, no mask
         method(**{kwarg: _make_data_torch((num_instances, num_spatial_tendons), device, wp_dtype)})
         # torch, partial env_mask + tendon_mask
-        method(**{
-            kwarg: _make_data_torch((num_instances, num_spatial_tendons), device, wp_dtype),
-            "spatial_tendon_mask": _make_item_mask(num_spatial_tendons, sub_tendon_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_torch((num_instances, num_spatial_tendons), device, wp_dtype),
+                "spatial_tendon_mask": _make_item_mask(num_spatial_tendons, sub_tendon_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # warp, no mask
         method(**{kwarg: _make_data_warp((num_instances, num_spatial_tendons), device, wp_dtype)})
         # warp, partial env_mask + tendon_mask
-        method(**{
-            kwarg: _make_data_warp((num_instances, num_spatial_tendons), device, wp_dtype),
-            "spatial_tendon_mask": _make_item_mask(num_spatial_tendons, sub_tendon_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        })
+        method(
+            **{
+                kwarg: _make_data_warp((num_instances, num_spatial_tendons), device, wp_dtype),
+                "spatial_tendon_mask": _make_item_mask(num_spatial_tendons, sub_tendon_sel, device),
+                "env_mask": _make_env_mask(num_instances, device, True),
+            }
+        )
         # float scalar
         if accepts_float:
             method(**{kwarg: 1.0})
@@ -1760,13 +2396,24 @@ class TestArticulationWritersSpatialTendon:
 # Tests: Tendon write-to-sim smoke tests
 # ---------------------------------------------------------------------------
 
+
 class TestArticulationWritersTendonToSim:
     """Smoke test write_*_tendon_properties_to_sim_index/mask methods."""
 
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_write_fixed_tendon_properties_to_sim_index(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_write_fixed_tendon_properties_to_sim_index(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -1779,7 +2426,17 @@ class TestArticulationWritersTendonToSim:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_write_fixed_tendon_properties_to_sim_mask(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_write_fixed_tendon_properties_to_sim_mask(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -1792,7 +2449,17 @@ class TestArticulationWritersTendonToSim:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_write_spatial_tendon_properties_to_sim_index(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_write_spatial_tendon_properties_to_sim_index(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
@@ -1805,7 +2472,17 @@ class TestArticulationWritersTendonToSim:
     @_backends
     @_tendon_dims
     @_default_devices
-    def test_write_spatial_tendon_properties_to_sim_mask(self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, articulation_iface):
+    def test_write_spatial_tendon_properties_to_sim_mask(
+        self,
+        backend,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
+        device,
+        articulation_iface,
+    ):
         art, _ = articulation_iface
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")

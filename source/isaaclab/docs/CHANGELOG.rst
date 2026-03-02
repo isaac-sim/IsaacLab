@@ -24,6 +24,29 @@ Changed
   exports/import boundaries so ``test_env_cfg_no_forbidden_imports.py`` passes
   without importing runtime modules.
 
+4.3.3 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added interface-conformance test suite for
+  :class:`~isaaclab.assets.BaseRigidObjectCollection` in
+  ``test/assets/test_rigid_object_collection_iface.py`` (1272 tests across Mock and PhysX
+  backends) covering data properties, sliced properties, derived properties, writers, setters,
+  and alias consistency.
+
+Fixed
+^^^^^
+
+* Fixed structured warp types in ``MockRigidObjectCollectionData``: velocity and acceleration
+  properties now return ``wp.spatial_vectorf`` and sliced velocity properties use zero-copy
+  pointer arithmetic instead of torch-based slicing, matching the PhysX backend contract.
+
+* Added shape and dtype validation to all 18 ``_index`` / ``_mask`` writer methods in
+  ``MockRigidObjectCollection``, replacing bare ``pass`` stubs.
+
+
 4.3.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
 

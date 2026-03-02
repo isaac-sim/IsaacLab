@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.5.5 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Replaced all ``wp.nonzero()`` calls in
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` mask methods with
+  ``torch.nonzero()`` via new ``_resolve_env_mask`` / ``_resolve_body_mask`` helpers,
+  fixing mask-based writers that previously raised errors at runtime.
+
+* Fixed device mismatch in ``_env_body_ids_to_view_ids`` where GPU index arrays were
+  passed to a CPU kernel launch. Inputs are now cloned to the target device before use.
+
+* Added new ``_get_cpu_env_ids`` helper to clone warp arrays to handle torch / warp CPU conversions.
+
+
 0.5.4 (2026-03-01)
 ~~~~~~~~~~~~~~~~~~
 

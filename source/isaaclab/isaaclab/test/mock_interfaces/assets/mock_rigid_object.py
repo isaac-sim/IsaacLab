@@ -236,9 +236,7 @@ class MockRigidObjectData(BaseRigidObjectData):
     def body_link_vel_w(self) -> wp.array:
         """Body link velocity in world frame. dtype=wp.spatial_vectorf, shape: (N, 1)."""
         if self._body_link_vel_w is None:
-            return wp.zeros(
-                (self._num_instances, 1, 6), dtype=wp.float32, device=self.device
-            ).view(wp.spatial_vectorf)
+            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._body_link_vel_w
 
     @property
@@ -308,9 +306,7 @@ class MockRigidObjectData(BaseRigidObjectData):
     def body_com_acc_w(self) -> wp.array:
         """Body CoM acceleration in world frame. dtype=wp.spatial_vectorf, shape: (N, 1)."""
         if self._body_com_acc_w is None:
-            return wp.zeros(
-                (self._num_instances, 1, 6), dtype=wp.float32, device=self.device
-            ).view(wp.spatial_vectorf)
+            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._body_com_acc_w
 
     @property
@@ -942,6 +938,4 @@ class MockRigidObject:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        self.assert_shape_and_dtype(
-            inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias"
-        )
+        self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")

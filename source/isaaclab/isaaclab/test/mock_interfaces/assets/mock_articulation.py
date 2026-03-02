@@ -467,9 +467,9 @@ class MockArticulationData(BaseArticulationData):
     def body_link_vel_w(self) -> wp.array:
         """Body link velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_link_vel_w is None:
-            return wp.zeros(
-                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
-            ).view(wp.spatial_vectorf)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_link_vel_w
 
     @property
@@ -538,9 +538,9 @@ class MockArticulationData(BaseArticulationData):
     def body_com_acc_w(self) -> wp.array:
         """Body CoM accelerations in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_acc_w is None:
-            return wp.zeros(
-                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
-            ).view(wp.spatial_vectorf)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_com_acc_w
 
     @property
@@ -625,9 +625,9 @@ class MockArticulationData(BaseArticulationData):
     def body_incoming_joint_wrench_b(self) -> wp.array:
         """Body incoming joint wrenches. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_incoming_joint_wrench_b is None:
-            return wp.zeros(
-                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
-            ).view(wp.spatial_vectorf)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_incoming_joint_wrench_b
 
     # -- Derived properties --
@@ -1970,9 +1970,7 @@ class MockArticulation:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        self.assert_shape_and_dtype(
-            inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias"
-        )
+        self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
 
     # Joint target methods
 
@@ -2096,7 +2094,9 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        self.assert_shape_and_dtype(limit_stiffness, (self._num_instances, self._num_fixed_tendons), wp.float32, "limit_stiffness")
+        self.assert_shape_and_dtype(
+            limit_stiffness, (self._num_instances, self._num_fixed_tendons), wp.float32, "limit_stiffness"
+        )
 
     def set_fixed_tendon_position_limit_index(
         self,
@@ -2136,7 +2136,9 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        self.assert_shape_and_dtype(rest_length, (self._num_instances, self._num_fixed_tendons), wp.float32, "rest_length")
+        self.assert_shape_and_dtype(
+            rest_length, (self._num_instances, self._num_fixed_tendons), wp.float32, "rest_length"
+        )
 
     def set_fixed_tendon_offset_index(
         self,
@@ -2194,7 +2196,9 @@ class MockArticulation:
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        self.assert_shape_and_dtype(stiffness, (self._num_instances, self._num_spatial_tendons), wp.float32, "stiffness")
+        self.assert_shape_and_dtype(
+            stiffness, (self._num_instances, self._num_spatial_tendons), wp.float32, "stiffness"
+        )
 
     def set_spatial_tendon_damping_index(
         self,
@@ -2234,7 +2238,9 @@ class MockArticulation:
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        self.assert_shape_and_dtype(limit_stiffness, (self._num_instances, self._num_spatial_tendons), wp.float32, "limit_stiffness")
+        self.assert_shape_and_dtype(
+            limit_stiffness, (self._num_instances, self._num_spatial_tendons), wp.float32, "limit_stiffness"
+        )
 
     def set_spatial_tendon_offset_index(
         self,
