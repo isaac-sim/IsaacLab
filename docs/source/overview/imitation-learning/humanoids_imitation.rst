@@ -664,9 +664,10 @@ From the **IsaacLab** repository root, run the rollout script with the path to y
        --task Isaac-G1-SteeringWheel-Locomanipulation \
        --device cpu \
        --enable_cameras \
+       --enable_pinocchio \
        --visualizer kit
 
-Optional arguments include ``--randomize_placement``, ``--enable_pinocchio``, and ``--policy_quat_format wxyz`` (use if your checkpoint was trained with wxyz quaternion format).
+``--enable_pinocchio`` is required for the Pink-IK controllers used in this task. Optional arguments include ``--randomize_placement`` and ``--policy_quat_format wxyz`` (use if your checkpoint was trained with wxyz quaternion format).
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
    :width: 100%
