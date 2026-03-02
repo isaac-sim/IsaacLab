@@ -151,13 +151,8 @@ class PhysicsManager(ABC):
         matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in cls._callbacks.items() if ev == event]
         matching.sort(key=lambda x: x[2])
 
-        for cid, callback, order in matching:
-            try:
-                callback(payload)
-            except ReferenceError:
-                cls.deregister_callback(cid)
-            except Exception as e:
-                logger.error(f"Callback {cid} for {event.value} failed: {e}")
+        for _, callback, _ in matching:
+            callback(payload)
 
     @classmethod
     def clear_callbacks(cls) -> None:
@@ -322,3 +317,30 @@ class PhysicsManager(ABC):
     def get_backend(cls) -> str:
         """Get the tensor backend being used ("numpy" or "torch")."""
         return "torch" if "cuda" in PhysicsManager._device else "numpy"
+
+    @staticmethod
+    def safe_callback_invoke(fn: Callable, *args, physics_manager: type[PhysicsManager] | None = None) -> None:
+        """Invoke a callback, catching exceptions that would be swallowed by external event buses.
+
+        Ignores ``ReferenceError`` (from garbage-collected weakref proxies). All other
+        exceptions are forwarded to *physics_manager*.``store_callback_exception`` when
+        available (see note below), or re-raised immediately otherwise.
+
+        Note (Octi):
+            The carb event bus used by PhysX/Omniverse silently swallows exceptions raised
+            inside callbacks. ``PhysxManager`` works around this by storing the exception
+            and re-raising it after event dispatch completes (in ``reset()`` / ``step()``).
+            Backends that dispatch events directly (e.g. Newton) don't need this — exceptions
+            propagate normally — so ``store_callback_exception`` is not called for them.
+            This is a known wart; a cleaner solution is actively being explored.
+        """
+        try:
+            fn(*args)
+        except ReferenceError:
+            pass
+        except Exception as e:
+            store_fn = getattr(physics_manager, "store_callback_exception", None)
+            if callable(store_fn):
+                store_fn(e)
+            else:
+                raise

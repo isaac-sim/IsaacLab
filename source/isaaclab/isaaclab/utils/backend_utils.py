@@ -6,6 +6,8 @@
 import importlib
 import logging
 
+from isaaclab.sim.simulation_context import SimulationContext
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,8 +37,19 @@ class FactoryBase:
 
     @classmethod
     def _get_backend(cls, *args, **kwargs) -> str:
-        """Return the backend name for this factory. Override in subclasses to dispatch by config."""
-        return "physx"  # Backwards compatibility with old code.
+        """Return active backend name for this factory.
+
+        Falls back to ``"physx"`` for backward compatibility when no simulation
+        context is initialized yet.
+        """
+        # Import lazily to avoid import cycles at module load time.
+        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        if "newton" in manager_name:
+            return "newton"
+        if "physx" in manager_name:
+            return "physx"
+        else:
+            raise ValueError(f"Unknown physics manager: {manager_name}")
 
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
