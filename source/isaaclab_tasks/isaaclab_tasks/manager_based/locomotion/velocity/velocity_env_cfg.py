@@ -7,9 +7,9 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_physx.physics import PhysxCfg
-
-import isaaclab.sim as sim_utils
+from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -19,7 +19,10 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg
+from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -37,6 +40,12 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 # Scene definition
 ##
 
+@configclass
+class VelocityEnvContactSensorCfg:
+    presets: dict[str, ContactSensorCfg] = {
+        "default": PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True),
+        "newton": NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    }
 
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
@@ -73,7 +82,7 @@ class MySceneCfg(InteractiveSceneCfg):
         debug_vis=False,
         mesh_prim_paths=["/World/ground"],
     )
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    contact_forces = VelocityEnvContactSensorCfg()
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -149,41 +158,8 @@ class ObservationsCfg:
 
 
 @configclass
-class EventCfg:
+class VelocityEnvEventsCfg:
     """Configuration for events."""
-
-    # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
-
-    add_base_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "mass_distribution_params": (-5.0, 5.0),
-            "operation": "add",
-        },
-    )
-
-    base_com = EventTerm(
-        func=mdp.randomize_rigid_body_com,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-        },
-    )
-
     # reset
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
@@ -227,6 +203,44 @@ class EventCfg:
         interval_range_s=(10.0, 15.0),
         params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
     )
+
+@configclass
+class EventsCfg(VelocityEnvEventsCfg):
+    # startup
+    physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.8, 0.8),
+            "dynamic_friction_range": (0.6, 0.6),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
+        },
+    )
+
+    add_base_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "mass_distribution_params": (-5.0, 5.0),
+            "operation": "add",
+        },
+    )
+
+    base_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
+    )
+
+    presets: dict[str, VelocityEnvEventsCfg] = {
+        "newton": VelocityEnvEventsCfg(),
+    }
 
 
 @configclass
@@ -287,6 +301,26 @@ class CurriculumCfg:
 # Environment configuration
 ##
 
+@configclass
+class PhysicsCfg:
+    presets = {
+        "default" : PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15),
+        "newton" : NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=170,
+                nconmax=30,
+                ls_iterations=30,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=True,
+                integrator="implicitfast",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        ),
+    }
+
+
 
 @configclass
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
@@ -301,7 +335,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: EventsCfg = EventsCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
@@ -313,7 +347,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+        self.sim.physics = PhysicsCfg()
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
