@@ -62,7 +62,7 @@ def physx_replicate(
     num_envs = mapping.size(1)
 
     def attach_fn(_stage_id: int):
-        return ["/World/template"]
+        return ["/World/envs", *sources]
 
     def rename_fn(_replicate_path: str, i: int):
         return current_template.format(current_worlds[i])
