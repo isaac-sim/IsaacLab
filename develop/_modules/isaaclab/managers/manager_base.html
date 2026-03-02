@@ -636,6 +636,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsEvent</span><span class="p">,</span> <span class="n">PhysicsManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">class_to_dict</span><span class="p">,</span> <span class="n">string_to_callable</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_term_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerTermBaseCfg</span>
@@ -776,19 +777,19 @@
         <span class="c1"># if the simulation is not playing, we use callbacks to trigger the resolution of the scene</span>
         <span class="c1"># entities configuration. this is needed for cases where the manager is created after the</span>
         <span class="c1"># simulation, but before the simulation is playing.</span>
-        <span class="c1"># FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this</span>
-        <span class="c1">#   callback and resolve the scene entities directly inside `_prepare_terms`.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
             <span class="c1"># note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor</span>
-            <span class="c1"># is called</span>
-            <span class="c1"># The order is set to 20 to allow asset/sensor initialization to complete before the scene entities</span>
-            <span class="c1"># are resolved. Those have the order 10.</span>
-            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.timeline</span>  <span class="c1"># noqa: PLC0415</span>
+            <span class="c1"># is called. The order is set to 20 to allow asset/sensor initialization to complete before the</span>
+            <span class="c1"># scene entities are resolved. Those have the order 10.</span>
 
-            <span class="n">timeline_event_stream</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">get_timeline_interface</span><span class="p">()</span><span class="o">.</span><span class="n">get_timeline_event_stream</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="o">=</span> <span class="n">timeline_event_stream</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
-                <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">PLAY</span><span class="p">),</span>
-                <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_resolve_terms_callback</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+            <span class="n">physics_mgr_cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics_manager</span>
+            <span class="n">obj_ref</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">payload</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                    <span class="n">obj_ref</span><span class="o">.</span><span class="n">_resolve_terms_callback</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+                <span class="p">),</span>
+                <span class="n">PhysicsEvent</span><span class="o">.</span><span class="n">PHYSICS_READY</span><span class="p">,</span>
                 <span class="n">order</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -800,8 +801,8 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Delete the manager.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span><span class="o">.</span><span class="n">deregister</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_terms_handle</span> <span class="o">=</span> <span class="kc">None</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>

@@ -638,7 +638,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsEvent</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsEvent</span><span class="p">,</span> <span class="n">PhysicsManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
 
@@ -818,7 +818,7 @@
         <span class="k">if</span> <span class="n">debug_vis</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">sim_ctx</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">sim_ctx</span> <span class="ow">and</span> <span class="s2">&quot;Physx&quot;</span> <span class="ow">in</span> <span class="n">sim_ctx</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;physx&quot;</span> <span class="ow">in</span> <span class="n">sim_ctx</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
                     <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 
                     <span class="n">app_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app_interface</span><span class="p">()</span>
@@ -961,37 +961,37 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Registers physics lifecycle callbacks via the current backend&#39;s physics manager.&quot;&quot;&quot;</span>
         <span class="n">physics_mgr_cls</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_manager</span>
 
-        <span class="k">def</span><span class="w"> </span><span class="nf">safe_callback</span><span class="p">(</span><span class="n">callback_name</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">):</span>
-<span class="w">            </span><span class="sd">&quot;&quot;&quot;Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted.&quot;&quot;&quot;</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">obj</span> <span class="o">=</span> <span class="n">obj_ref</span>
-                <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">callback_name</span><span class="p">)(</span><span class="n">event</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">ReferenceError</span><span class="p">:</span>
-                <span class="c1"># Object has been deleted; ignore.</span>
-                <span class="k">pass</span>
-
         <span class="c1"># note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.</span>
         <span class="n">obj_ref</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
+        <span class="k">def</span><span class="w"> </span><span class="nf">_invoke</span><span class="p">(</span><span class="n">callback_name</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">obj_ref</span><span class="p">,</span> <span class="n">callback_name</span><span class="p">)(</span><span class="n">event</span><span class="p">)</span>
+
         <span class="c1"># Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
+            <span class="k">lambda</span> <span class="n">payload</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                <span class="n">_invoke</span><span class="p">,</span> <span class="s2">&quot;_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+            <span class="p">),</span>
             <span class="n">PhysicsEvent</span><span class="o">.</span><span class="n">PHYSICS_READY</span><span class="p">,</span>
             <span class="n">order</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_invalidate_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
+            <span class="k">lambda</span> <span class="n">payload</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                <span class="n">_invoke</span><span class="p">,</span> <span class="s2">&quot;_invalidate_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+            <span class="p">),</span>
             <span class="n">PhysicsEvent</span><span class="o">.</span><span class="n">STOP</span><span class="p">,</span>
             <span class="n">order</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="c1"># Optional: prim deletion (only supported by PhysX backend)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_handle</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">physics_backend</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="vm">__name__</span>
-        <span class="k">if</span> <span class="s2">&quot;Physx&quot;</span> <span class="ow">in</span> <span class="n">physics_backend</span><span class="p">:</span>
+        <span class="n">physics_backend</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="s2">&quot;physx&quot;</span> <span class="ow">in</span> <span class="n">physics_backend</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
-                <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_on_prim_deletion&quot;</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
+                <span class="k">lambda</span> <span class="n">event</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                    <span class="n">_invoke</span><span class="p">,</span> <span class="s2">&quot;_on_prim_deletion&quot;</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+                <span class="p">),</span>
                 <span class="n">IsaacEvents</span><span class="o">.</span><span class="n">PRIM_DELETION</span><span class="p">,</span>
             <span class="p">)</span>
 
@@ -1005,18 +1005,7 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="n">get_backend</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="n">get_device</span><span class="p">()</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">store_fn</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span>
-                    <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_manager</span><span class="p">,</span>
-                    <span class="s2">&quot;store_callback_exception&quot;</span><span class="p">,</span>
-                    <span class="kc">None</span><span class="p">,</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">store_fn</span><span class="p">):</span>
-                    <span class="n">store_fn</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">raise</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_invalidate_initialize_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>

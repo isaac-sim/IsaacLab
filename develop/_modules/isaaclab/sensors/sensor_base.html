@@ -643,8 +643,8 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsEvent</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysicsEvent</span><span class="p">,</span> <span class="n">PhysicsManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">has_kit</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.kernels</span><span class="w"> </span><span class="kn">import</span> <span class="n">reset_envs_kernel</span><span class="p">,</span> <span class="n">update_outdated_envs_kernel</span><span class="p">,</span> <span class="n">update_timestamp_kernel</span>
 
@@ -678,7 +678,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="c1"># flag for whether the sensor is in visualization mode</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_visualizing</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
 
         <span class="c1"># register various callback functions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_register_callbacks</span><span class="p">()</span>
@@ -770,12 +770,13 @@
         <span class="k">if</span> <span class="n">debug_vis</span><span class="p">:</span>
             <span class="c1"># create a subscriber for the post update event if it doesn&#39;t exist</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>  <span class="c1"># noqa: PLC0415</span>
+                <span class="k">if</span> <span class="n">has_kit</span><span class="p">():</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>  <span class="c1"># noqa: PLC0415</span>
 
-                <span class="n">app_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app_interface</span><span class="p">()</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="n">app_interface</span><span class="o">.</span><span class="n">get_post_update_event_stream</span><span class="p">()</span><span class="o">.</span><span class="n">create_subscription_to_pop</span><span class="p">(</span>
-                    <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_debug_vis_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
-                <span class="p">)</span>
+                    <span class="n">app_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app_interface</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="n">app_interface</span><span class="o">.</span><span class="n">get_post_update_event_stream</span><span class="p">()</span><span class="o">.</span><span class="n">create_subscription_to_pop</span><span class="p">(</span>
+                        <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">_debug_vis_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+                    <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># remove the subscriber if it exists</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -892,57 +893,51 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_register_callbacks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Registers physics lifecycle and prim deletion callbacks.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Registers physics lifecycle callbacks via the current backend&#39;s physics manager.&quot;&quot;&quot;</span>
+        <span class="n">physics_mgr_cls</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_manager</span>
 
-        <span class="c1"># register simulator callbacks (with weakref safety to avoid crashes on deletion)</span>
-        <span class="k">def</span><span class="w"> </span><span class="nf">safe_callback</span><span class="p">(</span><span class="n">callback_name</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">):</span>
-<span class="w">            </span><span class="sd">&quot;&quot;&quot;Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted.&quot;&quot;&quot;</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">obj</span> <span class="o">=</span> <span class="n">obj_ref</span>
-                <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">callback_name</span><span class="p">)(</span><span class="n">event</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">ReferenceError</span><span class="p">:</span>
-                <span class="c1"># Object has been deleted; ignore.</span>
-                <span class="k">pass</span>
-
-        <span class="c1"># note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.</span>
         <span class="n">obj_ref</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
-        <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span><span class="p">,</span> <span class="n">PhysxManager</span>  <span class="c1"># noqa: PLC0415</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_invoke</span><span class="p">(</span><span class="n">callback_name</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">obj_ref</span><span class="p">,</span> <span class="n">callback_name</span><span class="p">)(</span><span class="n">event</span><span class="p">)</span>
 
-        <span class="c1"># Register PHYSICS_READY callback for initialization (order=10 for lower priority)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span> <span class="o">=</span> <span class="n">PhysxManager</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
+        <span class="c1"># Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">payload</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                <span class="n">_invoke</span><span class="p">,</span> <span class="s2">&quot;_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+            <span class="p">),</span>
             <span class="n">PhysicsEvent</span><span class="o">.</span><span class="n">PHYSICS_READY</span><span class="p">,</span>
             <span class="n">order</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Register TIMELINE_STOP callback for invalidation (PhysX-specific)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span> <span class="o">=</span> <span class="n">PhysxManager</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_invalidate_initialize_callback&quot;</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
-            <span class="n">IsaacEvents</span><span class="o">.</span><span class="n">TIMELINE_STOP</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_invalidate_initialize_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">payload</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                <span class="n">_invoke</span><span class="p">,</span> <span class="s2">&quot;_invalidate_initialize_callback&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+            <span class="p">),</span>
+            <span class="n">PhysicsEvent</span><span class="o">.</span><span class="n">STOP</span><span class="p">,</span>
             <span class="n">order</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Register PRIM_DELETION callback (PhysX-specific)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_handle</span> <span class="o">=</span> <span class="n">PhysxManager</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="o">=</span><span class="n">obj_ref</span><span class="p">:</span> <span class="n">safe_callback</span><span class="p">(</span><span class="s2">&quot;_on_prim_deletion&quot;</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj_ref</span><span class="p">),</span>
-            <span class="n">IsaacEvents</span><span class="o">.</span><span class="n">PRIM_DELETION</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="c1"># Optional: prim deletion (only supported by PhysX backend)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_handle</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="s2">&quot;physx&quot;</span> <span class="ow">in</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span>  <span class="c1"># noqa: PLC0415</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_prim_deletion_handle</span> <span class="o">=</span> <span class="n">physics_mgr_cls</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">event</span><span class="p">:</span> <span class="n">PhysicsManager</span><span class="o">.</span><span class="n">safe_callback_invoke</span><span class="p">(</span>
+                    <span class="n">_invoke</span><span class="p">,</span> <span class="s2">&quot;_on_prim_deletion&quot;</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">physics_manager</span><span class="o">=</span><span class="n">physics_mgr_cls</span>
+                <span class="p">),</span>
+                <span class="n">IsaacEvents</span><span class="o">.</span><span class="n">PRIM_DELETION</span><span class="p">,</span>
+            <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the scene elements.</span>
 
 <span class="sd">        .. note::</span>
-<span class="sd">            PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be</span>
-<span class="sd">            called whenever the simulator &quot;plays&quot; from a &quot;stop&quot; state.</span>
+<span class="sd">            Physics handles are only valid once the simulation is ready. This callback runs when</span>
+<span class="sd">            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="c1"># Store exception to be raised after callback completes</span>
-                <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxManager</span>  <span class="c1"># noqa: PLC0415</span>
-
-                <span class="n">PhysxManager</span><span class="o">.</span><span class="n">store_callback_exception</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_invalidate_initialize_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidates the scene elements.&quot;&quot;&quot;</span>
