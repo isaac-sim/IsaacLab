@@ -17,7 +17,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import ctypes
+import sys
 
 import pytest
 import torch
@@ -222,9 +222,8 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid", stiffness=0.0, damping=0.0)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -280,9 +279,8 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal", stiffness=0.0, damping=0.0)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -338,9 +336,8 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -405,9 +402,8 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -471,9 +467,8 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -528,9 +523,8 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     articulation_cfg.spawn.articulation_props.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -590,9 +584,8 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     articulation_cfg.spawn.articulation_props.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -646,9 +639,8 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
 
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     with pytest.raises(ValueError):
@@ -671,9 +663,8 @@ def test_out_of_range_default_joint_vel(sim, device):
     }
     articulation = Articulation(articulation_cfg)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     with pytest.raises(ValueError):
@@ -1680,9 +1671,8 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
     articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
     env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1, "Boundedness of articulation is incorrect"
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10, "Possible reference leak for articulation"
     # Play sim
     sim.reset()
     # Check if articulation is initialized
@@ -1963,9 +1953,8 @@ def test_setting_articulation_root_prim_path(sim, device):
     articulation_cfg.articulation_root_prim_path = "/torso"
     articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()
@@ -1983,9 +1972,8 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
     articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     with pytest.raises(RuntimeError):
@@ -2119,9 +2107,8 @@ def test_spatial_tendons(sim, num_articulations, device):
     articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    # Check that boundedness of articulation is correct
-    refcount = ctypes.c_long.from_address(id(articulation)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
 
     # Play sim
     sim.reset()

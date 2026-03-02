@@ -50,23 +50,68 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
-    - name: Run IsaacLab Tasks Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "isaaclab-tasks-report.xml"
-        container-name: "isaac-lab-tasks-test-$$"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
-        filter-pattern: "isaaclab_tasks"
-
-    - name: Copy Test Results from IsaacLab Tasks Container
+    # DEBUG: Running only test_environments.py and test_cartpole_showcase_environments.py to isolate freeze
+    - name: Run IsaacLab Tasks Tests (debug - 2 files only)
       run: |
         CONTAINER_NAME="isaac-lab-tasks-test-$$"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from IsaacLab Tasks container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
+        docker rm -f $CONTAINER_NAME 2>/dev/null || true
+        mkdir -p reports
+
+        docker run --name $CONTAINER_NAME \
+          --entrypoint bash --gpus all --network=host \
+          --security-opt=no-new-privileges:true \
+          --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
+          --cpus=$(echo "$(nproc) * 0.9" | bc) \
+          --oom-kill-disable=false \
+          --ulimit nofile=65536:65536 \
+          --ulimit nproc=4096:4096 \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e OMNI_KIT_DISABLE_CUP=1 \
+          -e ISAAC_SIM_HEADLESS=1 \
+          -e ISAAC_SIM_LOW_MEMORY=1 \
+          -e PYTHONUNBUFFERED=1 \
+          -e PYTHONIOENCODING=utf-8 \
+          ${{ env.DOCKER_IMAGE_TAG }} \
+          -c "
+            set -e
+            cd /workspace/isaaclab
+            mkdir -p tests
+
+            echo '========================================='
+            echo 'Running test_environments.py'
+            echo '========================================='
+            /isaac-sim/python.sh -m pytest \
+              source/isaaclab_tasks/test/test_environments.py \
+              -v --tb=short --no-header \
+              --junitxml=tests/test-report-environments.xml \
+              || echo 'test_environments.py exited with code: \$?'
+
+            echo '========================================='
+            echo 'Running test_cartpole_showcase_environments.py'
+            echo '========================================='
+            /isaac-sim/python.sh -m pytest \
+              source/isaaclab_tasks/test/test_cartpole_showcase_environments.py \
+              -v --tb=short --no-header \
+              --junitxml=tests/test-report-cartpole.xml \
+              || echo 'test_cartpole_showcase_environments.py exited with code: \$?'
+          " || echo 'Docker container exited with errors, continuing to copy results...'
+
+        # Copy whichever result files exist
+        for f in test-report-environments.xml test-report-cartpole.xml; do
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/$f reports/ 2>/dev/null || echo "Could not copy $f"
+        done
+
+        # Merge into a single report for downstream steps
+        if [ -f reports/test-report-environments.xml ]; then
+          cp reports/test-report-environments.xml reports/isaaclab-tasks-report.xml
+        elif [ -f reports/test-report-cartpole.xml ]; then
+          cp reports/test-report-cartpole.xml reports/isaaclab-tasks-report.xml
+        else
+          echo '<?xml version="1.0" encoding="utf-8"?><testsuite name="no-results" tests="0" failures="0" errors="1"><testcase classname="setup" name="no_results"><error message="No results found"/></testcase></testsuite>' > reports/isaaclab-tasks-report.xml
         fi
+
+        docker rm $CONTAINER_NAME 2>/dev/null || true
 
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4

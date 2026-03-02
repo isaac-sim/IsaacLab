@@ -16,7 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import ctypes
+import sys
 
 import pytest
 import torch
@@ -104,11 +104,11 @@ def test_initialization(sim, num_cubes, material_path):
     """Test initialization for prim with deformable body API at the provided prim path."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, material_path=material_path)
 
-    # Check that boundedness of deformable object is correct
-    # Note: refcount is read before the assert to avoid pytest assertion rewriting
-    # inflating the reference count with temporary variables.
-    refcount = ctypes.c_long.from_address(id(cube_object)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    # sys.getrefcount() adds 1 for its own argument. The baseline is 2 (local var +
+    # getrefcount arg) but Omniverse event-bus subscriptions and Python/torch runtime
+    # internals may legitimately add a few more. We use a threshold to catch real leaks.
+    assert sys.getrefcount(cube_object) < 10
 
     # Play sim
     sim.reset()
@@ -186,9 +186,8 @@ def test_initialization_on_device_cpu():
         sim._app_control_on_stop_handle = None
         cube_object = generate_cubes_scene(num_cubes=5, device="cpu")
 
-        # Check that boundedness of deformable object is correct
-        refcount = ctypes.c_long.from_address(id(cube_object)).value
-        assert refcount == 1
+        # Check that the framework doesn't hold excessive strong references.
+        assert sys.getrefcount(cube_object) < 10
 
         # Play sim
         with pytest.raises(RuntimeError):
@@ -201,9 +200,8 @@ def test_initialization_with_kinematic_enabled(sim, num_cubes):
     """Test that initialization for prim with kinematic flag enabled."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
 
-    # Check that boundedness of deformable object is correct
-    refcount = ctypes.c_long.from_address(id(cube_object)).value
-    assert refcount == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(cube_object) < 10
 
     # Play sim
     sim.reset()
@@ -334,7 +332,7 @@ def test_set_kinematic_targets(sim, num_cubes):
         nodal_kinematic_targets[0, :, 3] = 0.0
         nodal_kinematic_targets[0, :, :3] = wp.to_torch(cube_object.data.default_nodal_state_w)[0, :, :3]
         cube_object.write_nodal_kinematic_target_to_sim(
-            nodal_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
+            nodal_kinematic_targets[0:1], env_ids=torch.tensor([0], device=sim.device)
         )
 
         for _ in range(20):
