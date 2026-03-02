@@ -8,7 +8,15 @@ __all__ = [
     "get_checkpoint_path",
     "load_cfg_from_registry",
     "parse_env_cfg",
+    "PresetCfg",
+    "resolve_task_config",
+    "hydra_task_config",
+    "add_launcher_args",
+    "launch_simulation",
 ]
 
+from .hydra import PresetCfg, hydra_task_config, resolve_task_config
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from .hydra import resolve_task_config, hydra_task_config
+from .sim_launcher import add_launcher_args, launch_simulation
