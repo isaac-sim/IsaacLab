@@ -117,3 +117,20 @@ def stand_still_joint_deviation_l1(
     command = env.command_manager.get_command(command_name)
     # Penalize motion when command is nearly zero.
     return mdp.joint_deviation_l1(env, asset_cfg) * (torch.norm(command[:, :2], dim=1) < command_threshold)
+
+def reward_platform_stabilization(
+    env, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    platform = env.scene[asset_cfg.name]
+    orientation_penalty = torch.sum(torch.square(platform.data.root_quat_w[:, 1:3]), dim=1)
+    ang_vel_penalty = torch.sum(torch.square(platform.data.root_ang_vel_w[:, :]), dim=1)
+
+    return torch.exp(-(orientation_penalty + 0.1 * ang_vel_penalty) / std**2)
+
+def reward_com_acceleration(
+    env: ManagerBasedRLEnv, std: float, sensor_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Penalty on base acceleration (encourages smoother motion)."""
+
+    imu_sensor = env.scene.sensors[sensor_cfg.name]
+    accel_penalty = torch.sum(torch.square(imu_sensor.data.lin_acc_b[:, :2]), dim=1)
+    return torch.exp(-accel_penalty / std**2)
