@@ -749,9 +749,9 @@
         <span class="c1"># This is only introduced in isaac sim 6.0</span>
         <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">isaac_sim_version</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
-            <span class="c1"># Set RTX flag to enable fast path if only depth or albedo is requested</span>
-            <span class="n">supported_fast_types</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;distance_to_camera&quot;</span><span class="p">,</span> <span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">,</span> <span class="s2">&quot;albedo&quot;</span><span class="p">}</span>
-            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">data_type</span> <span class="ow">in</span> <span class="n">supported_fast_types</span> <span class="k">for</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">):</span>
+            <span class="c1"># Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested</span>
+            <span class="n">needs_color_render</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="ow">or</span> <span class="s2">&quot;rgba&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">needs_color_render</span><span class="p">:</span>
                 <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/sdg/force/disableColorRender&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
             <span class="c1"># If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black</span>

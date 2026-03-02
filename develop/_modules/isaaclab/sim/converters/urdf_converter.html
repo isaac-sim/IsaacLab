@@ -801,6 +801,16 @@
             <span class="n">profile_json_path</span><span class="o">=</span><span class="n">asset_structure_profile_json_path</span><span class="p">,</span>
         <span class="p">)</span>
 
+        <span class="c1"># step 6b: fix ArticulationRootAPI placement for fixed-base articulations.</span>
+        <span class="c1"># After the asset transformer, ArticulationRootAPI ends up on the root rigid body.</span>
+        <span class="c1"># Having a FixedJoint on the same rigid body that has ArticulationRootAPI causes</span>
+        <span class="c1"># PhysX to treat the articulation as a floating-base + constraint (maximal coordinate</span>
+        <span class="c1"># tree) rather than a fixed-base reduced-coordinate articulation.</span>
+        <span class="c1"># Moving ArticulationRootAPI to the parent of the root rigid body resolves this.</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">fix_base</span><span class="p">:</span>
+            <span class="n">final_usd_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">robot_name</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">robot_name</span><span class="si">}</span><span class="s2">.usda&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_fix_articulation_root_for_fixed_base</span><span class="p">(</span><span class="n">final_usd_path</span><span class="p">)</span>
+
         <span class="c1"># step 7: clean up intermediate files</span>
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">usdex_path</span><span class="p">):</span>
             <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">usdex_path</span><span class="p">)</span>
@@ -884,6 +894,101 @@
         <span class="n">fixed_joint</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">FixedJoint</span><span class="o">.</span><span class="n">Define</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">joint_path</span><span class="p">)</span>
         <span class="c1"># `body0` left empty =&gt; connected to the world frame</span>
         <span class="n">fixed_joint</span><span class="o">.</span><span class="n">CreateBody1Rel</span><span class="p">()</span><span class="o">.</span><span class="n">SetTargets</span><span class="p">([</span><span class="n">root_link</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()])</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_fix_articulation_root_for_fixed_base</span><span class="p">(</span><span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Move ArticulationRootAPI from the root rigid body to its parent prim.</span>
+
+<span class="sd">        After the asset transformer, ArticulationRootAPI ends up on the root rigid body.</span>
+<span class="sd">        When combined with a FixedJoint on that same body (``fix_base_joint``), PhysX treats</span>
+<span class="sd">        the articulation as a floating-base + external constraint (maximal coordinate tree)</span>
+<span class="sd">        rather than a proper fixed-base reduced-coordinate articulation.</span>
+
+<span class="sd">        Moving ArticulationRootAPI to the parent of the root rigid body (a non-rigid Xform /</span>
+<span class="sd">        Scope ancestor) resolves this, matching the pattern used by ``schemas.py``&#39;s</span>
+<span class="sd">        ``fix_root_link``.</span>
+
+<span class="sd">        Changes are authored as **local opinions in the root layer** of the stage, which are</span>
+<span class="sd">        stronger than the variant-payload-sublayer opinions written by the asset transformer.</span>
+<span class="sd">        This means the root layer&#39;s ``delete apiSchemas`` overrides the ``prepend apiSchemas``</span>
+<span class="sd">        in the deeper sublayers without modifying those files.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            usd_path: Absolute path to the final ``.usda`` file produced by the asset transformer.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
+
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">usd_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="p">:</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;UrdfConverter: Cannot open final stage at &#39;</span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                <span class="s2">&quot; for fix_base ArticulationRootAPI post-processing.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Find the root rigid body that incorrectly has ArticulationRootAPI applied.</span>
+        <span class="n">root_body_prim</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="n">stage</span><span class="o">.</span><span class="n">Traverse</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">)</span> <span class="ow">and</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">RigidBodyAPI</span><span class="p">):</span>
+                <span class="n">root_body_prim</span> <span class="o">=</span> <span class="n">prim</span>
+                <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">root_body_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># ArticulationRootAPI is already on a non-rigid ancestor (correct) or not present.</span>
+            <span class="k">return</span>
+
+        <span class="n">parent_prim</span> <span class="o">=</span> <span class="n">root_body_prim</span><span class="o">.</span><span class="n">GetParent</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parent_prim</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">parent_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="s2">&quot;UrdfConverter: Root rigid body has no valid parent prim — skipping ArticulationRootAPI fix.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Collect all articulation-related schema names applied to the root rigid body.</span>
+        <span class="n">articulation_api_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">root_body_prim</span><span class="o">.</span><span class="n">GetAppliedSchemas</span><span class="p">()</span>
+            <span class="k">if</span> <span class="s2">&quot;ArticulationRoot&quot;</span> <span class="ow">in</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;PhysxArticulationAPI&quot;</span>
+        <span class="p">]</span>
+
+        <span class="c1"># --- Apply ArticulationRootAPI schemas to the parent prim ---</span>
+        <span class="c1"># (edit target is the root layer by default; writes local opinions)</span>
+        <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">parent_prim</span><span class="p">)</span>
+        <span class="n">already_on_parent</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">parent_prim</span><span class="o">.</span><span class="n">GetAppliedSchemas</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">articulation_api_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;PhysicsArticulationRootAPI&quot;</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">already_on_parent</span><span class="p">:</span>
+                <span class="n">parent_prim</span><span class="o">.</span><span class="n">AddAppliedSchema</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># --- Copy USD articulation attributes to the parent prim ---</span>
+        <span class="n">usd_art_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">(</span><span class="n">root_body_prim</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">attr_name</span> <span class="ow">in</span> <span class="n">usd_art_api</span><span class="o">.</span><span class="n">GetSchemaAttributeNames</span><span class="p">():</span>
+            <span class="n">attr</span> <span class="o">=</span> <span class="n">root_body_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="n">attr_name</span><span class="p">)</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">attr</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span> <span class="k">if</span> <span class="n">attr</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">parent_attr</span> <span class="o">=</span> <span class="n">parent_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="n">attr_name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">parent_attr</span><span class="p">:</span>
+                    <span class="n">parent_attr</span> <span class="o">=</span> <span class="n">parent_prim</span><span class="o">.</span><span class="n">CreateAttribute</span><span class="p">(</span><span class="n">attr_name</span><span class="p">,</span> <span class="n">attr</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">())</span>
+                <span class="n">parent_attr</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+        <span class="c1"># --- Copy physxArticulation:* attributes to the parent prim ---</span>
+        <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">root_body_prim</span><span class="o">.</span><span class="n">GetAttributes</span><span class="p">():</span>
+            <span class="n">aname</span> <span class="o">=</span> <span class="n">attr</span><span class="o">.</span><span class="n">GetName</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">aname</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;physxArticulation:&quot;</span><span class="p">):</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">attr</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">parent_attr</span> <span class="o">=</span> <span class="n">parent_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="n">aname</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">parent_attr</span><span class="p">:</span>
+                        <span class="n">parent_attr</span> <span class="o">=</span> <span class="n">parent_prim</span><span class="o">.</span><span class="n">CreateAttribute</span><span class="p">(</span><span class="n">aname</span><span class="p">,</span> <span class="n">attr</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">())</span>
+                    <span class="n">parent_attr</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+        <span class="c1"># --- Remove ArticulationRootAPI schemas from the root rigid body ---</span>
+        <span class="c1"># Writing &quot;delete&quot; list-ops in the root layer overrides &quot;prepend&quot; in sublayers.</span>
+        <span class="n">root_body_prim</span><span class="o">.</span><span class="n">RemoveAppliedSchema</span><span class="p">(</span><span class="s2">&quot;PhysxArticulationAPI&quot;</span><span class="p">)</span>
+        <span class="n">root_body_prim</span><span class="o">.</span><span class="n">RemoveAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">articulation_api_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;PhysicsArticulationRootAPI&quot;</span><span class="p">,</span> <span class="s2">&quot;PhysxArticulationAPI&quot;</span><span class="p">):</span>
+                <span class="n">root_body_prim</span><span class="o">.</span><span class="n">RemoveAppliedSchema</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># Save only the root layer (sublayers produced by the asset transformer are untouched).</span>
+        <span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">()</span><span class="o">.</span><span class="n">Save</span><span class="p">()</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_apply_link_density</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">density</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>

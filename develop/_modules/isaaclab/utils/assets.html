@@ -641,7 +641,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">posixpath</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlparse</span>
 
@@ -758,9 +757,10 @@
             <span class="k">if</span> <span class="n">local_root</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">local_root</span> <span class="o">=</span> <span class="n">target_path</span>
 
-            <span class="c1"># recurse into USD dependencies and referenced assets</span>
-            <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">target_path</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;.usd&quot;</span><span class="p">,</span> <span class="s2">&quot;.usda&quot;</span><span class="p">,</span> <span class="s2">&quot;.usdz&quot;</span><span class="p">}:</span>
-                <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">_find_usd_references</span><span class="p">(</span><span class="n">target_path</span><span class="p">):</span>
+            <span class="c1"># recurse into USD dependencies (sublayers, references, payloads, textures, etc.)</span>
+            <span class="n">suffix</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">target_path</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;.usd&quot;</span><span class="p">,</span> <span class="s2">&quot;.usda&quot;</span><span class="p">,</span> <span class="s2">&quot;.usdc&quot;</span><span class="p">,</span> <span class="s2">&quot;.usdz&quot;</span><span class="p">}:</span>
+                <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">_find_usd_dependencies</span><span class="p">(</span><span class="n">target_path</span><span class="p">):</span>
                     <span class="n">ref_url</span> <span class="o">=</span> <span class="n">_resolve_reference_url</span><span class="p">(</span><span class="n">cur_url</span><span class="p">,</span> <span class="n">ref</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">ref_url</span> <span class="ow">and</span> <span class="n">ref_url</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">visited</span><span class="p">:</span>
                         <span class="n">to_visit</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ref_url</span><span class="p">)</span>
@@ -796,24 +796,21 @@
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to find the file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_is_downloadable_asset</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return True for USD or other asset types we mirror locally (textures, etc.).&quot;&quot;&quot;</span>
-    <span class="n">clean</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;?&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;#&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">suffix</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">clean</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_find_usd_dependencies</span><span class="p">(</span><span class="n">local_usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Use UsdUtils to collect all asset dependencies from a USD file.</span>
 
-    <span class="k">if</span> <span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.mdl&quot;</span><span class="p">:</span>
-        <span class="c1"># MDL modules (OmniPBR.mdl, OmniSurface.mdl, ...) come from MDL search paths</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">suffix</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="k">if</span> <span class="n">suffix</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;.usd&quot;</span><span class="p">,</span> <span class="s2">&quot;.usda&quot;</span><span class="p">,</span> <span class="s2">&quot;.usdz&quot;</span><span class="p">,</span> <span class="s2">&quot;.png&quot;</span><span class="p">,</span> <span class="s2">&quot;.jpg&quot;</span><span class="p">,</span> <span class="s2">&quot;.jpeg&quot;</span><span class="p">,</span> <span class="s2">&quot;.exr&quot;</span><span class="p">,</span> <span class="s2">&quot;.hdr&quot;</span><span class="p">,</span> <span class="s2">&quot;.tif&quot;</span><span class="p">,</span> <span class="s2">&quot;.tiff&quot;</span><span class="p">}:</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="k">return</span> <span class="kc">True</span>
+<span class="sd">    This uses :func:`UsdUtils.ComputeAllDependencies` — the same approach as</span>
+<span class="sd">    ``isaacsim.storage.native`` — to discover sublayers, references, payloads,</span>
+<span class="sd">    and non-layer assets (textures, etc.) without maintaining a hardcoded list</span>
+<span class="sd">    of file extensions.</span>
 
+<span class="sd">    Args:</span>
+<span class="sd">        local_usd_path: Path to a local USD file.</span>
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_find_usd_references</span><span class="p">(</span><span class="n">local_usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Use Sdf API to collect referenced assets from a USD layer.&quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span>  <span class="c1"># noqa: PLC0415</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        Set of asset path strings as they appear in the USD layer (unresolved).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">UsdUtils</span>  <span class="c1"># noqa: PLC0415</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">layer</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Layer</span><span class="o">.</span><span class="n">FindOrOpen</span><span class="p">(</span><span class="n">local_usd_path</span><span class="p">)</span>
@@ -824,59 +821,17 @@
     <span class="k">if</span> <span class="n">layer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
+    <span class="c1"># Collect every asset path referenced from this layer.</span>
+    <span class="c1"># UsdUtils.ModifyAssetPaths walks sublayers, references, payloads,</span>
+    <span class="c1"># variant selections, and attribute values — exactly the set we need.</span>
     <span class="n">refs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
-    <span class="c1"># Sublayers</span>
-    <span class="k">for</span> <span class="n">sub_path</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">&quot;subLayerPaths&quot;</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]:</span>
-        <span class="k">if</span> <span class="n">sub_path</span> <span class="ow">and</span> <span class="n">_is_downloadable_asset</span><span class="p">(</span><span class="n">sub_path</span><span class="p">):</span>
-            <span class="n">refs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">sub_path</span><span class="p">))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_collect</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">refs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">path</span>  <span class="c1"># return unchanged — we are only reading, not modifying</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_walk_prim</span><span class="p">(</span><span class="n">prim_spec</span><span class="p">:</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">PrimSpec</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># References</span>
-        <span class="n">ref_list</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">referenceList</span>
-        <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;addedItems&quot;</span><span class="p">,</span> <span class="s2">&quot;prependedItems&quot;</span><span class="p">,</span> <span class="s2">&quot;appendedItems&quot;</span><span class="p">,</span> <span class="s2">&quot;explicitItems&quot;</span><span class="p">):</span>
-            <span class="n">items</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ref_list</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">items</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
-                <span class="n">asset_path</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="s2">&quot;assetPath&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">asset_path</span> <span class="ow">and</span> <span class="n">_is_downloadable_asset</span><span class="p">(</span><span class="n">asset_path</span><span class="p">):</span>
-                    <span class="n">refs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">asset_path</span><span class="p">))</span>
-
-        <span class="c1"># Payloads</span>
-        <span class="n">payload_list</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">payloadList</span>
-        <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;addedItems&quot;</span><span class="p">,</span> <span class="s2">&quot;prependedItems&quot;</span><span class="p">,</span> <span class="s2">&quot;appendedItems&quot;</span><span class="p">,</span> <span class="s2">&quot;explicitItems&quot;</span><span class="p">):</span>
-            <span class="n">items</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">payload_list</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">items</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="k">for</span> <span class="n">payload</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
-                <span class="n">asset_path</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="s2">&quot;assetPath&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">asset_path</span> <span class="ow">and</span> <span class="n">_is_downloadable_asset</span><span class="p">(</span><span class="n">asset_path</span><span class="p">):</span>
-                    <span class="n">refs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">asset_path</span><span class="p">))</span>
-
-        <span class="c1"># AssetPath-valued attributes (this is where OmniPBR.mdl, textures, etc. show up)</span>
-        <span class="k">for</span> <span class="n">attr_spec</span> <span class="ow">in</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">attributes</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">default</span> <span class="o">=</span> <span class="n">attr_spec</span><span class="o">.</span><span class="n">default</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">AssetPath</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">default</span><span class="o">.</span><span class="n">path</span> <span class="ow">and</span> <span class="n">_is_downloadable_asset</span><span class="p">(</span><span class="n">default</span><span class="o">.</span><span class="n">path</span><span class="p">):</span>
-                    <span class="n">refs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">default</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">AssetPathArray</span><span class="p">):</span>
-                <span class="k">for</span> <span class="n">ap</span> <span class="ow">in</span> <span class="n">default</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">ap</span><span class="o">.</span><span class="n">path</span> <span class="ow">and</span> <span class="n">_is_downloadable_asset</span><span class="p">(</span><span class="n">ap</span><span class="o">.</span><span class="n">path</span><span class="p">):</span>
-                        <span class="n">refs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ap</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
-
-        <span class="c1"># Variants - each variant set can have multiple variants with their own prim content</span>
-        <span class="k">for</span> <span class="n">variant_set_spec</span> <span class="ow">in</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">variantSets</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="k">for</span> <span class="n">variant_spec</span> <span class="ow">in</span> <span class="n">variant_set_spec</span><span class="o">.</span><span class="n">variants</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-                <span class="n">variant_prim_spec</span> <span class="o">=</span> <span class="n">variant_spec</span><span class="o">.</span><span class="n">primSpec</span>
-                <span class="k">if</span> <span class="n">variant_prim_spec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">_walk_prim</span><span class="p">(</span><span class="n">variant_prim_spec</span><span class="p">)</span>
-
-        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">nameChildren</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">_walk_prim</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">root_prim</span> <span class="ow">in</span> <span class="n">layer</span><span class="o">.</span><span class="n">rootPrims</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-        <span class="n">_walk_prim</span><span class="p">(</span><span class="n">root_prim</span><span class="p">)</span>
+    <span class="n">UsdUtils</span><span class="o">.</span><span class="n">ModifyAssetPaths</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">_collect</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">refs</span>
 
