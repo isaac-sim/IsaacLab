@@ -41,7 +41,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - Access at ``https://<server-ip>:8443``; see :ref:`connect-quest-pico`
+     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client>`__; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)
@@ -50,7 +50,7 @@ input modes, which determine which retargeters and control schemes are available
      - High-fidelity finger tracking (Manus SDK)
      - Isaac Teleop plugin (bundled)
      - Migrated from the now-deprecated ``isaac-teleop-device-plugins`` repo.
-       Combine with Vive trackers for wrist positioning. See :ref:`manus-vive-handtracking`.
+       Combine with an external wrist-tracking source for wrist positioning. See :ref:`manus-vive-handtracking`.
 
 
 .. _isaac-teleop-control-schemes:
@@ -144,6 +144,12 @@ Source Nodes
 Available Retargeters
 ~~~~~~~~~~~~~~~~~~~~~
 
+Retargeters are provided by the ``isaacteleop`` package from the
+`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository. The retargeters listed below
+are those used by the built-in Isaac Lab environments. Isaac Teleop may offer additional
+retargeters not listed here -- refer to the
+`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_ for the full set.
+
 .. dropdown:: Se3AbsRetargeter / Se3RelRetargeter
 
    Maps hand or controller tracking to end-effector pose. ``Se3AbsRetargeter`` outputs a 7D
@@ -180,6 +186,25 @@ Available Retargeters
 
    Utility that flattens and reorders outputs from multiple retargeters into a single 1D action
    tensor. The ``output_order`` must match the action space expected by the environment.
+
+The built-in Isaac Lab environments use these retargeters as follows:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Environment
+     - Retargeters Used
+   * - Franka manipulation (stack, pick-place)
+     - ``Se3AbsRetargeter``, ``GripperRetargeter``, ``TensorReorderer``
+   * - G1 Inspire dexterous pick-place
+     - ``Se3AbsRetargeter``, ``DexHandRetargeter``, ``TensorReorderer``
+   * - GR1-T2 dexterous pick-place
+     - ``Se3AbsRetargeter``, ``DexHandRetargeter``, ``TensorReorderer``
+   * - G1 upper-body (fixed base)
+     - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``TensorReorderer``
+   * - G1 loco-manipulation
+     - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``LocomotionRootCmdRetargeter``, ``TensorReorderer``
 
 
 .. _isaac-teleop-pipeline-builder:

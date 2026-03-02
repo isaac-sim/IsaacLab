@@ -34,21 +34,22 @@ Prerequisites
     * Memory: 64 GB RAM
 
   * For driver requirements see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide.
-  * Python 3.11 or newer
+  * Python 3.12 or newer
   * CUDA 12.8 (recommended)
   * NVIDIA Driver 580.95.05 (recommended)
 
 * **Wifi 6 capable router**
 
   * A strong wireless connection is essential for a high-quality streaming experience. Refer to
-    the requirements of `Omniverse Spatial Streaming`_ for more details.
+    the `CloudXR Network Setup`_ guide for detailed requirements, router configuration, and
+    troubleshooting.
   * We recommend a dedicated router; concurrent usage will degrade quality.
   * The XR device and Isaac Lab workstation must be IP-reachable from one another. Many
     institutional wireless networks prevent device-to-device connectivity.
 
 .. note::
 
-   If you are using DGX Spark, check :ref:`dgx-spark-limitations` for compatibility.
+   Teleoperation is not currently supported on DGX Spark.
 
 
 .. _install-isaac-teleop:
@@ -61,7 +62,7 @@ Install Isaac Teleop
    .. code-block:: bash
 
       git clone git@github.com:NVIDIA/IsaacTeleop.git
-      cd isaacteleop/
+      cd IsaacTeleop/
 
 #. **(Optional -- Hand Tracking)** If you plan to use optical hand tracking from the XR
    device, create a CloudXR environment file:
@@ -76,6 +77,42 @@ Install Isaac Teleop
    .. code-block:: bash
 
       pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
+
+   For version and compatibility details, see the
+   `Isaac Teleop releases <https://github.com/NVIDIA/IsaacTeleop/releases>`_.
+
+#. Configure the firewall to allow CloudXR traffic. The required ports depend on the
+   client type.
+
+   **For Apple native clients** (CloudXR Framework):
+
+   .. code-block:: bash
+
+      # Signaling (use one based on connection mode)
+      sudo ufw allow 48010/tcp   # Standard mode
+      sudo ufw allow 48322/tcp   # Secure mode
+      # Video
+      sudo ufw allow 47998/udp
+      sudo ufw allow 48005/udp
+      sudo ufw allow 48008/udp
+      sudo ufw allow 48012/udp
+      # Input
+      sudo ufw allow 47999/udp
+      # Audio
+      sudo ufw allow 48000/udp
+      sudo ufw allow 48002/udp
+
+   **For web clients** (CloudXR.js):
+
+   .. code-block:: bash
+
+      sudo ufw allow 49100/tcp   # Signaling
+      sudo ufw allow 47998/udp   # Media stream
+      sudo ufw allow 48322/tcp   # Proxy (HTTPS mode only)
+
+   For full network requirements and Windows firewall instructions, see the
+   `CloudXR Network Setup <https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#firewall-configuration>`__
+   documentation.
 
 
 .. _start-cloudxr-runtime:
@@ -100,7 +137,7 @@ Open a **new** terminal where Isaac Lab will run and set up the CloudXR environm
 .. code-block:: bash
 
    # Activate the Isaac Lab virtual environment (conda or uv)
-   cd <path-to-isaacteleop>/isaacteleop/
+   cd <path-to-isaacteleop>/IsaacTeleop/
    source scripts/setup_cloudxr_env.sh
 
 With the CloudXR runtime running in a separate terminal, launch an Isaac Lab teleoperation script:
@@ -134,156 +171,155 @@ The viewport should show two eyes being rendered and the status "AR profile is a
 Isaac Lab is now ready to receive connections from a CloudXR client.
 
 
-.. _use-apple-vision-pro:
+.. _connect-xr-device:
 
-Connect Apple Vision Pro
-------------------------
+Connect an XR Device
+--------------------
 
-Apple Vision Pro connects to Isaac Lab via the native `Isaac XR Teleop Sample Client`_ app.
+Isaac Teleop supports several XR headsets. You only need **one** of the devices below --
+choose the tab that matches your hardware.
 
+.. tab-set::
 
-.. _build-apple-vision-pro:
+   .. tab-item:: Meta Quest 3 / Pico 4 Ultra
+      :selected:
 
-Build and Install the Client App
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      .. _connect-quest-pico:
 
-Requirements:
+      Meta Quest 3 and Pico 4 Ultra connect to Isaac Lab via the
+      `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_
+      WebXR client.
 
-* Apple Vision Pro with visionOS 26, Apple M3 Pro chip (11-core CPU), 16 GB unified memory
-* Apple Silicon Mac with macOS Sequoia 15.6+ and Xcode 26.0
+      .. note::
 
-On your Mac:
+         Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.
 
-#. Clone the `Isaac XR Teleop Sample Client`_ repository:
+      #. Ensure the CloudXR runtime is running (see :ref:`start-cloudxr-runtime`).
 
-   .. code-block:: bash
+      #. Open the browser on your headset and navigate to
+         `<https://nvidia.github.io/IsaacTeleop/client>`_.
 
-      git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
+         .. tip::
 
-#. Check out the version that matches your Isaac Lab version:
+            For rapid development, you can test the CloudXR.js client on a desktop browser
+            before deploying to headsets.
 
-   +-------------------+---------------------+
-   | Isaac Lab Version | Client App Version  |
-   +-------------------+---------------------+
-   | 3.0               | v3.0.0              |
-   +-------------------+---------------------+
-   | 2.3               | v2.3.0              |
-   +-------------------+---------------------+
+      #. Enter the IP address of your Isaac Lab host machine in the **Server IP** field
+         and click **Connect** to begin teleoperation.
 
-   .. code-block:: bash
+         For advanced configuration, troubleshooting, and additional details, see the
+         `CloudXR.js User Guide
+         <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_.
 
-      git checkout <client_app_version>
+   .. tab-item:: Apple Vision Pro
 
-#. Follow the README in the repository to build and install the app on your Apple Vision Pro.
+      .. _use-apple-vision-pro:
 
+      Apple Vision Pro connects to Isaac Lab via the native `Isaac XR Teleop Sample Client`_ app.
 
-.. _teleoperate-apple-vision-pro:
+      .. _build-apple-vision-pro:
 
-Teleoperate with Apple Vision Pro
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      .. rubric:: Build and Install the Client App
 
-.. tip::
+      Requirements:
 
-   **Before wearing the headset**, verify connectivity from your Mac:
+      * Apple Vision Pro with visionOS 26, Apple M3 Pro chip (11-core CPU), 16 GB unified memory
+      * Apple Silicon Mac with macOS Sequoia 15.6+ and Xcode 26.0
 
-   .. code:: bash
+      On your Mac:
 
-      nc -vz <isaac-lab-ip> 48010
+      #. Clone the `Isaac XR Teleop Sample Client`_ repository:
 
-   Expected output: ``Connection to <ip> port 48010 [tcp/*] succeeded!``
+         .. code-block:: bash
 
-On your Isaac Lab workstation, ensure Isaac Lab and CloudXR are running as described in
-:ref:`run-isaac-lab-with-the-cloudxr-runtime`.
+            git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
 
-On your Apple Vision Pro:
+      #. Check out the version that matches your Isaac Lab version:
 
-#. Open the Isaac XR Teleop Sample Client.
+         +-------------------+---------------------+
+         | Isaac Lab Version | Client App Version  |
+         +-------------------+---------------------+
+         | 3.0               | v3.0.0              |
+         +-------------------+---------------------+
+         | 2.3               | v2.3.0              |
+         +-------------------+---------------------+
 
-   .. figure:: ../_static/setup/cloudxr_avp_connect_ui.jpg
-      :align: center
-      :figwidth: 50%
-      :alt: Apple Vision Pro connect UI
+         .. code-block:: bash
 
-#. Enter the IP address of your Isaac Lab workstation and click **Connect**.
+            git checkout <client_app_version>
 
-   .. note::
+      #. Follow the README in the repository to build and install the app on your Apple Vision
+         Pro.
 
-      The Apple Vision Pro and workstation must be IP-reachable from one another. We recommend a
-      dedicated Wifi 6 router.
+      .. _teleoperate-apple-vision-pro:
 
-#. After a brief period you should see the simulation rendered in the headset along with
-   teleoperation controls.
+      .. rubric:: Teleoperate with Apple Vision Pro
 
-   .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
-      :align: center
-      :figwidth: 50%
-      :alt: Apple Vision Pro teleop UI
+      .. tip::
 
-#. Click **Play** to begin teleoperating. Use **Play**, **Stop**, and **Reset** to control the
-   session.
+         **Before wearing the headset**, verify connectivity from your Mac:
 
-   .. tip::
+         .. code:: bash
 
-      For bimanual tasks, visionOS voice control enables hands-free UI:
+            nc -vz <isaac-lab-ip> 48010
 
-      #. **Settings** > **Accessibility** > **Voice Control** > Turn on **Voice Control**
-      #. Enable **<item name>** under **Commands** > **Basic Navigation**
-      #. Say "Play", "Stop", or "Reset" while the app is connected.
+         Expected output: ``Connection to <ip> port 48010 [tcp/*] succeeded!``
 
-#. Teleoperate the robot by moving your hands.
+      On your Isaac Lab workstation, ensure Isaac Lab and CloudXR are running as described in
+      :ref:`run-isaac-lab-with-the-cloudxr-runtime`.
 
-   .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloudxr_bimanual_teleop.gif
-      :align: center
-      :alt: Bimanual dexterous teleoperation with CloudXR
+      On your Apple Vision Pro:
 
-   .. note::
+      #. Open the Isaac XR Teleop Sample Client.
 
-      If the IK solver fails, an error message appears in the headset. Click **Reset** to return
-      the robot to its original pose and continue.
+         .. figure:: ../_static/setup/cloudxr_avp_connect_ui.jpg
+            :align: center
+            :figwidth: 50%
+            :alt: Apple Vision Pro connect UI
 
-      .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
-         :align: center
-         :figwidth: 80%
-         :alt: IK error message in XR device
+      #. Enter the IP address of your Isaac Lab workstation and click **Connect**.
 
-#. Click **Disconnect** when finished.
+         .. note::
 
+            The Apple Vision Pro and workstation must be IP-reachable from one another. We
+            recommend a dedicated Wifi 6 router.
 
-.. _connect-quest-pico:
+      #. After a brief period you should see the simulation rendered in the headset along with
+         teleoperation controls.
 
-Connect Meta Quest 3 or Pico 4 Ultra
--------------------------------------
+         .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
+            :align: center
+            :figwidth: 50%
+            :alt: Apple Vision Pro teleop UI
 
-Meta Quest 3 and Pico 4 Ultra connect to Isaac Lab via the CloudXR.js WebXR client, which is
-served by Docker containers included with Isaac Teleop.
+      #. Click **Play** to begin teleoperating. Use **Play**, **Stop**, and **Reset** to control
+         the session.
 
-.. note::
+         .. tip::
 
-   Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.
+            For bimanual tasks, visionOS voice control enables hands-free UI:
 
-#. Download the CloudXR Web SDK. From the ``isaacteleop/`` directory:
+            #. **Settings** > **Accessibility** > **Voice Control** > Turn on **Voice Control**
+            #. Enable **<item name>** under **Commands** > **Basic Navigation**
+            #. Say "Play", "Stop", or "Reset" while the app is connected.
 
-   .. code-block:: bash
+      #. Teleoperate the robot by moving your hands.
 
-      ./scripts/download_cloudxr_sdk.sh
+         .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloudxr_bimanual_teleop.gif
+            :align: center
+            :alt: Bimanual dexterous teleoperation with CloudXR
 
-   Alternatively, place a local tarball in ``deps/cloudxr/``:
-   ``cloudxr-web-sdk-<version>.tar.gz``. The expected version is defined by
-   ``CXR_WEB_SDK_VERSION`` in ``deps/cloudxr/.env.default``.
+         .. note::
 
-#. Ensure the CloudXR runtime is running (see :ref:`start-cloudxr-runtime`).
+            If the IK solver fails, an error message appears in the headset. Click **Reset** to
+            return the robot to its original pose and continue.
 
-#. Open the browser on your headset and navigate to:
+            .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
+               :align: center
+               :figwidth: 80%
+               :alt: IK error message in XR device
 
-   * HTTPS (recommended): ``https://<server-ip>:8443``
-   * HTTP: ``http://<server-ip>:8080``
-
-   .. tip::
-
-      For rapid development, test the CloudXR.js client on a desktop browser before deploying to
-      headsets.
-
-#. Follow the on-screen instructions to connect and begin teleoperation.
+      #. Click **Disconnect** when finished.
 
 
 .. _manus-vive-handtracking:
@@ -340,4 +376,4 @@ For deploying XR teleoperation on a Kubernetes cluster, see :ref:`cloudxr-teleop
 .. _`NVIDIA CloudXR`: https://developer.nvidia.com/cloudxr-sdk
 .. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`Omniverse Spatial Streaming`: https://docs.omniverse.nvidia.com/avp/latest/setup-network.html
+.. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
