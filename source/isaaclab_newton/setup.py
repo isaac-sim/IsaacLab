@@ -17,12 +17,9 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
-    # generic
-    "prettytable==3.3.0",
     # newton
     "mujoco==3.5.0",
     "mujoco-warp==3.5.0",
-    "warp-lang==1.12.0rc2",
     "newton @ git+https://github.com/newton-physics/newton.git@v0.2.3",
     "PyOpenGL-accelerate==3.1.10",
 ]

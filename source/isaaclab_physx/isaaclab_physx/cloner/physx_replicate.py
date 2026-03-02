@@ -29,11 +29,17 @@ def physx_replicate(
     Rows covering all environments use ``useEnvIds=True``; partial rows use ``False``.
     The replicator is registered for the call and then unregistered.
 
-    .. note::
-        The PhysX replicator always includes the source environment in its replication
-        targets. Skipping the source (exclude-self) causes undefined behaviour in the
-        PhysX backend (inconsistencies across environments). This means the source env
-        receives a duplicate PhysX body on top of the USD-parsed original.
+    ``attach_fn`` excludes ``/World/template`` and ``/World/envs`` so that PhysX does
+    not independently parse prims that the replicator will handle.  The source prim
+    receives its physics body as a side-effect of ``rep.replicate()`` (which always
+    parses the source internally), so every source must appear in at least one
+    ``replicate`` call.
+
+    When ``exclude_self_replication`` is True (default), each source environment is
+    removed from its own replication targets so the replicator only creates bodies at
+    non-self destinations.  If removing self would leave the world list empty (i.e. the
+    source maps only to its own environment), self is kept so that ``rep.replicate()``
+    is still called and the source prim gets its physics body.
 
     Args:
         stage: USD stage.
@@ -45,9 +51,9 @@ def physx_replicate(
         quaternions: Optional orientations (unused, for API compatibility).
         use_fabric: Use Fabric for replication.
         device: Torch device for determining replication mode.
-        exclude_self_replication: If True, skip replicating a source prim onto itself.
-            Default is False. Warning: setting this to True causes undefined behaviour
-            in the PhysX backend (device mismatches on CUDA, velocity divergence on CPU).
+        exclude_self_replication: If True, skip replicating a source prim onto itself
+            when the source also maps to other environments.  Default is True.
+            Self-only sources always keep self so that ``rep.replicate()`` fires.
 
     Returns:
         None
@@ -62,6 +68,20 @@ def physx_replicate(
     num_envs = mapping.size(1)
 
     if num_envs > 1:
+        # Pre-compute effective world lists after self-exclusion.
+        # Self is only removed when the source also maps to other environments;
+        # if it is the sole destination we must keep it so that rep.replicate()
+        # is still called (the source gets its physics body from that call).
+        effective_worlds: list[list[int]] = []
+        for i, src in enumerate(sources):
+            worlds = env_ids[mapping[i]].tolist()
+            if exclude_self_replication:
+                pre, _, suf = destinations[i].partition("{}")
+                self_id = src.removeprefix(pre).removesuffix(suf)
+                if self_id.isdigit():
+                    filtered = [w for w in worlds if w != int(self_id)]
+                    worlds = filtered if filtered else worlds
+            effective_worlds.append(worlds)
 
         def attach_fn(_stage_id: int):
             return ["/World/template", "/World/envs"]
@@ -74,13 +94,7 @@ def physx_replicate(
             rep = get_physx_replicator_interface()
             for i, src in enumerate(sources):
                 current_template = destinations[i]
-                worlds = env_ids[mapping[i]].tolist()
-                if exclude_self_replication:
-                    pre, _, suf = current_template.partition("{}")
-                    self_id = src.removeprefix(pre).removesuffix(suf)
-                    current_worlds[:] = [w for w in worlds if w != int(self_id)] if self_id.isdigit() else worlds
-                else:
-                    current_worlds[:] = worlds
+                current_worlds[:] = effective_worlds[i]
                 if not current_worlds:
                     continue
                 rep.replicate(
