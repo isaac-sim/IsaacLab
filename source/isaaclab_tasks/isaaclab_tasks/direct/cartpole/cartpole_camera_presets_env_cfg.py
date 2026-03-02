@@ -15,13 +15,22 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    default = PhysxCfg()
+    newton = NewtonCfg()
+
 
 @configclass
 class MultiBackendRendererCfg(PresetCfg):
     default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
-    newton: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
+    newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
     ovrtx: IsaacRtxRendererCfg = default
 
 @configclass
@@ -58,7 +67,7 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
         action_scale = 100.0  # [N]
 
         # simulation
-        sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+        sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
 
         # robot
         robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

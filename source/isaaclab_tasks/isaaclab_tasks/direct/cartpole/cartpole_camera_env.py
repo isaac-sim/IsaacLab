@@ -118,7 +118,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(observations["policy"] / 255.0, f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
         return observations
 
