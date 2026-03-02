@@ -381,12 +381,10 @@ def test_colocation_collision_filter_heterogeneous(sim):
     )
 
 
-@pytest.mark.isaacsim_ci
-def test_rigid_object_consistency_with_physx_replicate(sim):
-    """Test that physx_replicate (include-self) produces consistent env velocities.
+def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10) -> torch.Tensor:
+    """Run a 2-env sphere simulation and return the full velocity trajectory.
 
-    Spawn a rigid sphere into env_0, physx_replicate, then USD-replicate to env_1.
-    Both envs should have matching velocities when driven with the same input.
+    Returns a (num_steps, num_envs, 6) tensor of velocities at each step.
     """
     num_envs = 2
     spacing = 5.0
@@ -407,14 +405,16 @@ def test_rigid_object_consistency_with_physx_replicate(sim):
     positions = torch.tensor([[0.0, 0.0, 0.0], [spacing, 0.0, 0.0]])
     mapping = torch.ones((1, num_envs), dtype=torch.bool)
 
-    physx_replicate(
-        stage,
-        sources=["/World/envs/env_0/ball"],
-        destinations=["/World/envs/env_{}/ball"],
-        env_ids=env_ids,
-        mapping=mapping,
-        device=sim.cfg.device,
-    )
+    if use_physx_replicate:
+        physx_replicate(
+            stage,
+            sources=["/World/envs/env_0/ball"],
+            destinations=["/World/envs/env_{}/ball"],
+            env_ids=env_ids,
+            mapping=mapping,
+            device=sim.cfg.device,
+        )
+
     usd_replicate(
         stage,
         sources=["/World/envs/env_0"],
@@ -431,13 +431,43 @@ def test_rigid_object_consistency_with_physx_replicate(sim):
     assert ball_view.count == num_envs, f"Expected {num_envs} balls, got {ball_view.count}"
 
     device = sim.cfg.device
-    vel = wp.from_torch(torch.tensor([[10.0, 0.0, 0.0, 0.0, 0.0, 0.0]] * num_envs, dtype=torch.float32, device=device))
+    vel = wp.from_torch(
+        torch.tensor([[10.0, 0.0, 0.0, 0.0, 0.0, 0.0]] * num_envs, dtype=torch.float32, device=device)
+    )
     indices = wp.from_torch(torch.arange(num_envs, dtype=torch.int32, device=device))
 
-    for idx in range(10):
+    velocities = []
+    for _ in range(num_steps):
         ball_view.set_velocities(vel, indices)
         sim.step()
-
         v = wp.to_torch(ball_view.get_velocities())
-        diff = (v[0] - v[1]).abs().max().item()
-        assert diff < 1e-3, f"step {idx}: env_1 diverges from env_0, max diff = {diff}"
+        velocities.append(v.cpu().clone())
+
+    return torch.stack(velocities)
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_replicate_env_consistency(sim):
+    """Test that env_0 and env_1 produce matching velocities when using physx_replicate."""
+    trajectory = _run_sphere_velocity_sim(sim, use_physx_replicate=True)
+
+    for idx in range(trajectory.shape[0]):
+        v0 = trajectory[idx, 0]
+        v1 = trajectory[idx, 1]
+        diff = (v0 - v1).abs().max().item()
+        assert diff < 1e-3, f"step {idx}: env_0 and env_1 diverge, max_diff={diff}"
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_physx_replicate_vs_no_replicate(device):
+    """Test that physx_replicate does not change the physics behavior of env_0."""
+    with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim_no_rep:
+        baseline = _run_sphere_velocity_sim(sim_no_rep, use_physx_replicate=False)
+
+    with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim_rep:
+        with_rep = _run_sphere_velocity_sim(sim_rep, use_physx_replicate=True)
+
+    for idx in range(baseline.shape[0]):
+        diff = (with_rep[idx, 0] - baseline[idx, 0]).abs().max().item()
+        assert diff < 1e-3, f"step {idx}: replicate vs no-replicate diverge, max_diff={diff}"
