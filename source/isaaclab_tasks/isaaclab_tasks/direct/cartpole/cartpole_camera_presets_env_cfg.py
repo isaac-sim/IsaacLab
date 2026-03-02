@@ -24,6 +24,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 @configclass
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg()
+    physx = PhysxCfg()
     newton = NewtonCfg()
 
 
