@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
   </head>
   
   
@@ -632,8 +632,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.physx.scripts</span><span class="w"> </span><span class="kn">import</span> <span class="n">deformableUtils</span> <span class="k">as</span> <span class="n">deformable_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
@@ -821,6 +819,8 @@
                 <span class="p">)</span>
 
             <span class="c1"># create a fixed joint between the root link and the world frame</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">omni.physx.scripts</span><span class="w"> </span><span class="kn">import</span> <span class="n">utils</span> <span class="k">as</span> <span class="n">physx_utils</span>
+
             <span class="n">physx_utils</span><span class="o">.</span><span class="n">createJoint</span><span class="p">(</span><span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span> <span class="n">joint_type</span><span class="o">=</span><span class="s2">&quot;Fixed&quot;</span><span class="p">,</span> <span class="n">from_prim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">to_prim</span><span class="o">=</span><span class="n">articulation_prim</span><span class="p">)</span>
 
             <span class="c1"># Having a fixed joint on a rigid body is not treated as &quot;fixed base articulation&quot;.</span>
@@ -1208,6 +1208,19 @@
             <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span>
     <span class="c1"># check if no contact sensors were found</span>
     <span class="k">if</span> <span class="n">num_contact_sensors</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">descendant_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">frontier</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim</span><span class="p">]</span>
+        <span class="k">while</span> <span class="n">frontier</span><span class="p">:</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">frontier</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">())</span>
+            <span class="n">descendant_count</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span>
+            <span class="n">frontier</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">children</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;[activate_contact_sensors] no rigid bodies found under prim=</span><span class="si">%r</span><span class="s2"> (type=</span><span class="si">%r</span><span class="s2">, descendants=</span><span class="si">%d</span><span class="s2">)&quot;</span><span class="p">,</span>
+            <span class="n">prim_path</span><span class="p">,</span>
+            <span class="n">prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">(),</span>
+            <span class="n">descendant_count</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;No contact sensors added to the prim: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;. This means that no rigid bodies&quot;</span>
             <span class="s2">&quot; are present under this prim. Please check the prim path.&quot;</span>
@@ -1593,6 +1606,8 @@
             <span class="s2">&quot;self_collision_filter_distance&quot;</span><span class="p">,</span>
         <span class="p">]</span>
     <span class="p">}</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">omni.physx.scripts</span><span class="w"> </span><span class="kn">import</span> <span class="n">deformableUtils</span> <span class="k">as</span> <span class="n">deformable_utils</span>
+
     <span class="n">status</span> <span class="o">=</span> <span class="n">deformable_utils</span><span class="o">.</span><span class="n">add_physx_deformable_body</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">prim_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span> <span class="o">**</span><span class="n">attr_kwargs</span><span class="p">)</span>
     <span class="c1"># check if the deformable body was successfully added</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">status</span><span class="p">:</span>
@@ -1827,7 +1842,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2026.
+  Last updated on Mar 02, 2026.
   <br/>
 </p>
   </div>

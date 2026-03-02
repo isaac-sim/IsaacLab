@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
   </head>
   
   
@@ -647,13 +647,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuator</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">BaseArticulation</span><span class="p">,</span> <span class="n">BaseRigidObject</span><span class="p">,</span> <span class="n">RigidObject</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">,</span> <span class="n">SceneEntityCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">compare_versions</span><span class="p">,</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableObject</span>
 
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporter</span>
 
@@ -703,7 +703,7 @@
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
 
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;Articulation&quot;</span> <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span><span class="o">.</span><span class="vm">__mro__</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
             <span class="s2">&quot;Scaling an articulation randomly is not supported, as it affects joint attributes and can cause&quot;</span>
             <span class="s2">&quot; unexpected behavior. To achieve different scales, we recommend generating separate USD files for&quot;</span>
@@ -811,6 +811,8 @@
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: If the asset is not a RigidObject or an Articulation.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseArticulation</span><span class="p">,</span> <span class="n">BaseRigidObject</span>
+
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
 
         <span class="c1"># extract the used quantities (to enable type-hinting)</span>
@@ -826,7 +828,7 @@
         <span class="c1"># obtain number of shapes per body (needed for indexing the material properties correctly)</span>
         <span class="c1"># note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes</span>
         <span class="c1">#  per body. We use the physics simulation view to obtain the number of shapes per body.</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">,</span> <span class="n">BaseArticulation</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">link_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_view</span><span class="o">.</span><span class="n">link_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
                 <span class="n">link_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">link_path</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
@@ -2529,7 +2531,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2026.
+  Last updated on Mar 02, 2026.
   <br/>
 </p>
   </div>

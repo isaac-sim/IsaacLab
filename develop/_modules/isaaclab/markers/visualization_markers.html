@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
   </head>
   
   
@@ -649,6 +649,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">Vt</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">has_kit</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.visualization_markers_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
 
@@ -975,8 +976,6 @@
 <span class="sd">        Args:</span>
 <span class="sd">            prim: The prim to check.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
-
         <span class="c1"># check if prim is valid</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
@@ -1010,7 +1009,10 @@
             <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span>
 
         <span class="c1"># remove any physics on the markers because they are only for visualization!</span>
-        <span class="n">physx_utils</span><span class="o">.</span><span class="n">removeRigidBodySubtree</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span></div>
+        <span class="k">if</span> <span class="n">has_kit</span><span class="p">():</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
+
+            <span class="n">physx_utils</span><span class="o">.</span><span class="n">removeRigidBodySubtree</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>
@@ -1058,7 +1060,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2026.
+  Last updated on Mar 02, 2026.
   <br/>
 </p>
   </div>

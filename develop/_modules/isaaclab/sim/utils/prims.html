@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
   </head>
   
   
@@ -638,15 +638,15 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdShade</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_file_path</span><span class="p">,</span> <span class="n">retrieve_file_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">has_kit</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.queries</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_matching_prim_paths</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.semantics</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_labels</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span><span class="p">,</span> <span class="n">resolve_paths</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">resolve_paths</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_world_pose_to_local</span><span class="p">,</span> <span class="n">standardize_xform_ops</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -835,12 +835,12 @@
     <span class="n">stage_id</span> <span class="o">=</span> <span class="n">stage_cache</span><span class="o">.</span><span class="n">GetId</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">stage_id</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">stage_id</span> <span class="o">=</span> <span class="n">stage_cache</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
-    <span class="c1"># delete prims</span>
-    <span class="n">success</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-        <span class="s2">&quot;DeletePrimsCommand&quot;</span><span class="p">,</span>
-        <span class="n">paths</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span>
-        <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
-    <span class="p">)</span>
+
+    <span class="c1"># delete prims via the Sdf API directly</span>
+    <span class="n">success</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">prim_path</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">RemovePrim</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="n">success</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="k">return</span> <span class="n">success</span></div>
 
 
@@ -1322,12 +1322,21 @@
                 <span class="c1"># deal with spaces by replacing them with underscores</span>
                 <span class="n">semantic_type_sanitized</span> <span class="o">=</span> <span class="n">semantic_type</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
                 <span class="n">semantic_value_sanitized</span> <span class="o">=</span> <span class="n">semantic_value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
-                <span class="c1"># add labels to the prim</span>
-                <span class="n">add_labels</span><span class="p">(</span>
-                    <span class="n">prim</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="p">[</span><span class="n">semantic_value_sanitized</span><span class="p">],</span> <span class="n">instance_name</span><span class="o">=</span><span class="n">semantic_type_sanitized</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span>
-                <span class="p">)</span>
+                <span class="n">instance_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">semantic_type_sanitized</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">semantic_value_sanitized</span><span class="si">}</span><span class="s2">&quot;</span>
+
+                <span class="n">type_attr_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;semantic:</span><span class="si">{</span><span class="n">instance_name</span><span class="si">}</span><span class="s2">:semantic:type&quot;</span>
+                <span class="n">type_attr</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="n">type_attr_name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">type_attr</span><span class="p">:</span>
+                    <span class="n">type_attr</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">CreateAttribute</span><span class="p">(</span><span class="n">type_attr_name</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">String</span><span class="p">)</span>
+                <span class="n">type_attr</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_type</span><span class="p">)</span>
+
+                <span class="n">data_attr_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;semantic:</span><span class="si">{</span><span class="n">instance_name</span><span class="si">}</span><span class="s2">:semantic:data&quot;</span>
+                <span class="n">data_attr</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="n">data_attr_name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">data_attr</span><span class="p">:</span>
+                    <span class="n">data_attr</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">CreateAttribute</span><span class="p">(</span><span class="n">data_attr_name</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">String</span><span class="p">)</span>
+                <span class="n">data_attr</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_value</span><span class="p">)</span>
         <span class="c1"># activate rigid body contact sensors (lazy import to avoid circular import with schemas)</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;activate_contact_sensors&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">:</span>  <span class="c1"># type: ignore</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;activate_contact_sensors&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">..schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">schemas</span> <span class="k">as</span> <span class="n">_schemas</span>
 
             <span class="n">_schemas</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">(</span><span class="n">prim_spawn_path</span><span class="p">)</span>
@@ -1379,6 +1388,8 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If the provided prim paths do not exist on stage.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_kit</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">None</span>
     <span class="c1"># get stage handle</span>
     <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
@@ -1397,6 +1408,8 @@
         <span class="n">binding_strength</span> <span class="o">=</span> <span class="s2">&quot;weakerThanDescendants&quot;</span>
     <span class="c1"># obtain material binding API</span>
     <span class="c1"># note: we prefer using the command here as it is more robust than the USD API</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
+
     <span class="n">success</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
         <span class="s2">&quot;BindMaterialCommand&quot;</span><span class="p">,</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span>
@@ -1510,6 +1523,16 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        FileNotFoundError: When the input USD file is not found at the specified path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># resolve remote USD paths to local (same as Newton / add_reference_to_stage)</span>
+    <span class="n">file_status</span> <span class="o">=</span> <span class="n">check_file_path</span><span class="p">(</span><span class="n">usd_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">file_status</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to open the usd file at path: </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">file_status</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">usd_path</span> <span class="o">=</span> <span class="n">retrieve_file_path</span><span class="p">(</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">force_download</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to retrieve USD file from </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+
     <span class="c1"># get current stage</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
     <span class="c1"># get prim at path</span>
@@ -1526,32 +1549,6 @@
             <span class="p">)</span>
         <span class="k">return</span> <span class="n">prim</span>
 
-    <span class="c1"># Compatibility with Isaac Sim 4.5 where omni.metrics is not available</span>
-    <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_add_reference_to_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
-
-    <span class="c1"># check if the USD file is valid and add reference to the prim</span>
-    <span class="n">sdf_layer</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Layer</span><span class="o">.</span><span class="n">FindOrOpen</span><span class="p">(</span><span class="n">usd_path</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">sdf_layer</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to open the usd file at path: </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-    <span class="c1"># import metrics assembler interface</span>
-    <span class="c1"># note: this is only available in Isaac Sim 5.0 and above</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">omni.metrics.assembler.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_metrics_assembler_interface</span>
-
-    <span class="c1"># obtain the stage ID</span>
-    <span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
-    <span class="c1"># check if the layers are compatible (i.e. the same units)</span>
-    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">get_metrics_assembler_interface</span><span class="p">()</span><span class="o">.</span><span class="n">check_layers</span><span class="p">(</span>
-        <span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">()</span><span class="o">.</span><span class="n">identifier</span><span class="p">,</span> <span class="n">sdf_layer</span><span class="o">.</span><span class="n">identifier</span><span class="p">,</span> <span class="n">stage_id</span>
-    <span class="p">)</span>
-    <span class="c1"># log that metric assembler did not detect any issues</span>
-    <span class="k">if</span> <span class="n">ret_val</span><span class="p">[</span><span class="s2">&quot;ret_val&quot;</span><span class="p">]:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">&quot;Metric assembler detected no issues between the current stage and the referenced USD file at path:&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span>
-        <span class="p">)</span>
-    <span class="c1"># add reference to the prim</span>
     <span class="k">return</span> <span class="n">_add_reference_to_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span></div>
 
 
@@ -1759,7 +1756,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2026.
+  Last updated on Mar 02, 2026.
   <br/>
 </p>
   </div>

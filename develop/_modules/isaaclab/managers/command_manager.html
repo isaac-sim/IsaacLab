@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
   </head>
   
   
@@ -728,7 +728,7 @@
         <span class="c1"># toggle debug visualization objects</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_set_debug_vis_impl</span><span class="p">(</span><span class="n">debug_vis</span><span class="p">)</span>
         <span class="c1"># toggle debug visualization handles</span>
-        <span class="k">if</span> <span class="n">debug_vis</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">debug_vis</span> <span class="ow">and</span> <span class="n">has_kit</span><span class="p">():</span>
             <span class="c1"># create a subscriber for the post update event if it doesn&#39;t exist</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">app_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app_interface</span><span class="p">()</span>
@@ -1094,7 +1094,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2026.
+  Last updated on Mar 02, 2026.
   <br/>
 </p>
   </div>

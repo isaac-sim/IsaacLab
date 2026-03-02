@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 01, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
   </head>
   
   
@@ -783,20 +783,18 @@
         <span class="c1"># play the simulator to activate physics handles</span>
         <span class="c1"># note: this activates the physics simulation view that exposes TensorAPIs</span>
         <span class="c1"># note: when started in extension mode, first call sim.reset_async() and then initialize the managers</span>
-        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Starting the simulation. This may take a few seconds. Please wait...&quot;</span><span class="p">)</span>
-            <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">,</span> <span class="s2">&quot;simulation_start&quot;</span><span class="p">):</span>
-                <span class="c1"># since the reset can trigger callbacks which use the stage,</span>
-                <span class="c1"># we need to set the stage context here</span>
-                <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">stage</span><span class="p">):</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-                <span class="c1"># update scene to pre populate data buffers for assets and sensors.</span>
-                <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
-                <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments</span>
-                <span class="c1"># so the lazy buffers would be reset.</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
-            <span class="c1"># add timeline event to load managers</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">load_managers</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">,</span> <span class="s2">&quot;simulation_start&quot;</span><span class="p">):</span>
+            <span class="c1"># since the reset can trigger callbacks which use the stage,</span>
+            <span class="c1"># we need to set the stage context here</span>
+            <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">stage</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="c1"># update scene to pre populate data buffers for assets and sensors.</span>
+            <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
+            <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments</span>
+            <span class="c1"># so the lazy buffers would be reset.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
+        <span class="c1"># add timeline event to load managers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">load_managers</span><span class="p">()</span>
 
         <span class="c1"># extend UI elements</span>
         <span class="c1"># we need to do this here after all the managers are initialized</span>
@@ -1246,7 +1244,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 01, 2026.
+  Last updated on Mar 02, 2026.
   <br/>
 </p>
   </div>
