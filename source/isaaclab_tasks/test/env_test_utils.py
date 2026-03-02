@@ -50,7 +50,7 @@ def _is_teleop_env(task_spec) -> bool:
 
 def _is_pickplace_stack_env(task_id: str) -> bool:
     """Check if a task is a PickPlace or Stack environment based on its ID."""
-    return any(keyword in task_id for keyword in ("PickPlace", "Stack", "NutPour", "ExhaustPipe"))
+    return any(keyword in task_id for keyword in ("Place", "Stack", "NutPour", "ExhaustPipe"))
 
 
 def setup_environment(
