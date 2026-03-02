@@ -125,7 +125,7 @@ class PhysxCfg(PhysicsCfg):
     functionality will not be available. However, this provides some performance speed-up.
 
     Note:
-        This flag is overridden to True inside the :class:`~isaaclab.sim.SimulationContext` class
+        This flag is overridden to True
         when running the simulation with the GUI enabled. This is to allow certain GUI features
         to work properly.
     """
