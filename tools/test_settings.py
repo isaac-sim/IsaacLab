@@ -52,6 +52,7 @@ PER_TEST_TIMEOUTS = {
     "test_rigid_object_collection.py": 500,
     "test_outdated_sensor.py": 500,
     "test_multi_tiled_camera.py": 1000,
+    "test_multirotor.py": 1000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
