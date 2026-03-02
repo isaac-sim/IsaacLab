@@ -34,7 +34,7 @@ class BinaryJointAction(ActionTerm):
 
     Based on above, we follow the following convention for the binary action:
 
-    1. Open action: 1 (bool) or positive values (float).
+    1. Open action: 1 (bool) or non-negative values (float).
     2. Close action: 0 (bool) or negative values (float).
 
     The action term can mostly be used for gripper actions, where the gripper is either open or closed. This
@@ -133,10 +133,10 @@ class BinaryJointAction(ActionTerm):
         self._raw_actions[:] = actions
         # compute the binary mask
         if actions.dtype == torch.bool:
-            # true: close, false: open
+            # action=True (1) -> open, action=False (0) -> close
             binary_mask = actions == 0
         else:
-            # true: close, false: open
+            # action >= 0 -> open, action < 0 -> close
             binary_mask = actions < 0
         # compute the command
         self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
