@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-package for Newton sensor implementations."""
+"""Sub-package containing Newton-specific sensor implementations."""
 
 from isaaclab.utils.module import lazy_export
 

@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "ContactSensor",
-    "ContactSensorData",
-    "ContactSensorCfg",
-]
+"""Implementation backends for simulation interfaces."""
 
-from .contact_sensor import ContactSensor, ContactSensorData, ContactSensorCfg
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

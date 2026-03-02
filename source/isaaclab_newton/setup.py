@@ -21,7 +21,8 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     # newton
     "mujoco==3.5.0",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@7bb099c082d50803fd63bfe57217025d9f5cd2df",
+    "mujoco-warp==3.5.0",
+    "warp-lang==1.12.0rc2",
     "newton @ git+https://github.com/newton-physics/newton.git@v0.2.3",
     "PyOpenGL-accelerate==3.1.10",
 ]
