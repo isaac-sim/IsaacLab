@@ -23,7 +23,7 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to clone.")
-parser.add_argument("--num_objects", type=int, default=0, help="Number of additional objects to clone.")
+parser.add_argument("--num_objects", type=int, default=20, help="Number of additional objects to clone.")
 parser.add_argument(
     "--terrain_type",
     type=str,
@@ -95,7 +95,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
             f"/World/envs/env_0/object_{i}",
             object,
             translation=(0.0 + random.random(), 0.0 + random.random(), 1.0),
-            orientation=quat_from_euler_xyz(torch.Tensor(0), torch.Tensor(0), torch.rand(1) * torch.pi).numpy(),
+            orientation=quat_from_euler_xyz(torch.zeros(1), torch.zeros(1), torch.rand(1) * torch.pi).numpy(),
         )
 
     # Clone the scene

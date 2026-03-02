@@ -58,16 +58,7 @@ def main():
     """Spawn a bunch of balls and randomly change their textures."""
 
     # Load kit helper
-    sim_params = {
-        "use_gpu": True,
-        "use_gpu_pipeline": True,
-        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
-        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
-        "enable_scene_query_support": True,
-    }
-    sim = SimulationContext(
-        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
-    )
+    sim = SimulationContext(SimulationCfg())
     # Set main camera
     set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
