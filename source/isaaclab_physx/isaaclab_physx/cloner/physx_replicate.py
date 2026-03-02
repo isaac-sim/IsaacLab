@@ -21,7 +21,7 @@ def physx_replicate(
     quaternions: torch.Tensor | None = None,
     use_fabric: bool = False,
     device: str = "cpu",
-    exclude_self_replication: bool = False,
+    exclude_self_replication: bool = True,
 ) -> None:
     """Replicate prims via PhysX replicator with per-row mapping.
 
@@ -61,34 +61,36 @@ def physx_replicate(
     current_template: str = ""
     num_envs = mapping.size(1)
 
-    def attach_fn(_stage_id: int):
-        return ["/World/envs", *sources]
+    if num_envs > 1:
 
-    def rename_fn(_replicate_path: str, i: int):
-        return current_template.format(current_worlds[i])
+        def attach_fn(_stage_id: int):
+            return ["/World/template", "/World/envs"]
 
-    def attach_end_fn(_stage_id: int):
-        nonlocal current_template
-        rep = get_physx_replicator_interface()
-        for i, src in enumerate(sources):
-            current_template = destinations[i]
-            worlds = env_ids[mapping[i]].tolist()
-            if exclude_self_replication:
-                pre, _, suf = current_template.partition("{}")
-                self_id = src.removeprefix(pre).removesuffix(suf)
-                current_worlds[:] = [w for w in worlds if w != int(self_id)] if self_id.isdigit() else worlds
-            else:
-                current_worlds[:] = worlds
-            if not current_worlds:
-                continue
-            rep.replicate(
-                _stage_id,
-                src,
-                len(current_worlds),
-                useEnvIds=(len(current_worlds) == num_envs) and device != "cpu",
-                useFabricForReplication=use_fabric,
-            )
-        # unregister only AFTER all replicate() calls completed
-        rep.unregister_replicator(_stage_id)
+        def rename_fn(_replicate_path: str, i: int):
+            return current_template.format(current_worlds[i])
 
-    get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)
+        def attach_end_fn(_stage_id: int):
+            nonlocal current_template
+            rep = get_physx_replicator_interface()
+            for i, src in enumerate(sources):
+                current_template = destinations[i]
+                worlds = env_ids[mapping[i]].tolist()
+                if exclude_self_replication:
+                    pre, _, suf = current_template.partition("{}")
+                    self_id = src.removeprefix(pre).removesuffix(suf)
+                    current_worlds[:] = [w for w in worlds if w != int(self_id)] if self_id.isdigit() else worlds
+                else:
+                    current_worlds[:] = worlds
+                if not current_worlds:
+                    continue
+                rep.replicate(
+                    _stage_id,
+                    src,
+                    len(current_worlds),
+                    useEnvIds=(len(current_worlds) == num_envs) and device != "cpu",
+                    useFabricForReplication=use_fabric,
+                )
+            # unregister only AFTER all replicate() calls completed
+            rep.unregister_replicator(_stage_id)
+
+        get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)

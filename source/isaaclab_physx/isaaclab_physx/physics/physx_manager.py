@@ -488,11 +488,6 @@ class PhysxManager(PhysicsManager):
         )
         sim_utils.safe_set_attribute_on_usd_prim(scene_prim, "physxScene:enableGPUDynamics", is_gpu, camel_case=False)
 
-        # scene query support (from SimulationCfg, not PhysxCfg)
-        sim_utils.safe_set_attribute_on_usd_prim(
-            scene_prim, "physxScene:enableSceneQuerySupport", sim_cfg.enable_scene_query_support, camel_case=False
-        )
-
         # ccd (not supported on gpu)
         enable_ccd = cfg.enable_ccd and not is_gpu
         if cfg.enable_ccd and is_gpu:
@@ -506,6 +501,12 @@ class PhysxManager(PhysicsManager):
         scene_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             cfg.solve_articulation_contact_last
         )
+
+        # scene query support: forward SimulationCfg alias and override for GUI
+        if getattr(sim_cfg, "enable_scene_query_support", False):
+            cfg.enable_scene_query_support = True
+        if bool(sim.get_setting("/isaaclab/has_gui")):
+            cfg.enable_scene_query_support = True
 
         # apply remaining cfg attributes to scene (physxScene:*)
         skip = {

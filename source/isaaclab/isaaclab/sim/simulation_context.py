@@ -138,17 +138,12 @@ class SimulationContext:
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
-
-        # Override enable scene query support if GUI is enabled.
-        # This is needed for certain GUI features (e.g. object picking) to work properly.
-        if bool(self.settings.get("/isaaclab/has_gui")):
-            self.cfg.enable_scene_query_support = True
-
         # Set default physics backend if not specified
         if self.cfg.physics is None:
             from isaaclab_physx.physics import PhysxCfg
 
             self.cfg.physics = PhysxCfg()
+
         self._physics = self.cfg.physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
