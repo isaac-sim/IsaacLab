@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+1.4.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sim_launcher`` module with ``add_launcher_args`` and ``launch_simulation`` utilities
+  that auto-detect the physics backend (Newton vs Kit/PhysX) from the env config and launch the
+  appropriate simulation runtime. Training and play scripts no longer need to import ``AppLauncher``
+  directly.
+
+
 1.3.0 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~
 
