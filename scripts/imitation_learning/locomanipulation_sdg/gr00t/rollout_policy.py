@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,14 +18,6 @@ parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation task to load for data generation.")
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
 parser.add_argument("--output_file", type=str, help="The file name for the generated output dataset.")
-parser.add_argument(
-    "--lift_step
-    type=int,
-    help=(
-        "The step index in the input recording where the robot is ready to lift the object.  Aka, where the grasp is"
-        " finished."
-    ),
-)
 parser.add_argument("--demo", type=str, default="demo_0", help="The demo in the input dataset to use.")
 parser.add_argument(
     "--enable_pinocchio",
@@ -33,65 +25,60 @@ parser.add_argument(
     default=False,
     help="Enable Pinocchio.",
 )
-parser.add_argument("--randomize_placement", type=bool, default=False, help="Randomize placement of obstacles.")
+parser.add_argument("--randomize_placement", action="store_true", default=False, help="Randomize placement of obstacles.")
 parser.add_argument("--model_path", type=str, help="The path to the model checkpoint.")
-parser.add_argument("--embodiment_tag", type=str, default="new_embodiment", help="The embodiment tag to use for the model.")
+parser.add_argument(
+    "--embodiment_tag", type=str, default="new_embodiment", help="The embodiment tag to use for the model."
+)
 parser.add_argument(
     "--policy_quat_format",
     type=str,
     choices=["xyzw", "wxyz"],
     default="xyzw",
-    help="Quaternion order the policy uses: 'xyzw' (current Isaac Lab) or 'wxyz' (legacy). Converts env observations/actions to match.",
+    help="Quaternion order the policy uses: 'xyzw' (current Isaac Lab) or 'wxyz' (legacy)."
+    + " Converts env observations/actions to match. Default is 'xyzw'.",
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import enum
 import gymnasium as gym
 import torch
-
 from policy import Policy
-import omni.kit
 
-from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
-from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGOutputData
-from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
+from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
+    OccupancyMap,
+    merge_occupancy_maps,
+)
 from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
 from isaaclab_mimic.locomanipulation_sdg.transform_utils import (
     transform_inv,
     transform_mul,
-    transform_relative_pose,
-)
-from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
-    OccupancyMap,
-    merge_occupancy_maps,
-    occupancy_map_add_to_stage,
 )
 
 from isaaclab_tasks.utils import parse_env_cfg
-from isaaclab.utils.math import convert_quat
 
 
 def _clone_state(state: dict) -> dict:
     """Deep clone state dict so we do not mutate the episode's stored initial state."""
+
     def _clone(val):
         if isinstance(val, torch.Tensor):
             return val.clone()
         if isinstance(val, dict):
             return {k: _clone(v) for k, v in val.items()}
         return val
+
     return _clone(state)
 
 
@@ -197,26 +184,34 @@ def _convert_action_pose_quats_to_env(action: torch.Tensor, policy_quat_format: 
         return
     # Policy output is WXYZ; env expects XYZW
     for start in (0, 7):
-        end = start + 7
         quat = action[..., start + 3 : start + 7]
         action[..., start + 3 : start + 7] = convert_quat(quat, to="xyzw")
 
 
 def setup_navigation_scene(
-    env: LocomanipulationSDGEnv, input_episode_data: EpisodeData, approach_distance: float, randomize_placement: bool = True
+    env: LocomanipulationSDGEnv,
+    input_episode_data: EpisodeData,
+    approach_distance: float,
+    randomize_placement: bool = True,
 ) -> tuple[OccupancyMap, RelativePose]:
     # Create base occupancy map
-    # occupancy_map = merge_occupancy_maps([
-    #     OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
-    #     env.get_start_fixture().get_occupancy_map(),
-    # ])
+    occupancy_map = merge_occupancy_maps(
+        [
+            OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
+            env.get_start_fixture().get_occupancy_map(),
+        ]
+    )
 
     # Randomize fixture placement if enabled
-    # if False:
-    #     fixtures = [env.get_end_fixture()] + env.get_obstacle_fixtures()
-    #     for fixture in fixtures:
-    #         place_randomly(fixture, occupancy_map.buffered_meters(1.0))
-    #         occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
+    if randomize_placement:
+        fixtures = [env.get_end_fixture()] + env.get_obstacle_fixtures()
+        for fixture in fixtures:
+            place_randomly(fixture, occupancy_map.buffered_meters(1.0))
+            occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
+    else:
+        fixtures = [env.get_end_fixture()] + env.get_obstacle_fixtures()
+        for fixture in fixtures:
+            occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
 
     # Compute goal poses from initial state (for policy's base_goal; robot/object already set by reset_to).
     initial_state = env.load_input_data(input_episode_data, 0)
@@ -230,16 +225,10 @@ def setup_navigation_scene(
 
 def build_model_input(env, base_goal, policy_quat_format: str = "xyzw"):
     obs = env.obs_buf
-    left_hand_pose = torch.cat([
-        obs['policy']['left_eef_pos'],
-        obs['policy']['left_eef_quat']
-    ], dim=-1)
-    right_hand_pose = torch.cat([
-        obs['policy']['right_eef_pos'],
-        obs['policy']['right_eef_quat']
-    ], dim=-1)
-    left_hand_joint_positions = obs['policy']['hand_joint_state'][:, 0:7]
-    right_hand_joint_positions = obs['policy']['hand_joint_state'][:, 7:14]
+    left_hand_pose = torch.cat([obs["policy"]["left_eef_pos"], obs["policy"]["left_eef_quat"]], dim=-1)
+    right_hand_pose = torch.cat([obs["policy"]["right_eef_pos"], obs["policy"]["right_eef_quat"]], dim=-1)
+    left_hand_joint_positions = obs["policy"]["hand_joint_state"][:, 0:7]
+    right_hand_joint_positions = obs["policy"]["hand_joint_state"][:, 7:14]
 
     base_pose = env.get_base().get_pose()
     object_pose = env.get_object().get_pose()
@@ -251,14 +240,14 @@ def build_model_input(env, base_goal, policy_quat_format: str = "xyzw"):
 
     # TODO: transform poses relative to base. Env poses are always XYZW.
     model_input = {
-        "video.ego_view": obs['policy']['robot_pov_cam'],
+        "video.ego_view": obs["policy"]["robot_pov_cam"],
         "state.left_hand_pose": transform_mul(base_pose_inv, left_hand_pose),
         "state.right_hand_pose": transform_mul(base_pose_inv, right_hand_pose),
         "state.left_hand_joint_positions": left_hand_joint_positions,
         "state.right_hand_joint_positions": right_hand_joint_positions,
         "state.object_pose": transform_mul(base_pose_inv, object_pose),
         "state.goal_pose": transform_mul(base_pose_inv, goal_pose),
-        "state.end_fixture_pose": transform_mul(base_pose_inv, end_fixture_pose)
+        "state.end_fixture_pose": transform_mul(base_pose_inv, end_fixture_pose),
     }
 
     # Convert state poses to policy quat format if policy expects WXYZ (e.g. trained on legacy data).
@@ -267,9 +256,9 @@ def build_model_input(env, base_goal, policy_quat_format: str = "xyzw"):
             model_input[key] = _convert_pose_quat(model_input[key], to_fmt="wxyz")
 
     dummy_action = torch.zeros(1, 32)
-    dummy_action[:, :28] = torch.cat([
-        left_hand_pose, right_hand_pose, left_hand_joint_positions, right_hand_joint_positions
-    ], dim=1)
+    dummy_action[:, :28] = torch.cat(
+        [left_hand_pose, right_hand_pose, left_hand_joint_positions, right_hand_joint_positions], dim=1
+    )
     dummy_action[:, 31] = 0.8
 
     return model_input, dummy_action
@@ -282,9 +271,7 @@ def eval_policy(
     randomize_placement: bool = True,
     policy_quat_format: str = "xyzw",
 ) -> None:
-
     # env.recorder_manager.reset(env_ids=[0])
-
 
     initial_state = input_episode_data.get_initial_state()
     obs, _ = env.reset_to(
@@ -300,16 +287,13 @@ def eval_policy(
     step = 0
 
     action_idx = 0
-    action_buffer_avg = None
     inference_interval = 16
 
     while simulation_app.is_running() and not simulation_app.is_exiting():
-
         if step % inference_interval == 0:
-
             model_input, dummy_action = build_model_input(env, base_goal, policy_quat_format)
             action_dict = policy.policy.get_action(model_input)
-            #action_dict['action.base_height'] = action_dict['action.base_height'] #e* 0.0 + 0.8# expand missing dim
+            # action_dict['action.base_height'] = action_dict['action.base_height'] #e* 0.0 + 0.8# expand missing dim
             action_buffer = torch.cat([torch.from_numpy(v) for v in action_dict.values()], dim=-1)
             action_idx = 0
 
@@ -321,11 +305,13 @@ def eval_policy(
             # Convert action pose quats to XYZW for env (transform_mul and env expect XYZW).
             _convert_action_pose_quats_to_env(action, policy_quat_format)
 
-            action[:, 0:7] = transform_mul(base_pose, action[:, 0:7]) # convert poses to world coordinates
+            action[:, 0:7] = transform_mul(base_pose, action[:, 0:7])  # convert poses to world coordinates
             action[:, 7:14] = transform_mul(base_pose, action[:, 7:14])
 
             action[:, 28:31] = action[:, 28:31] * 1.0
-            _, _, reset_terminated, reset_time_outs, _ = env.step(action[action_idx:action_idx+1].mean(dim=0, keepdim=True))
+            _, _, reset_terminated, reset_time_outs, _ = env.step(
+                action[action_idx : action_idx + 1].mean(dim=0, keepdim=True)
+            )
             if reset_terminated.any():
                 print("Reset terminated")
                 step = 0
@@ -338,21 +324,15 @@ def eval_policy(
 
 
 if __name__ == "__main__":
-
-
     with torch.no_grad():
-
         # Create environment
         env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
         if env_name is None:
             raise ValueError("Task/env name was not specified nor found in the dataset.")
 
-        policy = Policy(
-            model_path=args_cli.model_path,
-            embodiment_tag=args_cli.embodiment_tag
-        )
+        policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
         # policy = None
-        
+
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
         env_cfg.sim.device = args_cli.device
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)

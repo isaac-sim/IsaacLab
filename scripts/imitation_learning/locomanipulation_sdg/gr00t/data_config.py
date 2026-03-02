@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,7 +20,6 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 from gr00t.data.dataset import ModalityConfig
 from gr00t.data.transform.base import ComposedModalityTransform, ModalityTransform
@@ -71,7 +75,7 @@ class BaseDataConfig(ABC):
 #####################################################################################
 
 
-def import_external_data_config(data_config_str: str) -> Optional[BaseDataConfig]:
+def import_external_data_config(data_config_str: str) -> BaseDataConfig | None:
     """
     Import and instantiate an external data configuration class.
 
@@ -100,14 +104,8 @@ def import_external_data_config(data_config_str: str) -> Optional[BaseDataConfig
 
         module = importlib.import_module(module_path)
         if not hasattr(module, class_name):
-            available = [
-                n
-                for n in dir(module)
-                if not n.startswith("_") and isinstance(getattr(module, n), type)
-            ]
-            raise AttributeError(
-                f"Class '{class_name}' not found in '{module_path}'. Available: {available}"
-            )
+            available = [n for n in dir(module) if not n.startswith("_") and isinstance(getattr(module, n), type)]
+            raise AttributeError(f"Class '{class_name}' not found in '{module_path}'. Available: {available}")
 
         # assert if the class has 'transform' and 'modality_config' methods
         if not hasattr(getattr(module, class_name), "transform"):
@@ -275,21 +273,21 @@ class So100DualCamDataConfig(So100DataConfig):
 class G1LocomanipulationSDGDataConfig(BaseDataConfig):
     video_keys = ["video.ego_view"]
     state_keys = [
-        "state.left_hand_pose", 
-        "state.right_hand_pose", 
+        "state.left_hand_pose",
+        "state.right_hand_pose",
         "state.left_hand_joint_positions",
         "state.right_hand_joint_positions",
         "state.object_pose",
         "state.goal_pose",
-        "state.end_fixture_pose"
+        "state.end_fixture_pose",
     ]
     action_keys = [
-        "action.left_hand_pose", 
-        "action.right_hand_pose", 
+        "action.left_hand_pose",
+        "action.right_hand_pose",
         "action.left_hand_joint_positions",
         "action.right_hand_joint_positions",
         "action.base_velocity",
-        "action.base_height"
+        "action.base_height",
     ]
     observation_indices = [0]
     action_indices = list(range(16))
@@ -872,5 +870,5 @@ DATA_CONFIG_MAP = {
     "unitree_g1_full_body": UnitreeG1FullBodyDataConfig(),
     "oxe_droid": OxeDroidDataConfig(),
     "agibot_genie1": AgibotGenie1DataConfig(),
-    "g1_locomanipulation_sdg": G1LocomanipulationSDGDataConfig()
+    "g1_locomanipulation_sdg": G1LocomanipulationSDGDataConfig(),
 }

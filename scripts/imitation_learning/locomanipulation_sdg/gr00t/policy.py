@@ -1,22 +1,13 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # GROOT IMPORTS
-import warnings
-from dataclasses import dataclass, field
-from typing import List, Literal
 
 import torch
-import numpy as np
-import tyro
-import os
-
-from gr00t.data.dataset import LeRobotSingleDataset
-from gr00t.data.embodiment_tags import EMBODIMENT_TAG_MAPPING
-from gr00t.eval.robot import RobotInferenceClient
-from gr00t.experiment.data_config import load_data_config
-from gr00t.model.policy import BasePolicy, Gr00tPolicy
-from gr00t.utils.eval import calc_mse_for_single_trajectory
-
 from gr00t.experiment.data_config import DATA_CONFIG_MAP
+from gr00t.model.policy import Gr00tPolicy
 
 
 class Policy:
@@ -32,4 +23,3 @@ class Policy:
             modality_transform=self.modality_transform,
             device=self.device,
         )
-
