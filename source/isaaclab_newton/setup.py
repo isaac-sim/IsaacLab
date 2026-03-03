@@ -21,7 +21,7 @@ INSTALL_REQUIRES = [
     "warp-lang==1.12.0rc2",  # avoids pulling newton dep from newton package that could end up being a dev build
     "mujoco==3.5.0",
     "mujoco-warp==3.5.0",
-    "newton @ git+https://github.com/newton-physics/newton.git@v0.2.3",
+    "newton==1.0.0rc1",
     "PyOpenGL-accelerate==3.1.10",
 ]
 
