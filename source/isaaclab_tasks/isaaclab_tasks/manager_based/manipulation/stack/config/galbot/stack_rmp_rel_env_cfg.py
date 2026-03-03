@@ -52,7 +52,6 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
             controller=GALBOT_LEFT_ARM_RMPFLOW_CFG,
             scale=1.0,
             body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
-            articulation_prim_expr="/World/envs/env_.*/Robot",
             use_relative_mode=self.use_relative_mode,
         )
 
@@ -86,7 +85,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             controller=GALBOT_RIGHT_ARM_RMPFLOW_CFG,
             scale=1.0,
             body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
-            articulation_prim_expr="/World/envs/env_.*/Robot",
             use_relative_mode=self.use_relative_mode,
         )
         # Set the simulation parameters

@@ -244,7 +244,6 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             controller=AGIBOT_RIGHT_ARM_RMPFLOW_CFG,
             scale=1.0,
             body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
-            articulation_prim_expr="/World/envs/env_.*/Robot",
             use_relative_mode=self.use_relative_mode,
         )
 
