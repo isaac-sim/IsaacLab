@@ -204,8 +204,8 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
+            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
+            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
         },
     )
 
