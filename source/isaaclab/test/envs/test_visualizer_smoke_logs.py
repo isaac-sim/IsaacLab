@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Smoke test visualizer stepping and error logging."""
 
 from isaaclab.app import AppLauncher
@@ -10,14 +15,14 @@ import shutil
 
 import pytest
 import torch
+from isaaclab_newton.visualizers import NewtonVisualizer, NewtonVisualizerCfg, RerunVisualizer, RerunVisualizerCfg
+from isaaclab_physx.visualizers import KitVisualizer, KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
-from isaaclab_newton.visualizers import NewtonVisualizer, NewtonVisualizerCfg, RerunVisualizer, RerunVisualizerCfg
-from isaaclab_physx.visualizers import KitVisualizer, KitVisualizerCfg
 
 _SMOKE_STEPS = 4
 _VIS_LOGGER_PREFIXES = (
@@ -97,14 +102,10 @@ def _run_visualizer_smoke_test(
                 env.step(action=actions)
 
         visualizer_logs = [
-            r
-            for r in caplog.records
-            if r.levelno >= assert_min_level
-            and r.name.startswith(_VIS_LOGGER_PREFIXES)
+            r for r in caplog.records if r.levelno >= assert_min_level and r.name.startswith(_VIS_LOGGER_PREFIXES)
         ]
-        assert not visualizer_logs, (
-            f"Visualizer emitted {assert_label} logs during smoke stepping: "
-            + "; ".join(f"{r.name}: {r.message}" for r in visualizer_logs)
+        assert not visualizer_logs, f"Visualizer emitted {assert_label} logs during smoke stepping: " + "; ".join(
+            f"{r.name}: {r.message}" for r in visualizer_logs
         )
     finally:
         if env is not None:

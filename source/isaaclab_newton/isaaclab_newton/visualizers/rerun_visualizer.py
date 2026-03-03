@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import os
 import re
@@ -15,9 +16,9 @@ import shutil
 import socket
 import subprocess
 import time
-from urllib.parse import quote
 import webbrowser
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import rerun as rr
 import rerun.blueprint as rrb
@@ -82,10 +83,8 @@ def _terminate_pid(pid: int, timeout_s: float = 2.0) -> bool:
         if not os.path.exists(f"/proc/{pid}"):
             return True
         time.sleep(0.05)
-    try:
+    with contextlib.suppress(OSError):
         os.kill(pid, 9)  # SIGKILL
-    except OSError:
-        pass
     time.sleep(0.05)
     return not os.path.exists(f"/proc/{pid}")
 
@@ -94,10 +93,8 @@ def _stop_managed_rerun_server() -> None:
     global _RERUN_SERVER_PROCESS
     if _RERUN_SERVER_PROCESS is None:
         return
-    try:
+    with contextlib.suppress(OSError):
         _RERUN_SERVER_PROCESS.terminate()
-    except OSError:
-        pass
     _RERUN_SERVER_PROCESS = None
 
 
@@ -127,9 +124,7 @@ def _ensure_rerun_server(
                     f"Rerun web port {web_port} is in use by rerun pid={pid}; "
                     "set auto_kill_stale_rerun_process=True to allow cleanup."
                 )
-            raise RuntimeError(
-                f"Rerun web port {web_port} is in use and not owned by a detectable rerun process."
-            )
+            raise RuntimeError(f"Rerun web port {web_port} is in use and not owned by a detectable rerun process.")
 
     rerun_bin = shutil.which("rerun")
     if rerun_bin is None:
@@ -155,13 +150,16 @@ def _ensure_rerun_server(
         if proc.poll() is not None:
             stderr_txt = ""
             stdout_txt = ""
-            try:
+            with contextlib.suppress(Exception):
                 stdout_txt, stderr_txt = proc.communicate(timeout=0.2)
-            except Exception:
-                pass
             _RERUN_SERVER_PROCESS = None
             detail = "\n".join(
-                part for part in [f"stderr:\n{stderr_txt.strip()}" if stderr_txt.strip() else "", f"stdout:\n{stdout_txt.strip()}" if stdout_txt.strip() else ""] if part
+                part
+                for part in [
+                    f"stderr:\n{stderr_txt.strip()}" if stderr_txt.strip() else "",
+                    f"stdout:\n{stdout_txt.strip()}" if stdout_txt.strip() else "",
+                ]
+                if part
             ).strip()
             raise RuntimeError(detail or "rerun server exited before opening gRPC port.")
         if _is_port_open(grpc_port, host=connect_host):

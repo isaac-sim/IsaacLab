@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Unit tests for PhysxSceneDataProvider visualizer-facing contracts."""
 
 from __future__ import annotations
@@ -42,5 +47,3 @@ def test_get_newton_model_for_env_ids_builds_and_caches_sorted_keys():
     model_c = provider.get_newton_model_for_env_ids([2])
     assert model_c == "filtered-[2]"
     assert build_calls == [[1, 3], [2]]
-
-
