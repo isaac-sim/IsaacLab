@@ -1108,6 +1108,146 @@ directly in your code, update your configuration:
    )
 
 
+XR Teleoperation: Isaac Teleop Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
+by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
+plugin support is now in Isaac Teleop.
+
+For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
+
+
+Installation Requirement
+------------------------
+
+Isaac Teleop must now be installed in your Isaac Lab environment:
+
+.. code-block:: bash
+
+   pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
+
+See :ref:`install-isaac-teleop` for complete installation instructions.
+
+
+Import Changes
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Deprecated (2.x)
+     - New (3.0)
+   * - ``from isaaclab.devices.openxr import OpenXRDevice``
+     - ``from isaaclab_teleop import IsaacTeleopDevice``
+   * - ``from isaaclab.devices.openxr import OpenXRDeviceCfg``
+     - ``from isaaclab_teleop import IsaacTeleopCfg``
+   * - ``from isaaclab.devices.openxr import XrCfg``
+     - ``from isaaclab_teleop import XrCfg``
+   * - ``from isaaclab.devices.openxr import ManusVive``
+     - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
+   * - ``from isaaclab.devices import RetargeterBase``
+     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+   * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
+     - ``from isaacteleop.retargeting_engine.retargeters import Se3AbsRetargeter``
+
+
+Environment Configuration Changes
+----------------------------------
+
+The ``teleop_devices`` field with ``OpenXRDeviceCfg`` has been replaced by the ``isaac_teleop``
+field with ``IsaacTeleopCfg`` and a pipeline builder callable.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.devices import DevicesCfg, OpenXRDeviceCfg
+   from isaaclab.devices.openxr import XrCfg
+   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+
+       xr: XrCfg = XrCfg(anchor_pos=[0.0, 0.0, 0.0])
+
+       teleop_devices: DevicesCfg = field(default_factory=lambda: DevicesCfg(
+           handtracking=OpenXRDeviceCfg(
+               xr_cfg=None,
+               retargeters=[
+                   Se3AbsRetargeterCfg(bound_hand=0, zero_out_xy_rotation=True),
+                   GripperRetargeterCfg(bound_hand=0),
+               ]
+           ),
+       ))
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+   def _build_pipeline():
+       from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+       from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+       from isaacteleop.retargeting_engine.retargeters import (
+           GripperRetargeter, GripperRetargeterConfig,
+           Se3AbsRetargeter, Se3RetargeterConfig, TensorReorderer,
+       )
+       from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
+
+       controllers = ControllersSource(name="controllers")
+       hands = HandsSource(name="hands")
+       transform = ValueInput("world_T_anchor", TransformMatrix())
+       t_controllers = controllers.transformed(transform.output(ValueInput.VALUE))
+
+       se3 = Se3AbsRetargeter(Se3RetargeterConfig(input_device=ControllersSource.RIGHT), name="ee")
+       c_se3 = se3.connect({ControllersSource.RIGHT: t_controllers.output(ControllersSource.RIGHT)})
+
+       grip = GripperRetargeter(GripperRetargeterConfig(hand_side="right"), name="grip")
+       c_grip = grip.connect({
+           ControllersSource.RIGHT: t_controllers.output(ControllersSource.RIGHT),
+           HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+       })
+
+       reorder = TensorReorderer(
+           input_config={"ee": ["pos_x","pos_y","pos_z","quat_x","quat_y","quat_z","quat_w"],
+                         "grip": ["gripper_value"]},
+           output_order=["pos_x","pos_y","pos_z","quat_x","quat_y","quat_z","quat_w","gripper_value"],
+           name="reorder", input_types={"ee": "array", "grip": "scalar"},
+       )
+       c_reorder = reorder.connect({"ee": c_se3.output("ee_pose"), "grip": c_grip.output("gripper_command")})
+       return OutputCombiner({"action": c_reorder.output("output")})
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+
+       xr: XrCfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0))
+
+       def __post_init__(self):
+           super().__post_init__()
+           self.isaac_teleop = IsaacTeleopCfg(
+               pipeline_builder=_build_pipeline,
+               sim_device=self.sim.device,
+               xr_cfg=self.xr,
+           )
+
+
+Backward Compatibility
+----------------------
+
+The old classes still exist and will issue ``DeprecationWarning`` when used:
+
+* ``isaaclab.devices.openxr.OpenXRDevice`` and ``OpenXRDeviceCfg``
+* ``isaaclab.devices.openxr.ManusVive`` and ``ManusViveCfg``
+* All retargeters under ``isaaclab.devices.openxr.retargeters``
+
+Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
+compatibility. These will be removed in a future release.
+
+
 Need Help?
 ~~~~~~~~~~
 
