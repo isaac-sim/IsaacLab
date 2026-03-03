@@ -373,6 +373,22 @@ def resolve_matching_names_values(
     return index_list, names_list, values_list
 
 
+def list_intersection(list1: list[Any], list2: list[Any] | None) -> list[Any]:
+    """Return the intersection of two lists.
+
+    The returned list has elements that are in both input lists.
+
+    Args:
+        list1: The first list.
+        list2: The second list.
+
+    Returns:
+        A new list containing elements that are in both input lists.
+
+    """
+    return list(set(list1) & set(list2)) if list2 is not None else list1
+
+
 def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], bool]) -> str:
     """Find a unique string name based on the predicate function provided.
     The string is appended with "_N", where N is a natural number till the resultant string
