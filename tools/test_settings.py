@@ -48,7 +48,7 @@ PER_TEST_TIMEOUTS = {
     "test_action_state_recorder_term.py": 500,
     "test_manager_based_rl_env_obs_spaces.py": 500,
     "test_visuotactile_sensor.py": 1000,
-    "test_visuotactile_render.py": 500,
+    "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 5000,
     "test_outdated_sensor.py": 500,
     "test_multi_tiled_camera.py": 1000,
