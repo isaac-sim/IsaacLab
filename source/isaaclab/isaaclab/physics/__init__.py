@@ -9,4 +9,5 @@ from isaaclab.utils.module import lazy_export
 
 lazy_export()
 
+from .base_scene_data_provider import BaseSceneDataProvider
 from .scene_data_provider import SceneDataProvider

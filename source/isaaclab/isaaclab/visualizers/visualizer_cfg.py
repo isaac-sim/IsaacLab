@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .visualizer import Visualizer
+    from .base_visualizer import BaseVisualizer
 
 
 @configclass
@@ -69,13 +69,13 @@ class VisualizerCfg:
         """
         return self.visualizer_type
 
-    def create_visualizer(self) -> Visualizer:
+    def create_visualizer(self) -> BaseVisualizer:
         """Create visualizer instance from this config using factory pattern.
 
         Raises:
             ValueError: If visualizer_type is None (base class used directly) or not registered.
         """
-        from . import get_visualizer_class
+        from .visualizer import Visualizer
 
         if self.visualizer_type is None:
             raise ValueError(
@@ -83,15 +83,12 @@ class VisualizerCfg:
                 "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg."
             )
 
-        visualizer_class = get_visualizer_class(self.visualizer_type)
-        if visualizer_class is None:
+        try:
+            return Visualizer(self)
+        except ValueError as exc:
             if self.visualizer_type in ("newton", "rerun"):
                 raise ImportError(
                     f"Visualizer '{self.visualizer_type}' requires the Newton Python module and its dependencies. "
                     "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
-                )
-            raise ValueError(
-                f"Visualizer type '{self.visualizer_type}' is not registered. Valid types: 'newton', 'rerun', 'kit'."
-            )
-
-        return visualizer_class(self)
+                ) from exc
+            raise

@@ -13,17 +13,17 @@ from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
 
-from isaaclab.visualizers.visualizer import Visualizer
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .kit_visualizer_cfg import KitVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.physics import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
 
 
-class KitVisualizer(Visualizer):
+class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
     def __init__(self, cfg: KitVisualizerCfg):
@@ -40,7 +40,7 @@ class KitVisualizer(Visualizer):
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         if self._is_initialized:
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return

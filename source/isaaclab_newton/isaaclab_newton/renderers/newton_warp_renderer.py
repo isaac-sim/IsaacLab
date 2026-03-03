@@ -24,7 +24,7 @@ from isaaclab.visualizers import VisualizerCfg
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors import SensorBase
 
 logger = logging.getLogger(__name__)
@@ -197,5 +197,5 @@ class NewtonWarpRenderer(BaseRenderer):
         if render_data:
             render_data.sensor = None
 
-    def get_scene_data_provider(self) -> SceneDataProvider:
+    def get_scene_data_provider(self) -> BaseSceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

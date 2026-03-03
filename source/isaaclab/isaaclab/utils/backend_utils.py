@@ -6,8 +6,6 @@
 import importlib
 import logging
 
-from isaaclab.sim.simulation_context import SimulationContext
-
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +41,8 @@ class FactoryBase:
         context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
+        from isaaclab.sim.simulation_context import SimulationContext
+
         manager_name = SimulationContext.instance().physics_manager.__name__.lower()
         if "newton" in manager_name:
             return "newton"
@@ -50,6 +50,11 @@ class FactoryBase:
             return "physx"
         else:
             raise ValueError(f"Unknown physics manager: {manager_name}")
+
+    @classmethod
+    def _get_module_name(cls, backend: str) -> str:
+        """Return module path that hosts backend implementation for a given backend key."""
+        return f"isaaclab_{backend}.{cls._module_subpath}"
 
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
@@ -62,7 +67,7 @@ class FactoryBase:
         # This is done to only import the module once.
         if backend not in cls._registry:
             # Construct the module name from the backend and the determined subpath.
-            module_name = f"isaaclab_{backend}.{cls._module_subpath}"
+            module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)

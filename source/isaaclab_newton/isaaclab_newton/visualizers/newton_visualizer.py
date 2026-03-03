@@ -14,14 +14,14 @@ import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
-from isaaclab.visualizers.visualizer import Visualizer
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.physics import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -202,7 +202,7 @@ class NewtonViewerGL(ViewerGL):
         return
 
 
-class NewtonVisualizer(Visualizer):
+class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
 
     def __init__(self, cfg: NewtonVisualizerCfg):
@@ -217,7 +217,7 @@ class NewtonVisualizer(Visualizer):
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return

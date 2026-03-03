@@ -11,10 +11,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.visualizers.visualizer import Visualizer
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
-class _DummyVisualizer(Visualizer):
+class _DummyVisualizer(BaseVisualizer):
     def initialize(self, scene_data_provider) -> None:
         self._scene_data_provider = scene_data_provider
         self._is_initialized = True

@@ -16,6 +16,8 @@ import warp as wp
 
 from pxr import UsdGeom
 
+from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+
 logger = logging.getLogger(__name__)
 
 # Path pattern for env prims: /World/envs/env_<id>/...
@@ -44,7 +46,7 @@ def _set_body_q_subset_kernel(
     body_q[bi] = wp.transformf(positions[i], orientations[i])
 
 
-class PhysxSceneDataProvider:
+class PhysxSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Omni PhysX backend.
 
     Supports:

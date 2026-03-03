@@ -3,58 +3,44 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene data provider interface for visualizers and renderers."""
+"""Factory for creating scene data provider instances."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING
+
+from isaaclab.utils.backend_utils import FactoryBase
+
+from .base_scene_data_provider import BaseSceneDataProvider
+
+if TYPE_CHECKING:
+    from isaaclab.sim import SimulationContext
 
 
-class SceneDataProvider(ABC):
-    """Backend-agnostic scene data provider interface."""
+class SceneDataProvider(FactoryBase, BaseSceneDataProvider):
+    """Factory for creating scene data provider instances."""
 
-    @abstractmethod
-    def update(self, env_ids: list[int] | None = None) -> None:
-        """Refresh any cached scene data."""
-        raise NotImplementedError
+    _backend_class_names = {"physx": "PhysxSceneDataProvider", "newton": "NewtonSceneDataProvider"}
 
-    @abstractmethod
-    def get_newton_model(self) -> Any | None:
-        """Return Newton model handle when available."""
-        raise NotImplementedError
+    @classmethod
+    def _get_backend(cls, visualizer_cfgs, stage, simulation_context: SimulationContext, *args, **kwargs) -> str:
+        manager_name = simulation_context.physics_manager.__name__.lower()
+        if "newton" in manager_name:
+            return "newton"
+        if "physx" in manager_name:
+            return "physx"
+        raise ValueError(f"Unknown physics manager: {manager_name}")
 
-    @abstractmethod
-    def get_newton_state(self, env_ids: list[int] | None = None) -> Any | None:
-        """Return Newton state handle when available."""
-        raise NotImplementedError
+    @classmethod
+    def _get_module_name(cls, backend: str) -> str:
+        return f"isaaclab_{backend}.scene_data_providers"
 
-    @abstractmethod
-    def get_usd_stage(self) -> Any | None:
-        """Return USD stage handle when available."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_metadata(self) -> dict[str, Any]:
-        """Return backend metadata (num_envs, gravity, etc.)."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_transforms(self) -> dict[str, Any] | None:
-        """Return body transforms, if supported."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_velocities(self) -> dict[str, Any] | None:
-        """Return body velocities, if supported."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_contacts(self) -> dict[str, Any] | None:
-        """Return contacts, if supported."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_camera_transforms(self) -> dict[str, Any] | None:
-        """Return per-camera, per-env transforms, if supported."""
-        raise NotImplementedError
+    def __new__(
+        cls, visualizer_cfgs, stage, simulation_context: SimulationContext, *args, **kwargs
+    ) -> BaseSceneDataProvider:
+        """Create a new scene data provider based on the active physics backend."""
+        result = super().__new__(cls, visualizer_cfgs, stage, simulation_context, *args, **kwargs)
+        if not isinstance(result, BaseSceneDataProvider):
+            name = type(result).__name__
+            raise TypeError(f"Backend scene data provider {name!r} must inherit from BaseSceneDataProvider.")
+        return result

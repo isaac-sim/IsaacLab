@@ -24,12 +24,12 @@ import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
 
-from isaaclab.visualizers.visualizer import Visualizer
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
 
 logger = logging.getLogger(__name__)
 _RERUN_SERVER_PROCESS: subprocess.Popen | None = None
@@ -204,7 +204,7 @@ class NewtonViewerRerun(ViewerRerun):
                 self._paused_rendering = not self._paused_rendering
 
 
-class RerunVisualizer(Visualizer):
+class RerunVisualizer(BaseVisualizer):
     """Rerun visualizer for Isaac Lab."""
 
     def __init__(self, cfg: RerunVisualizerCfg):
@@ -218,7 +218,7 @@ class RerunVisualizer(Visualizer):
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         if self._is_initialized:
             return
         if scene_data_provider is None:

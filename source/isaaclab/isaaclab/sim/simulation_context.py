@@ -21,10 +21,10 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.physics import PhysicsManager, SceneDataProvider
+from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
-from isaaclab.visualizers.visualizer import Visualizer
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -148,8 +148,8 @@ class SimulationContext:
         self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
-        self._scene_data_provider: SceneDataProvider | None = None
-        self._visualizers: list[Visualizer] = []
+        self._scene_data_provider: BaseSceneDataProvider | None = None
+        self._visualizers: list[BaseVisualizer] = []
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -432,21 +432,13 @@ class SimulationContext:
                 close_provider()
             self._scene_data_provider = None
 
-    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
+    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> BaseSceneDataProvider:
         if self._scene_data_provider is None:
-            backend_name = self.physics_manager.__name__.lower()
-            if "newton" in backend_name:
-                from isaaclab_newton.scene_data_providers import NewtonSceneDataProvider
-
-                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage, self)
-            else:
-                from isaaclab_physx.scene_data_providers import PhysxSceneDataProvider
-
-                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+            self._scene_data_provider = SceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property
-    def visualizers(self) -> list[Visualizer]:
+    def visualizers(self) -> list[BaseVisualizer]:
         """Returns the list of active visualizers."""
         return self._visualizers
 

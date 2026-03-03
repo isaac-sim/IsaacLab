@@ -14,12 +14,14 @@ from typing import Any
 
 from pxr import UsdGeom
 
+from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+
 logger = logging.getLogger(__name__)
 
 _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
 
 
-class NewtonSceneDataProvider:
+class NewtonSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Newton physics backend.
 
     Provides access to Newton model, state, and USD stage for visualizers and renderers.
