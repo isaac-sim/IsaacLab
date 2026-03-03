@@ -150,9 +150,9 @@ def parse_env_cfg(
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
     # resolve PresetCfg fields (e.g. physics) to their default values
-    from isaaclab_tasks.utils.hydra import _resolve_preset_defaults
+    from isaaclab_tasks.utils.hydra import resolve_preset_defaults
 
-    _resolve_preset_defaults(cfg)
+    cfg = resolve_preset_defaults(cfg)
 
     # simulation device
     cfg.sim.device = device
