@@ -19,6 +19,7 @@ from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ovrtx.renderers import OVRTXRendererCfg
 
 
 @configclass
@@ -32,7 +33,7 @@ class PhysicsCfg(PresetCfg):
 class MultiBackendRendererCfg(PresetCfg):
     default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
-    ovrtx: IsaacRtxRendererCfg = default
+    ovrtx: IsaacRtxRendererCfg = OVRTXRendererCfg()
 
 @configclass
 class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):

@@ -162,6 +162,12 @@ class TiledCamera(Camera):
 
         # Initialize parent class
         SensorBase._initialize_impl(self)
+
+        # Create renderer after scene is ready (post-cloning) so world_count is correct
+        self.renderer = Renderer(self.cfg.renderer_cfg)
+        logger.info("Using renderer: %s", type(self.renderer).__name__)
+        self.render_data = self.renderer.create_render_data(self)
+
         # Create a view for the sensor
         self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
@@ -185,12 +191,6 @@ class TiledCamera(Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
-
-        # Create renderer after scene is ready (post-cloning) so world_count is correct
-        self.renderer = Renderer(self.cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self.renderer).__name__)
-
-        self.render_data = self.renderer.create_render_data(self)
 
         # Create internal buffers
         self._create_buffers()

@@ -235,7 +235,7 @@ class Camera(SensorBase):
 
     @property
     def num_instances(self) -> int:
-        return self._view.count
+        return self._num_envs
 
     @property
     def data(self) -> CameraData:
