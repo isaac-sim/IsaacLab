@@ -52,10 +52,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     """
     # check if Kit is available (required for shader creation commands)
     if not has_kit():
-        logging.warning(
-            f"Cannot spawn preview surface material '{prim_path}' in kitless mode. "
-            "This functionality requires Kit/Isaac Sim as it uses omni.usd.commands."
-        )
+        logger.warning("Skipping preview surface material at '%s' — Kit is not available.", prim_path)
         return None
 
     # get stage handle
@@ -138,10 +135,8 @@ def spawn_from_mdl_file(
     """
     # check if Kit is available (required for MDL material creation commands)
     if not has_kit():
-        raise RuntimeError(
-            f"Cannot spawn MDL material '{prim_path}' in kitless mode. "
-            "This functionality requires Kit/Isaac Sim as it uses omni.usd.commands."
-        )
+        logger.warning("Skipping MDL material at '%s' — Kit is not available.", prim_path)
+        return None
 
     # get stage handle
     stage = get_current_stage()

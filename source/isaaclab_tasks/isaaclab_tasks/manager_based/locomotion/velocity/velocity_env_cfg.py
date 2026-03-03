@@ -6,9 +6,7 @@
 import math
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -160,7 +158,7 @@ class ObservationsCfg:
 
 
 @configclass
-class VelocityEnvEventsCfg:
+class EventsCfg:
     """Configuration for events."""
 
     # reset
@@ -209,7 +207,7 @@ class VelocityEnvEventsCfg:
 
 
 @configclass
-class EventsCfg(VelocityEnvEventsCfg):
+class StartupEventsCfg:
     # startup
     physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -241,10 +239,6 @@ class EventsCfg(VelocityEnvEventsCfg):
             "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
         },
     )
-
-    presets: dict[str, VelocityEnvEventsCfg] = {
-        "newton": VelocityEnvEventsCfg(),
-    }
 
 
 @configclass
@@ -307,26 +301,6 @@ class CurriculumCfg:
 
 
 @configclass
-class PhysicsCfg:
-    presets = {
-        "default": PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15),
-        "newton": NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=170,
-                nconmax=30,
-                ls_iterations=30,
-                cone="pyramidal",
-                impratio=1,
-                ls_parallel=True,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        ),
-    }
-
-
-@configclass
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
@@ -339,7 +313,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventsCfg = EventsCfg()
+    events: EventsCfg = MISSING
     curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
@@ -351,7 +325,6 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.physics = PhysicsCfg()
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
