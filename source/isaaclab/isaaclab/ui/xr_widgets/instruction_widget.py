@@ -158,9 +158,13 @@ def show_instruction(
         UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
     """
 
-    import carb
-    from omni.kit.scene_view.xr import XRSceneView
-    from omni.kit.scene_view.xr_utils import SpatialSource, UiContainer, WidgetComponent
+    try:
+        import carb
+        from omni.kit.scene_view.xr import XRSceneView
+        from omni.kit.scene_view.xr_utils import SpatialSource, UiContainer, WidgetComponent
+    except Exception as e:
+        print(f"Failed to import XR widget dependencies: {e}")
+        return None
 
     global camera_facing_widget_container, camera_facing_widget_timers
 
