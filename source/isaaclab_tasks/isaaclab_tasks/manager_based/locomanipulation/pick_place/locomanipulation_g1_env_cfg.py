@@ -54,9 +54,7 @@ def _build_g1_locomanipulation_pipeline():
         OutputCombiner with a single "action" output containing the flattened
         32D action tensor: [left_wrist(7), right_wrist(7), hand_joints(14), locomotion(4)].
     """
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-    from isaacteleop.retargeting_engine.retargeters import (
+    from isaacteleop.retargeters import (
         LocomotionRootCmdRetargeter,
         LocomotionRootCmdRetargeterConfig,
         Se3AbsRetargeter,
@@ -65,6 +63,8 @@ def _build_g1_locomanipulation_pipeline():
         TriHandMotionControllerConfig,
         TriHandMotionControllerRetargeter,
     )
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
     # Create input sources (trackers are auto-discovered from pipeline)

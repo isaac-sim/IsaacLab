@@ -221,7 +221,7 @@ manipulator (from ``stack_ik_abs_env_cfg.py``):
    def _build_franka_stack_pipeline():
        from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
        from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-       from isaacteleop.retargeting_engine.retargeters import (
+       from isaacteleop.retargeters import (
            GripperRetargeter, GripperRetargeterConfig,
            Se3AbsRetargeter, Se3RetargeterConfig,
            TensorReorderer,
