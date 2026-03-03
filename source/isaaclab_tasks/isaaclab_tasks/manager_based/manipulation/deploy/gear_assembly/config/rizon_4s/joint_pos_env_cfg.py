@@ -80,30 +80,30 @@ class EventCfg:
 
     # NOTE: Domain randomization for actuator gains and joint friction disabled for stability.
     # Re-enable once the base simulation is stable and working.
-    # robot_joint_stiffness_and_damping = EventTerm(
-    #     func=mdp.randomize_actuator_gains,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg(
-    #             "robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]
-    #         ),
-    #         "stiffness_distribution_params": (0.75, 1.5),
-    #         "damping_distribution_params": (0.3, 3.0),
-    #         "operation": "scale",
-    #         "distribution": "log_uniform",
-    #     },
-    # )
+    robot_joint_stiffness_and_damping = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]
+            ),
+            "stiffness_distribution_params": (0.75, 1.5),
+            "damping_distribution_params": (0.3, 3.0),
+            "operation": "scale",
+            "distribution": "log_uniform",
+        },
+    )
 
-    # joint_friction = EventTerm(
-    #     func=mdp.randomize_joint_parameters,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
-    #         "friction_distribution_params": (0.3, 0.7),
-    #         "operation": "add",
-    #         "distribution": "uniform",
-    #     },
-    # )
+    joint_friction = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
+            "friction_distribution_params": (0.3, 0.7),
+            "operation": "add",
+            "distribution": "uniform",
+        },
+    )
 
     small_gear_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
