@@ -525,6 +525,13 @@ class ObservationManager(ManagerBase):
             # TODO(jichuanh): This is not migrated yet. Need revisit.
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
+                # circular buffer is not capture safe
+                if wp.get_device().is_capturing:
+                    raise RuntimeError(
+                        "Observation terms with history (circular buffer) are not CUDA-graph-capture-safe yet. "
+                        "Disable history for observation terms used inside a captured graph, or restructure "
+                        "the graph to exclude history-buffered terms."
+                    )
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
                 if update_history:
                     circular_buffer.append(wp.to_torch(term_cfg.out_wp))

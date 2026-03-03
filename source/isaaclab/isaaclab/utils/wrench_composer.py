@@ -12,9 +12,11 @@ import warp as wp
 
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
 from isaaclab.utils.warp.update_kernels import update_array2D_with_value_masked
-from isaaclab.utils.warp.utils import make_complete_data_from_torch_dual_index, make_mask_from_torch_ids
+from isaaclab.utils.warp.utils import make_complete_data_from_torch_dual_index, resolve_1d_mask
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from isaaclab.assets.articulation.base_articulation import BaseArticulation
     from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 
@@ -39,9 +41,18 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
 
-        # Avoid isinstance here due to potential circular import issues; check by attribute presence instead.
-        if hasattr(self._asset.data, "body_com_pose_w"):
-            self._com_pose = self._asset.data.body_com_pose_w
+        # Store references to Tier 1 (sim-bind) buffers for COM pose computation.
+        # We intentionally avoid caching body_com_pose_w (a Tier 2 derived property) because
+        # it is lazily computed via a Python timestamp guard.  Saving the .data pointer at init
+        # time would freeze it at the initial value — subsequent steps would read stale COM
+        # world poses since nothing triggers the lazy recomputation.  Instead, we keep the two
+        # Tier 1 inputs (body_link_pose_w and body_com_pos_b) and let the wrench kernels
+        # compute the COM pose inline.  This is both correct in eager mode and CUDA-graph-
+        # capture safe (Tier 1 buffers are stable sim-bind pointers updated by the solver).
+        data = self._asset.data
+        if hasattr(data, "body_link_pose_w") and hasattr(data, "body_com_pos_b"):
+            self._body_link_pose_w = data.body_link_pose_w
+            self._body_com_pos_b = data.body_com_pos_b
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
@@ -87,6 +98,42 @@ class WrenchComposer:
         """
         return self._composed_torque_b
 
+    # ------------------------------------------------------------------
+    # Mask resolution (follows ManagerBasedEnvWarp.resolve_env_mask style)
+    # ------------------------------------------------------------------
+
+    def _resolve_env_mask(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
+    ) -> wp.array:
+        """Resolve environment ids/mask into a warp boolean mask of shape ``(num_envs,)``."""
+        return resolve_1d_mask(
+            ids=env_ids,
+            mask=env_mask,
+            all_mask=self._ALL_ENV_MASK_WP,
+            scratch_mask=self._temp_env_mask_wp,
+            device=self.device,
+        )
+
+    def _resolve_body_mask(
+        self,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_mask: wp.array | torch.Tensor | None = None,
+    ) -> wp.array:
+        """Resolve body ids/mask into a warp boolean mask of shape ``(num_bodies,)``."""
+        return resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK_WP,
+            scratch_mask=self._temp_body_mask_wp,
+            device=self.device,
+        )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def add_forces_and_torques(
         self,
         forces: wp.array | torch.Tensor | None = None,
@@ -120,59 +167,55 @@ class WrenchComposer:
         Raises:
             RuntimeError: If the provided inputs are not supported.
         """
-        if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor) or isinstance(positions, torch.Tensor):
-            try:
-                env_mask = make_mask_from_torch_ids(
-                    self.num_envs, env_ids, env_mask, device=self.device, out=self._temp_env_mask_wp
-                )
-                body_mask = make_mask_from_torch_ids(
-                    self.num_bodies, body_ids, body_mask, device=self.device, out=self._temp_body_mask_wp
-                )
-                if forces is not None:
-                    forces = make_complete_data_from_torch_dual_index(
-                        forces,
-                        self.num_envs,
-                        self.num_bodies,
-                        env_ids,
-                        body_ids,
-                        dtype=wp.vec3f,
-                        device=self.device,
-                        out=self._temp_forces_wp,
-                    )
-                if torques is not None:
-                    torques = make_complete_data_from_torch_dual_index(
-                        torques,
-                        self.num_envs,
-                        self.num_bodies,
-                        env_ids,
-                        body_ids,
-                        dtype=wp.vec3f,
-                        device=self.device,
-                        out=self._temp_torques_wp,
-                    )
-                if positions is not None:
-                    positions = make_complete_data_from_torch_dual_index(
-                        positions,
-                        self.num_envs,
-                        self.num_bodies,
-                        env_ids,
-                        body_ids,
-                        dtype=wp.vec3f,
-                        device=self.device,
-                        out=self._temp_positions_wp,
-                    )
-            except Exception as e:
-                raise RuntimeError(
-                    f"Provided inputs are not supported: {e}. When using torch tensors, we expect partial data to be"
-                    " provided. And all the tensors to come from torch."
-                )
+        # -- Preparation: resolve every input to a fixed warp array --
+        # Mask resolution is unconditional; resolve_1d_mask handles capture guards internally
+        # (rejects torch/id paths during capture, allows None→all_mask and wp.array passthrough).
+        env_mask = self._resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        body_mask = self._resolve_body_mask(body_ids=body_ids, body_mask=body_mask)
 
-        if body_mask is None:
-            body_mask = self._ALL_BODY_MASK_WP
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK_WP
+        if forces is not None and not isinstance(forces, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError("WrenchComposer.add_forces_and_torques requires warp arrays during capture.")
+            forces = make_complete_data_from_torch_dual_index(
+                forces,
+                self.num_envs,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_forces_wp,
+            )
 
-        # Set the active flag to true
+        if torques is not None and not isinstance(torques, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError("WrenchComposer.add_forces_and_torques requires warp arrays during capture.")
+            torques = make_complete_data_from_torch_dual_index(
+                torques,
+                self.num_envs,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_torques_wp,
+            )
+
+        if positions is not None and not isinstance(positions, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError("WrenchComposer.add_forces_and_torques requires warp arrays during capture.")
+            positions = make_complete_data_from_torch_dual_index(
+                positions,
+                self.num_envs,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_positions_wp,
+            )
+
+        # -- Main ops (capturable): all inputs are now resolved warp arrays --
         self._active = True
 
         wp.launch(
@@ -184,7 +227,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._com_pose,
+                self._body_link_pose_w,
+                self._body_com_pos_b,
                 self._composed_force_b,
                 self._composed_torque_b,
                 is_global,
@@ -224,7 +268,14 @@ class WrenchComposer:
             RuntimeError: If the provided inputs are not supported.
         """
 
-        if isinstance(forces, torch.Tensor):
+        # -- Preparation: resolve every input to a fixed warp array --
+        # Mask resolution is unconditional; resolve_1d_mask handles capture guards internally.
+        env_mask = self._resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        body_mask = self._resolve_body_mask(body_ids=body_ids, body_mask=body_mask)
+
+        if forces is not None and not isinstance(forces, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError("WrenchComposer.set_forces_and_torques requires warp arrays during capture.")
             forces = make_complete_data_from_torch_dual_index(
                 forces,
                 self.num_envs,
@@ -235,7 +286,10 @@ class WrenchComposer:
                 device=self.device,
                 out=self._temp_forces_wp,
             )
-        if isinstance(torques, torch.Tensor):
+
+        if torques is not None and not isinstance(torques, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError("WrenchComposer.set_forces_and_torques requires warp arrays during capture.")
             torques = make_complete_data_from_torch_dual_index(
                 torques,
                 self.num_envs,
@@ -246,7 +300,10 @@ class WrenchComposer:
                 device=self.device,
                 out=self._temp_torques_wp,
             )
-        if isinstance(positions, torch.Tensor):
+
+        if positions is not None and not isinstance(positions, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError("WrenchComposer.set_forces_and_torques requires warp arrays during capture.")
             positions = make_complete_data_from_torch_dual_index(
                 positions,
                 self.num_envs,
@@ -258,18 +315,7 @@ class WrenchComposer:
                 out=self._temp_positions_wp,
             )
 
-        body_mask = make_mask_from_torch_ids(
-            self.num_bodies, body_ids, body_mask, device=self.device, out=self._temp_body_mask_wp
-        )
-        if body_mask is None:
-            body_mask = self._ALL_BODY_MASK_WP
-        env_mask = make_mask_from_torch_ids(
-            self.num_envs, env_ids, env_mask, device=self.device, out=self._temp_env_mask_wp
-        )
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK_WP
-
-        # Set the active flag to true
+        # -- Main ops (capturable): all inputs are now resolved warp arrays --
         self._active = True
 
         wp.launch(
@@ -281,7 +327,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._com_pose,
+                self._body_link_pose_w,
+                self._body_com_pos_b,
                 self._composed_force_b,
                 self._composed_torque_b,
                 is_global,
@@ -297,14 +344,21 @@ class WrenchComposer:
         .. note:: This function should be called after every simulation step / reset to ensure no force is carried
         over to the next step.
         """
-        if env_ids is None and env_mask is None:
+        # -- Preparation: resolve env_mask --
+        if env_ids is not None or (env_mask is not None and not isinstance(env_mask, wp.array)):
+            if wp.get_device().is_capturing:
+                raise RuntimeError(
+                    "WrenchComposer.reset requires env_mask(wp.array[bool]) during capture. "
+                    "Do not pass env_ids on captured paths."
+                )
+            env_mask = self._resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+
+        # -- Main ops (capturable) --
+        if env_mask is None:
             self._composed_force_b.zero_()
             self._composed_torque_b.zero_()
             self._active = False
         else:
-            if env_ids is not None:
-                env_mask = make_mask_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
-
             wp.launch(
                 update_array2D_with_value_masked,
                 dim=(self.num_envs, self.num_bodies),

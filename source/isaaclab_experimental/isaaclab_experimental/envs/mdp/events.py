@@ -24,11 +24,15 @@ Notes:
 
 from __future__ import annotations
 
+import logging
+
 import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_experimental.utils.warp import warp_capturable
 
 from isaaclab.assets import Articulation
+
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass
@@ -134,7 +138,6 @@ def _apply_external_force_torque_kernel(
     rng_state[env_id] = state
 
 
-@warp_capturable(False)
 def apply_external_force_torque(
     env,
     env_mask: wp.array,
@@ -215,7 +218,6 @@ def _push_by_setting_velocity_kernel(
     rng_state[env_id] = state
 
 
-@warp_capturable(False)
 def push_by_setting_velocity(
     env,
     env_mask: wp.array,
@@ -325,7 +327,6 @@ def _reset_root_state_uniform_kernel(
     rng_state[env_id] = state
 
 
-@warp_capturable(False)
 def reset_root_state_uniform(
     env,
     env_mask: wp.array,
