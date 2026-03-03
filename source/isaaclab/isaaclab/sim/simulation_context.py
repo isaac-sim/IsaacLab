@@ -23,6 +23,7 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage
+from isaaclab.utils.version import has_kit
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
@@ -124,7 +125,7 @@ class SimulationContext:
 
         # When Kit is running, attach the stage to Kit's USD context so that
         # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        if sim_utils.has_kit():
+        if has_kit():
             import omni.usd
 
             kit_context = omni.usd.get_context()
@@ -424,13 +425,14 @@ class SimulationContext:
 
     def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
         if self._scene_data_provider is None:
-            from .scene_data_providers import PhysxSceneDataProvider
+            if "newton" in self.physics_manager.__name__.lower():
+                from .scene_data_providers import NewtonSceneDataProvider
 
-            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-            # switch provider selection to route by physics backend:
-            # - Omni/PhysX -> PhysxSceneDataProvider
-            # - Newton/Warp -> NewtonSceneDataProvider
-            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage, self)
+            else:
+                from .scene_data_providers import PhysxSceneDataProvider
+
+                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property

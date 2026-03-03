@@ -19,6 +19,8 @@ _RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton"}
 class Renderer(FactoryBase, BaseRenderer):
     """Factory for creating renderer instances."""
 
+    _backend_class_names = {"physx": "IsaacRtxRenderer", "newton": "NewtonWarpRenderer"}
+
     @classmethod
     def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
         return _RENDERER_TYPE_TO_BACKEND.get(cfg.renderer_type, "physx")

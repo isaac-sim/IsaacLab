@@ -2,13 +2,19 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
+
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 
 class RslRlVecEnvWrapper(VecEnv):
@@ -36,12 +42,11 @@ class RslRlVecEnvWrapper(VecEnv):
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
-
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        if not isinstance(env.unwrapped.cfg, (ManagerBasedRLEnvCfg, ManagerBasedEnvCfg, DirectRLEnvCfg)):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
-                f" {type(env)}"
+                f" {type(env.unwrapped.cfg)}"
             )
 
         # initialize the wrapper

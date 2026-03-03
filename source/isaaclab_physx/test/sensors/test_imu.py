@@ -83,12 +83,16 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulations - robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
-    # pendulum1
+    # pendulum1 - uses merge_fixed_joints=True (same as pendulum2) so that fixed-joint
+    # child links (base, imu_link) are merged into their parents during URDF XML
+    # pre-processing. This avoids fixed-joint constraint violations at velocity level
+    # (the solver uses velocity_iteration_count=0). A non-physics imu_link Xform is
+    # created programmatically in the test fixture (see setup_sim).
     pendulum = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/pendulum",
         spawn=sim_utils.UrdfFileCfg(
             fix_base=True,
-            merge_fixed_joints=False,
+            merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -103,7 +107,9 @@ class MySceneCfg(InteractiveSceneCfg):
             "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
         },
     )
-    # pendulum2
+    # pendulum2 - uses merge_fixed_joints=True so that the fixed-joint child links (base, imu_link)
+    # are merged into their parents during URDF XML pre-processing. A non-physics imu_link Xform
+    # is created programmatically in the test fixture to test indirect IMU attachment (see setup_sim).
     pendulum2 = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/pendulum2",
         spawn=sim_utils.UrdfFileCfg(
@@ -153,14 +159,18 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
         gravity_bias=(0.0, 0.0, 0.0),
     )
+    # The new URDF converter (urdf-usd-converter) places links under Geometry/ in a nested
+    # kinematic tree.  With merge_fixed_joints=True the hierarchy for simple_2_link.urdf is:
+    #   Geometry/world/link_1  (base merged into world, imu_link merged into link_1)
+    # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
     imu_indirect_pendulum_link: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/link_1/imu_link",
+        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
         debug_vis=not app_launcher._headless,
         visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
         gravity_bias=(0.0, 0.0, 9.81),
     )
     imu_indirect_pendulum_base: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/link_1",
+        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
         offset=ImuCfg.OffsetCfg(
             pos=PEND_POS_OFFSET,
             rot=PEND_ROT_OFFSET,
@@ -170,13 +180,13 @@ class MySceneCfg(InteractiveSceneCfg):
         gravity_bias=(0.0, 0.0, 9.81),
     )
     imu_pendulum_imu_link: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum/imu_link",
+        prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
         debug_vis=not app_launcher._headless,
         visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
         gravity_bias=(0.0, 0.0, 9.81),
     )
     imu_pendulum_base: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum/link_1",
+        prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1",
         offset=ImuCfg.OffsetCfg(
             pos=PEND_POS_OFFSET,
             rot=PEND_ROT_OFFSET,
@@ -209,8 +219,18 @@ def setup_sim():
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # construct scene
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False, replicate_physics=False)
         scene = InteractiveScene(scene_cfg)
+        # Both pendulum and pendulum2 use merge_fixed_joints=True, so the
+        # fixed-joint child link imu_link is removed from the URDF before USD
+        # conversion.  Recreate it as a plain Xform (no RigidBodyAPI) under each
+        # pendulum's link_1 for every environment.  The IMU sensor must then
+        # resolve the rigid-body ancestor (link_1) and cache the fixed offset —
+        # exercising the "indirect attachment" code path.
+        for i in range(scene_cfg.num_envs):
+            for art_name in ("pendulum", "pendulum2"):
+                prim_path = f"/World/envs/env_{i}/{art_name}/Geometry/world/link_1/imu_link"
+                sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
         # Play the simulator
         sim.reset()
         yield sim, scene

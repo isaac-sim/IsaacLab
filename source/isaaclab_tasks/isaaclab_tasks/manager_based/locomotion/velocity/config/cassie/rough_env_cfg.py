@@ -8,7 +8,13 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RewardsCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
+    EventsCfg,
+    LocomotionVelocityRoughEnvCfg,
+    RewardsCfg,
+    StartupEventsCfg,
+)
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -47,26 +53,13 @@ class CassieRewardsCfg(RewardsCfg):
 
 
 @configclass
-class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    """Cassie rough environment configuration."""
-
-    rewards: CassieRewardsCfg = CassieRewardsCfg()
-
+class CassieNewtonEventsCfg(EventsCfg):
     def __post_init__(self):
         super().__post_init__()
-        # scene
-        self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
-
-        # actions
-        self.actions.joint_pos.scale = 0.5
-
-        # events
-        self.events.push_robot = None
-        self.events.add_base_mass = None
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
-        self.events.reset_base.params = {
+        self.push_robot = None
+        self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        self.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
+        self.reset_base.params = {
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
                 "x": (0.0, 0.0),
@@ -77,7 +70,38 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
-        self.events.base_com = None
+
+
+@configclass
+class CassiePhysxEventsCfg(CassieNewtonEventsCfg, StartupEventsCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.add_base_mass = None
+        self.base_com = None
+
+
+@configclass
+class CassieEventsCfg(PresetCfg):
+    default = CassiePhysxEventsCfg()
+    newton = CassieNewtonEventsCfg()
+    physx = default
+
+
+@configclass
+class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Cassie rough environment configuration."""
+
+    rewards: CassieRewardsCfg = CassieRewardsCfg()
+    events: CassieEventsCfg = CassieEventsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        # scene
+        self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
+
+        # actions
+        self.actions.joint_pos.scale = 0.5
 
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]

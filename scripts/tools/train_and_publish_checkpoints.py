@@ -152,7 +152,9 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
 
 # Need somewhere to publish
 if args.publish_checkpoint and not has_pretrained_checkpoints_asset_root_dir():
-    raise Exception("A /persistent/isaaclab/asset_root/pretrained_checkpoints setting is required to publish.")
+    raise Exception(
+        "An asset root directory (persistent.isaac.asset_root.cloud) must be configured in the app kit file to publish."
+    )
 
 
 def train_job(workflow, task_name, headless=False, force=False, num_envs=None):

@@ -254,6 +254,9 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 # NuRec
 omni.rtx.nre.compositing.rendererHints = 3
 
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 [settings.app.livestream]
 outDirectory = "${data}"
 

@@ -36,6 +36,9 @@ cameras_enabled = true
 [settings]
 xr.profile.ar.enabled = true
 
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
 interceptSysStdOutput = false

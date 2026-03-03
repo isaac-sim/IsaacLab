@@ -15,7 +15,7 @@ from pink.tasks import FrameTask
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik import PinkIKController
-from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
+from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:

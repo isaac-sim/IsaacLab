@@ -14,7 +14,6 @@ import numpy as np
 import torch
 
 import omni.kit.app
-import omni.timeline
 
 from isaaclab.assets.articulation.articulation import Articulation
 

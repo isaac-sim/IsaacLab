@@ -5,7 +5,12 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
+    EventsCfg,
+    LocomotionVelocityRoughEnvCfg,
+    StartupEventsCfg,
+)
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -14,11 +19,25 @@ from isaaclab_assets import ANYMAL_B_CFG  # isort: skip
 
 
 @configclass
+class AnymalBPhysxEventsCfg(EventsCfg, StartupEventsCfg):
+    pass
+
+
+@configclass
+class AnymalBEventsCfg(PresetCfg):
+    default = AnymalBPhysxEventsCfg()
+    newton = EventsCfg()
+    physx = default
+
+
+@configclass
 class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    events: AnymalBEventsCfg = AnymalBEventsCfg()
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        # switch robot to anymal-d
+        # switch robot to anymal-b
         self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 

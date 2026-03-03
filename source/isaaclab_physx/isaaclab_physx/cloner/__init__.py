@@ -3,6 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .physx_replicate import physx_replicate
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["physx_replicate"]
+lazy_export()

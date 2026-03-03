@@ -120,6 +120,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Features
 
+   source/features/isaac_teleop
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training

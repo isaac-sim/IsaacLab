@@ -1,6 +1,63 @@
 Changelog
 ---------
 
+4.5.1 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added interface-conformance test suites that verify data property shapes/dtypes, writer
+  methods, setters, and alias consistency across Mock and PhysX backends:
+
+  - ``test/assets/test_articulation_iface.py`` for
+    :class:`~isaaclab.assets.BaseArticulation`.
+  - ``test/assets/test_rigid_object_iface.py`` for
+    :class:`~isaaclab.assets.BaseRigidObject`.
+  - ``test/assets/test_rigid_object_collection_iface.py`` for
+    :class:`~isaaclab.assets.BaseRigidObjectCollection`.
+
+Fixed
+^^^^^
+
+* Fixed structured warp types in ``MockArticulationData``, ``MockRigidObjectData``, and
+  ``MockRigidObjectCollectionData``: velocity, acceleration, and limit properties now
+  return the correct structured dtypes (``wp.spatial_vectorf``, ``wp.vec2f``, etc.) and
+  sliced velocity properties use zero-copy pointer arithmetic instead of torch-based
+  slicing, matching the PhysX backend contract.
+
+* Added shape and dtype validation to all ``_index`` / ``_mask`` writer methods in
+  ``MockArticulation``, ``MockRigidObject``, and ``MockRigidObjectCollection``, replacing
+  bare ``pass`` stubs.
+
+* Fixed ``set_coms_index`` / ``set_coms_mask`` docstrings in
+  :class:`~isaaclab.assets.BaseArticulation` to document the correct dtype
+  (``wp.transformf``) and frame of reference (body link frame).
+
+
+4.5.0 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced ``omni.kit.commands`` and async Nucleus calls in asset utilities, prim
+  helpers.
+
+
+4.4.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated lazy-loading to ``lazy_loader.attach_stub`` with ``.pyi`` stubs as the
+  single source of truth for module exports.  Removed the old ``attach_cascading``
+  helper, avoided eager callable resolution during deepcopy of
+  :class:`~isaaclab.utils.string.ResolvableString`, and updated MDP
+  exports/import boundaries so ``test_env_cfg_no_forbidden_imports.py`` passes
+  without importing runtime modules.
+
 
 4.3.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
@@ -60,6 +117,17 @@ Changed
 * Updated :func:`~isaaclab.utils.dict.update_class_from_dict` to stop eagerly resolving
   callable strings during updates. Callable-string inputs are now preserved as lazy
   :class:`~isaaclab.utils.string.ResolvableString` values and resolve only on first use.
+
+
+4.2.3 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.cloner.usd_replicate` and :func:`~isaaclab.cloner.physx_replicate`
+  skipping ``Sdf.CopySpec`` when the source and destination paths are identical (self-copy),
+  avoiding a redundant and potentially destructive USD spec overwrite.
 
 
 4.2.2 (2026-02-26)

@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils import to_camel_case
+from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
@@ -125,26 +125,27 @@ class Camera(SensorBase):
         settings.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # This is only introduced in isaac sim 6.0
-        isaac_sim_version = get_isaac_sim_version()
-        if isaac_sim_version.major >= 6:
-            # Set RTX flag to enable fast path if only depth or albedo is requested
-            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
-            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
-                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
+        if has_kit():
+            isaac_sim_version = get_isaac_sim_version()
+            if isaac_sim_version.major >= 6:
+                # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
+                needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
+                if not needs_color_render:
+                    settings.set_bool("/rtx/sdg/force/disableColorRender", True)
 
-            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-            if settings.get("/isaaclab/has_gui"):
-                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
-        else:
-            if "albedo" in self.cfg.data_types:
-                logger.warning(
-                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                )
-            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-                logger.warning(
-                    "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
-                    " will be ignored."
-                )
+                # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+                if settings.get("/isaaclab/has_gui"):
+                    settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+            else:
+                if "albedo" in self.cfg.data_types:
+                    logger.warning(
+                        "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                    )
+                if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
+                    logger.warning(
+                        "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
+                        " will be ignored."
+                    )
 
         # Set simple shading mode (if requested) before rendering
         simple_shading_mode = self._resolve_simple_shading_mode()
@@ -187,6 +188,8 @@ class Camera(SensorBase):
         # Create empty variables for storing output data
         self._data = CameraData()
 
+        if not has_kit():
+            return
         # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
         if get_isaac_sim_version() == version.parse("4.5"):
@@ -432,7 +435,9 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
+        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
+        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."

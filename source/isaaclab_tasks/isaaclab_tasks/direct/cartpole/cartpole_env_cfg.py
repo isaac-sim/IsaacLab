@@ -5,13 +5,38 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
+
+@configclass
+class CartpolePhysicsCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg()
+    physx: PhysxCfg = PhysxCfg()
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            ls_iterations=10,
+            cone="pyramidal",
+            impratio=1,
+            ls_parallel=True,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
 
 
 @configclass
@@ -25,7 +50,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

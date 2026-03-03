@@ -5,15 +5,36 @@
 
 """Script to train RL agent with RL-Games."""
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
+import logging
+import math
+import os
+import random
 import sys
+import time
+from datetime import datetime
 from distutils.util import strtobool
 
-from isaaclab.app import AppLauncher
+import gymnasium as gym
+from rl_games.common import env_configurations, vecenv
+from rl_games.common.algo_observer import IsaacAlgoObserver
+from rl_games.torch_runner import Runner
 
-# add argparse arguments
+from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.dict import print_dict
+from isaaclab.utils.io import dump_yaml
+
+from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
+
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+
+logger = logging.getLogger(__name__)
+
+# PLACEHOLDER: Extension template (do not remove this comment)
+
+# -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
@@ -45,217 +66,171 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
-# always enable cameras to record video
+
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
-"""Rest everything follows."""
-
-import logging
-import math
-import os
-import random
-import time
-from datetime import datetime
-
-import gymnasium as gym
-from rl_games.common import env_configurations, vecenv
-from rl_games.common.algo_observer import IsaacAlgoObserver
-from rl_games.torch_runner import Runner
-
-from isaaclab.envs import (
-    DirectMARLEnv,
-    DirectMARLEnvCfg,
-    DirectRLEnvCfg,
-    ManagerBasedRLEnvCfg,
-    multi_agent_to_single_agent,
-)
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_yaml
-
-from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import hydra_task_config
-
-# import logger
-logger = logging.getLogger(__name__)
-
-# PLACEHOLDER: Extension template (do not remove this comment)
-
-
-@hydra_task_config(args_cli.task, args_cli.agent)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def main():
     """Train with RL-Games agent."""
-    # override configurations with non-hydra CLI arguments
-    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    # check for invalid combination of CPU device with distributed training
-    if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
-        raise ValueError(
-            "Distributed training is not supported when using CPU device. "
-            "Please use GPU device (e.g., --device cuda) for distributed training."
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    with launch_simulation(env_cfg, args_cli):
+        # override configurations with non-hydra CLI arguments
+        env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+        if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
+            raise ValueError(
+                "Distributed training is not supported when using CPU device. "
+                "Please use GPU device (e.g., --device cuda) for distributed training."
+            )
+
+        # randomly sample a seed if seed = -1
+        if args_cli.seed == -1:
+            args_cli.seed = random.randint(0, 10000)
+
+        agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
+        agent_cfg["params"]["config"]["max_epochs"] = (
+            args_cli.max_iterations
+            if args_cli.max_iterations is not None
+            else agent_cfg["params"]["config"]["max_epochs"]
         )
+        if args_cli.checkpoint is not None:
+            resume_path = retrieve_file_path(args_cli.checkpoint)
+            agent_cfg["params"]["load_checkpoint"] = True
+            agent_cfg["params"]["load_path"] = resume_path
+            print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
+        train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
 
-    # randomly sample a seed if seed = -1
-    if args_cli.seed == -1:
-        args_cli.seed = random.randint(0, 10000)
+        # multi-gpu training config
+        if args_cli.distributed:
+            local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
+            agent_cfg["params"]["config"]["device"] = f"cuda:{local_rank}"
+            agent_cfg["params"]["config"]["device_name"] = f"cuda:{local_rank}"
+            agent_cfg["params"]["config"]["multi_gpu"] = True
+            env_cfg.sim.device = f"cuda:{local_rank}"
 
-    agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
-    agent_cfg["params"]["config"]["max_epochs"] = (
-        args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg["params"]["config"]["max_epochs"]
-    )
-    if args_cli.checkpoint is not None:
-        resume_path = retrieve_file_path(args_cli.checkpoint)
-        agent_cfg["params"]["load_checkpoint"] = True
-        agent_cfg["params"]["load_path"] = resume_path
-        print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
-    train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
+        # set the environment seed (after multi-gpu config for updated rank from agent seed)
+        env_cfg.seed = agent_cfg["params"]["seed"]
 
-    # multi-gpu training config
-    if args_cli.distributed:
-        agent_cfg["params"]["seed"] += app_launcher.global_rank
-        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
-        agent_cfg["params"]["config"]["device_name"] = f"cuda:{app_launcher.local_rank}"
-        agent_cfg["params"]["config"]["multi_gpu"] = True
-        # update env config device
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+        # specify directory for logging experiments
+        config_name = agent_cfg["params"]["config"]["name"]
+        log_root_path = os.path.join("logs", "rl_games", config_name)
+        if "pbt" in agent_cfg and agent_cfg["pbt"]["directory"] != ".":
+            log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+        else:
+            log_root_path = os.path.abspath(log_root_path)
 
-    # set the environment seed (after multi-gpu config for updated rank from agent seed)
-    # note: certain randomizations occur in the environment initialization so we set the seed here
-    env_cfg.seed = agent_cfg["params"]["seed"]
-
-    # specify directory for logging experiments
-    config_name = agent_cfg["params"]["config"]["name"]
-    log_root_path = os.path.join("logs", "rl_games", config_name)
-    if "pbt" in agent_cfg and agent_cfg["pbt"]["directory"] != ".":
-        log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
-    else:
-        log_root_path = os.path.abspath(log_root_path)
-
-    print(f"[INFO] Logging experiment in directory: {log_root_path}")
-    # specify directory for logging runs
-    log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-    # set directory into agent config
-    # logging directory path: <train_dir>/<full_experiment_name>
-    agent_cfg["params"]["config"]["train_dir"] = log_root_path
-    agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
-    wandb_project = config_name if args_cli.wandb_project_name is None else args_cli.wandb_project_name
-    experiment_name = log_dir if args_cli.wandb_name is None else args_cli.wandb_name
-
-    # dump the configuration into log-directory
-    dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
-    dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
-    print(f"Exact experiment name requested from command line: {os.path.join(log_root_path, log_dir)}")
-
-    # read configurations about the agent-training
-    rl_device = agent_cfg["params"]["config"]["device"]
-    clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
-    clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
-    obs_groups = agent_cfg["params"]["env"].get("obs_groups")
-    concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
-
-    # set the IO descriptors export flag if requested
-    if isinstance(env_cfg, ManagerBasedRLEnvCfg):
-        env_cfg.export_io_descriptors = args_cli.export_io_descriptors
-    else:
-        logger.warning(
-            "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
+        print(f"[INFO] Logging experiment in directory: {log_root_path}")
+        log_dir = agent_cfg["params"]["config"].get(
+            "full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         )
+        agent_cfg["params"]["config"]["train_dir"] = log_root_path
+        agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
+        wandb_project = config_name if args_cli.wandb_project_name is None else args_cli.wandb_project_name
+        experiment_name = log_dir if args_cli.wandb_name is None else args_cli.wandb_name
 
-    # set the log directory for the environment (works for all environment types)
-    env_cfg.log_dir = os.path.join(log_root_path, log_dir)
+        # dump the configuration into log-directory
+        dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
+        dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
+        print(f"Exact experiment name requested from command line: {os.path.join(log_root_path, log_dir)}")
 
-    # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+        # read configurations about the agent-training
+        rl_device = agent_cfg["params"]["config"]["device"]
+        clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
+        clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+        obs_groups = agent_cfg["params"]["env"].get("obs_groups")
+        concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-    # convert to single-agent instance if required by the RL algorithm
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
+        # set the IO descriptors export flag if requested
+        if isinstance(env_cfg, ManagerBasedRLEnvCfg):
+            env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+        else:
+            logger.warning(
+                "IO descriptors are only supported for manager based RL environments."
+                " No IO descriptors will be exported."
+            )
 
-    # wrap for video recording
-    if args_cli.video:
-        video_kwargs = {
-            "video_folder": os.path.join(log_root_path, log_dir, "videos", "train"),
-            "step_trigger": lambda step: step % args_cli.video_interval == 0,
-            "video_length": args_cli.video_length,
-            "disable_logger": True,
-        }
-        print("[INFO] Recording videos during training.")
-        print_dict(video_kwargs, nesting=4)
-        env = gym.wrappers.RecordVideo(env, **video_kwargs)
+        # set the log directory for the environment
+        env_cfg.log_dir = os.path.join(log_root_path, log_dir)
 
-    start_time = time.time()
+        # create isaac environment
+        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
-    # wrap around environment for rl-games
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
+        # convert to single-agent instance if required by the RL algorithm
+        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+            from isaaclab.envs import multi_agent_to_single_agent
 
-    # register the environment to rl-games registry
-    # note: in agents configuration: environment name must be "rlgpu"
-    vecenv.register(
-        "IsaacRlgWrapper", lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs)
-    )
-    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
+            env = multi_agent_to_single_agent(env)
 
-    # set number of actors into agent config
-    agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-    # create runner from rl-games
+        # wrap for video recording
+        if args_cli.video:
+            video_kwargs = {
+                "video_folder": os.path.join(log_root_path, log_dir, "videos", "train"),
+                "step_trigger": lambda step: step % args_cli.video_interval == 0,
+                "video_length": args_cli.video_length,
+                "disable_logger": True,
+            }
+            print("[INFO] Recording videos during training.")
+            print_dict(video_kwargs, nesting=4)
+            env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
-    if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
-        observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
-        runner = Runner(observers)
-    else:
-        runner = Runner(IsaacAlgoObserver())
+        start_time = time.time()
 
-    runner.load(agent_cfg)
+        # wrap around environment for rl-games
+        env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 
-    # reset the agent and env
-    runner.reset()
-    # train the agent
-
-    global_rank = int(os.getenv("RANK", "0"))
-    if args_cli.track and global_rank == 0:
-        if args_cli.wandb_entity is None:
-            raise ValueError("Weights and Biases entity must be specified for tracking.")
-        import wandb
-
-        wandb.init(
-            project=wandb_project,
-            entity=args_cli.wandb_entity,
-            name=experiment_name,
-            sync_tensorboard=True,
-            monitor_gym=True,
-            save_code=True,
+        # register the environment to rl-games registry
+        vecenv.register(
+            "IsaacRlgWrapper",
+            lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
         )
-        if not wandb.run.resumed:
-            wandb.config.update({"env_cfg": env_cfg.to_dict()})
-            wandb.config.update({"agent_cfg": agent_cfg})
+        env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 
-    if args_cli.checkpoint is not None:
-        runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
-    else:
-        runner.run({"train": True, "play": False, "sigma": train_sigma})
+        # set number of actors into agent config
+        agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
 
-    print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+        if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+            observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
+            runner = Runner(observers)
+        else:
+            runner = Runner(IsaacAlgoObserver())
 
-    # close the simulator
-    env.close()
+        runner.load(agent_cfg)
+        runner.reset()
+
+        global_rank = int(os.getenv("RANK", "0"))
+        if args_cli.track and global_rank == 0:
+            if args_cli.wandb_entity is None:
+                raise ValueError("Weights and Biases entity must be specified for tracking.")
+            import wandb
+
+            wandb.init(
+                project=wandb_project,
+                entity=args_cli.wandb_entity,
+                name=experiment_name,
+                sync_tensorboard=True,
+                monitor_gym=True,
+                save_code=True,
+            )
+            if not wandb.run.resumed:
+                wandb.config.update({"env_cfg": env_cfg.to_dict()})
+                wandb.config.update({"agent_cfg": agent_cfg})
+
+        if args_cli.checkpoint is not None:
+            runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+        else:
+            runner.run({"train": True, "play": False, "sigma": train_sigma})
+
+        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+
+        # close the simulator
+        env.close()
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

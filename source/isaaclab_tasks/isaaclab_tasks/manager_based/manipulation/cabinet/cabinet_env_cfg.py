@@ -6,6 +6,7 @@
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -24,6 +25,8 @@ from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+from isaaclab_tasks.utils import PresetCfg
+
 from . import mdp
 
 ##
@@ -34,6 +37,25 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
+
+
+@configclass
+class CabinetPhysicsCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625)
+    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625)
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=90,
+            nconmax=100,
+            ls_iterations=20,
+            cone="pyramidal",
+            ls_parallel=True,
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
 
 
 ##
@@ -202,6 +224,29 @@ class EventCfg:
 
 
 @configclass
+class _CabinetNewtonEventCfg:
+    """Newton-compatible events: excludes material randomization (not implemented in Newton)."""
+
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+
+    reset_robot_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "position_range": (-0.1, 0.1),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+
+
+@configclass
+class CabinetEventCfg(PresetCfg):
+    default: EventCfg = EventCfg()
+    physx: EventCfg = EventCfg()
+    newton: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
+
+
+@configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
@@ -263,7 +308,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: CabinetEventCfg = CabinetEventCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -275,7 +320,4 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            friction_correlation_distance=0.00625,
-        )
+        self.sim.physics = CabinetPhysicsCfg()

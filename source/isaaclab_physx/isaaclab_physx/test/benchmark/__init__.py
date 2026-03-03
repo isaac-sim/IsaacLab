@@ -9,20 +9,6 @@ This package provides helper functions for creating benchmark inputs
 specific to PhysX-based assets (Articulation, RigidObject, etc.).
 """
 
-from .benchmark_utils import (
-    make_tensor_body_ids,
-    make_tensor_env_ids,
-    make_tensor_joint_ids,
-    make_warp_body_mask,
-    make_warp_env_mask,
-    make_warp_joint_mask,
-)
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "make_tensor_env_ids",
-    "make_tensor_body_ids",
-    "make_tensor_joint_ids",
-    "make_warp_env_mask",
-    "make_warp_body_mask",
-    "make_warp_joint_mask",
-]
+lazy_export()

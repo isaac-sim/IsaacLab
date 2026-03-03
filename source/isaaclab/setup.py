@@ -35,12 +35,13 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "warp-lang==1.12.0rc2",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
     # livestream
     "starlette==0.49.1",
+    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",
@@ -55,6 +56,7 @@ INSTALL_REQUIRES = [
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
+    "lazy_loader>=0.4",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
@@ -111,6 +113,7 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
