@@ -4,12 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "ContactSensor",
-    "ContactSensorData",
-    "ContactSensorCfg",
     "FrameTransformer",
     "FrameTransformerData",
 ]
 
-from .contact_sensor import ContactSensor, ContactSensorData, ContactSensorCfg
-from .frame_transformer import FrameTransformer, FrameTransformerData
+from .frame_transformer import FrameTransformer
+from .frame_transformer_data import FrameTransformerData
