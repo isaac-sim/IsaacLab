@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Convert locomanipulation SDG HDF5 datasets to LeRobot (GNx) format with parquet, videos, and meta."""
+
 import argparse
 import glob
 import json
@@ -18,19 +20,45 @@ import tqdm
 from scipy.spatial.transform import RigidTransform, Rotation
 
 
-def pose_to_transform(pose: np.ndarray):
+def pose_to_transform(pose: np.ndarray) -> RigidTransform:
+    """Convert a 7D pose array (position + quaternion) to a RigidTransform.
+
+    Args:
+        pose: Pose array with shape (..., 7). First 3 elements are translation (x, y, z),
+            last 4 are quaternion in scalar-first (w, x, y, z) order.
+
+    Returns:
+        RigidTransform representing the pose.
+    """
     translation = pose[..., :3]
     rotation = Rotation.from_quat(pose[..., 3:], scalar_first=True)
     return RigidTransform.from_components(translation, rotation)
 
 
-def pose_from_transform(transform: RigidTransform):
+def pose_from_transform(transform: RigidTransform) -> np.ndarray:
+    """Convert a RigidTransform to a 7D pose array.
+
+    Args:
+        transform: The rigid transform to convert.
+
+    Returns:
+        Pose array with shape (..., 7): translation (3) and quaternion (4) in scalar-first order.
+    """
     translation, rotation = transform.as_components()
     quat = rotation.as_quat(scalar_first=True)
     return np.concatenate([translation, quat], axis=-1)
 
 
-def get_total_object_displacement(demo):
+def get_total_object_displacement(demo) -> float:
+    """Compute the horizontal distance the object moved between start and end of a demo.
+
+    Args:
+        demo: HDF5 group or dict for one episode containing "locomanipulation_sdg_output_data"
+            with "object_pose" array (N, 7).
+
+    Returns:
+        Euclidean distance in the xy-plane between first and last object position (meters).
+    """
     object_pose = demo["locomanipulation_sdg_output_data"]["object_pose"]
     start_pose = object_pose[0]
     end_pose = object_pose[-1]
@@ -38,7 +66,16 @@ def get_total_object_displacement(demo):
     return distance
 
 
-def compute_relative_pose(target_pose, base_pose):
+def compute_relative_pose(target_pose: np.ndarray, base_pose: np.ndarray) -> np.ndarray:
+    """Compute the pose of target relative to base.
+
+    Args:
+        target_pose: 7D pose (position + quat) of the target in world frame.
+        base_pose: 7D pose (position + quat) of the base frame in world frame.
+
+    Returns:
+        7D pose of target expressed in base frame.
+    """
     base_pose = pose_to_transform(base_pose)
     target_transform = pose_to_transform(target_pose)
     relative_pose = pose_from_transform(base_pose.inv() * target_transform)
@@ -46,7 +83,14 @@ def compute_relative_pose(target_pose, base_pose):
 
 
 def create_directory_structure(output_path: str, video_key: str = "observation.images.ego_view") -> None:
-    """Create the required directory structure for GNx LeRobot format."""
+    """Create the required directory structure for GNx LeRobot format.
+
+    Creates meta/, data/chunk-000/, and videos/chunk-000/<video_key>/ under output_path.
+
+    Args:
+        output_path: Root path for the converted dataset.
+        video_key: Key used for the video subfolder (e.g. "observation.images.ego_view").
+    """
     base_path = Path(output_path)
 
     # Create main directories
@@ -62,7 +106,13 @@ def create_directory_structure(output_path: str, video_key: str = "observation.i
 
 
 def extract_video_from_images(images: np.ndarray, output_path: str, fps: float = 20.0) -> None:
-    """Convert image sequence [S, H, W, C] to MP4 video."""
+    """Convert an image sequence to an MP4 video file.
+
+    Args:
+        images: Image array of shape (S, H, W, C) in RGB, uint8 or float in [0, 1].
+        output_path: Path for the output MP4 file.
+        fps: Frames per second for the output video.
+    """
     if len(images.shape) != 4:  # Expected: [S, H, W, C]
         raise ValueError(f"Expected 4D image array [S, H, W, C], got shape {images.shape}")
 
@@ -94,7 +144,19 @@ def extract_video_from_images(images: np.ndarray, output_path: str, fps: float =
     print(f"Created video: {output_path}")
 
 
-def create_modality_json(state, action):
+def create_modality_json(state: dict, action: dict) -> dict:
+    """Build the modality.json structure for LeRobot format.
+
+    Maps state and action key names to start/end indices in the concatenated state and
+    action vectors, and adds fixed video and annotation keys.
+
+    Args:
+        state: Dict mapping state key names to arrays of shape (T, dim).
+        action: Dict mapping action key names to arrays of shape (T, dim).
+
+    Returns:
+        Modality dict with "state", "action", "video", and "annotation" entries.
+    """
     modality = {
         "state": {},
         "action": {},
@@ -127,7 +189,20 @@ def create_info_json(
     image_shape: tuple[int, int, int] = (160, 256, 3),
     video_key: str = "observation.images.ego_view",
 ) -> dict:
-    """Create the info.json file content."""
+    """Create the info.json file content for LeRobot dataset metadata.
+
+    Args:
+        total_episodes: Number of episodes in the dataset.
+        total_frames: Total number of frames across all episodes.
+        state_dim: Dimension of the concatenated state vector.
+        action_dim: Dimension of the concatenated action vector.
+        fps: Frames per second for video and timestamps.
+        image_shape: (height, width, channels) for video feature.
+        video_key: Key used for the video feature (e.g. "observation.images.ego_view").
+
+    Returns:
+        Dict suitable for writing to meta/info.json (codebase_version, features, paths, etc.).
+    """
 
     # Build features dictionary
     features = {

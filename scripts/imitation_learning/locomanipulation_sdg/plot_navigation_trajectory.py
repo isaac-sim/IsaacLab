@@ -3,15 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to visualize navigation datasets.
+"""Script to visualize navigation datasets from locomanipulation SDG.
 
-Loads a navigation dataset and generates plots showing paths, poses and obstacles.
-
-Args:
-    dataset: Path to the HDF5 dataset file containing recorded demonstrations.
-    output_dir: Directory path where visualization plots will be saved.
-    figure_size: Size of the generated figures (width, height).
-    demo_filter: If provided, only visualize specific demo(s). Can be a single demo name or comma-separated list.
+Loads an HDF5 dataset containing locomanipulation_sdg_output_data and generates
+plots showing base path, base pose, object pose, start/end fixtures, and obstacles.
 """
 
 import argparse
@@ -21,8 +16,12 @@ import h5py
 import matplotlib.pyplot as plt
 
 
-def main():
-    """Main function to process dataset and generate visualizations."""
+def main() -> None:
+    """Load dataset, filter demos if requested, and save navigation visualization plots.
+
+    Reads HDF5 from --input_file, optionally restricts to --demo_filter, and writes
+    one PNG per demo to --output_dir with path, poses, and obstacle positions.
+    """
     # add argparse arguments
     parser = argparse.ArgumentParser(
         description="Visualize navigation dataset from locomanipulation sdg demonstrations."

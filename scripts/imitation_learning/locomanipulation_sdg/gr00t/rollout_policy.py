@@ -70,7 +70,14 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 
 def _clone_state(state: dict) -> dict:
-    """Deep clone state dict so we do not mutate the episode's stored initial state."""
+    """Deep clone state dict so we do not mutate the episode's stored initial state.
+
+    Args:
+        state: Nested dict that may contain torch tensors and other dicts.
+
+    Returns:
+        Deep copy of state with tensors cloned and dicts recursively cloned.
+    """
 
     def _clone(val):
         if isinstance(val, torch.Tensor):
@@ -89,11 +96,14 @@ def build_initial_state_for_replay(
     """Build the state dict for reset_to so the scene matches the recording in the current fixture frame.
 
     The episode stores initial state in env-relative coordinates (world - env_origin). The fixtures
-    (tables) are not stored; they are reset to scene defaults by _reset_idx. So we must transform
+    (tables) are not stored; they are reset to scene defaults by _reset_idx.     So we must transform
     robot and object poses from "where they were relative to the recording's fixture" to "where
     they should be relative to the current scene's start fixture", and pass explicit zero velocities
     so the sim starts at rest. This is the single source of truth for initial state—no post-reset
     projection or sync.
+
+    Returns:
+        State dict suitable for env.reset_to(..., is_relative=True).
     """
     state = _clone_state(input_episode_data.get_initial_state())
     load_0 = env.load_input_data(input_episode_data, 0)
@@ -169,7 +179,15 @@ _STATE_POSE_KEYS = (
 
 
 def _convert_pose_quat(pose: torch.Tensor, to_fmt: str) -> torch.Tensor:
-    """Convert quaternion part of pose (..., 7) to target format. Env is XYZW."""
+    """Convert quaternion part of pose (..., 7) to target format. Env is XYZW.
+
+    Args:
+        pose: Pose tensor with last 4 dims as quat (xyzw from env).
+        to_fmt: "xyzw" (no-op) or "wxyz" for policy.
+
+    Returns:
+        Pose tensor with quat in the requested format.
+    """
     if to_fmt == "xyzw":
         return pose
     # to_fmt == "wxyz": env is xyzw -> convert to wxyz for policy
@@ -179,7 +197,12 @@ def _convert_pose_quat(pose: torch.Tensor, to_fmt: str) -> torch.Tensor:
 
 
 def _convert_action_pose_quats_to_env(action: torch.Tensor, policy_quat_format: str) -> None:
-    """In-place: convert policy action pose quats (columns 0:7 and 7:14) to XYZW for env."""
+    """Convert policy action pose quaternions (columns 0:7 and 7:14) to XYZW for env in-place.
+
+    Args:
+        action: Action tensor of shape (..., 32) with pose quats in columns 3:7 and 10:14.
+        policy_quat_format: "xyzw" (no-op) or "wxyz" (convert to xyzw for env).
+    """
     if policy_quat_format == "xyzw":
         return
     # Policy output is WXYZ; env expects XYZW
@@ -193,7 +216,19 @@ def setup_navigation_scene(
     input_episode_data: EpisodeData,
     approach_distance: float,
     randomize_placement: bool = True,
-) -> tuple[OccupancyMap, RelativePose]:
+) -> tuple[OccupancyMap | None, RelativePose]:
+    """Set up occupancy map and base goal for policy rollout (no path planning).
+
+    Args:
+        env: The locomanipulation SDG environment.
+        input_episode_data: Input episode data used to compute base goal from initial state.
+        approach_distance: Unused; kept for API compatibility with generate_data.
+        randomize_placement: Whether to randomize end fixture and obstacle placement.
+
+    Returns:
+        Tuple of (occupancy_map, base_goal). First element is None; base_goal is the goal
+        pose for the policy relative to the end fixture.
+    """
     # Create base occupancy map
     occupancy_map = merge_occupancy_maps(
         [
@@ -223,7 +258,20 @@ def setup_navigation_scene(
     return None, base_goal
 
 
-def build_model_input(env, base_goal, policy_quat_format: str = "xyzw"):
+def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, policy_quat_format: str = "xyzw"):
+    """Build GR00T model input dict and dummy action from current env state.
+
+    Poses are expressed relative to the robot base. State pose quats are converted
+    to policy format (xyzw or wxyz) if needed.
+
+    Args:
+        env: The locomanipulation SDG environment.
+        base_goal: Goal pose (e.g. from setup_navigation_scene).
+        policy_quat_format: "xyzw" or "wxyz" for state pose quaternions.
+
+    Returns:
+        Tuple of (model_input dict, dummy_action tensor) for the policy.
+    """
     obs = env.obs_buf
     left_hand_pose = torch.cat([obs["policy"]["left_eef_pos"], obs["policy"]["left_eef_quat"]], dim=-1)
     right_hand_pose = torch.cat([obs["policy"]["right_eef_pos"], obs["policy"]["right_eef_quat"]], dim=-1)
@@ -271,6 +319,19 @@ def eval_policy(
     randomize_placement: bool = True,
     policy_quat_format: str = "xyzw",
 ) -> None:
+    """Run policy rollout in the environment with state machine and recording-based initial state.
+
+    Resets env to the episode initial state, sets up navigation scene (occupancy map and goal),
+    then steps the environment using policy actions at a fixed inference interval. Handles
+    quaternion format conversion between env (xyzw) and policy (xyzw or wxyz).
+
+    Args:
+        env: The locomanipulation SDG environment.
+        policy: The GR00T policy wrapper.
+        input_episode_data: Episode data for initial state and goal.
+        randomize_placement: Whether to randomize fixture placement.
+        policy_quat_format: Quaternion format expected by the policy ("xyzw" or "wxyz").
+    """
     # env.recorder_manager.reset(env_ids=[0])
 
     initial_state = input_episode_data.get_initial_state()

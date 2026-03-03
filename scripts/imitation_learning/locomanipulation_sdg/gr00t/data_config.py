@@ -40,7 +40,14 @@ from gr00t.model.transforms import GR00TTransform
 
 @dataclass
 class BaseDataConfig(ABC):
+    """Base class for GR00T data configurations defining modalities and transforms."""
+
     def modality_config(self) -> dict[str, ModalityConfig]:
+        """Build the modality config mapping (video, state, action, language) for the dataset.
+
+        Returns:
+            Dict mapping modality names to ModalityConfig instances.
+        """
         video_modality = ModalityConfig(
             delta_indices=self.observation_indices,
             modality_keys=self.video_keys,
@@ -66,6 +73,11 @@ class BaseDataConfig(ABC):
 
     @abstractmethod
     def transform(self) -> ModalityTransform:
+        """Return the composed modality transform (video, state, action, concat, model-specific).
+
+        Returns:
+            ModalityTransform to apply to dataset samples.
+        """
         pass
 
 
@@ -75,11 +87,18 @@ class BaseDataConfig(ABC):
 
 
 def import_external_data_config(data_config_str: str) -> BaseDataConfig | None:
-    """
-    Import and instantiate an external data configuration class.
+    """Import and instantiate an external data configuration class.
 
-    Format: "module_path:ClassName" (e.g., "my_configs:RobotConfig")
-    Supports nested modules like "package.submodule:ClassName"
+    Format: "module_path:ClassName" (e.g., "my_configs:RobotConfig").
+    Supports nested modules like "package.submodule:ClassName".
+    The current working directory is prepended to sys.path for resolution.
+
+    Args:
+        data_config_str: String in "module_path:ClassName" format. If no ":" is present,
+            returns None.
+
+    Returns:
+        Instance of the requested config class, or None if data_config_str has no ":".
     """
     if ":" not in data_config_str:
         return None
@@ -121,10 +140,16 @@ def import_external_data_config(data_config_str: str) -> BaseDataConfig | None:
 
 
 def load_data_config(data_config_str: str) -> BaseDataConfig:
-    """
-    Get a data config class from a string.
-    >>> load_data_config("g1_locomanipulation_sdg")
-    >>> get_data_config("dir.subdir.my_configs:RobotConfig")
+    """Resolve a data config from a short name or external module:class string.
+
+    First looks up the string in DATA_CONFIG_MAP; if not found, tries to import
+    and instantiate via import_external_data_config (e.g. "my_package.configs:MyConfig").
+
+    Args:
+        data_config_str: Short name (e.g. "g1_locomanipulation_sdg") or "module_path:ClassName".
+
+    Returns:
+        The corresponding BaseDataConfig instance.
     """
     if data_config_str in DATA_CONFIG_MAP:
         return DATA_CONFIG_MAP[data_config_str]
@@ -145,6 +170,8 @@ def load_data_config(data_config_str: str) -> BaseDataConfig:
 
 
 class G1LocomanipulationSDGDataConfig(BaseDataConfig):
+    """Data config for G1 locomanipulation SDG (video, state, action; no language)."""
+
     video_keys = ["video.ego_view"]
     state_keys = [
         "state.left_hand_pose",
@@ -167,6 +194,11 @@ class G1LocomanipulationSDGDataConfig(BaseDataConfig):
     action_indices = list(range(16))
 
     def modality_config(self) -> dict[str, ModalityConfig]:
+        """Build modality config for video, state, and action (no language).
+
+        Returns:
+            Dict with "video", "state", and "action" ModalityConfig entries.
+        """
         video_modality = ModalityConfig(
             delta_indices=self.observation_indices,
             modality_keys=self.video_keys,
@@ -191,6 +223,11 @@ class G1LocomanipulationSDGDataConfig(BaseDataConfig):
         return modality_configs
 
     def transform(self) -> ModalityTransform:
+        """Composed transform: video (crop, resize, color jitter), state/action (tensor, normalize), concat, GR00T.
+
+        Returns:
+            ComposedModalityTransform for locomanipulation SDG samples.
+        """
         transforms = [
             # video transforms
             VideoToTensor(apply_to=self.video_keys),

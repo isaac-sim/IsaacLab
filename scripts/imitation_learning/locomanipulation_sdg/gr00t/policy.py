@@ -11,7 +11,15 @@ from gr00t.model.policy import Gr00tPolicy
 
 
 class Policy:
-    def __init__(self, model_path, embodiment_tag):
+    """Wrapper around GR00T policy for G1 locomanipulation SDG."""
+
+    def __init__(self, model_path: str, embodiment_tag: str):
+        """Load the GR00T policy and locomanipulation SDG data config.
+
+        Args:
+            model_path: Path to the model checkpoint.
+            embodiment_tag: Embodiment tag used by the model (e.g. "new_embodiment").
+        """
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.data_config = DATA_CONFIG_MAP["g1_locomanipulation_sdg"]
         self.modality_config = self.data_config.modality_config()
