@@ -34,3 +34,6 @@ class OVRTXRendererCfg(RendererCfg):
 
     temp_usd_suffix: str = ".usda"
     """File suffix for temporary combined USD files (e.g. '.usda' or '.usdc')."""
+
+    use_cloning: bool = False
+    """When True, export only env_0 and use OVRTX clone_usd. When False, export full stage."""

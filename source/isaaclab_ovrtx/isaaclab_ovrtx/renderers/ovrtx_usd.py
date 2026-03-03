@@ -140,7 +140,9 @@ def inject_cameras_into_usd(
     return temp_path, render_product_path
 
 
-def create_cloning_attributes(stage, camera_prim_name: str = "Camera") -> int:
+def create_cloning_attributes(
+    stage, camera_prim_name: str = "Camera", num_envs: int = 1, use_cloning: bool = True
+) -> int:
     """Create OVRTX cloning attributes (scene partition, xform) on env_0 only.
 
     Only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
@@ -155,36 +157,36 @@ def create_cloning_attributes(stage, camera_prim_name: str = "Camera") -> int:
         Total number of objects (non-camera prims) that received partition attributes.
     """
     total_objects = 0
-    env_path = "/World/envs/env_0"
-    env_prim = stage.GetPrimAtPath(env_path)
-    if not env_prim.IsValid():
-        return total_objects
-
-    partition_name = "env_0"
-    attr = env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
-    attr.Set(partition_name)
-
-    for prim in Usd.PrimRange(env_prim):
-        if prim.GetPath() == env_prim.GetPath() or "Camera" in prim.GetPath().pathString:
+    env_indices = [0] if use_cloning else range(num_envs)
+    for env_idx in env_indices:
+        env_path = f"/World/envs/env_{env_idx}"
+        env_prim = stage.GetPrimAtPath(env_path)
+        if not env_prim.IsValid():
             continue
-        obj_attr = prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
-        obj_attr.Set(partition_name)
-        type_name = prim.GetTypeName()
-        if not type_name.startswith("Render"):
-            reset_xform_attr = prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool)
-            reset_xform_attr.Set(True)
-        total_objects += 1
-
-    camera_path = f"{env_path}/{camera_prim_name}"
-    camera_prim = stage.GetPrimAtPath(camera_path)
-    if camera_prim.IsValid():
-        camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
-        camera_prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool).Set(True)
-
+        partition_name = f"env_{env_idx}"
+        attr = env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
+        attr.Set(partition_name)
+        for prim in Usd.PrimRange(env_prim):
+            if prim.GetPath() == env_prim.GetPath() or "Camera" in prim.GetPath().pathString:
+                continue
+            obj_attr = prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
+            obj_attr.Set(partition_name)
+            type_name = prim.GetTypeName()
+            if not type_name.startswith("Render"):
+                reset_xform_attr = prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool)
+                reset_xform_attr.Set(True)
+            total_objects += 1
+        camera_path = f"{env_path}/{camera_prim_name}"
+        camera_prim = stage.GetPrimAtPath(camera_path)
+        if camera_prim.IsValid():
+            camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
+            camera_prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool).Set(True)
     return total_objects
 
 
-def export_stage_for_ovrtx(stage, export_path: str, num_envs: int) -> str:
+def export_stage_for_ovrtx(
+    stage, export_path: str, num_envs: int, use_cloning: bool = True
+) -> str:
     """Export the stage to a USD file; when num_envs > 1, only env_0 is exported for OVRTX cloning.
 
     When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
@@ -199,7 +201,7 @@ def export_stage_for_ovrtx(stage, export_path: str, num_envs: int) -> str:
         export_path (same as input).
     """
     deactivated = []
-    if num_envs > 1:
+    if use_cloning and num_envs > 1:
         print(f"[OVRTX OPTIMIZE] Deactivating {num_envs - 1} cloned environments...")
         for env_idx in range(1, num_envs):
             env_path = f"/World/envs/env_{env_idx}"

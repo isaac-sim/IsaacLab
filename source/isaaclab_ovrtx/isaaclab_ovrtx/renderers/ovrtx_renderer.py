@@ -104,6 +104,8 @@ class OVRTXRenderer(BaseRenderer):
     providing ray-traced rendering capabilities for Isaac Lab environments.
     """
 
+    cfg: OVRTXRendererCfg
+
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._usd_handles = []
@@ -134,11 +136,12 @@ class OVRTXRenderer(BaseRenderer):
         camera_prim_name = (camera_prim_path or "").strip().split("/")[-1] or "Camera"
         stage = sensor.stage
         usd_scene_path = None
+        use_cloning = self.cfg.use_cloning
         if stage is not None:
-            print(f"[OVRTX] Preparing stage for export ({num_envs} envs, camera_prim={camera_prim_name!r})...")
-            create_cloning_attributes(stage, camera_prim_name)
+            print(f"[OVRTX] Preparing stage for export ({num_envs} envs, cloning={use_cloning})...")
+            create_cloning_attributes(stage, camera_prim_name, num_envs, use_cloning)
             export_path = "/tmp/stage_before_ovrtx.usda"
-            export_stage_for_ovrtx(stage, export_path, num_envs)
+            export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
             usd_scene_path = export_path
             print(f"   ✓ Exported to {export_path}")
 
@@ -174,7 +177,7 @@ class OVRTXRenderer(BaseRenderer):
                 traceback.print_exc()
                 raise
 
-            if num_envs > 1:
+            if use_cloning and num_envs > 1:
                 print(f"[OVRTX] Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx(num_envs)
                 self._update_scene_partitions_after_clone(combined_usd_path, num_envs)
