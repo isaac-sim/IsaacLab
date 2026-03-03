@@ -15,12 +15,6 @@ parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation 
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
 parser.add_argument("--output_file", type=str, help="The file name for the generated output dataset.")
 parser.add_argument("--demo", type=str, default="demo_0", help="The demo in the input dataset to use.")
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
 parser.add_argument("--randomize_placement", action="store_true", default=False, help="Randomize placement of obstacles.")
 parser.add_argument("--model_path", type=str, help="The path to the model checkpoint.")
 parser.add_argument(
@@ -36,9 +30,6 @@ parser.add_argument(
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    import pinocchio  # noqa: F401
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app

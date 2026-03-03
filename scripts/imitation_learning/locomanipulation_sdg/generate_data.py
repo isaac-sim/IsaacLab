@@ -92,12 +92,6 @@ parser.add_argument(
     help="Whether or not to randomize the placement of fixtures in the scene upon environment initialization.",
 )
 parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
-parser.add_argument(
     "--background_usd_path",
     type=str,
     default=None,
