@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "PhysxSceneDataProvider",
-    "SceneDataProvider",
-]
+"""PhysX visualizer backends."""
 
-from .physx_scene_data_provider import PhysxSceneDataProvider
-from .scene_data_provider import SceneDataProvider
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

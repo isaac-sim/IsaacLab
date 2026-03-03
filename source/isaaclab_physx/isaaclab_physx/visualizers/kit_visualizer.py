@@ -13,13 +13,14 @@ from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
 
+from isaaclab.visualizers.visualizer import Visualizer
+
 from .kit_visualizer_cfg import KitVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
+    from isaaclab.physics import SceneDataProvider
 
 
 class KitVisualizer(Visualizer):
@@ -61,9 +62,18 @@ class KitVisualizer(Visualizer):
                 "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
             )
             self._apply_env_visibility(usd_stage, metadata)
-        cam_pos = self.cfg.camera_position
-        cam_target = self.cfg.camera_target
-        logger.info("[KitVisualizer] initialized | camera_pos=%s camera_target=%s", cam_pos, cam_target)
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._log_initialization_table(
+            logger=logger,
+            title="KitVisualizer Configuration",
+            rows=[
+                ("camera_position", self.cfg.camera_position),
+                ("camera_target", self.cfg.camera_target),
+                ("camera_source", self.cfg.camera_source),
+                ("num_visualized_envs", num_visualized_envs),
+                ("create_viewport", self.cfg.create_viewport),
+            ],
+        )
 
         self._is_initialized = True
 
@@ -75,14 +85,9 @@ class KitVisualizer(Visualizer):
         try:
             import omni.kit.app
 
-            from isaaclab.app.settings_manager import get_settings_manager
-
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                settings = get_settings_manager()
-                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
-                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
@@ -110,7 +115,14 @@ class KitVisualizer(Visualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        return False
+        try:
+            from isaaclab.app.settings_manager import get_settings_manager
+
+            settings = get_settings_manager()
+            play_flag = settings.get("/app/player/playSimulations")
+            return play_flag is False
+        except Exception:
+            return False
 
     def supports_markers(self) -> bool:
         return True
@@ -185,13 +197,7 @@ class KitVisualizer(Visualizer):
             asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
             self._create_and_assign_camera(usd_stage)
         else:
-            if self.cfg.viewport_name:
-                self._viewport_window = vp_utils.get_viewport_window_by_name(self.cfg.viewport_name)
-                if self._viewport_window is None:
-                    logger.warning(f"[KitVisualizer] Viewport '{self.cfg.viewport_name}' not found. Using active.")
-                    self._viewport_window = vp_utils.get_active_viewport_window()
-            else:
-                self._viewport_window = vp_utils.get_active_viewport_window()
+            self._viewport_window = vp_utils.get_active_viewport_window()
 
         self._viewport_api = self._viewport_window.viewport_api
         # TODO: Unify camera initialization with a renderer-level rendering_cfg/camera_cfg

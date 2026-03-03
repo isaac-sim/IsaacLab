@@ -8,7 +8,9 @@ __all__ = [
     "PhysicsEvent",
     "PhysicsManager",
     "PhysicsCfg",
+    "SceneDataProvider",
 ]
 
 from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
 from .physics_manager_cfg import PhysicsCfg
+from .scene_data_provider import SceneDataProvider

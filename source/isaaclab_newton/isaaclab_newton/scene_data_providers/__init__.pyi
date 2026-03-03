@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Implementation backends for simulation interfaces."""
+__all__ = [
+    "NewtonSceneDataProvider",
+]
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
-
-from .scene_data_provider import SceneDataProvider
+from .newton_scene_data_provider import NewtonSceneDataProvider

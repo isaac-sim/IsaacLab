@@ -14,13 +14,14 @@ import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
+from isaaclab.visualizers.visualizer import Visualizer
+
 from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
+    from isaaclab.physics import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -263,10 +264,16 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer.sky_lower = self.cfg.sky_lower_color
         self._viewer.renderer._light_color = self.cfg.light_color
 
-        logger.info(
-            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s",
-            self._viewer.camera.pos,
-            self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target,
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._log_initialization_table(
+            logger=logger,
+            title="NewtonVisualizer Configuration",
+            rows=[
+                ("camera_position", tuple(float(x) for x in self._viewer.camera.pos)),
+                ("camera_target", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target),
+                ("camera_source", self.cfg.camera_source),
+                ("num_visualized_envs", num_visualized_envs),
+            ],
         )
         self._is_initialized = True
 

@@ -24,8 +24,8 @@ from isaaclab.visualizers import VisualizerCfg
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
+    from isaaclab.physics import SceneDataProvider
     from isaaclab.sensors import SensorBase
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 logger = logging.getLogger(__name__)
 

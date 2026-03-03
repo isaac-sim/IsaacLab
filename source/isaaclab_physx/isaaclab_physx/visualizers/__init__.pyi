@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Implementation backends for simulation interfaces."""
+__all__ = [
+    "KitVisualizer",
+    "KitVisualizerCfg",
+]
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
-
-from .scene_data_provider import SceneDataProvider
+from .kit_visualizer import KitVisualizer
+from .kit_visualizer_cfg import KitVisualizerCfg

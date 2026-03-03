@@ -21,12 +21,11 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import PhysicsManager, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
-from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
+from isaaclab.visualizers.visualizer import Visualizer
 
-from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -336,10 +335,16 @@ class SimulationContext:
         for viz_type in requested_visualizers:
             try:
                 if viz_type == "newton":
+                    from isaaclab_newton.visualizers import NewtonVisualizerCfg
+
                     default_configs.append(NewtonVisualizerCfg())
                 elif viz_type == "rerun":
+                    from isaaclab_newton.visualizers import RerunVisualizerCfg
+
                     default_configs.append(RerunVisualizerCfg())
                 elif viz_type == "kit":
+                    from isaaclab_physx.visualizers import KitVisualizerCfg
+
                     default_configs.append(KitVisualizerCfg())
                 else:
                     logger.warning(
@@ -413,9 +418,13 @@ class SimulationContext:
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
-                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
-                logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
+                logger.exception(
+                    "Failed to initialize visualizer '%s' (%s): %s",
+                    cfg.visualizer_type,
+                    type(cfg).__name__,
+                    exc,
+                )
 
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
@@ -425,13 +434,15 @@ class SimulationContext:
 
     def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
         if self._scene_data_provider is None:
-            from .scene_data_providers import PhysxSceneDataProvider
+            backend_name = self.physics_manager.__name__.lower()
+            if "newton" in backend_name:
+                from isaaclab_newton.scene_data_providers import NewtonSceneDataProvider
 
-            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-            # switch provider selection to route by physics backend:
-            # - Omni/PhysX -> PhysxSceneDataProvider
-            # - Newton/Warp -> NewtonSceneDataProvider
-            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage, self)
+            else:
+                from isaaclab_physx.scene_data_providers import PhysxSceneDataProvider
+
+                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property
@@ -508,15 +519,14 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                if viz.is_closed or not viz.is_running():
+                    if viz.is_closed:
+                        logger.info("Visualizer closed: %s", type(viz).__name__)
+                    else:
+                        logger.info("Visualizer not running: %s", type(viz).__name__)
+                    visualizers_to_remove.append(viz)
+                    continue
                 if viz.is_rendering_paused():
-                    continue
-                if viz.is_closed:
-                    logger.info("Visualizer closed: %s", type(viz).__name__)
-                    visualizers_to_remove.append(viz)
-                    continue
-                if not viz.is_running():
-                    logger.info("Visualizer not running: %s", type(viz).__name__)
-                    visualizers_to_remove.append(viz)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)

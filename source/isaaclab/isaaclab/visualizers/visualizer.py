@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
+    from isaaclab.physics import SceneDataProvider
 
     from .visualizer_cfg import VisualizerCfg
 
@@ -204,6 +204,19 @@ class Visualizer(ABC):
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state. No-op by default."""
         pass
+
+    def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
+        """Log a compact initialization table for a visualizer."""
+        from prettytable import PrettyTable
+
+        table = PrettyTable()
+        table.title = title
+        table.field_names = ["Field", "Value"]
+        table.align["Field"] = "l"
+        table.align["Value"] = "l"
+        for key, value in rows:
+            table.add_row([key, value])
+        logger.info("Visualizer initialization:\n%s", table.get_string())
 
     def play(self) -> None:
         """Handle simulation play/start. No-op by default."""

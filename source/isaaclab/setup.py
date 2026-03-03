@@ -50,10 +50,6 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.0",
     "flaky",
     "packaging",
-    # visualizers
-    "newton @ git+https://github.com/newton-physics/newton.git@v0.2.3",
-    "imgui-bundle>=1.92.5",
-    "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",

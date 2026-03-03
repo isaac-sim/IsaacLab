@@ -32,6 +32,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     pole_dof_name = "cart_to_pole"
 
     # camera
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
@@ -41,6 +42,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         ),
         width=100,
         height=100,
+        renderer_cfg=NewtonWarpRendererCfg(),
     )
     write_image_to_file = False
 

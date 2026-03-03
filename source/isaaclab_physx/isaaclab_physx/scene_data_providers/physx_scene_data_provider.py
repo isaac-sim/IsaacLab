@@ -13,11 +13,34 @@ from collections import deque
 from typing import Any
 
 from pxr import UsdGeom
+import warp as wp
 
 logger = logging.getLogger(__name__)
 
 # Path pattern for env prims: /World/envs/env_<id>/...
 _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
+
+
+@wp.kernel(enable_backward=False)
+def _set_body_q_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    body_q: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    body_q[i] = wp.transformf(positions[i], orientations[i])
+
+
+@wp.kernel(enable_backward=False)
+def _set_body_q_subset_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    body_indices: wp.array(dtype=wp.int32),
+    body_q: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    bi = body_indices[i]
+    body_q[bi] = wp.transformf(positions[i], orientations[i])
 
 
 class PhysxSceneDataProvider:
@@ -28,7 +51,6 @@ class PhysxSceneDataProvider:
     - camera poses & intrinsics
     - USD stage handles
     - Newton model/state handles
-    - TODO: mesh data access
     """
 
     # ---- Environment discovery / metadata -------------------------------------------------
@@ -103,7 +125,6 @@ class PhysxSceneDataProvider:
         self._filtered_body_indices: list[int] = []
         self._rigid_body_paths: list[str] = []
         self._articulation_paths: list[str] = []
-        self._set_body_q_kernel = None
         # env_id -> list of body indices (in Newton body_key order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
 
@@ -267,12 +288,12 @@ class PhysxSceneDataProvider:
 
     # ---- Pose/velocity read pipeline ------------------------------------------------------
 
-    def _warn_once(self, key: str, message: str, *args) -> None:
+    def _warn_once(self, key: str, message: str, *args, level=logging.WARNING) -> None:
         """Log a warning only once for a given key."""
         if key in self._warned_once:
             return
         self._warned_once.add(key)
-        logger.warning(message, *args)
+        logger.log(level, message, *args)
 
     def _get_view_world_poses(self, view: Any):
         """Read world poses from a PhysX view.
@@ -358,6 +379,7 @@ class PhysxSceneDataProvider:
                 f"missing-index-map-{view_key}",
                 "[PhysxSceneDataProvider] Missing index map for %s; cannot scatter transforms.",
                 view_key,
+                level=logging.DEBUG,
             )
             return 0
 
@@ -426,6 +448,7 @@ class PhysxSceneDataProvider:
                 "xform-fallback-failures",
                 "[PhysxSceneDataProvider] Xform fallback failed for %d body paths.",
                 len(self._xform_view_failures),
+                level=logging.DEBUG,
             )
         return count
 
@@ -466,6 +489,7 @@ class PhysxSceneDataProvider:
             self._warn_once(
                 "rigid-source-unused",
                 "[PhysxSceneDataProvider] RigidBodyView did not provide any body transforms; using fallback sources.",
+                level=logging.DEBUG,
             )
 
         if not covered.all():
@@ -490,51 +514,12 @@ class PhysxSceneDataProvider:
         return positions, orientations, source, xform_mask
 
     def _get_set_body_q_kernel(self):
-        """Get or create the Warp kernel for writing transforms to Newton state."""
-        if self._set_body_q_kernel is not None:
-            return self._set_body_q_kernel
-        try:
-            import warp as wp
-
-            @wp.kernel(enable_backward=False)
-            def _set_body_q(
-                positions: wp.array(dtype=wp.vec3),
-                orientations: wp.array(dtype=wp.quatf),
-                body_q: wp.array(dtype=wp.transformf),
-            ):
-                i = wp.tid()
-                body_q[i] = wp.transformf(positions[i], orientations[i])
-
-            self._set_body_q_kernel = _set_body_q
-            return self._set_body_q_kernel
-        except Exception as exc:
-            logger.warning(f"[PhysxSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
-            return None
+        """Return module-level Warp kernel for writing transforms to Newton state."""
+        return _set_body_q_kernel
 
     def _get_set_body_q_subset_kernel(self):
-        """Kernel that writes only body_q at given indices."""
-        kernel = getattr(self, "_set_body_q_subset_kernel", None)
-        if kernel is not None:
-            return kernel
-        try:
-            import warp as wp
-
-            @wp.kernel(enable_backward=False)
-            def _set_body_q_subset(
-                positions: wp.array(dtype=wp.vec3),
-                orientations: wp.array(dtype=wp.quatf),
-                body_indices: wp.array(dtype=wp.int32),
-                body_q: wp.array(dtype=wp.transformf),
-            ):
-                i = wp.tid()
-                bi = body_indices[i]
-                body_q[bi] = wp.transformf(positions[i], orientations[i])
-
-            self._set_body_q_subset_kernel = _set_body_q_subset
-            return self._set_body_q_subset_kernel
-        except Exception as exc:
-            logger.debug(f"Warp subset kernel: {exc}")
-            return None
+        """Return module-level Warp kernel for subset writes."""
+        return _set_body_q_subset_kernel
 
     # ---- Newton state sync ----------------------------------------------------------------
 
@@ -548,8 +533,6 @@ class PhysxSceneDataProvider:
             return
 
         try:
-            import warp as wp
-
             # Re-check env count in case stage population completed after provider construction.
             self._refresh_newton_model_if_needed()
 

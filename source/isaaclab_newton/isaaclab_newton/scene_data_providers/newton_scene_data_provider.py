@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""TODO: implement when the newton physics backend is added."""
+"""TODO: implement when the Newton physics backend is added."""
 
 from __future__ import annotations
 
@@ -11,10 +11,12 @@ from typing import Any
 
 
 class NewtonSceneDataProvider:
-    """TODO: implement when the newton physics backend is added."""
+    """TODO: implement when the Newton physics backend is added."""
 
-    def __init__(self, visualizer_cfgs: list[Any] | None) -> None:
+    def __init__(self, visualizer_cfgs: list[Any] | None, stage: Any | None = None, simulation_context: Any | None = None) -> None:
         self._metadata = {"physics_backend": "newton"}
+        self._stage = stage
+        self._simulation_context = simulation_context
 
     def update(self, env_ids: list[int] | None = None) -> None:
         """TODO: implement when the newton physics backend is added."""
@@ -30,7 +32,7 @@ class NewtonSceneDataProvider:
 
     def get_usd_stage(self) -> Any | None:
         """TODO: implement when the newton physics backend is added."""
-        return None
+        return self._stage
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)
