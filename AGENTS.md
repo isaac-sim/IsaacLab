@@ -1,4 +1,4 @@
-# Newton Guidelines
+# IsaacLab Guidelines
 
 ## Breaking API changes
 
@@ -25,7 +25,7 @@
   - In `Args:` entries, use `name: description` (not `name (Type): description`).
   - Use Sphinx cross-reference roles for symbol references (e.g. `:class:`, `:meth:`, `:attr:`, `:paramref:`), but keep targets as short as possible.
   - Within the same class/module, prefer short local references (e.g. `:meth:\`log_mesh\``, `:attr:\`model\``) over fully qualified paths.
-  - If qualification is needed, prefer public API paths (e.g. `newton.Mesh`) and do not use `newton._src` in Sphinx role targets.
+  - If qualification is needed, prefer public API paths (e.g. `isaaclab.assets.Articulation`) and do not use internal `_src` or private module paths in Sphinx role targets.
 - **State SI units for all physical quantities in docstrings.**
   - Use inline `[unit]` notation, e.g. `"""Particle positions [m], shape [particle_count, 3], float."""`.
   - For joint-type-dependent quantities use `[m or rad, depending on joint type]`.
@@ -39,7 +39,7 @@
 
 ## Dependencies
 
-- **Avoid adding new required dependencies.** Newton's core should remain lightweight and minimize external requirements.
+- **Avoid adding new required dependencies.** IsaacLab's core should remain lightweight and minimize external requirements.
 - **Strongly prefer not adding new optional dependencies.** If additional functionality requires a new package, carefully consider whether the benefit justifies the added complexity and maintenance burden. When possible, implement functionality using existing dependencies, including Warp functions and kernels, NumPy, or the standard library.
 
 ## Tooling: prefer `./isaaclab.sh -p` for running, testing, and benchmarking
@@ -53,13 +53,13 @@ We use a wrapped python call within `./isaaclab.sh`.
 
 ```bash
 # install development extras and run tests. This is extremely heavy and should be avoided.
-./isaaclab -t
+./isaaclab.sh -t
 
 # run a specific test file by name
-./isaaclab -p -m pytest PATH_TO_TEST
+./isaaclab.sh -p -m pytest PATH_TO_TEST
 
 # run a specific example test
-./isaaclab -p -m pytest PATH_TO_TEST::METHOD
+./isaaclab.sh -p -m pytest PATH_TO_TEST::METHOD
 
 ```
 
@@ -162,7 +162,7 @@ Follow conventional commit message practices.
 
 ### Debugging Warp kernels
 
-**Do not add `wp.printf` to kernels and run via the test runner.** Newton's test infrastructure captures stdout at the file-descriptor level (`os.dup2`) via `CheckOutput`/`StdOutCapture` in `newton/tests/unittest_utils.py`. By default (`check_output=True`), any unexpected stdout — including `wp.printf` — **causes the test to fail** with `"Unexpected output"`. Tests that opt out with `check_output=False` avoid that failure, but their stdout is still lost because `unittest-parallel` runs tests in spawned child processes.
+**Do not add `wp.printf` to kernels in production code.** Debug prints in Warp kernels affect performance and can produce noisy test output. Use them only in standalone reproduction scripts during development, and always remove them before committing.
 
 To debug Warp kernel behavior:
 
