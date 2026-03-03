@@ -646,6 +646,8 @@
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
+<span class="n">_UDIM_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;&lt;UDIM&gt;&quot;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_parse_kit_asset_root</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse ``persistent.isaac.asset_root.cloud`` from ``apps/isaaclab.python.kit``.&quot;&quot;&quot;</span>
@@ -744,6 +746,19 @@
             <span class="k">if</span> <span class="n">cur_url</span> <span class="ow">in</span> <span class="n">visited</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="n">visited</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">cur_url</span><span class="p">)</span>
+
+            <span class="c1"># UDIM textures use a &lt;UDIM&gt; placeholder (e.g. texture.&lt;UDIM&gt;.png) that does not</span>
+            <span class="c1"># correspond to a real file. Expand to individual tile URLs by probing tile numbers</span>
+            <span class="c1"># starting at 1001; UDIM tiles are contiguous so stop at the first missing tile.</span>
+            <span class="k">if</span> <span class="n">_UDIM_RE</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">cur_url</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1001</span><span class="p">,</span> <span class="mi">1101</span><span class="p">):</span>
+                    <span class="n">tile_url</span> <span class="o">=</span> <span class="n">_UDIM_RE</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">tile</span><span class="p">),</span> <span class="n">cur_url</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">tile_url</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">Result</span><span class="o">.</span><span class="n">OK</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">tile_url</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">visited</span><span class="p">:</span>
+                            <span class="n">to_visit</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_url</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="k">continue</span>
 
             <span class="n">cur_rel</span> <span class="o">=</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">cur_url</span><span class="p">)</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
             <span class="n">target_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">download_dir</span><span class="p">,</span> <span class="n">cur_rel</span><span class="p">)</span>

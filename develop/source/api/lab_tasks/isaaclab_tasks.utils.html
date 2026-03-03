@@ -683,8 +683,10 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.add_launcher_args"><code class="docutils literal notranslate"><span class="pre">add_launcher_args()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.get_checkpoint_path"><code class="docutils literal notranslate"><span class="pre">get_checkpoint_path()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.import_packages"><code class="docutils literal notranslate"><span class="pre">import_packages()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.launch_simulation"><code class="docutils literal notranslate"><span class="pre">launch_simulation()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.load_cfg_from_registry"><code class="docutils literal notranslate"><span class="pre">load_cfg_from_registry()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.parse_env_cfg"><code class="docutils literal notranslate"><span class="pre">parse_env_cfg()</span></code></a></li>
 </ul>
@@ -704,11 +706,17 @@
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.get_checkpoint_path" title="isaaclab_tasks.utils.get_checkpoint_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_checkpoint_path</span></code></a>(log_path[, run_dir, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.add_launcher_args" title="isaaclab_tasks.utils.add_launcher_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_launcher_args</span></code></a>(parser)</p></td>
+<td><p>Add simulation-launcher CLI arguments (<code class="docutils literal notranslate"><span class="pre">--headless</span></code>, <code class="docutils literal notranslate"><span class="pre">--device</span></code>, etc.) to <em>parser</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.get_checkpoint_path" title="isaaclab_tasks.utils.get_checkpoint_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_checkpoint_path</span></code></a>(log_path[, run_dir, ...])</p></td>
 <td><p>Get path to the model checkpoint in input directory.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.import_packages" title="isaaclab_tasks.utils.import_packages"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_packages</span></code></a>(package_name[, blacklist_pkgs])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.import_packages" title="isaaclab_tasks.utils.import_packages"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_packages</span></code></a>(package_name[, blacklist_pkgs])</p></td>
 <td><p>Import all sub-packages in a package recursively.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.launch_simulation" title="isaaclab_tasks.utils.launch_simulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">launch_simulation</span></code></a>(env_cfg[, launcher_args])</p></td>
+<td><p>Context manager that launches the appropriate simulation runtime for <em>env_cfg</em>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_tasks.utils.load_cfg_from_registry" title="isaaclab_tasks.utils.load_cfg_from_registry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_cfg_from_registry</span></code></a>(task_name, ...)</p></td>
 <td><p>Load default configuration given its entry point from the gym registry.</p></td>
@@ -719,6 +727,14 @@
 </tbody>
 </table>
 </div>
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab_tasks.utils.add_launcher_args">
+<span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">add_launcher_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parser</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.14)"><span class="pre">ArgumentParser</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/sim_launcher.html#add_launcher_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.add_launcher_args" title="Permalink to this definition">#</a></dt>
+<dd><p>Add simulation-launcher CLI arguments (<code class="docutils literal notranslate"><span class="pre">--headless</span></code>, <code class="docutils literal notranslate"><span class="pre">--device</span></code>, etc.) to <em>parser</em>.</p>
+<p>Delegates to <code class="xref py py-meth docutils literal notranslate"><span class="pre">AppLauncher.add_app_launcher_args()</span></code> so that user scripts
+do not need to import <code class="docutils literal notranslate"><span class="pre">AppLauncher</span></code> directly.</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab_tasks.utils.get_checkpoint_path">
 <span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">get_checkpoint_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">log_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.*'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.*'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_dirs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sort_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/parse_cfg.html#get_checkpoint_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.get_checkpoint_path" title="Permalink to this definition">#</a></dt>
@@ -757,14 +773,11 @@ If False, the folders in <code class="xref py py-attr docutils literal notransla
 <dt class="sig sig-object py" id="isaaclab_tasks.utils.import_packages">
 <span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">import_packages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">package_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">blacklist_pkgs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/importer.html#import_packages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.import_packages" title="Permalink to this definition">#</a></dt>
 <dd><p>Import all sub-packages in a package recursively.</p>
-<p>It is easier to use this function to import all sub-packages in a package recursively
-than to manually import each sub-package.</p>
-<p>It replaces the need of the following code snippet on the top of each package’s <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> file:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">.locomotion.velocity</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">.manipulation.reach</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">.manipulation.lift</span>
-</pre></div>
-</div>
+<p>Only <strong>packages</strong> (directories with <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>) are imported — plain
+<code class="docutils literal notranslate"><span class="pre">.py</span></code> modules (e.g. <code class="docutils literal notranslate"><span class="pre">env_cfg.py</span></code>, <code class="docutils literal notranslate"><span class="pre">env.py</span></code>) are skipped.  This is
+sufficient because <code class="docutils literal notranslate"><span class="pre">gym.register()</span></code> calls live exclusively in
+<code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> files, and avoids eagerly importing every config module
+at startup.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -774,6 +787,24 @@ which means no packages are blacklisted.</p></li>
 </ul>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab_tasks.utils.launch_simulation">
+<span class="sig-prename descclassname"><span class="pre">isaaclab_tasks.utils.</span></span><span class="sig-name descname"><span class="pre">launch_simulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">launcher_args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.14)"><span class="pre">Namespace</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Generator" title="(in Python v3.14)"><span class="pre">Generator</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_tasks/utils/sim_launcher.html#launch_simulation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_tasks.utils.launch_simulation" title="Permalink to this definition">#</a></dt>
+<dd><p>Context manager that launches the appropriate simulation runtime for <em>env_cfg</em>.</p>
+<ul class="simple">
+<li><p>Recursively scans the config tree to decide whether Isaac Sim Kit is needed.</p></li>
+<li><p>Auto-enables <code class="docutils literal notranslate"><span class="pre">enable_cameras</span></code> when the scene contains camera sensors
+that use a Kit renderer (not Newton).</p></li>
+<li><p>For Kit-based backends, launches <code class="docutils literal notranslate"><span class="pre">AppLauncher</span></code> and calls <code class="docutils literal notranslate"><span class="pre">app.close()</span></code> on exit.</p></li>
+<li><p>For kitless backends (e.g. Newton), this is a no-op.</p></li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">launch_simulation</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">args_cli</span><span class="p">):</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -886,8 +917,10 @@ Defaults to None, in which case it is left unchanged.</p></li>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.add_launcher_args"><code class="docutils literal notranslate"><span class="pre">add_launcher_args()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.get_checkpoint_path"><code class="docutils literal notranslate"><span class="pre">get_checkpoint_path()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.import_packages"><code class="docutils literal notranslate"><span class="pre">import_packages()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.launch_simulation"><code class="docutils literal notranslate"><span class="pre">launch_simulation()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.load_cfg_from_registry"><code class="docutils literal notranslate"><span class="pre">load_cfg_from_registry()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_tasks.utils.parse_env_cfg"><code class="docutils literal notranslate"><span class="pre">parse_env_cfg()</span></code></a></li>
 </ul>
