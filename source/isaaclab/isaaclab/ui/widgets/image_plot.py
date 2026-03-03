@@ -1,16 +1,18 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
-from contextlib import suppress
-from matplotlib import cm
-from typing import TYPE_CHECKING, Optional
+from __future__ import annotations
 
-import carb
+import logging
+from contextlib import suppress
+from typing import TYPE_CHECKING
+
+import numpy as np
+from matplotlib import cm
+
 import omni
-import omni.log
 
 with suppress(ImportError):
     # isaacsim.gui is not available when running in headless mode.
@@ -21,6 +23,9 @@ from .ui_widget_wrapper import UIWidgetWrapper
 if TYPE_CHECKING:
     import isaacsim.gui.components
     import omni.ui
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ImagePlot(UIWidgetWrapper):
@@ -41,7 +46,9 @@ class ImagePlot(UIWidgetWrapper):
     |||+-------------------------------------------------+|||
     |||                   mode_frame                      |||
     |||                                                   |||
-    |||    [x][Absolute] [x][Grayscaled] [ ][Colorized]   |||
+    |||    [Dropdown: Mode Selection]                     |||
+    |||    [Collapsible: Manual Normalization Options]    |||
+    ||+---------------------------------------------------+||
     |+-----------------------------------------------------+|
     +-------------------------------------------------------+
 
@@ -49,11 +56,11 @@ class ImagePlot(UIWidgetWrapper):
 
     def __init__(
         self,
-        image: Optional[np.ndarray] = None,
+        image: np.ndarray | None = None,
         label: str = "",
         widget_height: int = 200,
-        show_min_max: bool = True,
-        unit: tuple[float, str] = (1, ""),
+        min_value: float = 0.0,
+        max_value: float = 1.0,
     ):
         """Create an XY plot UI Widget with axis scaling, legends, and support for multiple plots.
 
@@ -64,12 +71,9 @@ class ImagePlot(UIWidgetWrapper):
             image: Image to display
             label: Short descriptive text to the left of the plot
             widget_height: Height of the plot in pixels
-            show_min_max: Whether to show the min and max values of the image
-            unit: Tuple of (scale, name) for the unit of the image
+            min_value: Minimum value for manual normalization/colorization. Defaults to 0.0.
+            max_value: Maximum value for manual normalization/colorization. Defaults to 1.0.
         """
-        self._show_min_max = show_min_max
-        self._unit_scale = unit[0]
-        self._unit_name = unit[1]
 
         self._curr_mode = "None"
 
@@ -79,7 +83,7 @@ class ImagePlot(UIWidgetWrapper):
 
         self._byte_provider = omni.ui.ByteImageProvider()
         if image is None:
-            carb.log_warn("image is NONE")
+            logger.warning("image is NONE")
             image = np.ones((480, 640, 3), dtype=np.uint8) * 255
             image[:, :, 0] = 0
             image[:, :240, 1] = 0
@@ -115,7 +119,7 @@ class ImagePlot(UIWidgetWrapper):
             image = (image * 255).astype(np.uint8)
         elif self._curr_mode == "Colorization":
             if image.ndim == 3 and image.shape[2] == 3:
-                omni.log.warn("Colorization mode is only available for single channel images")
+                logger.warning("Colorization mode is only available for single channel images")
             else:
                 image = (image - image.min()) / (image.max() - image.min())
                 colormap = cm.get_cmap("jet")
@@ -155,7 +159,6 @@ class ImagePlot(UIWidgetWrapper):
         )
 
     def _build_widget(self):
-
         with omni.ui.VStack(spacing=3):
             with omni.ui.HStack():
                 # Write the leftmost label for what this plot is
@@ -184,25 +187,124 @@ class ImagePlot(UIWidgetWrapper):
 
         The built widget has the following layout:
         +-------------------------------------------------------+
-        |                   legends_frame                       |
+        |                   mode_frame                          |
         ||+---------------------------------------------------+||
-        |||                                                   |||
-        |||    [x][Series 1] [x][Series 2] [ ][Series 3]      |||
-        |||                                                   |||
+        |||    [Dropdown: Mode Selection]                     |||
+        |||    [Collapsible: Manual Normalization Options]    |||
         |||+-------------------------------------------------+|||
         |+-----------------------------------------------------+|
         +-------------------------------------------------------+
         """
-        with omni.ui.HStack():
-            with omni.ui.HStack():
+        with omni.ui.VStack(spacing=5, style=isaacsim.gui.components.ui_utils.get_style()):
 
-                def _change_mode(value):
-                    self._curr_mode = value
+            def _change_mode(value):
+                self._curr_mode = value
+                # Update visibility of collapsible frame
+                show_options = value in ["Normalization", "Colorization"]
+                if hasattr(self, "_options_collapsable"):
+                    self._options_collapsable.visible = show_options
+                    if show_options:
+                        self._options_collapsable.title = f"{value} Options"
 
-                isaacsim.gui.components.ui_utils.dropdown_builder(
-                    label="Mode",
-                    type="dropdown",
-                    items=["Original", "Normalization", "Colorization"],
-                    tooltip="Select a mode",
-                    on_clicked_fn=_change_mode,
-                )
+            # Mode dropdown
+            isaacsim.gui.components.ui_utils.dropdown_builder(
+                label="Mode",
+                type="dropdown",
+                items=["Original", "Normalization", "Colorization"],
+                tooltip="Select a mode",
+                on_clicked_fn=_change_mode,
+            )
+
+            # Collapsible frame for options (initially hidden)
+            self._options_collapsable = omni.ui.CollapsableFrame(
+                "Normalization Options",
+                height=0,
+                collapsed=False,
+                visible=False,
+                style=isaacsim.gui.components.ui_utils.get_style(),
+                style_type_name_override="CollapsableFrame",
+            )
+
+            with self._options_collapsable:
+                with omni.ui.VStack(spacing=5, style=isaacsim.gui.components.ui_utils.get_style()):
+
+                    def _on_manual_changed(enabled):
+                        self._enabled_min_max = enabled
+                        # Enable/disable the float fields
+                        if hasattr(self, "_min_model"):
+                            self._min_field.enabled = enabled
+                        if hasattr(self, "_max_model"):
+                            self._max_field.enabled = enabled
+
+                    def _on_min_changed(model):
+                        self._min_value = model.as_float
+
+                    def _on_max_changed(model):
+                        self._max_value = model.as_float
+
+                    # Manual values checkbox
+                    isaacsim.gui.components.ui_utils.cb_builder(
+                        label="Use Manual Values",
+                        type="checkbox",
+                        default_val=self._enabled_min_max,
+                        tooltip="Enable manual min/max values",
+                        on_clicked_fn=_on_manual_changed,
+                    )
+
+                    # Min value with reset button
+                    with omni.ui.HStack():
+                        omni.ui.Label(
+                            "Min",
+                            width=isaacsim.gui.components.ui_utils.LABEL_WIDTH,
+                            alignment=omni.ui.Alignment.LEFT_CENTER,
+                        )
+                        self._min_field = omni.ui.FloatDrag(
+                            name="FloatField",
+                            width=omni.ui.Fraction(1),
+                            height=0,
+                            alignment=omni.ui.Alignment.LEFT_CENTER,
+                            enabled=self._enabled_min_max,
+                        )
+                        self._min_model = self._min_field.model
+                        self._min_model.set_value(self._min_value)
+                        self._min_model.add_value_changed_fn(_on_min_changed)
+
+                        omni.ui.Spacer(width=5)
+                        omni.ui.Button(
+                            "0",
+                            width=20,
+                            height=20,
+                            clicked_fn=lambda: self._min_model.set_value(0.0),
+                            tooltip="Reset to 0.0",
+                            style=isaacsim.gui.components.ui_utils.get_style(),
+                        )
+                        isaacsim.gui.components.ui_utils.add_line_rect_flourish(False)
+
+                    # Max value with reset button
+                    with omni.ui.HStack():
+                        omni.ui.Label(
+                            "Max",
+                            width=isaacsim.gui.components.ui_utils.LABEL_WIDTH,
+                            alignment=omni.ui.Alignment.LEFT_CENTER,
+                        )
+                        self._max_field = omni.ui.FloatDrag(
+                            name="FloatField",
+                            width=omni.ui.Fraction(1),
+                            height=0,
+                            alignment=omni.ui.Alignment.LEFT_CENTER,
+                            enabled=self._enabled_min_max,
+                        )
+                        self._max_model = self._max_field.model
+                        self._max_model.set_value(self._max_value)
+                        self._max_model.add_value_changed_fn(_on_max_changed)
+
+                        omni.ui.Spacer(width=5)
+                        omni.ui.Button(
+                            "1",
+                            width=20,
+                            height=20,
+                            clicked_fn=lambda: self._max_model.set_value(1.0),
+                            tooltip="Reset to 1.0",
+                            style=isaacsim.gui.components.ui_utils.get_style(),
+                        )
+                        isaacsim.gui.components.ui_utils.add_line_rect_flourish(False)

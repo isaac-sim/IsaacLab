@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,6 +15,7 @@ For more information, please check information on `Omniverse Nucleus`_.
 
 import asyncio
 import io
+import logging
 import os
 import tempfile
 import time
@@ -22,6 +23,9 @@ from typing import Literal
 
 import carb
 import omni.client
+
+# import logger
+logger = logging.getLogger(__name__)
 
 NUCLEUS_ASSET_ROOT_DIR = carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
 """Path to the root directory on the Nucleus Server."""
@@ -168,9 +172,9 @@ def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interva
         if now >= next_log_time:
             elapsed = int(now - start_time)
             if first_log:
-                omni.log.warn(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
+                logger.warning(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
                 first_log = False
-            omni.log.warn(f"Waiting for server response... ({elapsed}s elapsed)")
+            logger.warning(f"Waiting for server response... ({elapsed}s elapsed)")
             next_log_time += log_interval
         loop.run_until_complete(asyncio.sleep(0.1))  # Yield to allow async work
 
@@ -185,8 +189,9 @@ Helper functions.
 async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
     """Checks whether the given USD path is available on the Omniverse Nucleus server.
 
-    This function is a asynchronous routine to check the availability of the given USD path on the Omniverse Nucleus server.
-    It will return True if the USD path is available on the server, False otherwise.
+    This function is a asynchronous routine to check the availability of the given USD path on
+    the Omniverse Nucleus server. It will return True if the USD path is available on the server,
+    False otherwise.
 
     Args:
         usd_path: The remote or local USD file path to check.
@@ -199,8 +204,8 @@ async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
         result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
         return result == omni.client.Result.OK
     except asyncio.TimeoutError:
-        omni.log.warn(f"Timed out after {timeout}s while checking for USD: {usd_path}")
+        logger.warning(f"Timed out after {timeout}s while checking for USD: {usd_path}")
         return False
     except Exception as ex:
-        omni.log.warn(f"Exception during USD file check: {type(ex).__name__}: {ex}")
+        logger.warning(f"Exception during USD file check: {type(ex).__name__}: {ex}")
         return False

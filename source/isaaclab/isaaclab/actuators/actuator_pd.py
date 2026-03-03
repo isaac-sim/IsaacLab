@@ -1,15 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
@@ -17,7 +17,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
-    from .actuator_cfg import (
+    from .actuator_pd_cfg import (
         DCMotorCfg,
         DelayedPDActuatorCfg,
         IdealPDActuatorCfg,
@@ -25,6 +25,8 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 Implicit Actuator Models.
@@ -57,7 +59,7 @@ class ImplicitActuator(ActuatorBase):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
                 " This parameter will be removed in the future."
                 " To set the effort limit, please use 'effort_limit_sim' instead."
@@ -79,7 +81,7 @@ class ImplicitActuator(ActuatorBase):
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
             # throw a warning that previously this was not set
             # it leads to different simulation behavior so we want to remain backwards compatible
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
                 " Previously, although this value was specified, it was not getting used by implicit"
                 " actuators. Since this parameter affects the simulation behavior, we continue to not"
@@ -211,16 +213,17 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).
-    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).
-    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This
-      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
-      enforced by electrical limitations.(:attr:`effort_limit`).
+    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at
+      zero torque (:attr:`velocity_limit`).
+    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at
+      zero speed (:attr:`saturation_effort`).
+    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period.
+      This is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage,
+      or enforced by electrical limitations (:attr:`effort_limit`).
     * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.
-      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
-      (where torque-speed curve intersects with continuous torque) are defined as follows:
 
-    Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:
+    Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+    (where torque-speed curve intersects with continuous torque) are defined as follows:
 
     .. math::
 

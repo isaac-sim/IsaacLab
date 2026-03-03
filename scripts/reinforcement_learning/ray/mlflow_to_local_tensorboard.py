@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,10 +9,10 @@ import multiprocessing as mp
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from torch.utils.tensorboard import SummaryWriter
 
 import mlflow
 from mlflow.tracking import MlflowClient
+from torch.utils.tensorboard import SummaryWriter
 
 
 def setup_logging(level=logging.INFO):
@@ -66,6 +66,7 @@ def process_run(args):
 
 def download_experiment_tensorboard_logs(uri: str, experiment_name: str, download_dir: str) -> None:
     """Download MLflow experiment logs and convert to TensorBoard format."""
+    # import logger
     logger = logging.getLogger(__name__)
 
     try:

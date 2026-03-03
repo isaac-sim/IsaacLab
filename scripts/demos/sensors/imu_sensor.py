@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -66,7 +66,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Simulate physics
     while simulation_app.is_running():
-
         if count % 500 == 0:
             # reset counter
             count = 0

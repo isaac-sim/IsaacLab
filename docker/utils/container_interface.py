@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -29,16 +29,22 @@ class ContainerInterface:
         """Initialize the container interface with the given parameters.
 
         Args:
-            context_dir: The context directory for Docker operations.
-            profile: The profile name for the container. Defaults to "base".
-            yamls: A list of yaml files to extend ``docker-compose.yaml`` settings. These are extended in the order
-                they are provided.
-            envs: A list of environment variable files to extend the ``.env.base`` file. These are extended in the order
-                they are provided.
-            statefile: An instance of the :class:`Statefile` class to manage state variables. Defaults to None, in
+            context_dir:
+                The context directory for Docker operations.
+            profile:
+                The profile name for the container. Defaults to "base".
+            yamls:
+                A list of yaml files to extend ``docker-compose.yaml`` settings. These are extended in the order
+                they are provided. Defaults to None, in which case no additional yaml files are added.
+            envs:
+                A list of environment variable files to extend the ``.env.base`` file. These are extended in the order
+                they are provided. Defaults to None, in which case no additional environment variable files are added.
+            statefile:
+                An instance of the :class:`Statefile` class to manage state variables. Defaults to None, in
                 which case a new configuration object is created by reading the configuration file at the path
                 ``context_dir/.container.cfg``.
-            suffix: Optional docker image and container name suffix.  Defaults to None, in which case, the docker name
+            suffix:
+                Optional docker image and container name suffix.  Defaults to None, in which case, the docker name
                 suffix is set to the empty string. A hyphen is inserted in between the profile and the suffix if
                 the suffix is a nonempty string.  For example, if "base" is passed to profile, and "custom" is
                 passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``.
@@ -68,8 +74,11 @@ class ContainerInterface:
             # insert a hyphen before the suffix if a suffix is given
             self.suffix = f"-{suffix}"
 
-        self.container_name = f"isaac-lab-{self.profile}{self.suffix}"
-        self.image_name = f"isaac-lab-{self.profile}{self.suffix}:latest"
+        # set names for easier reference
+        self.base_service_name = "isaac-lab-base"
+        self.service_name = f"isaac-lab-{self.profile}"
+        self.container_name = f"{self.service_name}{self.suffix}"
+        self.image_name = f"{self.service_name}{self.suffix}:latest"
 
         # keep the environment variables from the current environment,
         # except make sure that the docker name suffix is set from the script
@@ -80,6 +89,26 @@ class ContainerInterface:
         self._resolve_image_extension(yamls, envs)
         # load the environment variables from the .env files
         self._parse_dot_vars()
+
+    def print_info(self):
+        """Print the container interface information."""
+        print("=" * 60)
+        print(f"{'DOCKER CONTAINER INFO':^60}")  # Centered title
+        print("=" * 60)
+
+        print(f"{'Profile:':25} {self.profile}")
+        print(f"{'Suffix:':25} {self.suffix}")
+        print(f"{'Service Name:':25} {self.service_name}")
+        print(f"{'Image Name:':25} {self.image_name}")
+        print(f"{'Container Name:':25} {self.container_name}")
+
+        print("-" * 60)
+        print(f"{'Docker Compose Arguments':^60}")
+        print("-" * 60)
+        print(f"{'YAMLs:':25} {' '.join(self.add_yamls)}")
+        print(f"{'Profiles:':25} {' '.join(self.add_profiles)}")
+        print(f"{'Env Files:':25} {' '.join(self.add_env_files)}")
+        print("=" * 60)
 
     """
     Operations.
@@ -108,6 +137,33 @@ class ContainerInterface:
         result = subprocess.run(["docker", "image", "inspect", self.image_name], capture_output=True, text=True)
         return result.returncode == 0
 
+    def build(self):
+        """Build the Docker image."""
+        print("[INFO] Building the docker image for the profile 'base'...\n")
+        # build the image for the base profile
+        cmd = (
+            ["docker", "compose"]
+            + ["--file", "docker-compose.yaml"]
+            + ["--profile", "base"]
+            + ["--env-file", ".env.base"]
+            + ["build", self.base_service_name]
+        )
+        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+        print("[INFO] Finished building the docker image for the profile 'base'.\n")
+
+        # build the image for the profile
+        if self.profile != "base":
+            print(f"[INFO] Building the docker image for the profile '{self.profile}'...\n")
+            cmd = (
+                ["docker", "compose"]
+                + self.add_yamls
+                + self.add_profiles
+                + self.add_env_files
+                + ["build", self.service_name]
+            )
+            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            print(f"[INFO] Finished building the docker image for the profile '{self.profile}'.\n")
+
     def start(self):
         """Build and start the Docker container using the Docker compose command."""
         print(
@@ -122,33 +178,24 @@ class ContainerInterface:
 
         # build the image for the base profile if not running base (up will build base already if profile is base)
         if self.profile != "base":
-            subprocess.run(
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--env-file",
-                    ".env.base",
-                    "build",
-                    "isaac-lab-base",
-                ],
-                check=False,
-                cwd=self.context_dir,
-                env=self.environ,
+            cmd = (
+                ["docker", "compose"]
+                + ["--file", "docker-compose.yaml"]
+                + ["--profile", "base"]
+                + ["--env-file", ".env.base"]
+                + ["build", self.base_service_name]
             )
+            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
 
-        # build the image for the profile
-        subprocess.run(
+        # start the container and build the image if not available
+        cmd = (
             ["docker", "compose"]
             + self.add_yamls
             + self.add_profiles
             + self.add_env_files
-            + ["up", "--detach", "--build", "--remove-orphans"],
-            check=False,
-            cwd=self.context_dir,
-            env=self.environ,
+            + ["up", "--detach", "--build", "--remove-orphans"]
         )
+        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
 
     def enter(self):
         """Enter the running container by executing a bash shell.
@@ -158,34 +205,29 @@ class ContainerInterface:
         """
         if self.is_container_running():
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
-            subprocess.run([
-                "docker",
-                "exec",
-                "--interactive",
-                "--tty",
-                *(["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else []),
-                f"{self.container_name}",
-                "bash",
-            ])
+            cmd = (
+                ["docker", "exec", "--interactive", "--tty"]
+                + (["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else [])
+                + [self.container_name, "bash"]
+            )
+            subprocess.run(cmd)
         else:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
     def stop(self):
-        """Stop the running container using the Docker compose command.
-
-        Raises:
-            RuntimeError: If the container is not running.
-        """
+        """Stop the running container using the Docker compose command."""
         if self.is_container_running():
             print(f"[INFO] Stopping the launched docker container '{self.container_name}'...\n")
-            subprocess.run(
-                ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["down", "--volumes"],
-                check=False,
-                cwd=self.context_dir,
-                env=self.environ,
+            # stop running services
+            cmd = (
+                ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["down", "--volumes"]
             )
+            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
         else:
-            raise RuntimeError(f"Can't stop container '{self.container_name}' as it is not running.")
+            print(
+                f"[INFO] Can't stop container '{self.container_name}' as it is not running."
+                " To check if the container is running, run 'docker ps' or 'docker container ls'.\n"
+            )
 
     def copy(self, output_dir: Path | None = None):
         """Copy artifacts from the running container to the host machine.
@@ -223,15 +265,8 @@ class ContainerInterface:
 
             # copy the artifacts
             for container_path, host_path in artifacts.items():
-                subprocess.run(
-                    [
-                        "docker",
-                        "cp",
-                        f"isaac-lab-{self.profile}{self.suffix}:{container_path}/",
-                        f"{host_path}",
-                    ],
-                    check=False,
-                )
+                cmd = ["docker", "cp", f"{self.container_name}:{container_path}/", host_path]
+                subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
             print("\n[INFO] Finished copying the artifacts from the container.")
         else:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
@@ -255,20 +290,16 @@ class ContainerInterface:
             output = []
 
         # run the docker compose config command to generate the configuration
-        subprocess.run(
-            ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["config"] + output,
-            check=False,
-            cwd=self.context_dir,
-            env=self.environ,
-        )
+        cmd = ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["config"] + output
+        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
 
     """
     Helper functions.
     """
 
     def _resolve_image_extension(self, yamls: list[str] | None = None, envs: list[str] | None = None):
-        """
-        Resolve the image extension by setting up YAML files, profiles, and environment files for the Docker compose command.
+        """Resolve the image extension by setting up YAML files, profiles, and environment files for the
+        Docker compose command.
 
         Args:
             yamls: A list of yaml files to extend ``docker-compose.yaml`` settings. These are extended in the order

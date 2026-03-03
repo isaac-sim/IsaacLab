@@ -80,18 +80,14 @@ Other notable limitations with respect to Isaac Lab include...
 #. `SkillGen <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html>`_ is not supported out of the box. This
    is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which are not validated for use with DGX spark.
 
-#. Extended reality teleoperation tools such as `OpenXR <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/api/lab/isaaclab.devices.html#openxr>`_ is not supported. This is due
+#. Extended reality teleoperation tools such as `OpenXR <https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.devices.html#openxr>`_ is not supported. This is due
    to encoding performance limitations that have not yet been fully investigated.
 
-#. SKRL training with JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>_ has not been explicitly validated or tested in Isaac Lab on the DGX Spark.
+#. SKRL training with `JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ has not been explicitly validated or tested in Isaac Lab on the DGX Spark.
    JAX provides pre-built CUDA wheels only for Linux on x86_64, so on aarch64 systems (e.g., DGX Spark) it runs on CPU only by default.
    GPU support requires building JAX from source, which has not been validated in Isaac Lab.
 
 #. Livestream and Hub Workstation Cache are not supported on the DGX spark.
-
-#. Multi-node training may require direct connections between Spark machines or additional network configurations.
-
-#. :ref:`Isaac Lab Mimic <generating-additional-demonstrations>` data generation and policy inference for visuomotor environments are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
 

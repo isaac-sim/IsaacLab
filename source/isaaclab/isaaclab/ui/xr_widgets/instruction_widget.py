@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,10 +10,11 @@ from typing import Any, TypeAlias
 
 import omni.kit.commands
 import omni.ui as ui
-from isaacsim.core.utils.prims import delete_prim, get_prim_at_path
 from omni.kit.xr.scene_view.utils import UiContainer, WidgetComponent
 from omni.kit.xr.scene_view.utils.spatial_source import SpatialSource
 from pxr import Gf
+
+import isaaclab.sim as sim_utils
 
 Vec3Type: TypeAlias = Gf.Vec3f | Gf.Vec3d
 
@@ -34,7 +35,7 @@ class SimpleTextWidget(ui.Widget):
         text: str | None = "Simple Text",
         style: dict[str, Any] | None = None,
         original_width: float = 0.0,
-        **kwargs
+        **kwargs,
     ):
         """Initialize the text widget.
 
@@ -166,9 +167,11 @@ def show_instruction(
         container.root.clear()
         del camera_facing_widget_container[target_prim_path]
 
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
     # Clean up existing widget
-    if get_prim_at_path(target_prim_path):
-        delete_prim(target_prim_path)
+    if stage.GetPrimAtPath(target_prim_path).IsValid():
+        sim_utils.delete_prim(target_prim_path)
 
     width, height, wrapped_text = compute_widget_dimensions(text, font_size, max_width, min_width)
 
@@ -193,10 +196,12 @@ def show_instruction(
     if copied_prim is not None:
         space_stack.append(SpatialSource.new_prim_path_source(target_prim_path))
 
-    space_stack.extend([
-        SpatialSource.new_translation_source(translation),
-        SpatialSource.new_look_at_camera_source(),
-    ])
+    space_stack.extend(
+        [
+            SpatialSource.new_translation_source(translation),
+            SpatialSource.new_look_at_camera_source(),
+        ]
+    )
 
     # Create the UI container with the widget.
     container = UiContainer(

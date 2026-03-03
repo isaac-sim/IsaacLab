@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,11 +6,12 @@
 """Sub-module with utilities for parsing and loading configurations."""
 
 import collections
-import gymnasium as gym
 import importlib
 import inspect
 import os
 import re
+
+import gymnasium as gym
 import yaml
 
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg

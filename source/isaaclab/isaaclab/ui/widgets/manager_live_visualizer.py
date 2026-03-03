@@ -1,20 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import numpy
+import logging
 import weakref
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+import numpy
+
 import omni.kit.app
-import omni.log
-from isaacsim.core.api.simulation_context import SimulationContext
 
 from isaaclab.managers import ManagerBase
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
 from .image_plot import ImagePlot
@@ -23,6 +24,9 @@ from .ui_visualizer_base import UiVisualizerBase
 
 if TYPE_CHECKING:
     import omni.ui
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @configclass
@@ -57,7 +61,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         """Initialize ManagerLiveVisualizer.
 
         Args:
-            manager: The manager with terms to be plotted. The manager must have a :meth:`get_active_iterable_terms` method.
+            manager: The manager with terms to be plotted. The manager must have a
+                :meth:`~isaaclab.managers.manager_base.ManagerBase.get_active_iterable_terms` method.
             cfg: The configuration file used to select desired manager terms to be plotted.
         """
 
@@ -79,7 +84,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                     if term_name in self._manager.active_terms:
                         self.term_names.append(term_name)
                     else:
-                        omni.log.error(
+                        logger.error(
                             f"ManagerVisualizer Failure: ManagerTerm ({term_name}) does not exist in"
                             f" Manager({self.cfg.manager_name})"
                         )
@@ -94,17 +99,17 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                                 if term_name in self._manager.active_terms[group]:
                                     self.term_names.append(f"{group}-{term_name}")
                                 else:
-                                    omni.log.error(
+                                    logger.error(
                                         f"ManagerVisualizer Failure: ManagerTerm ({term_name}) does not exist in"
                                         f" Group({group})"
                                     )
                         else:
-                            omni.log.error(
+                            logger.error(
                                 f"ManagerVisualizer Failure: Group ({group}) does not exist in"
                                 f" Manager({self.cfg.manager_name})"
                             )
                 else:
-                    omni.log.error(
+                    logger.error(
                         f"ManagerVisualizer Failure: Manager({self.cfg.manager_name}) does not utilize grouping of"
                         " terms."
                     )
@@ -148,7 +153,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         if env_idx > 0 and env_idx < self._manager.num_envs:
             self._env_idx = env_idx
         else:
-            omni.log.warn(f"Environment index is out of range (0, {self._manager.num_envs - 1})")
+            logger.warning(f"Environment index is out of range (0, {self._manager.num_envs - 1})")
 
     def _set_vis_frame_impl(self, frame: omni.ui.Frame):
         """Updates the assigned frame that can be used for visualizations.
@@ -227,7 +232,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                                 image = ImagePlot(image=numpy.array(term), label=name)
                                 self._term_visualizers.append(image)
                             else:
-                                omni.log.warn(
+                                logger.warning(
                                     f"ManagerLiveVisualizer: Term ({name}) is not a supported data type for"
                                     " visualization."
                                 )

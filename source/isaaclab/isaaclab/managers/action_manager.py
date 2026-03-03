@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,22 +9,23 @@ from __future__ import annotations
 
 import inspect
 import re
-import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Any
+
+import torch
+from prettytable import PrettyTable
 
 import omni.kit.app
 
-from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import AssetBase
     from isaaclab.envs import ManagerBasedEnv
 
 

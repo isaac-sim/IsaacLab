@@ -1,19 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import yaml
+from dex_retargeting.retargeting_config import RetargetingConfig
 from scipy.spatial.transform import Rotation as R
 
-import omni.log
-from dex_retargeting.retargeting_config import RetargetingConfig
-
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+# import logger
+logger = logging.getLogger(__name__)
 
 # yourdfpy loads visual/collision meshes with the hand URDFs; these aren't needed for
 # retargeting and clutter the logs, so we suppress them.
@@ -24,17 +26,21 @@ logging.getLogger("dex_retargeting.yourdfpy").setLevel(logging.ERROR)
 _HAND_JOINTS_INDEX = [1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 22, 23, 24, 25]
 
 # The transformation matrices to convert hand pose to canonical view.
-_OPERATOR2MANO_RIGHT = np.array([
-    [0, 0, 1],
-    [1, 0, 0],
-    [0, 1, 0],
-])
+_OPERATOR2MANO_RIGHT = np.array(
+    [
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+    ]
+)
 
-_OPERATOR2MANO_LEFT = np.array([
-    [0, 0, 1],
-    [1, 0, 0],
-    [0, 1, 0],
-])
+_OPERATOR2MANO_LEFT = np.array(
+    [
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+    ]
+)
 
 # G1 robot hand joint names - 2 fingers and 1 thumb configuration
 _LEFT_HAND_JOINT_NAMES = [
@@ -69,8 +75,8 @@ class G1TriHandDexRetargeting:
         hand_joint_names: list[str],
         right_hand_config_filename: str = "g1_hand_right_dexpilot.yml",
         left_hand_config_filename: str = "g1_hand_left_dexpilot.yml",
-        left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",
-        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",
+        left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",  # noqa: E501
+        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",  # noqa: E501
     ):
         """Initialize the hand retargeting.
 
@@ -101,7 +107,7 @@ class G1TriHandDexRetargeting:
         self.dof_names = self.left_dof_names + self.right_dof_names
         self.isaac_lab_hand_joint_names = hand_joint_names
 
-        omni.log.info("[G1DexRetargeter] init done.")
+        logger.info("[G1DexRetargeter] init done.")
 
     def _update_yaml_with_urdf_path(self, yaml_path: str, urdf_path: str):
         """Update YAML file with the correct URDF path.
@@ -118,16 +124,16 @@ class G1TriHandDexRetargeting:
             # Update the URDF path in the configuration
             if "retargeting" in config:
                 config["retargeting"]["urdf_path"] = urdf_path
-                omni.log.info(f"Updated URDF path in {yaml_path} to {urdf_path}")
+                logger.info(f"Updated URDF path in {yaml_path} to {urdf_path}")
             else:
-                omni.log.warn(f"Unable to find 'retargeting' section in {yaml_path}")
+                logger.warning(f"Unable to find 'retargeting' section in {yaml_path}")
 
             # Write the updated configuration back to the file
             with open(yaml_path, "w") as file:
                 yaml.dump(config, file)
 
         except Exception as e:
-            omni.log.error(f"Error updating YAML file {yaml_path}: {e}")
+            logger.error(f"Error updating YAML file {yaml_path}: {e}")
 
     def convert_hand_joints(self, hand_poses: dict[str, np.ndarray], operator2mano: np.ndarray) -> np.ndarray:
         """Prepares the hand joints data for retargeting.

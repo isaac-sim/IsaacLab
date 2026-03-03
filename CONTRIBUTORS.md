@@ -21,6 +21,7 @@ Guidelines for modifications:
 
 * Antonio Serrano-Muñoz
 * Ben Johnston
+* Brian McCann
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
@@ -35,6 +36,7 @@ Guidelines for modifications:
 * Pascal Roth
 * Sheikh Dawood
 * Ossama Ahmed
+* Greg Attra
 
 ## Contributors
 
@@ -51,6 +53,7 @@ Guidelines for modifications:
 * Bingjie Tang
 * Brayden Zhang
 * Brian Bingham
+* Brian McCann
 * Cameron Upright
 * Calvin Yu
 * Cathy Y. Li
@@ -60,18 +63,22 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Yang
 * Dhananjay Shendre
+* Dongxuan Fan
 * Dorsa Rohani
 * Emily Sturman
+* Emmanuel Ferdman
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
+* Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Hougant Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
@@ -83,9 +90,12 @@ Guidelines for modifications:
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
+* Jinyeob Kim
 * Johnson Sun
+* Juana Du
 * Kaixi Bao
 * Kris Wilson
+* Krishna Lakhi
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
@@ -95,11 +105,14 @@ Guidelines for modifications:
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Mateo Guaman Castro
 * Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
 * Michael Lin
 * Miguel Alonso Jr
+* Mihir Kulkarni
+* Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
 * Narendra Dahile
@@ -121,11 +134,15 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* RinZ27
 * Ritvik Singh
 * Rosario Scalise
+* Ryan Gresia
 * Ryley McCarroll
+* Sahara Yuta
 * Sergey Grizan
 * Shafeef Omar
+* Shane Reetz
 * Shaoshu Su
 * Shaurya Dewan
 * Sixiang Chen
@@ -133,12 +150,15 @@ Guidelines for modifications:
 * Stefan Van de Mosselaer
 * Stephan Pleines
 * Tiffany Chen
+* Trushant Adeshara
 * Tyler Lum
 * Victor Khaustov
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
+* Welf Rehberg
 * Xavier Nal
+* Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
 * Yang Jin
@@ -148,10 +168,14 @@ Guidelines for modifications:
 * Yujian Zhang
 * Yun Liu
 * Zehao Wang
+* Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
 * Song Yi
+* Weihua Zhang
+* Tsz Ki GAO
+* Anke Zhao
 
 ## Acknowledgements
 

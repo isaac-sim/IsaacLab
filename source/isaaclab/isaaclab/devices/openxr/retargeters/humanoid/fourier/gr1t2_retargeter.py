@@ -1,38 +1,34 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import contextlib
+from dataclasses import dataclass
+
 import numpy as np
 import torch
-from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
-from isaaclab.devices import OpenXRDevice
+from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-# This import exception is suppressed because gr1_t2_dex_retargeting_utils depends on pinocchio which is not available on windows
+# This import exception is suppressed because gr1_t2_dex_retargeting_utils depends
+# on pinocchio which is not available on Windows.
 with contextlib.suppress(Exception):
     from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
-
-
-@dataclass
-class GR1T2RetargeterCfg(RetargeterCfg):
-    """Configuration for the GR1T2 retargeter."""
-
-    enable_visualization: bool = False
-    num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
 class GR1T2Retargeter(RetargeterBase):
     """Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands.
 
     This retargeter maps hand tracking data from OpenXR to joint commands for the GR1T2 robot's hands.
-    It handles both left and right hands, converting poses of the hands in OpenXR format joint angles for the GR1T2 robot's hands.
+    It handles both left and right hands, converting poses of the hands in OpenXR format joint angles
+    for the GR1T2 robot's hands.
     """
 
     def __init__(
@@ -48,6 +44,7 @@ class GR1T2Retargeter(RetargeterBase):
             hand_joint_names: List of robot hand joint names
         """
 
+        super().__init__(cfg)
         self._hand_joint_names = cfg.hand_joint_names
         self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
 
@@ -81,8 +78,8 @@ class GR1T2Retargeter(RetargeterBase):
         """
 
         # Access the left and right hand data using the enum key
-        left_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_LEFT]
-        right_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+        left_hand_poses = data[DeviceBase.TrackingTarget.HAND_LEFT]
+        right_hand_poses = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
@@ -116,6 +113,9 @@ class GR1T2Retargeter(RetargeterBase):
 
         # Combine all tensors into a single tensor
         return torch.cat([left_wrist_tensor, right_wrist_tensor, hand_joints_tensor])
+
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
 
     def _retarget_abs(self, wrist: np.ndarray) -> np.ndarray:
         """Handle absolute pose retargeting.
@@ -156,3 +156,13 @@ class GR1T2Retargeter(RetargeterBase):
         usd_right_roll_link_in_world_quat = PoseUtils.quat_from_matrix(usd_right_roll_link_in_world_mat)
 
         return np.concatenate([usd_right_roll_link_in_world_pos, usd_right_roll_link_in_world_quat])
+
+
+@dataclass
+class GR1T2RetargeterCfg(RetargeterCfg):
+    """Configuration for the GR1T2 retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    retargeter_type: type[RetargeterBase] = GR1T2Retargeter

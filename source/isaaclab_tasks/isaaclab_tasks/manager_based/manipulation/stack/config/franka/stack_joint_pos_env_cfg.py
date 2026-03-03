@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -59,6 +59,7 @@ class EventCfg:
 
 @configclass
 class FrankaCubeStackEnvCfg(StackEnvCfg):
+    """Configuration for the Franka Cube Stack Environment."""
 
     def __post_init__(self):
         # post init of parent

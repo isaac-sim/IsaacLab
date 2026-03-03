@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,12 +10,18 @@ from isaacsim.core.utils.extensions import get_extension_path_from_name
 from isaaclab.controllers.rmp_flow import RmpFlowControllerCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+# Directory on Nucleus Server for RMP-Flow assets (URDFs, collision models, etc.)
 ISAACLAB_NUCLEUS_RMPFLOW_DIR = os.path.join(ISAACLAB_NUCLEUS_DIR, "Controllers", "RmpFlowAssets")
 
 # Note: RMP-Flow config files for supported robots are stored in the motion_generation extension
-_RMP_CONFIG_DIR = os.path.join(
-    get_extension_path_from_name("isaacsim.robot_motion.motion_generation"), "motion_policy_configs"
-)
+# We need to move it here for doc building purposes.
+try:
+    _RMP_CONFIG_DIR = os.path.join(
+        get_extension_path_from_name("isaacsim.robot_motion.motion_generation"),
+        "motion_policy_configs",
+    )
+except Exception:
+    _RMP_CONFIG_DIR = ""
 
 # Path to current directory
 _CUR_DIR = os.path.dirname(os.path.realpath(__file__))

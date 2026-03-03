@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,9 +7,9 @@
 import os
 
 import isaaclab.sim as sim_utils
-from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.openxr import OpenXRDevice, OpenXRDeviceCfg
+from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3RelRetargeterCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
@@ -36,6 +36,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmCubeStackEnvCfg):
+    """Configuration for the Galbot Left Arm Cube Stack Environment."""
 
     def __post_init__(self):
         # post init of parent
@@ -80,7 +81,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3RelRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
@@ -89,7 +90,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,
@@ -104,7 +105,6 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
 ##
 @configclass
 class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -150,7 +150,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3RelRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
@@ -159,7 +159,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,
@@ -174,7 +174,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -271,8 +270,8 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
         )
 
         # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["ego_cam", "left_wrist_cam", "right_wrist_cam"]
@@ -299,8 +298,10 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeft
             joint_names=["left_gripper_.*_joint"],
             open_command_expr={"left_gripper_.*_joint": 0.035},
             close_command_expr={"left_gripper_.*_joint": 0.023},
-            # real gripper close data is 0.0235, close to it to meet data distribution, but smaller to ensure robust grasping.
-            # during VLA inference, we set the close command to '0.023' since the VLA has never seen the gripper fully closed.
+            # real gripper close data is 0.0235, close to it to meet data distribution,
+            # but smaller to ensure robust grasping.
+            # during VLA inference, we set the close command to '0.023' since the VLA
+            # has never seen the gripper fully closed.
         )
 
 

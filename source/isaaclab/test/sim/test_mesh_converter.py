@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,15 +17,15 @@ import os
 import random
 import tempfile
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
-import omni
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
+
+import omni
 from pxr import UsdGeom, UsdPhysics
 
+import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
-from isaaclab.sim.schemas import schemas_cfg
+from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
@@ -62,11 +62,11 @@ def assets():
 def sim():
     """Create a blank new stage for each test."""
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim
     # stop simulation
     sim.stop()
@@ -78,16 +78,19 @@ def sim():
 
 def check_mesh_conversion(mesh_converter: MeshConverter):
     """Check that mesh is loadable and stage is valid."""
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
+
     # Load the mesh
     prim_path = "/World/Object"
-    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
     # Check prim can be properly spawned
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert stage.GetPrimAtPath(prim_path).IsValid()
     # Load a second time
     prim_path = "/World/Object2"
-    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
     # Check prim can be properly spawned
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert stage.GetPrimAtPath(prim_path).IsValid()
 
     stage = omni.usd.get_context().get_stage()
     # Check axis is z-up
@@ -97,30 +100,35 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     units = UsdGeom.GetStageMetersPerUnit(stage)
     assert units == 1.0
 
+    # Obtain prim handle
+    prim = stage.GetPrimAtPath("/World/Object/geometry")
     # Check mesh settings
-    pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
+    pos = tuple(prim.GetAttribute("xformOp:translate").Get())
     assert pos == mesh_converter.cfg.translation
-    quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
+    quat = prim.GetAttribute("xformOp:orient").Get()
     quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
     assert quat == mesh_converter.cfg.rotation
-    scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
+    scale = tuple(prim.GetAttribute("xformOp:scale").Get())
     assert scale == mesh_converter.cfg.scale
 
 
 def check_mesh_collider_settings(mesh_converter: MeshConverter):
     """Check that mesh collider settings are correct."""
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
+
     # Check prim can be properly spawned
     prim_path = "/World/Object"
-    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
-    assert prim_utils.is_prim_path_valid(prim_path)
+    sim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    assert stage.GetPrimAtPath(prim_path).IsValid()
 
     # Make uninstanceable to check collision settings
-    geom_prim = prim_utils.get_prim_at_path(prim_path + "/geometry")
+    geom_prim = stage.GetPrimAtPath(prim_path + "/geometry")
     # Check that instancing worked!
     assert geom_prim.IsInstanceable() == mesh_converter.cfg.make_instanceable
     # Obtain mesh settings
     geom_prim.SetInstanceable(False)
-    mesh_prim = prim_utils.get_prim_at_path(prim_path + "/geometry/mesh")
+    mesh_prim = stage.GetPrimAtPath(prim_path + "/geometry/mesh")
 
     # Check collision settings
     # -- if collision is enabled, check that API is present
@@ -133,16 +141,21 @@ def check_mesh_collider_settings(mesh_converter: MeshConverter):
     # -- if collision is enabled, check that collision approximation is correct
     if exp_collision_enabled:
         if mesh_converter.cfg.mesh_collision_props is not None:
-            exp_collision_approximation = (
-                mesh_converter.cfg.mesh_collision_props.usd_func(mesh_prim).GetApproximationAttr().Get()
-            )
+            exp_collision_approximation_str = mesh_converter.cfg.mesh_collision_props.mesh_approximation_name
+            exp_collision_approximation_token = MESH_APPROXIMATION_TOKENS[exp_collision_approximation_str]
             mesh_collision_api = UsdPhysics.MeshCollisionAPI(mesh_prim)
             collision_approximation = mesh_collision_api.GetApproximationAttr().Get()
-            assert collision_approximation == exp_collision_approximation, "Collision approximation is not the same!"
+            # Convert token to string for comparison
+            assert collision_approximation == exp_collision_approximation_token, (
+                "Collision approximation is not the same!"
+            )
 
 
 def test_no_change(assets):
-    """Call conversion twice on the same input asset. This should not generate a new USD file if the hash is the same."""
+    """Call conversion twice on the same input asset.
+
+    This should not generate a new USD file if the hash is the same.
+    """
     # create an initial USD file from asset
     mesh_config = MeshConverterCfg(asset_path=assets["obj"])
     mesh_converter = MeshConverter(mesh_config)
@@ -255,6 +268,36 @@ def test_collider_convex_hull(assets):
     check_mesh_collider_settings(mesh_converter)
 
 
+def test_collider_convex_decomposition(assets):
+    """Convert an OBJ file using convex decomposition approximation"""
+    collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=True)
+    mesh_collision_prop = schemas_cfg.ConvexDecompositionPropertiesCfg()
+    mesh_config = MeshConverterCfg(
+        asset_path=assets["obj"],
+        mesh_collision_props=mesh_collision_prop,
+        collision_props=collision_props,
+    )
+    mesh_converter = MeshConverter(mesh_config)
+
+    # check that mesh conversion is successful
+    check_mesh_collider_settings(mesh_converter)
+
+
+def test_collider_triangle_mesh(assets):
+    """Convert an OBJ file using triangle mesh approximation"""
+    collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=True)
+    mesh_collision_prop = schemas_cfg.TriangleMeshPropertiesCfg()
+    mesh_config = MeshConverterCfg(
+        asset_path=assets["obj"],
+        mesh_collision_props=mesh_collision_prop,
+        collision_props=collision_props,
+    )
+    mesh_converter = MeshConverter(mesh_config)
+
+    # check that mesh conversion is successful
+    check_mesh_collider_settings(mesh_converter)
+
+
 def test_collider_mesh_simplification(assets):
     """Convert an OBJ file using mesh simplification approximation"""
     collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=True)
@@ -289,6 +332,21 @@ def test_collider_mesh_bounding_sphere(assets):
     """Convert an OBJ file using bounding sphere"""
     collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=True)
     mesh_collision_prop = schemas_cfg.BoundingSpherePropertiesCfg()
+    mesh_config = MeshConverterCfg(
+        asset_path=assets["obj"],
+        mesh_collision_props=mesh_collision_prop,
+        collision_props=collision_props,
+    )
+    mesh_converter = MeshConverter(mesh_config)
+
+    # check that mesh conversion is successful
+    check_mesh_collider_settings(mesh_converter)
+
+
+def test_collider_mesh_sdf(assets):
+    """Convert an OBJ file using signed distance field approximation"""
+    collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=True)
+    mesh_collision_prop = schemas_cfg.SDFMeshPropertiesCfg()
     mesh_config = MeshConverterCfg(
         asset_path=assets["obj"],
         mesh_collision_props=mesh_collision_prop,

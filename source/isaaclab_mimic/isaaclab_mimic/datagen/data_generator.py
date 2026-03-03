@@ -1,17 +1,22 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Base class for data generator.
-"""
+"""Base class for data generator."""
+
 import asyncio
-import numpy as np
-import torch
+import copy
+import logging
 from typing import Any
 
+import numpy as np
+import torch
+
 import isaaclab.utils.math as PoseUtils
+
+logger = logging.getLogger(__name__)
+
 from isaaclab.envs import (
     ManagerBasedRLMimicEnv,
     MimicEnvCfg,
@@ -129,15 +134,15 @@ def get_delta_pose_with_scheme(
 
 
 class DataGenerator:
-    """
-    The main data generator class that generates new trajectories from source datasets.
+    """The main data generator class that generates new trajectories from source datasets.
 
-    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a few human
-    collected source demonstrations.
+    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a
+    few human collected source demonstrations.
 
-    The data generator works by parsing demonstrations into object-centric subtask segments, stored in DataGenInfoPool.
-    It then adapts these subtask segments to new scenes by transforming each segment according to the new scene’s context,
-    stitching them into a coherent trajectory for a robotic end-effector to execute.
+    The data generator works by parsing demonstrations into object-centric subtask segments, stored in
+    :class:`DataGenInfoPool`. It then adapts these subtask segments to new scenes by transforming each
+    segment according to the new scene's context, stitching them into a coherent trajectory for a robotic
+    end-effector to execute.
     """
 
     def __init__(
@@ -152,8 +157,8 @@ class DataGenerator:
             env: environment to use for data generation
             src_demo_datagen_info_pool: source demo datagen info pool
             dataset_path: path to hdf5 dataset to use for generation
-            demo_keys: list of demonstration keys to use in file. If not provided, all demonstration keys
-                will be used.
+            demo_keys: list of demonstration keys to use in file. If not provided,
+                all demonstration keys will be used.
         """
         self.env = env
         self.env_cfg = env.cfg
@@ -178,19 +183,14 @@ class DataGenerator:
             raise ValueError("Either src_demo_datagen_info_pool or dataset_path must be provided")
 
     def __repr__(self):
-        """
-        Pretty print this object.
-        """
+        """Pretty print this object."""
         msg = str(self.__class__.__name__)
-        msg += " (\n\tdataset_path={}\n\tdemo_keys={}\n)".format(
-            self.dataset_path,
-            self.demo_keys,
-        )
+        msg += f" (\n\tdataset_path={self.dataset_path}\n\tdemo_keys={self.demo_keys}\n)"
         return msg
 
     def randomize_subtask_boundaries(self) -> dict[str, np.ndarray]:
-        """
-        Apply random offsets to sample subtask boundaries according to the task spec.
+        """Apply random offsets to sample subtask boundaries according to the task spec.
+
         Recall that each demonstration is segmented into a set of subtask segments, and the
         end index (and start index when skillgen is enabled) of each subtask can have a random offset.
         """
@@ -236,9 +236,9 @@ class DataGenerator:
             assert np.all((subtask_boundaries[:, :, 1] - subtask_boundaries[:, :, 0]) > 0), "got empty subtasks!"
 
             # Ensure subtask indices increase (both starts and ends)
-            assert np.all(
-                (subtask_boundaries[:, 1:, :] - subtask_boundaries[:, :-1, :]) > 0
-            ), "subtask indices do not strictly increase"
+            assert np.all((subtask_boundaries[:, 1:, :] - subtask_boundaries[:, :-1, :]) > 0), (
+                "subtask indices do not strictly increase"
+            )
 
             # Ensure subtasks are in order
             subtask_inds_flat = subtask_boundaries.reshape(subtask_boundaries.shape[0], -1)
@@ -258,20 +258,20 @@ class DataGenerator:
         selection_strategy_name: str,
         selection_strategy_kwargs: dict | None = None,
     ) -> int:
-        """
-        Helper method to run source subtask segment selection.
+        """Helper method to run source subtask segment selection.
 
         Args:
             eef_name: name of end effector
             eef_pose: current end effector pose
             object_pose: current object pose for this subtask
-            src_demo_current_subtask_boundaries: start and end indices for subtask segment in source demonstrations of shape (N, 2)
+            src_demo_current_subtask_boundaries: start and end indices for subtask segment
+                in source demonstrations of shape (N, 2)
             subtask_object_name: name of reference object for this subtask
             selection_strategy_name: name of selection strategy
             selection_strategy_kwargs: extra kwargs for running selection strategy
 
         Returns:
-            selected_src_demo_ind: selected source demo index
+            The selected source demo index
         """
         if subtask_object_name is None:
             # no reference object - only random selection is supported
@@ -333,8 +333,7 @@ class DataGenerator:
         runtime_subtask_constraints_dict: dict,
         selected_src_demo_inds: dict,
     ) -> WaypointTrajectory:
-        """
-        Build a transformed waypoint trajectory for a single subtask of an end-effector.
+        """Build a transformed waypoint trajectory for a single subtask of an end-effector.
 
         This method selects a source demonstration segment for the specified subtask,
         slices the corresponding EEF poses/targets/gripper actions using the randomized
@@ -401,22 +400,23 @@ class DataGenerator:
                     # The concurrent task has started, so we should use the same source demo
                     selected_src_demo_inds[eef_name] = concurrent_selected_src_ind
                     need_source_demo_selection = False
-                    # This transform is set at after the first data generation iteration/first run of the main while loop
+                    # This transform is set at after the first data generation iteration/first
+                    # run of the main while loop
                     use_delta_transform = runtime_subtask_constraints_dict[
                         (concurrent_task_spec_key, concurrent_subtask_ind)
                     ]["transform"]
                 else:
-                    assert (
-                        "transform" not in runtime_subtask_constraints_dict[(eef_name, subtask_ind)]
-                    ), "transform should not be set for concurrent task"
+                    assert "transform" not in runtime_subtask_constraints_dict[(eef_name, subtask_ind)], (
+                        "transform should not be set for concurrent task"
+                    )
                     # Need to transform demo according to scheme
                     coord_transform_scheme = runtime_subtask_constraints_dict[(eef_name, subtask_ind)][
                         "coordination_scheme"
                     ]
                     if coord_transform_scheme != SubTaskConstraintCoordinationScheme.REPLAY:
-                        assert (
-                            subtask_object_name is not None
-                        ), f"object reference should not be None for {coord_transform_scheme} coordination scheme"
+                        assert subtask_object_name is not None, (
+                            f"object reference should not be None for {coord_transform_scheme} coordination scheme"
+                        )
 
         if need_source_demo_selection:
             selected_src_demo_inds[eef_name] = self.select_source_demo(
@@ -442,9 +442,9 @@ class DataGenerator:
         if (eef_name, subtask_ind) in runtime_subtask_constraints_dict:
             if runtime_subtask_constraints_dict[(eef_name, subtask_ind)]["type"] == SubTaskConstraintType.COORDINATION:
                 # Store selected source demo ind for concurrent task
-                runtime_subtask_constraints_dict[(eef_name, subtask_ind)][
-                    "selected_src_demo_ind"
-                ] = selected_src_demo_ind
+                runtime_subtask_constraints_dict[(eef_name, subtask_ind)]["selected_src_demo_ind"] = (
+                    selected_src_demo_ind
+                )
                 concurrent_task_spec_key = runtime_subtask_constraints_dict[(eef_name, subtask_ind)][
                     "concurrent_task_spec_key"
                 ]
@@ -543,8 +543,7 @@ class DataGenerator:
         prev_executed_traj: list[Waypoint] | None,
         subtask_trajectory: WaypointTrajectory,
     ) -> list[Waypoint]:
-        """
-        Merge a subtask trajectory into an executable trajectory for the robot end-effector.
+        """Merge a subtask trajectory into an executable trajectory for the robot end-effector.
 
         This constructs a new `WaypointTrajectory` by first creating an initial
         interpolation segment, then merging the provided `subtask_trajectory` onto it.
@@ -573,7 +572,7 @@ class DataGenerator:
                 Trajectory segment for the current subtask that will be merged after the initial interpolation segment.
 
         Returns:
-            list[Waypoint]: The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),
+            The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),
             with the temporary initial waypoint removed.
         """
         is_first_subtask = subtask_index == 0
@@ -625,8 +624,7 @@ class DataGenerator:
         export_demo: bool = True,
         motion_planner: Any | None = None,
     ) -> dict:
-        """
-        Attempt to generate a new demonstration.
+        """Attempt to generate a new demonstration.
 
         Args:
             env_id: environment ID
@@ -638,15 +636,16 @@ class DataGenerator:
             motion_planner: motion planner to use for motion planning
 
         Returns:
-            results (dict): dictionary with the following items:
-                initial_state (dict): initial simulator state for the executed trajectory
-                states (list): simulator state at each timestep
-                observations (list): observation dictionary at each timestep
-                datagen_infos (list): datagen_info at each timestep
-                actions (np.array): action executed at each timestep
-                success (bool): whether the trajectory successfully solved the task or not
-                src_demo_inds (list): list of selected source demonstration indices for each subtask
-                src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for each timestep of the trajectory
+            A dictionary containing the following items:
+                - initial_state (dict): initial simulator state for the executed trajectory
+                - states (list): simulator state at each timestep
+                - observations (list): observation dictionary at each timestep
+                - datagen_infos (list): datagen_info at each timestep
+                - actions (np.array): action executed at each timestep
+                - success (bool): whether the trajectory successfully solved the task or not
+                - src_demo_inds (list): list of selected source demonstration indices for each subtask
+                - src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for
+                  each timestep of the trajectory.
         """
         # With skillgen, a motion planner is required to generate collision-free transitions between subtasks.
         if self.env_cfg.datagen_config.use_skillgen and motion_planner is None:
@@ -688,6 +687,10 @@ class DataGenerator:
             eef_subtasks_done[eef_name] = False
 
         prev_src_demo_datagen_info_pool_size = 0
+
+        if self.env_cfg.datagen_config.use_navigation_controller:
+            was_navigating = False
+
         # While loop that runs per time step
         while True:
             async with self.src_demo_datagen_info_pool.asyncio_lock:
@@ -732,7 +735,8 @@ class DataGenerator:
                                         eef_name, current_eef_subtask_indices[eef_name], self.env.cfg
                                     )
 
-                                # Plan motion using motion planner with comprehensive world update and attachment handling
+                                # Plan motion using motion planner with comprehensive world update
+                                # and attachment handling
                                 if motion_planner:
                                     print(f"\n--- Environment {env_id}: Planning motion to target pose ---")
                                     print(f"Target pose: {target_eef_pose}")
@@ -786,7 +790,8 @@ class DataGenerator:
                                 )
                                 current_eef_subtask_step_indices[eef_name] = 0
                         else:
-                            # Motion-planned trajectory has been executed, so we are ready to move to execute the next subtask
+                            # Motion-planned trajectory has been executed, so we are ready to move to
+                            # execute the next subtask
                             print("Finished executing motion-planned trajectory")
                             # It is important to pass the prev_executed_traj to merge_eef_subtask_trajectory
                             # so that it can correctly interpolate from the last pose of the motion-planned trajectory
@@ -880,8 +885,54 @@ class DataGenerator:
                 generated_actions.extend(exec_results["actions"])
                 generated_success = generated_success or exec_results["success"]
 
+            # Get the navigation state
+            if self.env_cfg.datagen_config.use_navigation_controller:
+                processed_nav_subtask = False
+                navigation_state = self.env.get_navigation_state(env_id)
+                assert navigation_state is not None, "Navigation state cannot be None when using navigation controller"
+                is_navigating = navigation_state["is_navigating"]
+                navigation_goal_reached = navigation_state["navigation_goal_reached"]
+
             for eef_name in self.env_cfg.subtask_configs.keys():
                 current_eef_subtask_step_indices[eef_name] += 1
+
+                # Execute locomanip navigation controller if it is enabled via the use_navigation_controller flag
+                if self.env_cfg.datagen_config.use_navigation_controller:
+                    if "body" not in self.env_cfg.subtask_configs.keys():
+                        error_msg = (
+                            'End effector with name "body" not found in subtask configs. "body" must be a valid end'
+                            " effector to use the navigation controller.\n"
+                        )
+                        logger.error(error_msg)
+                        raise RuntimeError(error_msg)
+
+                    # Repeat the last nav subtask action if the robot is navigating and hasn't reached the waypoint goal
+                    if (
+                        current_eef_subtask_step_indices["body"] == len(current_eef_subtask_trajectories["body"]) - 1
+                        and not processed_nav_subtask
+                    ):
+                        if is_navigating and not navigation_goal_reached:
+                            for name in self.env_cfg.subtask_configs.keys():
+                                current_eef_subtask_step_indices[name] -= 1
+                            processed_nav_subtask = True
+
+                    # Else skip to the end of the nav subtask if the robot has reached the waypoint goal before the end
+                    # of the human recorded trajectory
+                    elif was_navigating and not is_navigating and not processed_nav_subtask:
+                        number_of_steps_to_skip = len(current_eef_subtask_trajectories["body"]) - (
+                            current_eef_subtask_step_indices["body"] + 1
+                        )
+                        for name in self.env_cfg.subtask_configs.keys():
+                            if current_eef_subtask_step_indices[name] + number_of_steps_to_skip < len(
+                                current_eef_subtask_trajectories[name]
+                            ):
+                                current_eef_subtask_step_indices[name] = (
+                                    current_eef_subtask_step_indices[name] + number_of_steps_to_skip
+                                )
+                            else:
+                                current_eef_subtask_step_indices[name] = len(current_eef_subtask_trajectories[name]) - 1
+                        processed_nav_subtask = True
+
                 subtask_ind = current_eef_subtask_indices[eef_name]
                 if current_eef_subtask_step_indices[eef_name] == len(
                     current_eef_subtask_trajectories[eef_name]
@@ -923,6 +974,10 @@ class DataGenerator:
                     else:
                         current_eef_subtask_step_indices[eef_name] = None
                         current_eef_subtask_indices[eef_name] += 1
+
+            if self.env_cfg.datagen_config.use_navigation_controller:
+                was_navigating = copy.deepcopy(is_navigating)
+
             # Check if all eef_subtasks_done values are True
             if all(eef_subtasks_done.values()):
                 break

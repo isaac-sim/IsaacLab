@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -239,15 +239,13 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
-import numpy as np
 import random
 import time
-import torch
 
-import isaacsim.core.utils.prims as prim_utils
+import gymnasium as gym
+import numpy as np
 import psutil
-from isaacsim.core.utils.stage import create_new_stage
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -286,7 +284,7 @@ def create_camera_base(
     if instantiate:
         # Create the necessary prims
         for idx in range(num_cams):
-            prim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
+            sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
     if prim_path is None:
         prim_path = f"/World/{name}_.*/{name}"
     # If valid camera settings are provided, create the camera
@@ -346,7 +344,7 @@ def create_ray_caster_cameras(
 ) -> RayCasterCamera | RayCasterCameraCfg | None:
     """Create the raycaster cameras; different configuration than Standard/Tiled camera"""
     for idx in range(num_cams):
-        prim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
+        sim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
 
     if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
         cam_cfg = RayCasterCameraCfg(
@@ -446,7 +444,7 @@ def design_scene(
     scene_entities = {}
 
     # Xform to hold objects
-    prim_utils.create_prim("/World/Objects", "Xform")
+    sim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
     for i in range(num_objects):
         # sample random position
@@ -548,7 +546,6 @@ def get_utilization_percentages(reset: bool = False, max_values: list[float] = [
 
     # GPU utilization using pynvml
     if torch.cuda.is_available():
-
         if args_cli.autotune:
             pynvml.nvmlInit()  # Initialize NVML
             for i in range(torch.cuda.device_count()):
@@ -665,7 +662,6 @@ def run_simulator(
         # Loop through all camera lists and their data_types
         for camera_list, data_types, label in zip(camera_lists, camera_data_types, labels):
             for cam_idx, camera in enumerate(camera_list):
-
                 if env is None:  # No env, need to step cams manually
                     # Only update the camera if it hasn't been updated as part of scene_entities.update ...
                     camera.update(dt=sim.get_physics_dt())
@@ -851,7 +847,7 @@ def main():
             cur_sys_util = analysis["system_utilization_analytics"]
             print("Triggering reset...")
             env.close()
-            create_new_stage()
+            sim_utils.create_new_stage()
         print("[INFO]: DONE! Feel free to CTRL + C Me ")
         print(f"[INFO]: If you've made it this far, you can likely simulate {cur_num_cams} {camera_name_prefix}")
         print("Keep in mind, this is without any training running on the GPU.")

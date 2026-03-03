@@ -1,11 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr.openxr_device import OpenXRDevice, OpenXRDeviceCfg
+from isaaclab.devices.device_base import DeviceBase, DevicesCfg
+from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeterCfg
 from isaaclab.devices.openxr.retargeters.manipulator.se3_abs_retargeter import Se3AbsRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
@@ -42,14 +42,14 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3AbsRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,

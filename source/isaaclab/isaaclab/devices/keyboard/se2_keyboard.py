@@ -1,29 +1,23 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Keyboard controller for SE(2) control."""
 
-import numpy as np
-import torch
+from __future__ import annotations
+
 import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
+import torch
 
 import carb
 import omni
 
 from ..device_base import DeviceBase, DeviceCfg
-
-
-@dataclass
-class Se2KeyboardCfg(DeviceCfg):
-    """Configuration for SE2 keyboard devices."""
-
-    v_x_sensitivity: float = 0.8
-    v_y_sensitivity: float = 0.4
-    omega_z_sensitivity: float = 1.0
 
 
 class Se2Keyboard(DeviceBase):
@@ -178,3 +172,13 @@ class Se2Keyboard(DeviceBase):
             "NUMPAD_9": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
             "X": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
         }
+
+
+@dataclass
+class Se2KeyboardCfg(DeviceCfg):
+    """Configuration for SE2 keyboard devices."""
+
+    v_x_sensitivity: float = 0.8
+    v_y_sensitivity: float = 0.4
+    omega_z_sensitivity: float = 1.0
+    class_type: type[DeviceBase] = Se2Keyboard

@@ -1,34 +1,40 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import builtins
-import torch
+import logging
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
-import isaacsim.core.utils.torch as torch_utils
-import omni.log
+import torch
+
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 
+# import logger
+logger = logging.getLogger(__name__)
+
 
 class ManagerBasedEnv:
-    """The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.
+    """The base environment encapsulates the simulation scene and the environment managers for
+    the manager-based workflow.
 
     While a simulation scene or world comprises of different components such as the robots, objects,
     and sensors (cameras, lidars, etc.), the environment is a higher level abstraction
@@ -89,7 +95,7 @@ class ManagerBasedEnv:
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -121,7 +127,7 @@ class ManagerBasedEnv:
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step. "
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # counter for simulation steps
         self._sim_step_counter = 0
@@ -167,7 +173,8 @@ class ManagerBasedEnv:
                     self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments
+                # so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
             # add timeline event to load managers
             self.load_managers()
@@ -189,6 +196,20 @@ class ManagerBasedEnv:
         # export IO descriptors if requested
         if self.cfg.export_io_descriptors:
             self.export_IO_descriptors()
+
+        # show deprecation message for rerender_on_reset
+        if self.cfg.rerender_on_reset:
+            msg = (
+                "\033[93m\033[1m[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                " ManagerBasedEnvCfg.num_rerenders_on_reset instead.\033[0m"
+            )
+            warnings.warn(
+                msg,
+                FutureWarning,
+                stacklevel=2,
+            )
+            if self.cfg.num_rerenders_on_reset == 0:
+                self.cfg.num_rerenders_on_reset = 1
 
     def __del__(self):
         """Cleanup for the environment."""
@@ -245,6 +266,7 @@ class ManagerBasedEnv:
             output_dir: The directory to export the IO descriptors to.
         """
         import os
+
         import yaml
 
         IO_descriptors = self.get_IO_descriptors
@@ -353,8 +375,9 @@ class ManagerBasedEnv:
         self.scene.write_data_to_sim()
         self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)
@@ -413,8 +436,9 @@ class ManagerBasedEnv:
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)
@@ -495,7 +519,7 @@ class ManagerBasedEnv:
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""
@@ -509,7 +533,7 @@ class ManagerBasedEnv:
             del self.scene
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

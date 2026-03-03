@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,35 +6,40 @@
 from __future__ import annotations
 
 import builtins
-import gymnasium as gym
 import inspect
+import logging
 import math
-import numpy as np
-import torch
+import warnings
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import isaacsim.core.utils.torch as torch_utils
+import gymnasium as gym
+import numpy as np
+import torch
+
 import omni.kit.app
-import omni.log
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DirectRLEnv(gym.Env):
@@ -66,7 +71,6 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -95,7 +99,7 @@ class DirectRLEnv(gym.Env):
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -121,7 +125,7 @@ class DirectRLEnv(gym.Env):
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
@@ -163,7 +167,8 @@ class DirectRLEnv(gym.Env):
                     self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments
+                # so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
@@ -218,6 +223,20 @@ class DirectRLEnv(gym.Env):
         # set the framerate of the gym video recorder wrapper so that the playback speed of the produced
         # video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
+
+        # show deprecation message for rerender_on_reset
+        if self.cfg.rerender_on_reset:
+            msg = (
+                "\033[93m\033[1m[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
+                " DirectRLEnvCfg.num_rerenders_on_reset instead.\033[0m"
+            )
+            warnings.warn(
+                msg,
+                FutureWarning,
+                stacklevel=2,
+            )
+            if self.cfg.num_rerenders_on_reset == 0:
+                self.cfg.num_rerenders_on_reset = 1
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
@@ -300,8 +319,9 @@ class DirectRLEnv(gym.Env):
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
@@ -377,8 +397,9 @@ class DirectRLEnv(gym.Env):
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
 
         # post-step: step interval event
         if self.cfg.events:
@@ -414,7 +435,7 @@ class DirectRLEnv(gym.Env):
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
@@ -492,7 +513,7 @@ class DirectRLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()
@@ -551,17 +572,17 @@ class DirectRLEnv(gym.Env):
         """Configure the action and observation spaces for the Gym environment."""
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:
-            omni.log.warn("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
+            logger.warning("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
             if isinstance(self.cfg.action_space, type(MISSING)):
                 self.cfg.action_space = self.cfg.num_actions
         if self.cfg.num_observations is not None:
-            omni.log.warn(
+            logger.warning(
                 "DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead."
             )
             if isinstance(self.cfg.observation_space, type(MISSING)):
                 self.cfg.observation_space = self.cfg.num_observations
         if self.cfg.num_states is not None:
-            omni.log.warn("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
+            logger.warning("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 

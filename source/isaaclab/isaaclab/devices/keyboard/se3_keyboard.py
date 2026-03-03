@@ -1,31 +1,24 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Keyboard controller for SE(3) control."""
 
-import numpy as np
-import torch
+from __future__ import annotations
+
 import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
+import torch
 from scipy.spatial.transform import Rotation
 
 import carb
 import omni
 
 from ..device_base import DeviceBase, DeviceCfg
-
-
-@dataclass
-class Se3KeyboardCfg(DeviceCfg):
-    """Configuration for SE3 keyboard devices."""
-
-    gripper_term: bool = True
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
 
 
 class Se3Keyboard(DeviceBase):
@@ -206,3 +199,14 @@ class Se3Keyboard(DeviceBase):
             "C": np.asarray([0.0, 0.0, 1.0]) * self.rot_sensitivity,
             "V": np.asarray([0.0, 0.0, -1.0]) * self.rot_sensitivity,
         }
+
+
+@dataclass
+class Se3KeyboardCfg(DeviceCfg):
+    """Configuration for SE3 keyboard devices."""
+
+    gripper_term: bool = True
+    pos_sensitivity: float = 0.4
+    rot_sensitivity: float = 0.8
+    retargeters: None = None
+    class_type: type[DeviceBase] = Se3Keyboard

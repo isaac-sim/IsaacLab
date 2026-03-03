@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,11 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
-import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
@@ -45,7 +43,7 @@ from isaaclab_assets import FRANKA_PANDA_CFG  # isort:skip
 def sim():
     """Create a simulation context for testing."""
     # Wait for spawning
-    stage_utils.create_new_stage()
+    stage = sim_utils.create_new_stage()
     # Constants
     num_envs = 16
     # Load kit helper
@@ -76,7 +74,7 @@ def sim():
     cloner.define_base_env("/World/envs")
     env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
     # create source prim
-    prim_utils.define_prim(env_prim_paths[0], "Xform")
+    stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
     cloner.clone(
         source_prim_path=env_prim_paths[0],
@@ -200,7 +198,25 @@ def sim():
     # Reference frame for targets
     frame = "root"
 
-    yield sim, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, target_abs_pos_set_b, target_abs_pose_set_b, target_rel_pos_set, target_rel_pose_set_b, target_abs_wrench_set, target_abs_pose_variable_kp_set, target_abs_pose_variable_set, target_hybrid_set_b, target_hybrid_variable_kp_set, target_hybrid_set_tilted, frame
+    yield (
+        sim,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        target_abs_pos_set_b,
+        target_abs_pose_set_b,
+        target_rel_pos_set,
+        target_rel_pose_set_b,
+        target_abs_wrench_set,
+        target_abs_pose_variable_kp_set,
+        target_abs_pose_variable_set,
+        target_hybrid_set_b,
+        target_hybrid_variable_kp_set,
+        target_hybrid_set_tilted,
+        frame,
+    )
 
     # Cleanup
     sim.stop()

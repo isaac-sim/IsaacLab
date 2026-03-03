@@ -24,12 +24,13 @@ cameras, LIDAR, or contact sensors. The framework's GPU acceleration enables use
 computations faster, which is key for iterative processes like reinforcement learning and data-intensive tasks.
 Moreover, Isaac Lab can run locally or be distributed across the cloud, offering flexibility for large-scale deployments.
 
+A detailed description of Isaac Lab can be found in our [arXiv paper](https://arxiv.org/abs/2511.04831).
 
 ## Key Features
 
 Isaac Lab offers a comprehensive set of tools and environments designed to facilitate robot learning:
 
-- **Robots**: A diverse collection of robots, from manipulators, quadrupeds, to humanoids, with 16 commonly available models.
+- **Robots**: A diverse collection of robots, from manipulators, quadrupeds, to humanoids, with more than 16 commonly available models.
 - **Environments**: Ready-to-train implementations of more than 30 environments, which can be trained with popular reinforcement learning frameworks such as RSL RL, SKRL, RL Games, or Stable Baselines. We also support multi-agent reinforcement learning.
 - **Physics**: Rigid bodies, articulated systems, deformable objects
 - **Sensors**: RGB/depth/segmentation cameras, camera annotations, IMU, contact sensors, ray casters.
@@ -56,7 +57,7 @@ dependency versions for Isaac Sim.
 
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
-| `main` branch                 | Isaac Sim 4.5 / 5.0       |
+| `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
 | `v2.1.X`                      | Isaac Sim 4.5             |
@@ -87,7 +88,7 @@ innovation in robotics and simulation.
 Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/main/source/refs/troubleshooting.html) section for
 common fixes or [submit an issue](https://github.com/isaac-sim/IsaacLab/issues).
 
-For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html)
+For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-autonomous-machines/isaac/67).
 
 ## Support
@@ -119,20 +120,22 @@ Note that Isaac Lab requires Isaac Sim, which includes components under propriet
 
 Note that the `isaaclab_mimic` extension requires cuRobo, which has proprietary licensing terms that can be found in [`docs/licenses/dependencies/cuRobo-license.txt`](docs/licenses/dependencies/cuRobo-license.txt).
 
-## Acknowledgement
 
-Isaac Lab development initiated from the [Orbit](https://isaac-orbit.github.io/) framework. We would appreciate if
-you would cite it in academic publications as well:
+## Citation
+
+If you use Isaac Lab in your research, please cite the technical report:
 
 ```
-@article{mittal2023orbit,
-   author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
-   journal={IEEE Robotics and Automation Letters},
-   title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
-   year={2023},
-   volume={8},
-   number={6},
-   pages={3740-3747},
-   doi={10.1109/LRA.2023.3270034}
+@article{mittal2025isaaclab,
+  title={Isaac Lab: A GPU-Accelerated Simulation Framework for Multi-Modal Robot Learning},
+  author={Mayank Mittal and Pascal Roth and James Tigue and Antoine Richard and Octi Zhang and Peter Du and Antonio Serrano-Muñoz and Xinjie Yao and René Zurbrügg and Nikita Rudin and Lukasz Wawrzyniak and Milad Rakhsha and Alain Denzler and Eric Heiden and Ales Borovicka and Ossama Ahmed and Iretiayo Akinola and Abrar Anwar and Mark T. Carlson and Ji Yuan Feng and Animesh Garg and Renato Gasoto and Lionel Gulich and Yijie Guo and M. Gussert and Alex Hansen and Mihir Kulkarni and Chenran Li and Wei Liu and Viktor Makoviychuk and Grzegorz Malczyk and Hammad Mazhar and Masoud Moghani and Adithyavairavan Murali and Michael Noseworthy and Alexander Poddubny and Nathan Ratliff and Welf Rehberg and Clemens Schwarke and Ritvik Singh and James Latham Smith and Bingjie Tang and Ruchik Thaker and Matthew Trepte and Karl Van Wyk and Fangzhou Yu and Alex Millane and Vikram Ramasamy and Remo Steiner and Sangeeta Subramanian and Clemens Volk and CY Chen and Neel Jawale and Ashwin Varghese Kuruttukulam and Michael A. Lin and Ajay Mandlekar and Karsten Patzwaldt and John Welsh and Huihua Zhao and Fatima Anes and Jean-Francois Lafleche and Nicolas Moënne-Loccoz and Soowan Park and Rob Stepinski and Dirk Van Gelder and Chris Amevor and Jan Carius and Jumyung Chang and Anka He Chen and Pablo de Heras Ciechomski and Gilles Daviet and Mohammad Mohajerani and Julia von Muralt and Viktor Reutskyy and Michael Sauter and Simon Schirm and Eric L. Shi and Pierre Terdiman and Kenny Vilella and Tobias Widmer and Gordon Yeoman and Tiffany Chen and Sergey Grizan and Cathy Li and Lotus Li and Connor Smith and Rafael Wiltz and Kostas Alexis and Yan Chang and David Chu and Linxi "Jim" Fan and Farbod Farshidian and Ankur Handa and Spencer Huang and Marco Hutter and Yashraj Narang and Soha Pouya and Shiwei Sheng and Yuke Zhu and Miles Macklin and Adam Moravanszky and Philipp Reist and Yunrong Guo and David Hoeller and Gavriel State},
+  journal={arXiv preprint arXiv:2511.04831},
+  year={2025},
+  url={https://arxiv.org/abs/2511.04831}
 }
 ```
+
+## Acknowledgement
+
+Isaac Lab development initiated from the [Orbit](https://isaac-orbit.github.io/) framework.
+We gratefully acknowledge the authors of Orbit for their foundational contributions.

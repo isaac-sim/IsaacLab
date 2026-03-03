@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,8 +7,8 @@
 
 import itertools
 import os
-import toml
 
+import toml
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
@@ -46,7 +46,7 @@ EXTRAS_REQUIRE = {
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
     ],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl-lib==3.0.1", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
+    "rsl-rl": ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
 }
 # Add the names with hyphens as aliases for convenience
 EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import signal
@@ -24,6 +25,9 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
 from isaacsim import SimulationApp
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ExplicitAction(argparse.Action):
@@ -194,8 +198,8 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over public network
-          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over local/private network
+          - ``1``: `WebRTC`_ over public network
+          - ``2``: `WebRTC`_ over local/private network
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
@@ -213,14 +217,21 @@ class AppLauncher:
 
           If provided as an empty string, the experience file is determined based on the command-line flags:
 
-          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.
-          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.
-          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.
-          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
+          * If headless and enable_cameras are True, the experience file is set to
+            ``isaaclab.python.headless.rendering.kit``.
+          * If headless is False and enable_cameras is True, the experience file is set to
+            ``isaaclab.python.rendering.kit``.
+          * If headless and enable_cameras are False, the experience file is set to
+            ``isaaclab.python.kit``.
+          * If headless is True and enable_cameras is False, the experience file is set to
+            ``isaaclab.python.headless.kit``.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+
+
+        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -529,7 +540,8 @@ class AppLauncher:
         # Set public IP address of a remote instance
         public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
 
-        # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
+        # Process livestream here before launching kit because some of the extensions only work
+        # when launched with the kit file
         self._livestream_args = []
         if self._livestream >= 1:
             # Note: Only one livestream extension can be enabled at a time
@@ -626,7 +638,8 @@ class AppLauncher:
         """Resolve viewport related settings."""
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
-        #   This is different from offscreen_render because this only affects the default viewport and not other renderproducts in the scene
+        #   This is different from offscreen_render because this only affects the default viewport and
+        #   not other render-products in the scene
         self._render_viewport = True
         if self._headless and not self._livestream and not launcher_args.get("video", False):
             self._render_viewport = False
@@ -791,7 +804,7 @@ class AppLauncher:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pytest.ini
+        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pyproject.toml
         indexes_to_remove = []
         for idx, arg in enumerate(sys.argv[:-1]):
             if arg == "-m":
@@ -799,9 +812,8 @@ class AppLauncher:
                 if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
-            if arg == "-c" and "pytest.ini" in sys.argv[idx + 1]:
+            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
                 indexes_to_remove.append(idx)
-                indexes_to_remove.append(idx + 1)
             if arg == "--capture=no":
                 indexes_to_remove.append(idx)
         for idx in sorted(indexes_to_remove, reverse=True):
@@ -828,7 +840,8 @@ class AppLauncher:
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""
         # Indicates whether rendering is required by the app.
-        # Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.
+        # Extensions required for rendering bring startup and simulation costs, so we do not
+        # enable them if not required.
         return not self._headless or self._livestream >= 1 or self._enable_cameras or self._xr
 
     def _load_extensions(self):
@@ -883,7 +896,6 @@ class AppLauncher:
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
         """Store RTX rendering mode in carb settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         rendering_mode = launcher_args.get("rendering_mode")
 
@@ -895,12 +907,11 @@ class AppLauncher:
 
         # store rendering mode in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/rendering/rendering_mode", rendering_mode)
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in carb settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
@@ -920,9 +931,9 @@ class AppLauncher:
 
         # store config in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
+        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
@@ -995,10 +1006,9 @@ class AppLauncher:
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
 
-        import carb
         from pxr import Gf
 
-        carb.log_warn(
+        logger.warning(
             "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
             " into a list of floats."
         )
@@ -1060,13 +1070,13 @@ class AppLauncher:
                 original_matrix4d(self, *args, **kwargs)
 
             except Exception as e:
-                carb.log_error(f"Matrix4d wrapper error: {e}")
+                logger.error(f"Matrix4d wrapper error: {e}")
                 traceback.print_stack()
                 # Fall back to original constructor as last resort
                 try:
                     original_matrix4d(self, *args, **kwargs)
                 except Exception as inner_e:
-                    carb.log_error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
                     # Initialize as identity matrix if all else fails
                     original_matrix4d(self)
 

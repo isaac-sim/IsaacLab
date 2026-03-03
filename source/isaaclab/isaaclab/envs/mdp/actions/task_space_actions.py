@@ -1,15 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
+
 from pxr import UsdPhysics
 
 import isaaclab.utils.math as math_utils
@@ -26,6 +27,9 @@ if TYPE_CHECKING:
     from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DifferentialInverseKinematicsAction(ActionTerm):
@@ -78,11 +82,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        omni.log.info(
+        logger.info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"
         )
         # Avoid indexing across all joints for efficiency
@@ -306,11 +310,11 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobi_joint_idx = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        omni.log.info(
+        logger.info(
             f"Resolved ee body name for the action term {self.__class__.__name__}:"
             f" {self._ee_body_name} [{self._ee_body_idx}]"
         )
@@ -662,10 +666,14 @@ class OperationalSpaceControllerAction(ActionTerm):
             # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
             #        = (v_J_ee + w_J_ee x r_link_ee ) * q
             #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(-math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :])  # type: ignore
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            )  # type: ignore
             # -- rotational part
             # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :])  # type: ignore
+            self._jacobian_b[:, 3:, :] = torch.bmm(
+                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            )  # type: ignore
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
@@ -763,9 +771,9 @@ class OperationalSpaceControllerAction(ActionTerm):
                 max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
             )
         if self._damping_ratio_idx is not None:
-            self._processed_actions[
-                :, self._damping_ratio_idx : self._damping_ratio_idx + 6
-            ] *= self._damping_ratio_scale
+            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] *= (
+                self._damping_ratio_scale
+            )
             self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],

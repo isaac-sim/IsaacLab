@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,7 @@ Currently, the following categories of devices are supported:
 * **Spacemouse**: 3D mouse with 6 degrees of freedom.
 * **Gamepad**: Gamepad with 2D two joysticks and buttons. Example: Xbox controller.
 * **OpenXR**: Uses hand tracking of index/thumb tip avg to drive the target pose. Gripping is done with pinching.
+* **Haply**: Haptic device (Inverse3 + VerseGrip) with position, orientation tracking and force feedback.
 
 All device interfaces inherit from the :class:`DeviceBase` class, which provides a
 common interface for all devices. The device interface reads the input data when
@@ -21,6 +22,7 @@ the peripheral device.
 
 from .device_base import DeviceBase, DeviceCfg, DevicesCfg
 from .gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
+from .haply import HaplyDevice, HaplyDeviceCfg
 from .keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
 from .openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
 from .retargeter_base import RetargeterBase, RetargeterCfg

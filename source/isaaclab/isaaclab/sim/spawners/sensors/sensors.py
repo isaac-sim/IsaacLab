@@ -1,23 +1,23 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
-import omni.kit.commands
-import omni.log
 from pxr import Sdf, Usd
 
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone
+from isaaclab.sim.utils import change_prim_property, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
     from . import sensors_cfg
 
+# import logger
+logger = logging.getLogger(__name__)
 
 CUSTOM_PINHOLE_CAMERA_ATTRIBUTES = {
     "projection_type": ("cameraProjectionType", Sdf.ValueTypeNames.Token),
@@ -82,23 +82,21 @@ def spawn_camera(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
+
     # spawn camera if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # lock camera from viewport (this disables viewport movement for camera)
     if cfg.lock_camera:
-        # early attach stage to usd context if stage is in memory
-        # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-        attach_stage_to_usd_context(attaching_early=True)
-
-        omni.kit.commands.execute(
-            "ChangePropertyCommand",
-            prop_path=Sdf.Path(f"{prim_path}.omni:kit:cameraLock"),
+        change_prim_property(
+            prop_path=f"{prim_path}.omni:kit:cameraLock",
             value=True,
-            prev=None,
+            stage=stage,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
         )
     # decide the custom attributes to add
@@ -110,7 +108,7 @@ def spawn_camera(
     # TODO: Adjust to handle aperture offsets once supported by omniverse
     #   Internal ticket from rendering team: OM-42611
     if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
-        omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
+        logger.warning("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
 
     # custom attributes in the config that are not USD Camera parameters
     non_usd_cfg_param_names = [
@@ -122,7 +120,7 @@ def spawn_camera(
         "from_intrinsic_matrix",
     ]
     # get camera prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # create attributes for the fisheye camera model
     # note: for pinhole those are already part of the USD camera prim
     for attr_name, attr_type in attribute_types.values():
@@ -145,4 +143,4 @@ def spawn_camera(
         # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return prim

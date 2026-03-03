@@ -1,25 +1,29 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 import warnings
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
+
 from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.utils.version import get_isaac_sim_version
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
 
     from .surface_gripper_cfg import SurfaceGripperCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SurfaceGripper(AssetBase):
@@ -55,12 +59,11 @@ class SurfaceGripper(AssetBase):
         # copy the configuration
         self._cfg = cfg.copy()
 
-        isaac_sim_version = get_version()
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
-        if int(isaac_sim_version[2]) < 5:
-            raise Exception(
-                "SurfaceGrippers are only supported by IsaacSim 5.0 and newer. Use IsaacSim 5.0 or newer to use this"
-                " feature."
+        if get_isaac_sim_version().major < 5:
+            raise NotImplementedError(
+                "SurfaceGrippers are only supported by IsaacSim 5.0 and newer. Current version is"
+                f" '{get_isaac_sim_version()}'. Please update to IsaacSim 5.0 or newer to use this feature."
             )
 
         # flag for whether the sensor is initialized
@@ -315,8 +318,8 @@ class SurfaceGripper(AssetBase):
         )
 
         # log information about the surface gripper
-        omni.log.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
-        omni.log.info(f"Number of instances: {self._num_envs}")
+        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
+        logger.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers
         self.reset()

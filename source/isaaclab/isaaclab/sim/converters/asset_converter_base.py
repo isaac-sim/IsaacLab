@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -40,8 +40,8 @@ class AssetConverterBase(abc.ABC):
 
     .. note::
         Changes to the parameters :obj:`AssetConverterBaseCfg.asset_path`, :obj:`AssetConverterBaseCfg.usd_dir`, and
-        :obj:`AssetConverterBaseCfg.usd_file_name` are not considered as modifications in the configuration instance that
-        trigger USD file re-generation.
+        :obj:`AssetConverterBaseCfg.usd_file_name` are not considered as modifications in the configuration instance
+        that trigger the USD file re-generation.
 
     """
 

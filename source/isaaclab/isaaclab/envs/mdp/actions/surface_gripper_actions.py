@@ -1,15 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
 
 from isaaclab.assets.surface_gripper import SurfaceGripper
 from isaaclab.managers.action_manager import ActionTerm
@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SurfaceGripperBinaryAction(ActionTerm):
@@ -48,7 +51,7 @@ class SurfaceGripperBinaryAction(ActionTerm):
         super().__init__(cfg, env)
 
         # log the resolved asset name for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved surface gripper asset for the action term {self.__class__.__name__}: {self.cfg.asset_name}"
         )
 

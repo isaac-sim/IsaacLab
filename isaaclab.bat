@@ -359,6 +359,9 @@ if "%arg%"=="-i" (
     rem install the python packages in isaaclab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+    rem force install setuptools ^<82.0.0 to avoid pkg_resources issues
+    echo [INFO] Installing setuptools^<82.0.0...
+    call !python_exe! -m pip install "setuptools<82.0.0"
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call :ensure_cuda_torch
@@ -395,6 +398,9 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+    rem force install setuptools ^<82.0.0 to avoid pkg_resources issues
+    echo [INFO] Installing setuptools^<82.0.0...
+    call !python_exe! -m pip install "setuptools<82.0.0"
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call :ensure_cuda_torch

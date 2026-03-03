@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,16 +15,16 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import os
+
+import flatdict
+import pytest
 import toml
 
 import carb
-import flatdict
-import pytest
-from isaacsim.core.utils.carb import get_carb_setting
-from isaacsim.core.version import get_version
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
@@ -108,8 +108,7 @@ def test_render_cfg_presets():
         # grab isaac lab apps path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-        isaac_sim_version = float(".".join(get_version()[2]))
-        if isaac_sim_version < 5:
+        if get_isaac_sim_version().major < 5:
             isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
 
         # grab preset settings
@@ -142,7 +141,7 @@ def test_render_cfg_presets():
                 # grab groundtruth from preset
                 setting_gt = val
 
-            setting_val = get_carb_setting(carb_settings_iface, setting_name)
+            setting_val = carb_settings_iface.get(setting_name)
 
             assert setting_gt == setting_val
 

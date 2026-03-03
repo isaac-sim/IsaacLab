@@ -1,4 +1,4 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -11,6 +11,7 @@ from isaaclab_tasks.manager_based.manipulation.pick_place.nutpour_gr1t2_pink_ik_
 
 @configclass
 class NutPourGR1T2MimicEnvCfg(NutPourGR1T2PinkIKEnvCfg, MimicEnvCfg):
+    """Configuration for GR1T2 Nut Pouring Mimic environment."""
 
     def __post_init__(self):
         # Calling post init of parents

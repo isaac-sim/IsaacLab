@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -71,7 +71,7 @@ def get_invocation_command_from_cfg(
             if not is_hydra:
                 if key.endswith("_singleton"):
                     target_list.append(value)
-                elif key.startswith("--"):
+                elif key.startswith("--") or key.startswith("-"):
                     target_list.append(f"{key} {value}")  # Space instead of = for runner args
                 else:
                     target_list.append(f"{value}")
@@ -320,6 +320,8 @@ def ray_init(ray_address: str = "auto", runtime_env: dict[str, Any] | None = Non
             f" runtime_env={runtime_env}"
         )
         ray.init(address=ray_address, runtime_env=runtime_env, log_to_driver=log_to_driver)
+    else:
+        print("[WARNING]: Attempting to initialize Ray but it is already initialized!")
 
 
 def get_gpu_node_resources(
@@ -343,7 +345,7 @@ def get_gpu_node_resources(
         or simply the resource for a single node if requested.
     """
     if not ray.is_initialized():
-        ray_init()
+        raise RuntimeError("Ray must be initialized before calling get_gpu_node_resources().")
     nodes = ray.nodes()
     node_resources = []
     total_cpus = 0

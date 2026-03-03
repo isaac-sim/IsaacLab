@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -6,7 +6,6 @@
 """
 Main data generation script.
 """
-
 
 """Launch Isaac Sim Simulator first."""
 
@@ -51,7 +50,8 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # Import pinocchio before AppLauncher to force the use of the version
+    # installed by IsaacLab and not the one installed by Isaac Sim.
     # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
 
@@ -62,13 +62,13 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import asyncio
-import gymnasium as gym
 import inspect
-import numpy as np
+import logging
 import random
-import torch
 
-import omni
+import gymnasium as gym
+import numpy as np
+import torch
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
@@ -76,10 +76,14 @@ import isaaclab_mimic.envs  # noqa: F401
 
 if args_cli.enable_pinocchio:
     import isaaclab_mimic.envs.pinocchio_envs  # noqa: F401
+
 from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
 from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output_paths
 
 import isaaclab_tasks  # noqa: F401
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -110,7 +114,7 @@ def main():
 
     # Check if the mimic API from this environment contains decprecated signatures
     if "action_noise_dict" not in inspect.signature(env.target_eef_pose_to_action).parameters:
-        omni.log.warn(
+        logger.warning(
             f'The "noise" parameter in the "{env_name}" environment\'s mimic API "target_eef_pose_to_action", '
             "is deprecated. Please update the API to take action_noise_dict instead."
         )

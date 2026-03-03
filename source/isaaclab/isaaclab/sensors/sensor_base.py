@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,18 +14,19 @@ from __future__ import annotations
 import builtins
 import inspect
 import re
-import torch
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import torch
+
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg

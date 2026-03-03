@@ -292,6 +292,15 @@ Using the Mimic generated data we can now train a state-based BC agent for ``Isa
 Visualizing results
 ^^^^^^^^^^^^^^^^^^^
 
+.. tip::
+
+   **Important: Testing Multiple Checkpoint Epochs**
+
+   When evaluating policy performance, it is common for different training epochs to yield significantly different results.
+   If you don't see the expected performance, **always test policies from various epochs** (not just the final checkpoint)
+   to find the best-performing model. Model performance can vary substantially across training, and the final epoch
+   is not always optimal.
+
 By inferencing using the generated model, we can visualize the results of the policy:
 
 .. tab-set::
@@ -315,6 +324,11 @@ By inferencing using the generated model, we can visualize the results of the po
          --device cpu --enable_cameras --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
+.. tip::
+
+   **If you don't see expected performance results:** Test policies from multiple checkpoint epochs, not just the final one.
+   Policy performance can vary significantly across training epochs, and intermediate checkpoints often outperform the final model.
+
 .. note::
 
    **Expected Success Rates and Timings for Franka Cube Stack Task**
@@ -323,6 +337,7 @@ By inferencing using the generated model, we can visualize the results of the po
    * Data generation time: ~30 mins for state, ~4 hours for visuomotor (varies based on num envs the user runs)
    * BC RNN training time: 1000 epochs + ~30 mins (for state), 600 epochs + ~6 hours (for visuomotor)
    * BC RNN policy success rate: ~40-60% (for both state + visuomotor)
+   * **Recommendation:** Evaluate checkpoints from various epochs throughout training to identify the best-performing model
 
 
 Demo 1: Data Generation and Policy Training for a Humanoid Robot
@@ -513,6 +528,11 @@ Visualize the results of the trained policy by running the following command, us
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
+.. tip::
+
+   **If you don't see expected performance results:** It is critical to test policies from various checkpoint epochs.
+   Performance can vary significantly between epochs, and the best-performing checkpoint is often not the final one.
+
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif
    :width: 100%
    :align: center
@@ -528,7 +548,7 @@ Visualize the results of the trained policy by running the following command, us
    * Success rate for data generation depends on the quality of human demonstrations (how well the user performs them) and dataset annotation quality. Both data generation and downstream policy success are sensitive to these factors and can show high variance. See :ref:`Common Pitfalls when Generating Data <common-pitfalls-generating-data>` for tips to improve your dataset.
    * Data generation success for this task is typically 65-80% over 1000 demonstrations, taking 18-40 minutes depending on GPU hardware and success rate (19 minutes on a RTX ADA 6000 @ 80% success rate).
    * Behavior Cloning (BC) policy success is typically 75-86% (evaluated on 50 rollouts) when trained on 1000 generated demonstrations for 2000 epochs (default), depending on demonstration quality. Training takes approximately 29 minutes on a RTX ADA 6000.
-   * Recommendation: Train for 2000 epochs with 1000 generated demonstrations, and evaluate multiple checkpoints saved between the 1500th and 2000th epochs to select the best-performing policy.
+   * **Recommendation:** Train for 2000 epochs with 1000 generated demonstrations, and **evaluate multiple checkpoints saved between the 1000th and 2000th epochs** to select the best-performing policy. Testing various epochs is essential for finding optimal performance.
 
 
 Demo 2: Data Generation and Policy Training for Humanoid Robot Locomanipulation with Unitree G1
@@ -545,6 +565,16 @@ The robot picks up an object at the initial location (point A) and places it at 
    :align: center
    :alt: G1 humanoid robot with locomanipulation performing a pick and place task
    :figclass: align-center
+
+.. note::
+   **Locomotion policy training**
+
+   The locomotion policy used in this integration example was trained using the `AGILE <https://github.com/nvidia-isaac/WBC-AGILE>`__ framework.
+   AGILE is an officially supported humanoid control training pipeline that leverages the manager based environment in Isaac Lab. It will also be
+   seamlessly integrated with other evaluation and deployment tools across Isaac products. This allows teams to rely on a single, maintained stack
+   covering all necessary infrastructure and tooling for policy training, with easy export to real-world deployment. The AGILE repository contains
+   updated pre-trained policies with separate upper and lower body policies for flexibtility. They have been verified in the real world and can be
+   directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.
 
 Generate the manipulation dataset
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -642,6 +672,11 @@ Visualize the trained policy performance:
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
+.. tip::
+
+   **If you don't see expected performance results:** Always test policies from various checkpoint epochs.
+   Different epochs can produce significantly different results, so evaluate multiple checkpoints to find the optimal model.
+
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
    :width: 100%
    :align: center
@@ -657,7 +692,7 @@ Visualize the trained policy performance:
    * Success rate for data generation depends on the quality of human demonstrations (how well the user performs them) and dataset annotation quality. Both data generation and downstream policy success are sensitive to these factors and can show high variance. See :ref:`Common Pitfalls when Generating Data <common-pitfalls-generating-data>` for tips to improve your dataset.
    * Data generation success for this task is typically 65-82% over 1000 demonstrations, taking 18-40 minutes depending on GPU hardware and success rate (18 minutes on a RTX ADA 6000 @ 82% success rate).
    * Behavior Cloning (BC) policy success is typically 75-85% (evaluated on 50 rollouts) when trained on 1000 generated demonstrations for 2000 epochs (default), depending on demonstration quality. Training takes approximately 40 minutes on a RTX ADA 6000.
-   * Recommendation: Train for 2000 epochs with 1000 generated demonstrations, and evaluate multiple checkpoints saved between the 1500th and 2000th epochs to select the best-performing policy.
+   * **Recommendation:** Train for 2000 epochs with 1000 generated demonstrations, and **evaluate multiple checkpoints saved between the 1000th and 2000th epochs** to select the best-performing policy. Testing various epochs is essential for finding optimal performance.
 
 Generate the dataset with manipulation and point-to-point navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -851,6 +886,11 @@ Visualize the results of the trained policy by running the following command, us
 .. note::
    Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
 
+.. tip::
+
+   **If you don't see expected performance results:** Test policies from various checkpoint epochs, not just the final one.
+   Policy performance can vary substantially across training, and intermediate checkpoints often yield better results.
+
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif
    :width: 100%
    :align: center
@@ -866,7 +906,7 @@ Visualize the results of the trained policy by running the following command, us
    * Success rate for data generation depends on the quality of human demonstrations (how well the user performs them) and dataset annotation quality. Both data generation and downstream policy success are sensitive to these factors and can show high variance. See :ref:`Common Pitfalls when Generating Data <common-pitfalls-generating-data>` for tips to improve your dataset.
    * Data generation for 1000 demonstrations takes approximately 10 hours on a RTX ADA 6000.
    * Behavior Cloning (BC) policy success is typically 50-60% (evaluated on 50 rollouts) when trained on 1000 generated demonstrations for 600 epochs (default). Training takes approximately 15 hours on a RTX ADA 6000.
-   * Recommendation: Train for 600 epochs with 1000 generated demonstrations, and evaluate multiple checkpoints saved between the 300th and 600th epochs to select the best-performing policy.
+   * **Recommendation:** Train for 600 epochs with 1000 generated demonstrations, and **evaluate multiple checkpoints saved between the 300th and 600th epochs** to select the best-performing policy. Testing various epochs is critical for achieving optimal performance.
 
 .. _common-pitfalls-generating-data:
 

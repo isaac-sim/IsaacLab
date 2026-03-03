@@ -15,6 +15,7 @@
     Se3Keyboard
     Se2SpaceMouse
     Se3SpaceMouse
+    HaplyDevice
     OpenXRDevice
     ManusVive
     isaaclab.devices.openxr.retargeters.GripperRetargeter
@@ -47,11 +48,13 @@ Game Pad
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 .. autoclass:: Se3Gamepad
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 Keyboard
 --------
@@ -60,11 +63,13 @@ Keyboard
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 .. autoclass:: Se3Keyboard
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 Space Mouse
 -----------
@@ -73,11 +78,22 @@ Space Mouse
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 .. autoclass:: Se3SpaceMouse
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
+
+Haply
+-----
+
+.. autoclass:: HaplyDevice
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :noindex:
 
 OpenXR
 ------
@@ -86,6 +102,7 @@ OpenXR
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 Manus + Vive
 ------------
@@ -94,6 +111,7 @@ Manus + Vive
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 Retargeters
 -----------
@@ -102,18 +120,22 @@ Retargeters
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 .. autoclass:: isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 .. autoclass:: isaaclab.devices.openxr.retargeters.Se3RelRetargeter
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:
 
 .. autoclass:: isaaclab.devices.openxr.retargeters.GR1T2Retargeter
     :members:
     :inherited-members:
     :show-inheritance:
+    :noindex:

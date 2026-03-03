@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -41,21 +41,22 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
 import torch
+from rsl_rl.runners import OnPolicyRunner
 
 import carb
 import omni
-from isaacsim.core.utils.stage import get_current_stage
 from omni.kit.viewport.utility import get_viewport_from_window_name
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
-from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
 
@@ -145,7 +146,7 @@ class H1RoughDemo:
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
             # Arrow keys map to pre-defined command vectors to control navigation of robot
             if event.input.name in self._key_to_control:
-                if self._selected_id:
+                if self._selected_id is not None:
                     self.commands[self._selected_id] = self._key_to_control[event.input.name]
             # Escape key exits out of the current selected robot view
             elif event.input.name == "ESCAPE":
@@ -159,7 +160,7 @@ class H1RoughDemo:
                         self.viewport.set_active_camera(self.camera_path)
         # On key release, the robot stops moving
         elif event.type == carb.input.KeyboardEventType.KEY_RELEASE:
-            if self._selected_id:
+            if self._selected_id is not None:
                 self.commands[self._selected_id] = self._key_to_control["ZEROS"]
 
     def update_selected_object(self):

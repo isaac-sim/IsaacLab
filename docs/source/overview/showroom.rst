@@ -193,6 +193,30 @@ A few quick showroom scripts to run and checkout:
       :alt: Multiple assets managed through the same simulation handles
 
 
+-  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p scripts/demos/bin_packing.py
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\bin_packing.py
+
+   .. image:: ../_static/demos/bin_packing.jpg
+      :width: 100%
+      :alt: Spawning random number of random asset per env_id using combination of MultiAssetSpawner and RigidObjectCollection
+
+
 
 -  Use the interactive scene and spawn a simple parallel robot for pick and place:
 
@@ -225,6 +249,41 @@ A few quick showroom scripts to run and checkout:
    * Hold the ``D`` key to have the gripper track the target position
    * Press the ``W`` or ``S`` keys to move the gantry UP or DOWN respectively
    * Press ``Q`` or ``E`` to OPEN or CLOSE the gripper respectively
+
+
+
+-  Teleoperate a Franka Panda robot using Haply haptic device with force feedback:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+
+   .. image:: ../_static/demos/haply_teleop_franka.jpg
+      :width: 100%
+      :alt: Haply teleoperation with force feedback
+
+   This demo requires Haply Inverse3 and VerseGrip devices.
+   The goal of this demo is to pick up the cube or touch it with the end-effector.
+   The Haply devices provide:
+
+   * 3 dimensional position tracking for end-effector control
+   * Directional force feedback for contact sensing
+   * Button inputs for gripper and end-effector rotation control
+
+   See :ref:`haply-teleoperation` for detailed setup instructions.
 
 
 
@@ -299,3 +358,27 @@ A few quick showroom scripts to run and checkout:
    .. image:: ../_static/demos/quadrupeds.jpg
       :width: 100%
       :alt: Quadrupeds in Isaac Lab
+
+
+-  Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\sensors\multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+
+   .. image:: ../_static/demos/multi-mesh-raycast.jpg
+      :width: 100%
+      :alt: Multi-mesh raycaster in Isaac Lab

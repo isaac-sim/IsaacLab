@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,15 +14,16 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
-import torch
 from typing import TYPE_CHECKING, Literal
+
+import torch
 
 import carb
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -30,11 +31,15 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, DeformableObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.version import compare_versions
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def randomize_rigid_body_scale(
@@ -281,13 +286,14 @@ class randomize_rigid_body_material(ManagerTermBase):
 class randomize_rigid_body_mass(ManagerTermBase):
     """Randomize the mass of the bodies by adding, scaling, or setting random values.
 
-    This function allows randomizing the mass of the bodies of the asset. The function samples random values from the
-    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+    This function allows randomizing the mass of the bodies of the asset. The function samples random
+    values from the given distribution parameters and adds, scales, or sets the values into the physics
+    simulation based on the operation.
 
-    If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies
-    after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends
-    on the mass. It assumes the body is a uniform density object. If the body is not a uniform density object,
-    the inertia tensor may not be accurate.
+    If the :attr:`recompute_inertia` flag is set to :obj:`True`, the function recomputes the inertia tensor
+    of the bodies after setting the mass. This is useful when the mass is changed significantly, as the
+    inertia tensor depends on the mass. It assumes the body is a uniform density object. If the body is not
+    a uniform density object, the inertia tensor may not be accurate.
 
     .. tip::
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
@@ -323,6 +329,12 @@ class randomize_rigid_body_mass(ManagerTermBase):
                 "Randomization term 'randomize_rigid_body_mass' does not support operation:"
                 f" '{cfg.params['operation']}'."
             )
+        if cfg.params.get("min_mass") is not None:
+            if cfg.params.get("min_mass") < 1e-6:
+                raise ValueError(
+                    "Randomization term 'randomize_rigid_body_mass' does not support 'min_mass' less than 1e-6 to avoid"
+                    " physics errors."
+                )
 
     def __call__(
         self,
@@ -333,6 +345,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
         recompute_inertia: bool = True,
+        min_mass: float = 1e-6,
     ):
         # resolve environment ids
         if env_ids is None:
@@ -360,6 +373,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         masses = _randomize_prop_by_op(
             masses, mass_distribution_params, env_ids, body_ids, operation=operation, distribution=distribution
         )
+        masses = torch.clamp(masses, min=min_mass)  # ensure masses are positive
 
         # set the mass into the physics simulation
         self.asset.root_physx_view.set_masses(masses, env_ids)
@@ -529,9 +543,9 @@ class randomize_actuator_gains(ManagerTermBase):
 
     This function allows randomizing the actuator stiffness and damping gains.
 
-    The function samples random values from the given distribution parameters and applies the operation to the joint properties.
-    It then sets the values into the actuator models. If the distribution parameters are not provided for a particular property,
-    the function does not modify the property.
+    The function samples random values from the given distribution parameters and applies the operation to
+    the joint properties. It then sets the values into the actuator models. If the distribution parameters
+    are not provided for a particular property, the function does not modify the property.
 
     .. tip::
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
@@ -703,6 +717,11 @@ class randomize_joint_parameters(ManagerTermBase):
         else:
             joint_ids = torch.tensor(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
 
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids_for_slice = env_ids[:, None]
+        else:
+            env_ids_for_slice = env_ids
+
         # sample joint properties from the given ranges and set into the physics simulation
         # joint friction coefficient
         if friction_distribution_params is not None:
@@ -719,11 +738,10 @@ class randomize_joint_parameters(ManagerTermBase):
             friction_coeff = torch.clamp(friction_coeff, min=0.0)
 
             # Always set static friction (indexed once)
-            static_friction_coeff = friction_coeff[env_ids[:, None], joint_ids]
+            static_friction_coeff = friction_coeff[env_ids_for_slice, joint_ids]
 
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
-            major_version = int(env.sim.get_version()[0])
-            if major_version >= 5:
+            if get_isaac_sim_version().major >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.asset.data.default_joint_dynamic_friction_coeff.clone(),
@@ -750,8 +768,8 @@ class randomize_joint_parameters(ManagerTermBase):
                 dynamic_friction_coeff = torch.minimum(dynamic_friction_coeff, friction_coeff)
 
                 # Index once at the end
-                dynamic_friction_coeff = dynamic_friction_coeff[env_ids[:, None], joint_ids]
-                viscous_friction_coeff = viscous_friction_coeff[env_ids[:, None], joint_ids]
+                dynamic_friction_coeff = dynamic_friction_coeff[env_ids_for_slice, joint_ids]
+                viscous_friction_coeff = viscous_friction_coeff[env_ids_for_slice, joint_ids]
             else:
                 # For versions < 5.0.0, we do not set these values
                 dynamic_friction_coeff = None
@@ -777,7 +795,7 @@ class randomize_joint_parameters(ManagerTermBase):
                 distribution=distribution,
             )
             self.asset.write_joint_armature_to_sim(
-                armature[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
+                armature[env_ids_for_slice, joint_ids], joint_ids=joint_ids, env_ids=env_ids
             )
 
         # joint position limits
@@ -805,7 +823,7 @@ class randomize_joint_parameters(ManagerTermBase):
                 )
 
             # extract the position limits for the concerned joints
-            joint_pos_limits = joint_pos_limits[env_ids[:, None], joint_ids]
+            joint_pos_limits = joint_pos_limits[env_ids_for_slice, joint_ids]
             if (joint_pos_limits[..., 0] > joint_pos_limits[..., 1]).any():
                 raise ValueError(
                     "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater"
@@ -823,10 +841,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     This function allows randomizing the fixed tendon parameters of the asset.
     These correspond to the physics engine tendon properties that affect the joint behavior.
 
-    The function samples random values from the given distribution parameters and applies the operation to the tendon properties.
-    It then sets the values into the physics simulation. If the distribution parameters are not provided for a
-    particular property, the function does not modify the property.
-
+    The function samples random values from the given distribution parameters and applies the operation to
+    the tendon properties. It then sets the values into the physics simulation. If the distribution parameters
+    are not provided for a particular property, the function does not modify the property.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -1018,7 +1035,12 @@ def apply_external_force_torque(
     torques = math_utils.sample_uniform(*torque_range, size, asset.device)
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
-    asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=forces,
+        torques=torques,
+        body_ids=asset_cfg.body_ids,
+        env_ids=env_ids,
+    )
 
 
 def push_by_setting_velocity(
@@ -1449,7 +1471,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             # This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims
             # whether they end in /visuals or have other structures.
             prim_path = f"{asset_main_prim_path}/.*"
-            carb.log_info(
+            logging.info(
                 f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{prim_path}' for texture"
                 " randomization."
             )

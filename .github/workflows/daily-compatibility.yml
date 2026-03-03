@@ -1,14 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Daily Backwards Compatibility Tests
+name: Backwards Compatibility Tests
 
 on:
   schedule:
     # Run daily at 8 PM PST (4 AM UTC)
     - cron: '0 4 * * *'
+
   workflow_dispatch:
     inputs:
       isaacsim_version:
@@ -19,7 +20,7 @@ on:
 
 # Concurrency control to prevent parallel runs
 concurrency:
-  group: daily-compatibilit y-${{ github.ref }}
+  group: compatibility-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -29,20 +30,43 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_DEFAULT_VERSION: '4.5.0'
-  DOCKER_IMAGE_TAG: isaac-lab-compat:${{ github.ref_name }}-${{ github.sha }}
 
 jobs:
+  setup-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.set-versions.outputs.versions }}
+    steps:
+      - name: Set Isaac Sim Versions
+        id: set-versions
+        run: |
+          # Define all versions to test in one place
+          DEFAULT_VERSIONS='["4.5.0", "5.0.0"]'
+
+          if [ -n "${{ github.event.inputs.isaacsim_version }}" ]; then
+            # If a specific version is provided via workflow_dispatch, use only that
+            echo "versions=[\"${{ github.event.inputs.isaacsim_version }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Otherwise, use all default versions
+            echo "versions=$DEFAULT_VERSIONS" >> $GITHUB_OUTPUT
+          fi
+
   test-isaaclab-tasks-compat:
+    needs: setup-versions
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
+    strategy:
+      matrix:
+        isaacsim_version: ${{ fromJson(needs.setup-versions.outputs.versions) }}
+      fail-fast: false
     env:
         CUDA_VISIBLE_DEVICES: all
         NVIDIA_VISIBLE_DEVICES: all
         NVIDIA_DRIVER_CAPABILITIES: all
         CUDA_HOME: /usr/local/cuda
         LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+        DOCKER_IMAGE_TAG: isaac-lab-compat:${{ github.ref_name }}-${{ github.sha }}-${{ matrix.isaacsim_version }}
 
     steps:
     - name: Checkout Code
@@ -56,7 +80,7 @@ jobs:
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ github.event.inputs.isaacsim_version || env.ISAACSIM_DEFAULT_VERSION }}
+        isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -80,20 +104,26 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: isaaclab-tasks-compat-results
+        name: isaaclab-tasks-compat-results-${{ matrix.isaacsim_version }}
         path: reports/isaaclab-tasks-compat-report.xml
         retention-days: 7
         compression-level: 9
 
   test-general-compat:
+    needs: setup-versions
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    strategy:
+      matrix:
+        isaacsim_version: ${{ fromJson(needs.setup-versions.outputs.versions) }}
+      fail-fast: false
     env:
         CUDA_VISIBLE_DEVICES: all
         NVIDIA_VISIBLE_DEVICES: all
         NVIDIA_DRIVER_CAPABILITIES: all
         CUDA_HOME: /usr/local/cuda
         LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+        DOCKER_IMAGE_TAG: isaac-lab-compat:${{ github.ref_name }}-${{ github.sha }}-${{ matrix.isaacsim_version }}
 
     steps:
     - name: Checkout Code
@@ -107,7 +137,7 @@ jobs:
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ github.event.inputs.isaacsim_version || env.ISAACSIM_DEFAULT_VERSION }}
+        isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run General Tests
       uses: ./.github/actions/run-tests
@@ -131,7 +161,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: general-tests-compat-results
+        name: general-tests-compat-results-${{ matrix.isaacsim_version }}
         path: reports/general-tests-compat-report.xml
         retention-days: 7
         compression-level: 9
@@ -152,18 +182,12 @@ jobs:
       run: |
         mkdir -p reports
 
-    - name: Download Test Results
+    - name: Download All Test Results
       uses: actions/download-artifact@v4
       with:
-        name: isaaclab-tasks-compat-results
+        pattern: '*-compat-results-*'
         path: reports/
-      continue-on-error: true
-
-    - name: Download General Test Results
-      uses: actions/download-artifact@v4
-      with:
-        name: general-tests-compat-results
-        path: reports/
+        merge-multiple: true
       continue-on-error: true
 
     - name: Combine All Test Results
@@ -185,14 +209,14 @@ jobs:
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: IsaacLab Compatibility Test Results
+        name: IsaacLab Compatibility Test Results (${{ github.event_name }})
         path: reports/combined-compat-results.xml
         reporter: java-junit
         max-annotations: '50'
-        report-title: "IsaacLab Compatibility Test Results - ${{ github.workflow }}"
+        report-title: "IsaacLab Compatibility Test Results - ${{ github.event_name }} - ${{ github.ref_name }}"
 
   notify-compatibility-status:
-    needs: [combine-compat-results]
+    needs: [setup-versions, combine-compat-results]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -205,10 +229,12 @@ jobs:
 
     - name: Create Compatibility Report
       run: |
-        ISAACSIM_VERSION_USED="${{ github.event.inputs.isaacsim_version || env.ISAACSIM_DEFAULT_VERSION }}"
+        TRIGGER_INFO="**Trigger:** ${{ github.event_name }}"
+        ISAACSIM_VERSIONS="${{ join(fromJson(needs.setup-versions.outputs.versions), ', ') }}"
         echo "## Daily Backwards Compatibility Test Results" > compatibility-report.md
         echo "" >> compatibility-report.md
-        echo "**IsaacSim Version:** $ISAACSIM_VERSION_USED" >> compatibility-report.md
+        echo "$TRIGGER_INFO" >> compatibility-report.md
+        echo "**IsaacSim Versions Tested:** $ISAACSIM_VERSIONS" >> compatibility-report.md
         echo "**Branch:** ${{ github.ref_name }}" >> compatibility-report.md
         echo "**Commit:** ${{ github.sha }}" >> compatibility-report.md
         echo "**Run ID:** ${{ github.run_id }}" >> compatibility-report.md

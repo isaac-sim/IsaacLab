@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -39,10 +39,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     articulation_props: schemas.ArticulationRootPropertiesCfg | None = None
     """Properties to apply to the articulation root."""
 
-    fixed_tendons_props: schemas.FixedTendonsPropertiesCfg | None = None
+    fixed_tendons_props: schemas.FixedTendonPropertiesCfg | None = None
     """Properties to apply to the fixed tendons (if any)."""
 
-    spatial_tendons_props: schemas.SpatialTendonsPropertiesCfg | None = None
+    spatial_tendons_props: schemas.SpatialTendonPropertiesCfg | None = None
     """Properties to apply to the spatial tendons (if any)."""
 
     joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
@@ -104,9 +104,9 @@ class UsdFileCfg(FileCfg):
     variants: object | dict[str, str] | None = None
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
-    This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-    or a dictionary mapping between the two. Please check the :meth:`~isaaclab.sim.utils.select_usd_variants` function
-    for more information.
+    This can either be a configclass object, in which case each attribute is used as a variant set name and
+    its specified value, or a dictionary mapping between the two. Please check the
+    :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
     """
 
 
@@ -132,9 +132,66 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
     func: Callable = from_files.spawn_from_urdf
 
 
+@configclass
+class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
+    """MJCF file to spawn asset from.
+
+    It uses the :class:`MjcfConverter` class to create a USD file from MJCF and spawns the imported
+    USD file. Similar to the :class:`UsdFileCfg`, the generated USD file can be modified by specifying
+    the respective properties in the configuration class.
+
+    See :meth:`spawn_from_mjcf` for more information.
+
+    .. note::
+        The configuration parameters include various properties. If not `None`, these properties
+        are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
+
+    """
+
+    func: Callable = from_files.spawn_from_mjcf
+
+
 """
 Spawning ground plane.
 """
+
+
+@configclass
+class UsdFileWithCompliantContactCfg(UsdFileCfg):
+    """Configuration for spawning a USD asset with compliant contact physics material.
+
+    This class extends :class:`UsdFileCfg` to support applying compliant contact properties
+    (stiffness and damping) to specific prims in the spawned asset. It uses the
+    :meth:`spawn_from_usd_with_compliant_contact_material` function to perform the spawning and
+    material application.
+    """
+
+    func: Callable = from_files.spawn_from_usd_with_compliant_contact_material
+
+    compliant_contact_stiffness: float | None = None
+    """Stiffness of the compliant contact. Defaults to None.
+
+    This parameter is the same as
+    :attr:`~isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_stiffness`.
+    """
+
+    compliant_contact_damping: float | None = None
+    """Damping of the compliant contact. Defaults to None.
+
+    This parameter is the same as
+    :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping`.
+    """
+
+    physics_material_prim_path: str | list[str] | None = None
+    """Path to the prim or prims to apply the physics material to. Defaults to None, in which case the
+    physics material is not applied.
+
+    If the path is relative, then it will be relative to the prim's path.
+    If None, then the physics material will not be applied.
+    """
 
 
 @configclass

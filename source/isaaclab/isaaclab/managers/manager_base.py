@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import copy
 import inspect
+import logging
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni.log
 import omni.timeline
 
 import isaaclab.utils.string as string_utils
@@ -23,6 +23,9 @@ from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ManagerTermBase(ABC):
@@ -42,12 +45,13 @@ class ManagerTermBase(ABC):
         from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
+
         @configclass
         class MyManagerCfg:
-
             my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+
 
         # define manager instance
         my_manager = ManagerBase(cfg=ManagerCfg(), env=env)
@@ -404,11 +408,11 @@ class ManagerBase(ABC):
                 if value.body_ids is not None:
                     msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
                 # print the information
-                omni.log.info(msg)
+                logger.info(msg)
             # store the entity
             term_cfg.params[key] = value
 
         # initialize the term if it is a class
         if inspect.isclass(term_cfg.func):
-            omni.log.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
+            logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,13 +14,11 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
@@ -33,7 +31,6 @@ class DummyData:
 
 
 class DummySensor(SensorBase):
-
     def __init__(self, cfg):
         super().__init__(cfg)
         self._data = DummyData()
@@ -80,7 +77,7 @@ def _populate_scene():
 
     # create prims
     for i in range(5):
-        _ = prim_utils.create_prim(
+        _ = sim_utils.create_prim(
             f"/World/envs/env_{i:02d}/Cube",
             "Cube",
             translation=(i * 1.0, 0.0, 0.0),
@@ -90,9 +87,8 @@ def _populate_scene():
 
 @pytest.fixture
 def create_dummy_sensor(request, device):
-
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # Simulation time-step
     dt = 0.01
@@ -105,7 +101,7 @@ def create_dummy_sensor(request, device):
 
     sensor_cfg = DummySensorCfg()
 
-    stage_utils.update_stage()
+    sim_utils.update_stage()
 
     yield sensor_cfg, sim, dt
 

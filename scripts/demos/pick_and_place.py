@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pick and Place.")
+parser.add_argument("--num_envs", type=int, default=32, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -20,13 +21,14 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import torch
+"""Rest everything follows."""
+
 from collections.abc import Sequence
+
+import torch
 
 import carb
 import omni
-
-from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import (
@@ -45,6 +47,8 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
+from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
+
 
 @configclass
 class PickAndPlaceEnvCfg(DirectRLEnvCfg):
@@ -59,11 +63,16 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     action_space = 4
     observation_space = 6
     state_space = 0
-    device = "cpu"
 
-    # Simulation cfg. Note that we are forcing the simulation to run on CPU.
-    # This is because the surface gripper API is only supported on CPU backend for now.
-    sim: SimulationCfg = SimulationCfg(dt=1 / 60, render_interval=decimation, device="cpu")
+    # Simulation cfg. Surface grippers are currently only supported on CPU.
+    # Surface grippers also require scene query support to function.
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        device="cpu",
+        render_interval=decimation,
+        use_fabric=True,
+        enable_scene_query_support=True,
+    )
     debug_vis = True
 
     # robot
@@ -136,8 +145,8 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.joint_vel = self.pick_and_place.data.joint_vel
 
         # Buffers
-        self.go_to_cube = False
-        self.go_to_target = False
+        self.go_to_cube = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.go_to_target = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.target_pos = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
         self.instant_controls = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
         self.permanent_controls = torch.zeros((self.num_envs, 1), device=self.device, dtype=torch.float32)
@@ -173,35 +182,36 @@ class PickAndPlaceEnv(DirectRLEnv):
         print("Keyboard set up!")
         print("The simulation is ready for you to try it out!")
         print("Your goal is pick up the purple cube and to drop it on the red sphere!")
-        print("Use the following controls to interact with the simulation:")
-        print("Press the 'A' key to have the gripper track the cube position.")
-        print("Press the 'D' key to have the gripper track the target position")
-        print("Press the 'W' or 'S' keys to move the gantry UP or DOWN respectively")
-        print("Press 'Q' or 'E' to OPEN or CLOSE the gripper respectively")
+        print(f"Number of environments: {self.num_envs}")
+        print("Use the following controls to interact with ALL environments simultaneously:")
+        print("Press the 'A' key to have all grippers track the cube position.")
+        print("Press the 'D' key to have all grippers track the target position")
+        print("Press the 'W' or 'S' keys to move all gantries UP or DOWN respectively")
+        print("Press 'Q' or 'E' to OPEN or CLOSE all grippers respectively")
 
     def _on_keyboard_event(self, event):
         """Checks for a keyboard event and assign the corresponding command control depending on key pressed."""
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
-            # Logic on key press
+            # Logic on key press - apply to ALL environments
             if event.input.name == self._auto_aim_target:
-                self.go_to_target = True
-                self.go_to_cube = False
+                self.go_to_target[:] = True
+                self.go_to_cube[:] = False
             if event.input.name == self._auto_aim_cube:
-                self.go_to_cube = True
-                self.go_to_target = False
+                self.go_to_cube[:] = True
+                self.go_to_target[:] = False
             if event.input.name in self._instant_key_controls:
-                self.go_to_cube = False
-                self.go_to_target = False
-                self.instant_controls[0] = self._instant_key_controls[event.input.name]
+                self.go_to_cube[:] = False
+                self.go_to_target[:] = False
+                self.instant_controls[:] = self._instant_key_controls[event.input.name]
             if event.input.name in self._permanent_key_controls:
-                self.go_to_cube = False
-                self.go_to_target = False
-                self.permanent_controls[0] = self._permanent_key_controls[event.input.name]
-        # On key release, the robot stops moving
+                self.go_to_cube[:] = False
+                self.go_to_target[:] = False
+                self.permanent_controls[:] = self._permanent_key_controls[event.input.name]
+        # On key release, all robots stop moving
         elif event.type == carb.input.KeyboardEventType.KEY_RELEASE:
-            self.go_to_cube = False
-            self.go_to_target = False
-            self.instant_controls[0] = self._instant_key_controls["ZEROS"]
+            self.go_to_cube[:] = False
+            self.go_to_target[:] = False
+            self.instant_controls[:] = self._instant_key_controls["ZEROS"]
 
     def _setup_scene(self):
         self.pick_and_place = Articulation(self.cfg.robot_cfg)
@@ -225,28 +235,30 @@ class PickAndPlaceEnv(DirectRLEnv):
 
     def _apply_action(self) -> None:
         # We use the keyboard outputs as an action.
-        if self.go_to_cube:
+        # Process each environment independently
+        if self.go_to_cube.any():
             # Effort based proportional controller to track the cube position
-            head_pos_x = self.pick_and_place.data.joint_pos[:, self._x_dof_idx[0]]
-            head_pos_y = self.pick_and_place.data.joint_pos[:, self._y_dof_idx[0]]
-            cube_pos_x = self.cube.data.root_pos_w[:, 0] - self.scene.env_origins[:, 0]
-            cube_pos_y = self.cube.data.root_pos_w[:, 1] - self.scene.env_origins[:, 1]
+            head_pos_x = self.pick_and_place.data.joint_pos[self.go_to_cube, self._x_dof_idx[0]]
+            head_pos_y = self.pick_and_place.data.joint_pos[self.go_to_cube, self._y_dof_idx[0]]
+            cube_pos_x = self.cube.data.root_pos_w[self.go_to_cube, 0] - self.scene.env_origins[self.go_to_cube, 0]
+            cube_pos_y = self.cube.data.root_pos_w[self.go_to_cube, 1] - self.scene.env_origins[self.go_to_cube, 1]
             d_cube_robot_x = cube_pos_x - head_pos_x
             d_cube_robot_y = cube_pos_y - head_pos_y
-            self.instant_controls[0] = torch.tensor(
-                [d_cube_robot_x * 5.0, d_cube_robot_y * 5.0, 0.0], device=self.device
+            self.instant_controls[self.go_to_cube] = torch.stack(
+                [d_cube_robot_x * 5.0, d_cube_robot_y * 5.0, torch.zeros_like(d_cube_robot_x)], dim=1
             )
-        elif self.go_to_target:
+        if self.go_to_target.any():
             # Effort based proportional controller to track the target position
-            head_pos_x = self.pick_and_place.data.joint_pos[:, self._x_dof_idx[0]]
-            head_pos_y = self.pick_and_place.data.joint_pos[:, self._y_dof_idx[0]]
-            target_pos_x = self.target_pos[:, 0]
-            target_pos_y = self.target_pos[:, 1]
+            head_pos_x = self.pick_and_place.data.joint_pos[self.go_to_target, self._x_dof_idx[0]]
+            head_pos_y = self.pick_and_place.data.joint_pos[self.go_to_target, self._y_dof_idx[0]]
+            target_pos_x = self.target_pos[self.go_to_target, 0]
+            target_pos_y = self.target_pos[self.go_to_target, 1]
             d_target_robot_x = target_pos_x - head_pos_x
             d_target_robot_y = target_pos_y - head_pos_y
-            self.instant_controls[0] = torch.tensor(
-                [d_target_robot_x * 5.0, d_target_robot_y * 5.0, 0.0], device=self.device
+            self.instant_controls[self.go_to_target] = torch.stack(
+                [d_target_robot_x * 5.0, d_target_robot_y * 5.0, torch.zeros_like(d_target_robot_x)], dim=1
             )
+
         # Set the joint effort targets for the picker
         self.pick_and_place.set_joint_effort_target(
             self.instant_controls[:, 0].unsqueeze(dim=1), joint_ids=self._x_dof_idx
@@ -258,7 +270,7 @@ class PickAndPlaceEnv(DirectRLEnv):
             self.permanent_controls[:, 0].unsqueeze(dim=1), joint_ids=self._z_dof_idx
         )
         # Set the gripper command
-        self.gripper.set_grippers_command(self.instant_controls[:, 2].unsqueeze(dim=1))
+        self.gripper.set_grippers_command(self.instant_controls[:, 2])
 
     def _get_observations(self) -> dict:
         # Get the observations
@@ -397,8 +409,11 @@ class PickAndPlaceEnv(DirectRLEnv):
 
 def main():
     """Main function."""
+    # create environment configuration
+    env_cfg = PickAndPlaceEnvCfg()
+    env_cfg.scene.num_envs = args_cli.num_envs
     # create environment
-    pick_and_place = PickAndPlaceEnv(PickAndPlaceEnvCfg())
+    pick_and_place = PickAndPlaceEnv(env_cfg)
     obs, _ = pick_and_place.reset()
     while simulation_app.is_running():
         # check for selected robots

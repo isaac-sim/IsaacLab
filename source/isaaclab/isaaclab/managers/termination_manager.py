@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,10 +7,11 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
@@ -63,6 +64,8 @@ class TerminationManager(ManagerBase):
         self._term_name_to_term_idx = {name: i for i, name in enumerate(self._term_names)}
         # prepare extra info to store individual termination term information
         self._term_dones = torch.zeros((self.num_envs, len(self._term_names)), device=self.device, dtype=torch.bool)
+        # prepare extra info to store last episode done per termination term information
+        self._last_episode_dones = torch.zeros_like(self._term_dones)
         # create buffer for managing termination per environment
         self._truncated_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self._terminated_buf = torch.zeros_like(self._truncated_buf)
@@ -138,7 +141,7 @@ class TerminationManager(ManagerBase):
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        last_episode_done_stats = self._term_dones.float().mean(dim=0)
+        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0)
         for i, key in enumerate(self._term_names):
             # store information
             extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
@@ -169,15 +172,17 @@ class TerminationManager(ManagerBase):
             else:
                 self._terminated_buf |= value
             # add to episode dones
-            rows = value.nonzero(as_tuple=True)[0]  # indexing is cheaper than boolean advance indexing
-            if rows.numel() > 0:
-                self._term_dones[rows] = False
-                self._term_dones[rows, i] = True
+            self._term_dones[:, i] = value
+        # update last-episode dones once per compute: for any env where a term fired,
+        # reflect exactly which term(s) fired this step and clear others
+        rows = self._term_dones.any(dim=1).nonzero(as_tuple=True)[0]
+        if rows.numel() > 0:
+            self._last_episode_dones[rows] = self._term_dones[rows]
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
 
     def get_term(self, name: str) -> torch.Tensor:
-        """Returns the termination term with the specified name.
+        """Returns the termination term value at current step with the specified name.
 
         Args:
             name: The name of the termination term.
@@ -190,7 +195,8 @@ class TerminationManager(ManagerBase):
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
 
-        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term
+        recorded at current step.
 
         Args:
             env_idx: The specific environment to pull the active terms from.
