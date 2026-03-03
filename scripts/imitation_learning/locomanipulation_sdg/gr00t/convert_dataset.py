@@ -93,11 +93,8 @@ def create_directory_structure(output_path: str, video_key: str = "observation.i
     """
     base_path = Path(output_path)
 
-    # Create main directories
     (base_path / "meta").mkdir(parents=True, exist_ok=True)
 
-    # Create chunk directories
-    # GNx: only support one chunk folder for now
     chunk_name = "chunk-000"
     (base_path / "data" / chunk_name).mkdir(parents=True, exist_ok=True)
     (base_path / "videos" / chunk_name / video_key).mkdir(parents=True, exist_ok=True)
@@ -118,10 +115,8 @@ def extract_video_from_images(images: np.ndarray, output_path: str, fps: float =
 
     S, H, W, C = images.shape
 
-    # Ensure images are uint8
     if images.dtype != np.uint8:
         if images.dtype in [np.float32, np.float64]:
-            # Assuming images are in [0, 1] range
             if images.max() <= 1.0:
                 images = (images * 255).astype(np.uint8)
             else:
@@ -129,13 +124,11 @@ def extract_video_from_images(images: np.ndarray, output_path: str, fps: float =
         else:
             images = np.clip(images, 0, 255).astype(np.uint8)
 
-    # Create video writer
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (W, H))
 
     for s in tqdm.tqdm(range(S)):
         frame = images[s]
-        # Convert RGB to BGR if needed (OpenCV uses BGR)
         if C == 3:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         video_writer.write(frame)
@@ -203,8 +196,6 @@ def create_info_json(
     Returns:
         Dict suitable for writing to meta/info.json (codebase_version, features, paths, etc.).
     """
-
-    # Build features dictionary
     features = {
         "observation.state": {
             "dtype": "float64",
@@ -261,7 +252,6 @@ if __name__ == "__main__":
 
     output_path = args.output_path
 
-    # Create directory
     create_directory_structure(output_path)
     dataset_paths = glob.glob(os.path.join(args.input_dir, "*.hdf5"))
 
@@ -272,23 +262,18 @@ if __name__ == "__main__":
     fps = 20.0
     task_description = "Pick up and drop off the object"
 
-    # PROCESS DATASET
     for dataset_path in dataset_paths:
         dataset = h5py.File(dataset_path, "r")
 
-        print(dataset["data"].keys())
-        # PROCESS EPISODE
         for demo_name in dataset["data"].keys():
             demo = dataset["data"][demo_name]
 
             if get_total_object_displacement(demo) < 2.0:
-                continue  # skip failed epsidoes
+                continue
 
             base_pose = demo["locomanipulation_sdg_output_data"]["base_pose"]
 
-            # Get state/observation
             state = {
-                # state
                 "left_hand_pose": compute_relative_pose(
                     np.concatenate([demo["obs"]["left_eef_pos"], demo["obs"]["left_eef_quat"]], axis=-1), base_pose
                 ),
@@ -325,28 +310,21 @@ if __name__ == "__main__":
             state_concat = np.concatenate([v for v in state.values()], axis=-1)
             action_concat = np.concatenate([v for v in action.values()], axis=-1)
 
-            # Create parquet data with all required LeRobot fields
             parquet_data = {
-                # Core data
-                "observation.state": state_concat.tolist(),  # Concatenated state array per modality.json
-                "action": action_concat.tolist(),  # Concatenated action array per modality.json
-                "timestamp": timestamps.tolist(),  # Timestamp from episode start
-                # Annotation system - indices to meta/tasks.jsonl
-                "annotation.human.action.task_description": [0]
-                * episode_duration,  # Points to task_index 0 (main task)
-                "task_index": [0] * episode_duration,  # Main task index (same as above)
-                "annotation.human.validity": [1] * episode_duration,  # Points to task_index 1 ("valid")
-                # Episode tracking
-                "episode_index": [total_episodes] * episode_duration,  # Episode number
-                "index": list(range(total_frames, total_frames + episode_duration)),  # GLOBAL obs index
+                "observation.state": state_concat.tolist(),
+                "action": action_concat.tolist(),
+                "timestamp": timestamps.tolist(),
+                "annotation.human.action.task_description": [0] * episode_duration,
+                "task_index": [0] * episode_duration,
+                "annotation.human.validity": [1] * episode_duration,
+                "episode_index": [total_episodes] * episode_duration,
+                "index": list(range(total_frames, total_frames + episode_duration)),
             }
 
-            # Write parquet
             df = pd.DataFrame(parquet_data)
             parquet_path = Path(output_path) / "data" / "chunk-000" / f"episode_{total_episodes:06d}.parquet"
             df.to_parquet(parquet_path, index=False)
 
-            # Write video
             video_path = (
                 Path(output_path)
                 / "videos"
@@ -356,7 +334,6 @@ if __name__ == "__main__":
             )
             extract_video_from_images(obs["image"], str(video_path), fps)
 
-            # Add to episodes data
             episodes_data.append(
                 {
                     "episode_index": total_episodes,
@@ -365,22 +342,17 @@ if __name__ == "__main__":
                 }
             )
 
-            # Increment
             total_episodes += 1
             total_frames += episode_duration
-
-            print(total_episodes)
 
     state_dim = sum(v.shape[1] for v in state.values())
     action_dim = sum(v.shape[1] for v in action.values())
 
-    # Write modality
     modality_json = create_modality_json(state, action)
 
     with open(os.path.join(output_path, "meta", "modality.json"), "w") as f:
         json.dump(modality_json, f, indent=2)
 
-    # Write info
     info_json = create_info_json(
         total_episodes=total_episodes, total_frames=total_frames, state_dim=state_dim, action_dim=action_dim
     )
@@ -388,12 +360,10 @@ if __name__ == "__main__":
     with open(os.path.join(output_path, "meta", "info.json"), "w") as f:
         json.dump(info_json, f, indent=2)
 
-    # Write episodes
     with open(os.path.join(output_path, "meta", "episodes.jsonl"), "w") as f:
         for episode in episodes_data:
             f.write(json.dumps(episode) + "\n")
 
-    # Write tasks
     tasks_data = [{"task_index": 0, "task": task_description}, {"task_index": 1, "task": "valid"}]
     with open(os.path.join(output_path, "meta", "tasks.jsonl"), "w") as f:
         for task in tasks_data:

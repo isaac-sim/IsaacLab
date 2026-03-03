@@ -125,7 +125,6 @@ def import_external_data_config(data_config_str: str) -> BaseDataConfig | None:
             available = [n for n in dir(module) if not n.startswith("_") and isinstance(getattr(module, n), type)]
             raise AttributeError(f"Class '{class_name}' not found in '{module_path}'. Available: {available}")
 
-        # assert if the class has 'transform' and 'modality_config' methods
         if not hasattr(getattr(module, class_name), "transform"):
             raise AttributeError(f"Class '{class_name}' does not have a 'transform' method")
         if not hasattr(getattr(module, class_name), "modality_config"):
@@ -156,7 +155,6 @@ def load_data_config(data_config_str: str) -> BaseDataConfig:
     data_config_cls = import_external_data_config(data_config_str)
     if data_config_cls is not None:
         return data_config_cls
-    # Yellow warning color
     yellow = "\033[93m"
     reset = "\033[0m"
     raise ValueError(

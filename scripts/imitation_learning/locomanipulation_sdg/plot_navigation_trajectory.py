@@ -22,7 +22,6 @@ def main() -> None:
     Reads HDF5 from --input_file, optionally restricts to --demo_filter, and writes
     one PNG per demo to --output_dir with path, poses, and obstacle positions.
     """
-    # add argparse arguments
     parser = argparse.ArgumentParser(
         description="Visualize navigation dataset from locomanipulation sdg demonstrations."
     )
@@ -44,22 +43,17 @@ def main() -> None:
         help="If provided, only visualize specific demo(s). Can be a single demo name or comma-separated list.",
     )
 
-    # parse the arguments
     args = parser.parse_args()
 
-    # Validate inputs
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(f"Dataset file not found: {args.input_file}")
 
-    # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Load dataset
     dataset = h5py.File(args.input_file, "r")
 
     demos = list(dataset["data"].keys())
 
-    # Filter demos if specified
     if args.demo_filter:
         filter_demos = [d.strip() for d in args.demo_filter.split(",")]
         demos = [d for d in demos if d in filter_demos]
@@ -86,7 +80,6 @@ def main() -> None:
         plt.plot(object_pose[:, 0], object_pose[:, 1], "b--", label="Object Pose", linewidth=2)
         plt.plot(obstacle_poses[0, :, 0], obstacle_poses[0, :, 1], "ro", label="Obstacles", markersize=8)
 
-        # Add start and end markers
         plt.plot(start_pose[0, 0], start_pose[0, 1], "gs", label="Start", markersize=12)
         plt.plot(end_pose[0, 0], end_pose[0, 1], "rs", label="End", markersize=12)
 

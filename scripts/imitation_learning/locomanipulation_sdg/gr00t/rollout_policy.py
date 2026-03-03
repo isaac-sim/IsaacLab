@@ -5,15 +5,11 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 import os
 
 from isaaclab.app import AppLauncher
 
-# Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation task to load for data generation.")
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
@@ -35,8 +31,8 @@ parser.add_argument(
     type=str,
     choices=["xyzw", "wxyz"],
     default="xyzw",
-    help="Quaternion order the policy uses: 'xyzw' (current Isaac Lab) or 'wxyz' (legacy)."
-    + " Converts env observations/actions to match. Default is 'xyzw'.",
+    help="Quaternion order the policy uses: 'xyzw' (current Isaac Lab) or 'wxyz' (legacy). "
+    "Converts env observations/actions to match. Default is 'xyzw'.",
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -283,10 +279,8 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
     goal_pose = base_goal.get_pose()
     end_fixture_pose = env.get_end_fixture().get_pose()
 
-    print(goal_pose)
     base_pose_inv = transform_inv(base_pose)
 
-    # TODO: transform poses relative to base. Env poses are always XYZW.
     model_input = {
         "video.ego_view": obs["policy"]["robot_pov_cam"],
         "state.left_hand_pose": transform_mul(base_pose_inv, left_hand_pose),
@@ -298,7 +292,6 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
         "state.end_fixture_pose": transform_mul(base_pose_inv, end_fixture_pose),
     }
 
-    # Convert state poses to policy quat format if policy expects WXYZ (e.g. trained on legacy data).
     if policy_quat_format == "wxyz":
         for key in _STATE_POSE_KEYS:
             model_input[key] = _convert_pose_quat(model_input[key], to_fmt="wxyz")
@@ -332,8 +325,6 @@ def eval_policy(
         randomize_placement: Whether to randomize fixture placement.
         policy_quat_format: Quaternion format expected by the policy ("xyzw" or "wxyz").
     """
-    # env.recorder_manager.reset(env_ids=[0])
-
     initial_state = input_episode_data.get_initial_state()
     obs, _ = env.reset_to(
         state=initial_state,
@@ -344,7 +335,6 @@ def eval_policy(
         env, input_episode_data, approach_distance=0.5, randomize_placement=randomize_placement
     )
 
-    # Main simulation loop with state machine
     step = 0
 
     action_idx = 0
@@ -354,7 +344,6 @@ def eval_policy(
         if step % inference_interval == 0:
             model_input, dummy_action = build_model_input(env, base_goal, policy_quat_format)
             action_dict = policy.policy.get_action(model_input)
-            # action_dict['action.base_height'] = action_dict['action.base_height'] #e* 0.0 + 0.8# expand missing dim
             action_buffer = torch.cat([torch.from_numpy(v) for v in action_dict.values()], dim=-1)
             action_idx = 0
 
@@ -363,10 +352,9 @@ def eval_policy(
         else:
             base_pose = env.get_base().get_pose()
             action = action_buffer.clone()
-            # Convert action pose quats to XYZW for env (transform_mul and env expect XYZW).
             _convert_action_pose_quats_to_env(action, policy_quat_format)
 
-            action[:, 0:7] = transform_mul(base_pose, action[:, 0:7])  # convert poses to world coordinates
+            action[:, 0:7] = transform_mul(base_pose, action[:, 0:7])
             action[:, 7:14] = transform_mul(base_pose, action[:, 7:14])
 
             action[:, 28:31] = action[:, 28:31] * 1.0
@@ -386,13 +374,11 @@ def eval_policy(
 
 if __name__ == "__main__":
     with torch.no_grad():
-        # Create environment
         env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
         if env_name is None:
             raise ValueError("Task/env name was not specified nor found in the dataset.")
 
         policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
-        # policy = None
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
         env_cfg.sim.device = args_cli.device
@@ -401,7 +387,6 @@ if __name__ == "__main__":
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-        # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
         input_episode_data = input_dataset_file_handler.load_episode(args_cli.demo, args_cli.device)
@@ -414,7 +399,7 @@ if __name__ == "__main__":
             policy_quat_format=args_cli.policy_quat_format,
         )
 
-        env.reset()  # FIXME: hack to handle missing final recording
+        env.reset()
         env.close()
 
         simulation_app.close()

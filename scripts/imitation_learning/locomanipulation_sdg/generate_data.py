@@ -5,15 +5,11 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 import os
 
 from isaaclab.app import AppLauncher
 
-# Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
