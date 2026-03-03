@@ -19,6 +19,28 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
+from isaaclab_tasks.utils import PresetCfg
+from isaaclab.sim import SimulationCfg
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    
+    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    newton = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=45,
+            nconmax=30,
+            ls_iterations=10,
+            cone="pyramidal",
+            impratio=1,
+            ls_parallel=True,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
 
 ##
 # Pre-defined configs
@@ -107,31 +129,8 @@ class SpotObservationsCfg:
 
 
 @configclass
-class SpotEventCfg:
-    """Configuration for randomization."""
-
-    # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.3, 1.0),
-            "dynamic_friction_range": (0.3, 0.8),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
-
-    add_base_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="body"),
-            "mass_distribution_params": (-2.5, 2.5),
-            "operation": "add",
-        },
-    )
+class SpotNewtonEventCfg:
+    """Newton event configuration for Spot (reset + interval only)."""
 
     # reset
     base_external_force_torque = EventTerm(
@@ -181,6 +180,46 @@ class SpotEventCfg:
             "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)},
         },
     )
+
+
+@configclass
+class SpotStartupEventCfg:
+    """PhysX-only startup randomization for Spot."""
+
+    # startup
+    physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.3, 1.0),
+            "dynamic_friction_range": (0.3, 0.8),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
+        },
+    )
+
+    add_base_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="body"),
+            "mass_distribution_params": (-2.5, 2.5),
+            "operation": "add",
+        },
+    )
+
+
+@configclass
+class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
+    pass
+
+
+@configclass
+class SpotEventCfg(PresetCfg):
+    default = SpotPhysxEventCfg()
+    newton = SpotNewtonEventCfg()
+    physx = default
 
 
 @configclass
@@ -293,9 +332,13 @@ class SpotTerminationsCfg:
     )
 
 
+
+
 @configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for the Spot robot in a flat environment."""
+    
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     # Basic settings
     observations: SpotObservationsCfg = SpotObservationsCfg()
@@ -324,6 +367,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.friction_combine_mode = "multiply"
         self.sim.physics_material.restitution_combine_mode = "multiply"
+        self.sim.physics = PhysicsCfg()
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         self.scene.contact_forces.update_period = self.sim.dt

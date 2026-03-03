@@ -6,10 +6,36 @@
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import UnitreeA1RoughEnvCfg
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
+from isaaclab_tasks.utils import PresetCfg
+from isaaclab.sim import SimulationCfg
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    
+    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    newton = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=60,
+            nconmax=30,
+            ls_iterations=30,
+            cone="pyramidal",
+            impratio=1,
+            ls_parallel=True,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
+    physx = default
 
 
 @configclass
 class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
+    
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+    
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

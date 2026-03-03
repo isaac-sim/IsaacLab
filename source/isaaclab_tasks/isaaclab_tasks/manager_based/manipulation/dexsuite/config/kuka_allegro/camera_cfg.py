@@ -11,7 +11,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
 

@@ -11,7 +11,7 @@ import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg, ManagerBasedEnvCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -43,10 +43,10 @@ class RslRlVecEnvWrapper(VecEnv):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped.cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
+        if not isinstance(env.unwrapped.cfg, (ManagerBasedRLEnvCfg, ManagerBasedEnvCfg, DirectRLEnvCfg)):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
-                f" {type(env)}"
+                f" {type(env.unwrapped.cfg)}"
             )
 
         # initialize the wrapper

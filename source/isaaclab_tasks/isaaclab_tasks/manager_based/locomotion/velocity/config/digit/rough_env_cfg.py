@@ -10,7 +10,12 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
+    EventsCfg,
+    LocomotionVelocityRoughEnvCfg,
+    StartupEventsCfg,
+)
+from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
 
@@ -179,7 +184,7 @@ class DigitObservations:
 
 
 @configclass
-class TerminationsCfg:
+class DigitTerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = TerminationTermCfg(func=mdp.time_out, time_out=True)
@@ -197,7 +202,7 @@ class TerminationsCfg:
 
 
 @configclass
-class ActionsCfg:
+class DigitActionsCfg:
     """Action specifications for the MDP."""
 
     joint_pos = mdp.JointPositionActionCfg(
@@ -209,11 +214,35 @@ class ActionsCfg:
 
 
 @configclass
+class DigitNewtonEventsCfg(EventsCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.base_external_force_torque.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
+        self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+
+
+@configclass
+class DigitPhysxEventsCfg(DigitNewtonEventsCfg, StartupEventsCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.add_base_mass.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
+        self.base_com = None
+
+
+@configclass
+class DigitEventsCfg(PresetCfg):
+    default = DigitPhysxEventsCfg()
+    newton = DigitNewtonEventsCfg()
+    physx = default
+
+
+@configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: DigitRewards = DigitRewards()
     observations: DigitObservations = DigitObservations()
-    terminations: TerminationsCfg = TerminationsCfg()
-    actions: ActionsCfg = ActionsCfg()
+    terminations: DigitTerminationsCfg = DigitTerminationsCfg()
+    actions: DigitActionsCfg = DigitActionsCfg()
+    events: DigitEventsCfg = DigitEventsCfg()
 
     def __post_init__(self):
         super().__post_init__()
@@ -226,14 +255,6 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-
-        # Events:
-        self.events.add_base_mass.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
-        self.events.base_external_force_torque.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
-        # Don't randomize the initial joint positions because we have closed loops.
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        # remove COM randomization
-        self.events.base_com = None
 
         # Commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
