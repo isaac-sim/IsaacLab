@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+1.5.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.utils.PresetCfg` base class — a ``@configclass`` whose typed
+  fields represent named configuration variants (e.g. ``default``, ``physx``, ``newton``).
+  The active variant is selected at launch with ``presets=<name>`` via the Hydra CLI, enabling
+  a single environment config to support multiple physics backends.
+
+* Added Newton backend support (via ``PresetCfg``) to the following environments:
+
+  * **Direct RL**: Cartpole (camera), Ant, Humanoid
+  * **Manager-based classic**: Ant, Humanoid
+  * **Manager-based locomotion velocity**: A1, AnymalB, AnymalC, AnymalD, Cassie, G1,
+    Go1, Go2, H1, Spot (flat and rough configs)
+  * **Manager-based manipulation reach**: Franka and UR10 reach
+  * **Dexsuite**: Kuka Allegro Lift
+
+
+1.4.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sim_launcher`` module with ``add_launcher_args`` and ``launch_simulation`` utilities
+  that auto-detect the physics backend (Newton vs Kit/PhysX) from the env config and launch the
+  appropriate simulation runtime. Training and play scripts no longer need to import ``AppLauncher``
+  directly.
+
+
 1.3.0 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~
 

@@ -165,30 +165,155 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
-``root_physx_view`` Deprecation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Backend Support: PresetCfg Pattern
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``root_physx_view`` property has been deprecated on :class:`~isaaclab.assets.Articulation`,
-:class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`, and
-:class:`~isaaclab_physx.assets.DeformableObject` in favor of the backend-agnostic ``root_view`` property.
+Isaac Lab 3.0 introduces a **PresetCfg pattern** for writing environment configurations
+that work with both the PhysX and Newton backends. Instead of hard-coding a single
+physics config, environments declare named configuration variants. The active variant
+is selected at launch via a Hydra CLI override.
 
-+----------------------------------------------+------------------------------------------+
-| Deprecated (2.x)                             | New (3.0)                                |
-+==============================================+==========================================+
-| ``articulation.root_physx_view``             | ``articulation.root_view``               |
-+----------------------------------------------+------------------------------------------+
-| ``rigid_object.root_physx_view``             | ``rigid_object.root_view``               |
-+----------------------------------------------+------------------------------------------+
-| ``rigid_object_collection.root_physx_view``  | ``rigid_object_collection.root_view``    |
-+----------------------------------------------+------------------------------------------+
-| ``deformable_object.root_physx_view``        | ``deformable_object.root_view``          |
-+----------------------------------------------+------------------------------------------+
+What is PresetCfg?
+------------------
 
-.. note::
+:class:`~isaaclab_tasks.utils.PresetCfg` is a base ``@configclass`` whose typed fields
+represent named variants of a configuration section. The field named ``default`` is used
+when no CLI override is given. Other fields are named presets selectable with
+``presets=<name>`` on the command line:
 
-   The ``root_view`` property returns the same underlying PhysX view object. This rename is part of
-   the multi-backend architecture to provide a consistent API across different physics backends.
-   The ``root_physx_view`` property will continue to work but will issue a deprecation warning.
+.. code-block:: python
+
+   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.utils import configclass
+
+   @configclass
+   class MyPhysicsCfg(PresetCfg):
+       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
+       newton:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton
+
+Selecting a preset at launch
+-----------------------------
+
+Pass ``presets=newton`` (or ``presets=physx``) on the CLI to swap the entire config section:
+
+.. code-block:: bash
+
+   # Run with Newton backend
+   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton
+
+   # Run with default (PhysX) backend
+   python train.py task=Isaac-Franka-Cabinet-v0
+
+Adding Multi-Backend Support to an Environment
+-----------------------------------------------
+
+**Step 1 — Physics config**
+
+Replace a plain ``PhysxCfg(...)`` assignment in ``__post_init__`` with a ``PresetCfg``
+subclass that carries both a PhysX and a Newton variant.
+
+*Before:*
+
+.. code-block:: python
+
+   def __post_init__(self):
+       self.sim.dt = 1 / 60
+       self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
+
+*After:*
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
+
+   @configclass
+   class ReachPhysicsCfg(PresetCfg):
+       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       newton:  NewtonCfg = NewtonCfg(
+           solver_cfg=MJWarpSolverCfg(
+               njmax=20, nconmax=20, ls_iterations=20,
+               cone="pyramidal", ls_parallel=True,
+               integrator="implicitfast", impratio=1,
+           ),
+           num_substeps=1,
+           debug_mode=False,
+       )
+
+   # In the env cfg __post_init__:
+   def __post_init__(self):
+       self.sim.dt = 1 / 60
+       self.sim.physics = ReachPhysicsCfg()
+
+Key Newton solver parameters:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Parameter
+     - Effect
+   * - ``njmax``
+     - Max constraint rows; set ≥ expected contact count per env
+   * - ``nconmax``
+     - Max contacts per env
+   * - ``ls_iterations``
+     - Linear solver iterations (higher = more stable, slower)
+   * - ``cone``
+     - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
+   * - ``integrator``
+     - ``"implicitfast"`` (recommended) or ``"euler"``
+   * - ``impratio``
+     - Impedance ratio; >1 improves soft contact stability
+   * - ``num_substeps``
+     - Physics substeps per environment step
+
+**Step 2 — Differentiating Newton and PhysX Configs**
+
+Not all configurations may be the same between Newton and PhysX simulations.
+We can provide a Newton-specific config such as:
+
+.. code-block:: python
+
+   @configclass
+   class EventCfg:
+       """Full event config (PhysX-compatible)."""
+       robot_physics_material = EventTerm(
+           func=mdp.randomize_rigid_body_material,
+           mode="startup",
+           params={...},
+       )
+       reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+       reset_robot_joints = EventTerm(
+           func=mdp.reset_joints_by_offset, mode="reset", params={...}
+       )
+
+
+   @configclass
+   class _EnvNewtonEventCfg:
+       """Newton-compatible events."""
+       reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+       reset_robot_joints = EventTerm(
+           func=mdp.reset_joints_by_offset, mode="reset", params={...}
+       )
+
+
+   @configclass
+   class EnvEventCfg(PresetCfg):
+       default: EventCfg = EventCfg()
+       physx:   EventCfg = EventCfg()
+       newton:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
+
+Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEventCfg``:
+
+.. code-block:: python
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+       events: EnvEventCfg = EnvEventCfg()  # was: EventCfg = EventCfg()
 
 
 RigidObjectCollection API Renaming
@@ -1106,6 +1231,146 @@ directly in your code, update your configuration:
        collision_from_visuals=False,
        self_collision=False,
    )
+
+
+XR Teleoperation: Isaac Teleop Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
+by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
+plugin support is now in Isaac Teleop.
+
+For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
+
+
+Installation Requirement
+------------------------
+
+Isaac Teleop must now be installed in your Isaac Lab environment:
+
+.. code-block:: bash
+
+   pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
+
+See :ref:`install-isaac-teleop` for complete installation instructions.
+
+
+Import Changes
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Deprecated (2.x)
+     - New (3.0)
+   * - ``from isaaclab.devices.openxr import OpenXRDevice``
+     - ``from isaaclab_teleop import IsaacTeleopDevice``
+   * - ``from isaaclab.devices.openxr import OpenXRDeviceCfg``
+     - ``from isaaclab_teleop import IsaacTeleopCfg``
+   * - ``from isaaclab.devices.openxr import XrCfg``
+     - ``from isaaclab_teleop import XrCfg``
+   * - ``from isaaclab.devices.openxr import ManusVive``
+     - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
+   * - ``from isaaclab.devices import RetargeterBase``
+     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+   * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
+     - ``from isaacteleop.retargeting_engine.retargeters import Se3AbsRetargeter``
+
+
+Environment Configuration Changes
+----------------------------------
+
+The ``teleop_devices`` field with ``OpenXRDeviceCfg`` has been replaced by the ``isaac_teleop``
+field with ``IsaacTeleopCfg`` and a pipeline builder callable.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.devices import DevicesCfg, OpenXRDeviceCfg
+   from isaaclab.devices.openxr import XrCfg
+   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+
+       xr: XrCfg = XrCfg(anchor_pos=[0.0, 0.0, 0.0])
+
+       teleop_devices: DevicesCfg = field(default_factory=lambda: DevicesCfg(
+           handtracking=OpenXRDeviceCfg(
+               xr_cfg=None,
+               retargeters=[
+                   Se3AbsRetargeterCfg(bound_hand=0, zero_out_xy_rotation=True),
+                   GripperRetargeterCfg(bound_hand=0),
+               ]
+           ),
+       ))
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+   def _build_pipeline():
+       from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+       from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+       from isaacteleop.retargeting_engine.retargeters import (
+           GripperRetargeter, GripperRetargeterConfig,
+           Se3AbsRetargeter, Se3RetargeterConfig, TensorReorderer,
+       )
+       from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
+
+       controllers = ControllersSource(name="controllers")
+       hands = HandsSource(name="hands")
+       transform = ValueInput("world_T_anchor", TransformMatrix())
+       t_controllers = controllers.transformed(transform.output(ValueInput.VALUE))
+
+       se3 = Se3AbsRetargeter(Se3RetargeterConfig(input_device=ControllersSource.RIGHT), name="ee")
+       c_se3 = se3.connect({ControllersSource.RIGHT: t_controllers.output(ControllersSource.RIGHT)})
+
+       grip = GripperRetargeter(GripperRetargeterConfig(hand_side="right"), name="grip")
+       c_grip = grip.connect({
+           ControllersSource.RIGHT: t_controllers.output(ControllersSource.RIGHT),
+           HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+       })
+
+       reorder = TensorReorderer(
+           input_config={"ee": ["pos_x","pos_y","pos_z","quat_x","quat_y","quat_z","quat_w"],
+                         "grip": ["gripper_value"]},
+           output_order=["pos_x","pos_y","pos_z","quat_x","quat_y","quat_z","quat_w","gripper_value"],
+           name="reorder", input_types={"ee": "array", "grip": "scalar"},
+       )
+       c_reorder = reorder.connect({"ee": c_se3.output("ee_pose"), "grip": c_grip.output("gripper_command")})
+       return OutputCombiner({"action": c_reorder.output("output")})
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+
+       xr: XrCfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0))
+
+       def __post_init__(self):
+           super().__post_init__()
+           self.isaac_teleop = IsaacTeleopCfg(
+               pipeline_builder=_build_pipeline,
+               sim_device=self.sim.device,
+               xr_cfg=self.xr,
+           )
+
+
+Backward Compatibility
+----------------------
+
+The old classes still exist and will issue ``DeprecationWarning`` when used:
+
+* ``isaaclab.devices.openxr.OpenXRDevice`` and ``OpenXRDeviceCfg``
+* ``isaaclab.devices.openxr.ManusVive`` and ``ManusViveCfg``
+* All retargeters under ``isaaclab.devices.openxr.retargeters``
+
+Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
+compatibility. These will be removed in a future release.
 
 
 Need Help?

@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonSceneDataProvider",
     "PhysxSceneDataProvider",
 ]
 
+from .newton_scene_data_provider import NewtonSceneDataProvider
 from .physx_scene_data_provider import PhysxSceneDataProvider

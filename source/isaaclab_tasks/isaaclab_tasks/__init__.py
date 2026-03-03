@@ -30,9 +30,15 @@ __version__ = ISAACLAB_TASKS_METADATA["package"]["version"]
 # Register Gym environments.
 ##
 
+import builtins
+
 from .utils import import_packages
 
-# The blacklist is used to prevent importing configs from sub-packages
-_BLACKLIST_PKGS = ["utils", ".mdp", "direct.humanoid_amp.motions"]
-# Import all configs in this package
-import_packages(__name__, _BLACKLIST_PKGS)
+# Guard: AppLauncher._create_app() temporarily removes all "lab" modules from
+# sys.modules while creating SimulationApp.  If Kit re-imports this package
+# during that window, __init__ runs again and re-registers every gym env.
+# We stash a flag on builtins because it is never evicted from sys.modules.
+if not getattr(builtins, "_isaaclab_tasks_registered", False):
+    _BLACKLIST_PKGS = ["utils", ".mdp", "direct.humanoid_amp.motions"]
+    import_packages(__name__, _BLACKLIST_PKGS)
+    builtins._isaaclab_tasks_registered = True

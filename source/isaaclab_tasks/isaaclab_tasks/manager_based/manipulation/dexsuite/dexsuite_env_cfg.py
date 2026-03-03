@@ -16,6 +16,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import CapsuleCfg, ConeCfg, CuboidCfg, RigidBodyMaterialCfg, SphereCfg
 from isaaclab.utils import configclass
@@ -24,6 +25,14 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from . import mdp
 from .adr_curriculum import CurriculumCfg
+
+TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
+    size=(0.8, 1.5, 0.04),
+    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    # trick: we let visualizer's color to show the table with success coloring
+    visible=False,
+)
 
 
 @configclass
@@ -69,13 +78,7 @@ class SceneCfg(InteractiveSceneCfg):
     # table
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/table",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.8, 1.5, 0.04),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            # trick: we let visualizer's color to show the table with success coloring
-            visible=False,
-        ),
+        spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
@@ -115,6 +118,17 @@ class CommandsCfg:
             yaw=(0.0, 0.0),
         ),
         success_vis_asset_name="table",
+        success_visualizer_cfg=VisualizationMarkersCfg(
+            prim_path="/Visuals/SuccessMarkers",
+            markers={
+                "failure": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)), visible=True
+                ),
+                "success": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)), visible=True
+                ),
+            },
+        ),
     )
 
 
@@ -407,13 +421,6 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         # *single-goal setup
         self.commands.object_pose.resampling_time_range = (10.0, 10.0)
         self.commands.object_pose.position_only = False
-        self.commands.object_pose.success_visualizer_cfg.markers["failure"] = self.scene.table.spawn.replace(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15), roughness=0.25), visible=True
-        )
-        self.commands.object_pose.success_visualizer_cfg.markers["success"] = self.scene.table.spawn.replace(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15), roughness=0.25), visible=True
-        )
-
         self.episode_length_s = 4.0
         self.is_finite_horizon = True
 

@@ -24,6 +24,8 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
+_UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
+
 
 def _parse_kit_asset_root() -> str:
     """Parse ``persistent.isaac.asset_root.cloud`` from ``apps/isaaclab.python.kit``."""
@@ -122,6 +124,19 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             if cur_url in visited:
                 continue
             visited.add(cur_url)
+
+            # UDIM textures use a <UDIM> placeholder (e.g. texture.<UDIM>.png) that does not
+            # correspond to a real file. Expand to individual tile URLs by probing tile numbers
+            # starting at 1001; UDIM tiles are contiguous so stop at the first missing tile.
+            if _UDIM_RE.search(cur_url):
+                for tile in range(1001, 1101):
+                    tile_url = _UDIM_RE.sub(str(tile), cur_url)
+                    if omni.client.stat(tile_url.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+                        if tile_url not in visited:
+                            to_visit.append(tile_url)
+                    else:
+                        break
+                continue
 
             cur_rel = urlparse(cur_url).path.lstrip("/")
             target_path = os.path.join(download_dir, cur_rel)
