@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -315,7 +315,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -374,6 +374,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/features/population_based_training.html">Population Based Training</a></li>
@@ -627,7 +628,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">builtins</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
@@ -778,18 +778,17 @@
         <span class="c1"># play the simulator to activate physics handles</span>
         <span class="c1"># note: this activates the physics simulation view that exposes TensorAPIs</span>
         <span class="c1"># note: when started in extension mode, first call sim.reset_async() and then initialize the managers</span>
-        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Starting the simulation. This may take a few seconds. Please wait...&quot;</span><span class="p">)</span>
-            <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">,</span> <span class="s2">&quot;simulation_start&quot;</span><span class="p">):</span>
-                <span class="c1"># since the reset can trigger callbacks which use the stage,</span>
-                <span class="c1"># we need to set the stage context here</span>
-                <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">stage</span><span class="p">):</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-                <span class="c1"># update scene to pre populate data buffers for assets and sensors.</span>
-                <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
-                <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments</span>
-                <span class="c1"># so the lazy buffers would be reset.</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Starting the simulation. This may take a few seconds. Please wait...&quot;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">,</span> <span class="s2">&quot;simulation_start&quot;</span><span class="p">):</span>
+            <span class="c1"># since the reset can trigger callbacks which use the stage,</span>
+            <span class="c1"># we need to set the stage context here</span>
+            <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">stage</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="c1"># update scene to pre populate data buffers for assets and sensors.</span>
+            <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
+            <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments</span>
+            <span class="c1"># so the lazy buffers would be reset.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
 
         <span class="c1"># check if debug visualization is has been implemented by the environment</span>
         <span class="n">source_code</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsource</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_set_debug_vis_impl</span><span class="p">)</span>
@@ -1373,7 +1372,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

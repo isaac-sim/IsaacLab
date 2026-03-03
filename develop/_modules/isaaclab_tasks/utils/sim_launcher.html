@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -315,7 +315,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -374,6 +374,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/features/population_based_training.html">Population Based Training</a></li>
@@ -693,6 +694,19 @@
     <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">PhysicsCfg</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">node</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;NewtonCfg&quot;</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_visualizer_types</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract requested visualizer type names from launcher args.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">):</span>
+        <span class="n">visualizers</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="s2">&quot;visualizer&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">visualizers</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;visualizer&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">visualizers</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">visualizers</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()}</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_is_kit_camera</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;True for a CameraCfg whose renderer requires Kit (not Newton).&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">CameraCfg</span><span class="p">):</span>
@@ -726,6 +740,11 @@
     <span class="n">is_newton</span><span class="p">,</span> <span class="n">has_kit_cameras</span> <span class="o">=</span> <span class="n">_scan_config</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="p">[</span><span class="n">_is_newton_physics</span><span class="p">,</span> <span class="n">_is_kit_camera</span><span class="p">])</span>
     <span class="n">needs_kit</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">is_newton</span>
 
+    <span class="c1"># If the Kit visualizer is explicitly requested, Kit must launch even for Newton physics.</span>
+    <span class="n">visualizer_types</span> <span class="o">=</span> <span class="n">_get_visualizer_types</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s2">&quot;kit&quot;</span> <span class="ow">in</span> <span class="n">visualizer_types</span><span class="p">:</span>
+        <span class="n">needs_kit</span> <span class="o">=</span> <span class="kc">True</span>
+
     <span class="k">if</span> <span class="n">needs_kit</span> <span class="ow">and</span> <span class="n">has_kit_cameras</span><span class="p">:</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="s2">&quot;enable_cameras&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
@@ -743,6 +762,13 @@
 
         <span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
         <span class="n">close_fn</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">close</span>
+    <span class="k">elif</span> <span class="n">visualizer_types</span><span class="p">:</span>
+        <span class="c1"># Newton path without Kit: AppLauncher is skipped, so manually store the visualizer</span>
+        <span class="c1"># selection in SettingsManager (works in standalone mode via plain dict) so that</span>
+        <span class="c1"># SimulationContext._get_cli_visualizer_types() can find it.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app.settings_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_settings_manager</span>
+
+        <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">visualizer_types</span><span class="p">)))</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">yield</span>
@@ -801,7 +827,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

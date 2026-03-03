@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -316,7 +316,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -375,6 +375,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
@@ -760,7 +761,7 @@ You can increase the gain of all the <a class="reference external" href="https:/
 However, this may lead to more jerky motion.
 Separately, the finger joints of the robot are retargeted to the user’s finger joints using the <a class="reference external" href="https://github.com/dexsuite/dex-retargeting">dex-retargeting</a> library.</p>
 </div>
-<p>Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in <a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#cloudxr-teleoperation"><span class="std std-ref">Setting up CloudXR Teleoperation</span></a>.
+<p>Set up the CloudXR Runtime and Apple Vision Pro for teleoperation by following the steps in <a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#cloudxr-teleoperation"><span class="std std-ref">Setting up Isaac Teleop with CloudXR</span></a>.
 CPU simulation is used in the following steps for better XR performance when running a single environment.</p>
 <p>Collect a set of human demonstrations.
 A success demo requires the object to be placed in the bin and for the robot’s right arm to be retracted to the starting position.</p>
@@ -775,7 +776,6 @@ Therefore, avoid moving the right hand while the left hand picks up the object a
 --task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0<span class="w"> </span><span class="se">\</span>
 --visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
---teleop_device<span class="w"> </span>handtracking<span class="w"> </span><span class="se">\</span>
 --num_demos<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
 --dataset_file<span class="w"> </span>./datasets/dataset_gr1.hdf5
 </pre></div>
@@ -787,7 +787,7 @@ Therefore, avoid moving the right hand while the left hand picks up the object a
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
-on the Apple Vision Pro or via voice control by saying “reset”. See <a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#teleoperate-apple-vision-pro"><span class="std std-ref">Teleoperate an Isaac Lab Robot with Apple Vision Pro</span></a> for more details.</p>
+on the Apple Vision Pro or via voice control by saying “reset”. See <a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#teleoperate-apple-vision-pro"><span class="std std-ref">Teleoperate with Apple Vision Pro</span></a> for more details.</p>
 <p>The robot uses simplified collision meshes for physics calculations that differ from the detailed visual meshes displayed in the simulation. Due to this difference, you may occasionally observe visual artifacts where parts of the robot appear to penetrate other objects or itself, even though proper collision handling is occurring in the physics simulation.</p>
 </div>
 <p>You can replay the collected demonstrations by running the following command:</p>
@@ -944,7 +944,6 @@ and the yellow bowl to be placed on top of the white scale.</strong></p>
 --task<span class="w"> </span>Isaac-NutPour-GR1T2-Pink-IK-Abs-v0<span class="w"> </span><span class="se">\</span>
 --visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
---teleop_device<span class="w"> </span>handtracking<span class="w"> </span><span class="se">\</span>
 --num_demos<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
 --dataset_file<span class="w"> </span>./datasets/dataset_gr1_nut_pouring.hdf5
 </pre></div>
@@ -1076,7 +1075,6 @@ This demonstration shows how to train a G1 robot to perform pick and place tasks
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-PickPlace-Locomanipulation-G1-Abs-v0<span class="w"> </span><span class="se">\</span>
---teleop_device<span class="w"> </span>handtracking<span class="w"> </span><span class="se">\</span>
 --dataset_file<span class="w"> </span>./datasets/dataset_g1_locomanip.hdf5<span class="w"> </span><span class="se">\</span>
 --num_demos<span class="w"> </span><span class="m">5</span>
 </pre></div>
@@ -1378,7 +1376,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

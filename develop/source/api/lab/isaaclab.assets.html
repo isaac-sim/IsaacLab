@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -316,7 +316,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -375,6 +375,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
@@ -3850,10 +3851,10 @@ This ensures that the external wrench is applied at every simulation step.</p>
 <td><p>Deprecated, same as <a class="reference internal" href="#isaaclab.assets.Articulation.set_coms_index" title="isaaclab.assets.Articulation.set_coms_index"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_coms_index()</span></code></a>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.set_coms_index" title="isaaclab.assets.Articulation.set_coms_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_coms_index</span></code></a>(*, coms[, body_ids, env_ids])</p></td>
-<td><p>Set center of mass positions of all bodies in the simulation world frame.</p></td>
+<td><p>Set center of mass pose of all bodies in their respective body link frames.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.set_coms_mask" title="isaaclab.assets.Articulation.set_coms_mask"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_coms_mask</span></code></a>(*, coms[, body_mask, env_mask])</p></td>
-<td><p>Set center of mass positions of all bodies in the simulation world frame.</p></td>
+<td><p>Set center of mass pose of all bodies in their respective body link frames.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.set_debug_vis" title="isaaclab.assets.Articulation.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
 <td><p>Sets whether to visualize the asset data.</p></td>
@@ -4467,7 +4468,7 @@ are constant over a period of time, things like the thrust of a motor for instan
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.assets.Articulation.set_coms_index">
 <em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_coms_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">wp.array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">body_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">wp.array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">wp.array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab.assets.Articulation.set_coms_index" title="Permalink to this definition">#</a></dt>
-<dd><p>Set center of mass positions of all bodies in the simulation world frame.</p>
+<dd><p>Set center of mass pose of all bodies in their respective body link frames.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This method expects partial data.</p>
@@ -4480,10 +4481,10 @@ Some backends may provide optimized implementations for masks / indices.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>coms</strong> – Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3)
-or (len(env_ids), len(body_ids)) with dtype wp.vec3f.</p></li>
-<li><p><strong>body_ids</strong> – The body indices to set the center of mass positions for. Defaults to None (all bodies).</p></li>
-<li><p><strong>env_ids</strong> – The environment indices to set the center of mass positions for. Defaults to None
+<li><p><strong>coms</strong> – Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7)
+or (len(env_ids), len(body_ids)) with dtype wp.transformf.</p></li>
+<li><p><strong>body_ids</strong> – The body indices to set the center of mass pose for. Defaults to None (all bodies).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the center of mass pose for. Defaults to None
 (all instances).</p></li>
 </ul>
 </dd>
@@ -4493,7 +4494,7 @@ or (len(env_ids), len(body_ids)) with dtype wp.vec3f.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.assets.Articulation.set_coms_mask">
 <em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_coms_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">wp.array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">body_mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">wp.array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">wp.array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab.assets.Articulation.set_coms_mask" title="Permalink to this definition">#</a></dt>
-<dd><p>Set center of mass positions of all bodies in the simulation world frame.</p>
+<dd><p>Set center of mass pose of all bodies in their respective body link frames.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This method expects full data.</p>
@@ -4506,8 +4507,8 @@ Some backends may provide optimized implementations for masks / indices.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>coms</strong> – Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
-or (num_instances, num_bodies) with dtype wp.vec3f.</p></li>
+<li><p><strong>coms</strong> – Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7)
+or (num_instances, num_bodies) with dtype wp.transformf.</p></li>
 <li><p><strong>body_mask</strong> – Body mask. If None, then all the bodies are updated. Shape is (num_bodies,).</p></li>
 <li><p><strong>env_mask</strong> – Environment mask. If None, then all the instances are updated. Shape is (num_instances,).</p></li>
 </ul>
@@ -7211,7 +7212,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

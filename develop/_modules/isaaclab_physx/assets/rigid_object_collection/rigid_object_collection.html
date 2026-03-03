@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -315,7 +315,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -374,6 +374,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/population_based_training.html">Population Based Training</a></li>
@@ -931,11 +932,11 @@
 <span class="sd">            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="k">if</span> <span class="n">body_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_mask</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_body_link_pose_to_sim_index</span><span class="p">(</span>
@@ -1001,11 +1002,11 @@
 <span class="sd">            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="k">if</span> <span class="n">body_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_mask</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_body_com_velocity_to_sim_index</span><span class="p">(</span>
@@ -1100,7 +1101,7 @@
 <span class="sd">            body_ids: Body indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_body_link_pose_to_sim_index</span><span class="p">(</span>
@@ -1200,7 +1201,7 @@
 <span class="sd">            body_ids: Body indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_body_com_pose_to_sim_index</span><span class="p">(</span><span class="n">body_poses</span><span class="o">=</span><span class="n">body_poses</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">body_ids</span><span class="o">=</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">full_data</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
@@ -1306,7 +1307,7 @@
 <span class="sd">            body_ids: Body indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_body_com_velocity_to_sim_index</span><span class="p">(</span>
@@ -1418,7 +1419,7 @@
 <span class="sd">            body_ids: Body indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_body_link_velocity_to_sim_index</span><span class="p">(</span>
@@ -1504,11 +1505,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Resolve masks.</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="k">if</span> <span class="n">body_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_mask</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span>
         <span class="c1"># Set full data to True to ensure the right code path is taken inside the kernel.</span>
@@ -1592,11 +1593,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Resolve masks.</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="k">if</span> <span class="n">body_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_mask</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span>
         <span class="c1"># Set full data to True to ensure the right code path is taken inside the kernel.</span>
@@ -1677,11 +1678,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Resolve masks.</span>
         <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_env_mask</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
         <span class="k">if</span> <span class="n">body_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_mask</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span>
         <span class="c1"># Set full data to True to ensure the right code path is taken inside the kernel.</span>
@@ -1842,6 +1843,32 @@
             <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">body_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">body_ids</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_env_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve environment mask to indices via torch.nonzero.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">env_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_mask</span><span class="p">,</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">):</span>
+                <span class="n">env_mask</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">env_mask</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
+        <span class="k">return</span> <span class="n">env_ids</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_body_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">body_mask</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve body mask to indices via torch.nonzero.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">body_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_mask</span><span class="p">,</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">):</span>
+                <span class="n">body_mask</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">body_mask</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span>
+        <span class="k">return</span> <span class="n">body_ids</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_cpu_env_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get CPU environment indices.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># clear body names list to prevent double counting on re-initialization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_body_names_list</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
@@ -1966,6 +1993,15 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># the order is body_0/env_0, body_0/env_1, body_0/env_..., body_1/env_0, body_1/env_1, ...</span>
         <span class="c1"># return a flat tensor of indices</span>
+        <span class="c1"># ensure env_ids and body_ids are on the target device</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">body_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">device</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">device</span><span class="p">:</span>
+            <span class="n">body_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
         <span class="n">num_query_envs</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">view_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_query_envs</span> <span class="o">*</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
         <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
@@ -2125,7 +2161,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

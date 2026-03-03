@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -316,7 +316,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -375,6 +375,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
@@ -755,17 +756,17 @@ adding a <code class="docutils literal notranslate"><span class="pre">devices</s
 </pre></div>
 </div>
 <p>where <code class="docutils literal notranslate"><span class="pre">&lt;#&gt;</span></code> is the device index of the connected SpaceMouse.</p>
-<p>If you are using the IsaacLab + CloudXR container deployment (<a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#cloudxr-teleoperation"><span class="std std-ref">Setting up CloudXR Teleoperation</span></a>), you can add the <code class="docutils literal notranslate"><span class="pre">devices</span></code> attribute under the <code class="docutils literal notranslate"><span class="pre">services</span> <span class="pre">-&gt;</span> <span class="pre">isaac-lab-base</span></code> section of the
-<code class="docutils literal notranslate"><span class="pre">docker/docker-compose.cloudxr-runtime.patch.yaml</span></code> file.</p>
 <p>Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.</p>
 </div>
-<p>For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (<code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Abs-v0</span></code>), which requires the <code class="docutils literal notranslate"><span class="pre">handtracking</span></code> device:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Abs-v0<span class="w"> </span>--visualizer<span class="w"> </span>kit<span class="w"> </span>--teleop_device<span class="w"> </span>handtracking
+<p>For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">Isaac Teleop</a> with NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (<code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Abs-v0</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Abs-v0<span class="w"> </span>--visualizer<span class="w"> </span>kit
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>See <a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#cloudxr-teleoperation"><span class="std std-ref">Setting up CloudXR Teleoperation</span></a> to learn how to use CloudXR and experience teleoperation with Isaac Lab.</p>
+<p>See <a class="reference internal" href="../../how-to/cloudxr_teleoperation.html#cloudxr-teleoperation"><span class="std std-ref">Setting up Isaac Teleop with CloudXR</span></a> to learn how to install Isaac Teleop and set up CloudXR for
+teleoperation. For architecture details, retargeting pipelines, and control scheme
+recommendations, see <a class="reference internal" href="../../features/isaac_teleop.html#isaac-teleop-feature"><span class="std std-ref">Isaac Teleop</span></a>.</p>
 </div>
 <p>The script prints the teleoperation events configured. For keyboard,
 these are as follows:</p>
@@ -1303,7 +1304,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

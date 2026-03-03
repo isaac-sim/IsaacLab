@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -317,7 +317,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -376,6 +376,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="source/features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/population_based_training.html">Population Based Training</a></li>
@@ -833,7 +834,7 @@ We gratefully acknowledge the authors of Orbit for their foundational contributi
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -896,6 +897,23 @@ We gratefully acknowledge the authors of Orbit for their foundational contributi
 <div class="toctree-wrapper compound">
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="source/features/isaac_teleop.html">Isaac Teleop</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#supported-devices">Supported Devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#choose-a-control-scheme">Choose a Control Scheme</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#how-it-works">How It Works</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#retargeting-framework">Retargeting Framework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#configure-your-environment">Configure Your Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#configure-the-xr-anchor">Configure the XR Anchor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#record-demonstrations-for-imitation-learning">Record Demonstrations for Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#add-a-new-robot">Add a New Robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#add-a-new-retargeter">Add a New Retargeter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#add-a-new-device">Add a New Device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#optimize-xr-performance">Optimize XR Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#known-issues">Known Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/features/isaac_teleop.html#api-reference">API Reference</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/hydra.html">Hydra Configuration System</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/features/hydra.html#modifying-advanced-parameters">Modifying advanced parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/features/hydra.html#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
@@ -1103,7 +1121,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -316,7 +316,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -375,6 +375,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/population_based_training.html">Population Based Training</a></li>
@@ -690,7 +691,12 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sensor-pose-properties-deprecation">Sensor Pose Properties Deprecation</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#root-physx-view-deprecation"><code class="docutils literal notranslate"><span class="pre">root_physx_view</span></code> Deprecation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-backend-support-presetcfg-pattern">Multi-Backend Support: PresetCfg Pattern</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-presetcfg">What is PresetCfg?</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#selecting-a-preset-at-launch">Selecting a preset at launch</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-multi-backend-support-to-an-environment">Adding Multi-Backend Support to an Environment</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigidobjectcollection-api-renaming">RigidObjectCollection API Renaming</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#method-renames">Method Renames</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#property-renames-data-class">Property Renames (Data Class)</a></li>
@@ -733,6 +739,13 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#renamed-settings">Renamed Settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Updated CLI Tool</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Updated Python API</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#xr-teleoperation-isaac-teleop-integration">XR Teleoperation: Isaac Teleop Integration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation-requirement">Installation Requirement</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#import-changes">Import Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#environment-configuration-changes">Environment Configuration Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#backward-compatibility">Backward Compatibility</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#need-help">Need Help?</a></li>
@@ -895,39 +908,152 @@ and <code class="xref py py-class docutils literal notranslate"><span class="pre
 </div>
 </section>
 </section>
-<section id="root-physx-view-deprecation">
-<h2><code class="docutils literal notranslate"><span class="pre">root_physx_view</span></code> Deprecation<a class="headerlink" href="#root-physx-view-deprecation" title="Permalink to this heading">#</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">root_physx_view</span></code> property has been deprecated on <a class="reference internal" href="../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a>,
-<a class="reference internal" href="../api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject" title="isaaclab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a>, <a class="reference internal" href="../api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection" title="isaaclab.assets.RigidObjectCollection"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCollection</span></code></a>, and
-<a class="reference internal" href="../api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.DeformableObject" title="isaaclab_physx.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeformableObject</span></code></a> in favor of the backend-agnostic <code class="docutils literal notranslate"><span class="pre">root_view</span></code> property.</p>
+<section id="multi-backend-support-presetcfg-pattern">
+<h2>Multi-Backend Support: PresetCfg Pattern<a class="headerlink" href="#multi-backend-support-presetcfg-pattern" title="Permalink to this heading">#</a></h2>
+<p>Isaac Lab 3.0 introduces a <strong>PresetCfg pattern</strong> for writing environment configurations
+that work with both the PhysX and Newton backends. Instead of hard-coding a single
+physics config, environments declare named configuration variants. The active variant
+is selected at launch via a Hydra CLI override.</p>
+<section id="what-is-presetcfg">
+<h3>What is PresetCfg?<a class="headerlink" href="#what-is-presetcfg" title="Permalink to this heading">#</a></h3>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">PresetCfg</span></code> is a base <code class="docutils literal notranslate"><span class="pre">&#64;configclass</span></code> whose typed fields
+represent named variants of a configuration section. The field named <code class="docutils literal notranslate"><span class="pre">default</span></code> is used
+when no CLI override is given. Other fields are named presets selectable with
+<code class="docutils literal notranslate"><span class="pre">presets=&lt;name&gt;</span></code> on the command line:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">PresetCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyPhysicsCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>   <span class="c1"># used when no override is given</span>
+    <span class="n">physx</span><span class="p">:</span>   <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>   <span class="c1"># selected by presets=physx</span>
+    <span class="n">newton</span><span class="p">:</span>  <span class="n">NewtonCfg</span> <span class="o">=</span> <span class="n">NewtonCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>  <span class="c1"># selected by presets=newton</span>
+</pre></div>
+</div>
+</section>
+<section id="selecting-a-preset-at-launch">
+<h3>Selecting a preset at launch<a class="headerlink" href="#selecting-a-preset-at-launch" title="Permalink to this heading">#</a></h3>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">presets=newton</span></code> (or <code class="docutils literal notranslate"><span class="pre">presets=physx</span></code>) on the CLI to swap the entire config section:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run with Newton backend</span>
+python<span class="w"> </span>train.py<span class="w"> </span><span class="nv">task</span><span class="o">=</span>Isaac-Franka-Cabinet-v0<span class="w"> </span><span class="nv">presets</span><span class="o">=</span>newton
+
+<span class="c1"># Run with default (PhysX) backend</span>
+python<span class="w"> </span>train.py<span class="w"> </span><span class="nv">task</span><span class="o">=</span>Isaac-Franka-Cabinet-v0
+</pre></div>
+</div>
+</section>
+<section id="adding-multi-backend-support-to-an-environment">
+<h3>Adding Multi-Backend Support to an Environment<a class="headerlink" href="#adding-multi-backend-support-to-an-environment" title="Permalink to this heading">#</a></h3>
+<p><strong>Step 1 — Physics config</strong></p>
+<p>Replace a plain <code class="docutils literal notranslate"><span class="pre">PhysxCfg(...)</span></code> assignment in <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> with a <code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code>
+subclass that carries both a PhysX and a Newton variant.</p>
+<p><em>Before:</em></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">60</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span><span class="n">bounce_threshold_velocity</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><em>After:</em></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_newton.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">MJWarpSolverCfg</span><span class="p">,</span> <span class="n">NewtonCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">PresetCfg</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ReachPhysicsCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span><span class="n">bounce_threshold_velocity</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+    <span class="n">physx</span><span class="p">:</span>   <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span><span class="n">bounce_threshold_velocity</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+    <span class="n">newton</span><span class="p">:</span>  <span class="n">NewtonCfg</span> <span class="o">=</span> <span class="n">NewtonCfg</span><span class="p">(</span>
+        <span class="n">solver_cfg</span><span class="o">=</span><span class="n">MJWarpSolverCfg</span><span class="p">(</span>
+            <span class="n">njmax</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">nconmax</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ls_iterations</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+            <span class="n">cone</span><span class="o">=</span><span class="s2">&quot;pyramidal&quot;</span><span class="p">,</span> <span class="n">ls_parallel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">integrator</span><span class="o">=</span><span class="s2">&quot;implicitfast&quot;</span><span class="p">,</span> <span class="n">impratio</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">num_substeps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">debug_mode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+<span class="c1"># In the env cfg __post_init__:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">60</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics</span> <span class="o">=</span> <span class="n">ReachPhysicsCfg</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Key Newton solver parameters:</p>
 <div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
 <thead>
-<tr class="row-odd"><th class="head"><p>Deprecated (2.x)</p></th>
-<th class="head"><p>New (3.0)</p></th>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Effect</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">articulation.root_physx_view</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">articulation.root_view</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">njmax</span></code></p></td>
+<td><p>Max constraint rows; set ≥ expected contact count per env</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rigid_object.root_physx_view</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">rigid_object.root_view</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nconmax</span></code></p></td>
+<td><p>Max contacts per env</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rigid_object_collection.root_physx_view</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">rigid_object_collection.root_view</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ls_iterations</span></code></p></td>
+<td><p>Linear solver iterations (higher = more stable, slower)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">deformable_object.root_physx_view</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">deformable_object.root_view</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cone</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;pyramidal&quot;</span></code> (fast) or <code class="docutils literal notranslate"><span class="pre">&quot;elliptic&quot;</span></code> (more accurate)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">integrator</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;implicitfast&quot;</span></code> (recommended) or <code class="docutils literal notranslate"><span class="pre">&quot;euler&quot;</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">impratio</span></code></p></td>
+<td><p>Impedance ratio; &gt;1 improves soft contact stability</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">num_substeps</span></code></p></td>
+<td><p>Physics substeps per environment step</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">root_view</span></code> property returns the same underlying PhysX view object. This rename is part of
-the multi-backend architecture to provide a consistent API across different physics backends.
-The <code class="docutils literal notranslate"><span class="pre">root_physx_view</span></code> property will continue to work but will issue a deprecation warning.</p>
+<p><strong>Step 2 — Differentiating Newton and PhysX Configs</strong></p>
+<p>Not all configurations may be the same between Newton and PhysX simulations.
+We can provide a Newton-specific config such as:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Full event config (PhysX-compatible).&quot;&quot;&quot;</span>
+    <span class="n">robot_physics_material</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_material</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
+    <span class="p">)</span>
+    <span class="n">reset_all</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_scene_to_default</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
+    <span class="n">reset_robot_joints</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">}</span>
+    <span class="p">)</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_EnvNewtonEventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Newton-compatible events.&quot;&quot;&quot;</span>
+    <span class="n">reset_all</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_scene_to_default</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
+    <span class="n">reset_robot_joints</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">}</span>
+    <span class="p">)</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EnvEventCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+    <span class="n">physx</span><span class="p">:</span>   <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+    <span class="n">newton</span><span class="p">:</span>  <span class="n">_EnvNewtonEventCfg</span> <span class="o">=</span> <span class="n">_EnvNewtonEventCfg</span><span class="p">()</span>
+</pre></div>
 </div>
+<p>Then change the <code class="docutils literal notranslate"><span class="pre">events</span></code> field in your env cfg from <code class="docutils literal notranslate"><span class="pre">EventCfg</span></code> to <code class="docutils literal notranslate"><span class="pre">EnvEventCfg</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">EnvEventCfg</span> <span class="o">=</span> <span class="n">EnvEventCfg</span><span class="p">()</span>  <span class="c1"># was: EventCfg = EventCfg()</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="rigidobjectcollection-api-renaming">
 <h2>RigidObjectCollection API Renaming<a class="headerlink" href="#rigidobjectcollection-api-renaming" title="Permalink to this heading">#</a></h2>
@@ -1900,6 +2026,143 @@ directly in your code, update your configuration:</p>
 </div>
 </section>
 </section>
+<section id="xr-teleoperation-isaac-teleop-integration">
+<h2>XR Teleoperation: Isaac Teleop Integration<a class="headerlink" href="#xr-teleoperation-isaac-teleop-integration" title="Permalink to this heading">#</a></h2>
+<p>The native XR teleoperation stack in <code class="docutils literal notranslate"><span class="pre">isaaclab.devices.openxr</span></code> has been deprecated and replaced
+by <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">Isaac Teleop</a>, integrated via the <code class="docutils literal notranslate"><span class="pre">isaaclab_teleop</span></code>
+extension. The <code class="docutils literal notranslate"><span class="pre">isaac-teleop-device-plugins</span></code> repository has also been deprecated; all device
+plugin support is now in Isaac Teleop.</p>
+<p>For full documentation on the new stack, see <a class="reference internal" href="../features/isaac_teleop.html#isaac-teleop-feature"><span class="std std-ref">Isaac Teleop</span></a>.</p>
+<section id="installation-requirement">
+<h3>Installation Requirement<a class="headerlink" href="#installation-requirement" title="Permalink to this heading">#</a></h3>
+<p>Isaac Teleop must now be installed in your Isaac Lab environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop~<span class="o">=</span><span class="m">1</span>.0<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../how-to/cloudxr_teleoperation.html#install-isaac-teleop"><span class="std std-ref">Install Isaac Teleop</span></a> for complete installation instructions.</p>
+</section>
+<section id="import-changes">
+<h3>Import Changes<a class="headerlink" href="#import-changes" title="Permalink to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 50.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Deprecated (2.x)</p></th>
+<th class="head"><p>New (3.0)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.devices.openxr</span> <span class="pre">import</span> <span class="pre">OpenXRDevice</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab_teleop</span> <span class="pre">import</span> <span class="pre">IsaacTeleopDevice</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.devices.openxr</span> <span class="pre">import</span> <span class="pre">OpenXRDeviceCfg</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab_teleop</span> <span class="pre">import</span> <span class="pre">IsaacTeleopCfg</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.devices.openxr</span> <span class="pre">import</span> <span class="pre">XrCfg</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab_teleop</span> <span class="pre">import</span> <span class="pre">XrCfg</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.devices.openxr</span> <span class="pre">import</span> <span class="pre">ManusVive</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab_teleop</span> <span class="pre">import</span> <span class="pre">IsaacTeleopDevice</span></code> (with Manus plugin configured)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.devices</span> <span class="pre">import</span> <span class="pre">RetargeterBase</span></code></p></td>
+<td><p>Use Isaac Teleop <code class="docutils literal notranslate"><span class="pre">BaseRetargeter</span></code> and pipeline builder pattern</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaaclab.devices.openxr.retargeters</span> <span class="pre">import</span> <span class="pre">Se3AbsRetargeter</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.retargeting_engine.retargeters</span> <span class="pre">import</span> <span class="pre">Se3AbsRetargeter</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="environment-configuration-changes">
+<h3>Environment Configuration Changes<a class="headerlink" href="#environment-configuration-changes" title="Permalink to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">teleop_devices</span></code> field with <code class="docutils literal notranslate"><span class="pre">OpenXRDeviceCfg</span></code> has been replaced by the <code class="docutils literal notranslate"><span class="pre">isaac_teleop</span></code>
+field with <code class="docutils literal notranslate"><span class="pre">IsaacTeleopCfg</span></code> and a pipeline builder callable.</p>
+<p><strong>Before (Isaac Lab 2.x):</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">DevicesCfg</span><span class="p">,</span> <span class="n">OpenXRDeviceCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.openxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">XrCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.openxr.retargeters</span><span class="w"> </span><span class="kn">import</span> <span class="n">Se3AbsRetargeterCfg</span><span class="p">,</span> <span class="n">GripperRetargeterCfg</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+
+    <span class="n">xr</span><span class="p">:</span> <span class="n">XrCfg</span> <span class="o">=</span> <span class="n">XrCfg</span><span class="p">(</span><span class="n">anchor_pos</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+
+    <span class="n">teleop_devices</span><span class="p">:</span> <span class="n">DevicesCfg</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">DevicesCfg</span><span class="p">(</span>
+        <span class="n">handtracking</span><span class="o">=</span><span class="n">OpenXRDeviceCfg</span><span class="p">(</span>
+            <span class="n">xr_cfg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">retargeters</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">Se3AbsRetargeterCfg</span><span class="p">(</span><span class="n">bound_hand</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">zero_out_xy_rotation</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+                <span class="n">GripperRetargeterCfg</span><span class="p">(</span><span class="n">bound_hand</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">),</span>
+    <span class="p">))</span>
+</pre></div>
+</div>
+<p><strong>After (Isaac Lab 3.0):</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_teleop</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacTeleopCfg</span><span class="p">,</span> <span class="n">XrCfg</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_pipeline</span><span class="p">():</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.deviceio_source_nodes</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllersSource</span><span class="p">,</span> <span class="n">HandsSource</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.interface</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputCombiner</span><span class="p">,</span> <span class="n">ValueInput</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.retargeters</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">GripperRetargeter</span><span class="p">,</span> <span class="n">GripperRetargeterConfig</span><span class="p">,</span>
+        <span class="n">Se3AbsRetargeter</span><span class="p">,</span> <span class="n">Se3RetargeterConfig</span><span class="p">,</span> <span class="n">TensorReorderer</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.tensor_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">TransformMatrix</span>
+
+    <span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controllers&quot;</span><span class="p">)</span>
+    <span class="n">hands</span> <span class="o">=</span> <span class="n">HandsSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;hands&quot;</span><span class="p">)</span>
+    <span class="n">transform</span> <span class="o">=</span> <span class="n">ValueInput</span><span class="p">(</span><span class="s2">&quot;world_T_anchor&quot;</span><span class="p">,</span> <span class="n">TransformMatrix</span><span class="p">())</span>
+    <span class="n">t_controllers</span> <span class="o">=</span> <span class="n">controllers</span><span class="o">.</span><span class="n">transformed</span><span class="p">(</span><span class="n">transform</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ValueInput</span><span class="o">.</span><span class="n">VALUE</span><span class="p">))</span>
+
+    <span class="n">se3</span> <span class="o">=</span> <span class="n">Se3AbsRetargeter</span><span class="p">(</span><span class="n">Se3RetargeterConfig</span><span class="p">(</span><span class="n">input_device</span><span class="o">=</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ee&quot;</span><span class="p">)</span>
+    <span class="n">c_se3</span> <span class="o">=</span> <span class="n">se3</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">t_controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">)})</span>
+
+    <span class="n">grip</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">GripperRetargeterConfig</span><span class="p">(</span><span class="n">hand_side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;grip&quot;</span><span class="p">)</span>
+    <span class="n">c_grip</span> <span class="o">=</span> <span class="n">grip</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+        <span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">t_controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span>
+        <span class="n">HandsSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">hands</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">HandsSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span>
+    <span class="p">})</span>
+
+    <span class="n">reorder</span> <span class="o">=</span> <span class="n">TensorReorderer</span><span class="p">(</span>
+        <span class="n">input_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ee&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;pos_x&quot;</span><span class="p">,</span><span class="s2">&quot;pos_y&quot;</span><span class="p">,</span><span class="s2">&quot;pos_z&quot;</span><span class="p">,</span><span class="s2">&quot;quat_x&quot;</span><span class="p">,</span><span class="s2">&quot;quat_y&quot;</span><span class="p">,</span><span class="s2">&quot;quat_z&quot;</span><span class="p">,</span><span class="s2">&quot;quat_w&quot;</span><span class="p">],</span>
+                      <span class="s2">&quot;grip&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gripper_value&quot;</span><span class="p">]},</span>
+        <span class="n">output_order</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;pos_x&quot;</span><span class="p">,</span><span class="s2">&quot;pos_y&quot;</span><span class="p">,</span><span class="s2">&quot;pos_z&quot;</span><span class="p">,</span><span class="s2">&quot;quat_x&quot;</span><span class="p">,</span><span class="s2">&quot;quat_y&quot;</span><span class="p">,</span><span class="s2">&quot;quat_z&quot;</span><span class="p">,</span><span class="s2">&quot;quat_w&quot;</span><span class="p">,</span><span class="s2">&quot;gripper_value&quot;</span><span class="p">],</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;reorder&quot;</span><span class="p">,</span> <span class="n">input_types</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ee&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span> <span class="s2">&quot;grip&quot;</span><span class="p">:</span> <span class="s2">&quot;scalar&quot;</span><span class="p">},</span>
+    <span class="p">)</span>
+    <span class="n">c_reorder</span> <span class="o">=</span> <span class="n">reorder</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="s2">&quot;ee&quot;</span><span class="p">:</span> <span class="n">c_se3</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;ee_pose&quot;</span><span class="p">),</span> <span class="s2">&quot;grip&quot;</span><span class="p">:</span> <span class="n">c_grip</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;gripper_command&quot;</span><span class="p">)})</span>
+    <span class="k">return</span> <span class="n">OutputCombiner</span><span class="p">({</span><span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="n">c_reorder</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;output&quot;</span><span class="p">)})</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+
+    <span class="n">xr</span><span class="p">:</span> <span class="n">XrCfg</span> <span class="o">=</span> <span class="n">XrCfg</span><span class="p">(</span><span class="n">anchor_pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">isaac_teleop</span> <span class="o">=</span> <span class="n">IsaacTeleopCfg</span><span class="p">(</span>
+            <span class="n">pipeline_builder</span><span class="o">=</span><span class="n">_build_pipeline</span><span class="p">,</span>
+            <span class="n">sim_device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">xr_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">xr</span><span class="p">,</span>
+        <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="backward-compatibility">
+<h3>Backward Compatibility<a class="headerlink" href="#backward-compatibility" title="Permalink to this heading">#</a></h3>
+<p>The old classes still exist and will issue <code class="docutils literal notranslate"><span class="pre">DeprecationWarning</span></code> when used:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.OpenXRDevice</span></code> and <code class="docutils literal notranslate"><span class="pre">OpenXRDeviceCfg</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.ManusVive</span></code> and <code class="docutils literal notranslate"><span class="pre">ManusViveCfg</span></code></p></li>
+<li><p>All retargeters under <code class="docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters</span></code></p></li>
+</ul>
+<p>Deprecated retargeters have been moved to <code class="docutils literal notranslate"><span class="pre">isaaclab_teleop.deprecated.openxr.retargeters</span></code> for
+compatibility. These will be removed in a future release.</p>
+</section>
+</section>
 <section id="need-help">
 <h2>Need Help?<a class="headerlink" href="#need-help" title="Permalink to this heading">#</a></h2>
 <p>If you encounter issues during migration:</p>
@@ -1964,7 +2227,12 @@ directly in your code, update your configuration:</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sensor-pose-properties-deprecation">Sensor Pose Properties Deprecation</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#root-physx-view-deprecation"><code class="docutils literal notranslate"><span class="pre">root_physx_view</span></code> Deprecation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-backend-support-presetcfg-pattern">Multi-Backend Support: PresetCfg Pattern</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-presetcfg">What is PresetCfg?</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#selecting-a-preset-at-launch">Selecting a preset at launch</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-multi-backend-support-to-an-environment">Adding Multi-Backend Support to an Environment</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigidobjectcollection-api-renaming">RigidObjectCollection API Renaming</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#method-renames">Method Renames</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#property-renames-data-class">Property Renames (Data Class)</a></li>
@@ -2009,6 +2277,13 @@ directly in your code, update your configuration:</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Updated Python API</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#xr-teleoperation-isaac-teleop-integration">XR Teleoperation: Isaac Teleop Integration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation-requirement">Installation Requirement</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#import-changes">Import Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#environment-configuration-changes">Environment Configuration Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#backward-compatibility">Backward Compatibility</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#need-help">Need Help?</a></li>
 </ul>
   </nav></div>
@@ -2043,7 +2318,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>

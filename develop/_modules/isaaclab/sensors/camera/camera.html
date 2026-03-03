@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 02, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
   </head>
   
   
@@ -315,7 +315,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
@@ -374,6 +374,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/isaac_teleop.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/population_based_training.html">Population Based Training</a></li>
@@ -643,7 +644,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.sensors</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sensor_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app.settings_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_settings_manager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">XformPrimView</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">has_kit</span><span class="p">,</span> <span class="n">to_camel_case</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.array</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">convert_camera_frame_orientation_convention</span><span class="p">,</span>
@@ -747,26 +748,27 @@
         <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/rtx_sensors&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
         <span class="c1"># This is only introduced in isaac sim 6.0</span>
-        <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">isaac_sim_version</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
-            <span class="c1"># Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested</span>
-            <span class="n">needs_color_render</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="ow">or</span> <span class="s2">&quot;rgba&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">needs_color_render</span><span class="p">:</span>
-                <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/sdg/force/disableColorRender&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">has_kit</span><span class="p">():</span>
+            <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">isaac_sim_version</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
+                <span class="c1"># Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested</span>
+                <span class="n">needs_color_render</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="ow">or</span> <span class="s2">&quot;rgba&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">needs_color_render</span><span class="p">:</span>
+                    <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/sdg/force/disableColorRender&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
-            <span class="c1"># If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black</span>
-            <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/has_gui&quot;</span><span class="p">):</span>
-                <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/sdg/force/disableColorRender&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="s2">&quot;albedo&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="s2">&quot;Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored.&quot;</span>
-                <span class="p">)</span>
-            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIMPLE_SHADING_MODES</span> <span class="k">for</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">):</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="s2">&quot;Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types&quot;</span>
-                    <span class="s2">&quot; will be ignored.&quot;</span>
-                <span class="p">)</span>
+                <span class="c1"># If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black</span>
+                <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/has_gui&quot;</span><span class="p">):</span>
+                    <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/rtx/sdg/force/disableColorRender&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;albedo&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">&quot;Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored.&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIMPLE_SHADING_MODES</span> <span class="k">for</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">&quot;Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types&quot;</span>
+                        <span class="s2">&quot; will be ignored.&quot;</span>
+                    <span class="p">)</span>
 
         <span class="c1"># Set simple shading mode (if requested) before rendering</span>
         <span class="n">simple_shading_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_simple_shading_mode</span><span class="p">()</span>
@@ -809,6 +811,8 @@
         <span class="c1"># Create empty variables for storing output data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">CameraData</span><span class="p">()</span>
 
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_kit</span><span class="p">():</span>
+            <span class="k">return</span>
         <span class="c1"># HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work</span>
         <span class="c1"># checks for Isaac Sim v4.5 as this issue exists there</span>
         <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span> <span class="o">==</span> <span class="n">version</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;4.5&quot;</span><span class="p">):</span>
@@ -1054,7 +1058,9 @@
 <span class="sd">            RuntimeError: If the number of camera prims in the view does not match the number of environments.</span>
 <span class="sd">            RuntimeError: If replicator was not found.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/cameras_enabled&quot;</span><span class="p">):</span>
+        <span class="n">renderer_type</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">renderer_cfg</span><span class="p">,</span> <span class="s2">&quot;renderer_type&quot;</span><span class="p">,</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span>
+        <span class="n">needs_kit_cameras</span> <span class="o">=</span> <span class="n">renderer_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="s2">&quot;isaac_rtx&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">needs_kit_cameras</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/cameras_enabled&quot;</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="s2">&quot;A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable&quot;</span>
                 <span class="s2">&quot; rendering.&quot;</span>
@@ -1473,7 +1479,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 02, 2026.
+  Last updated on Mar 03, 2026.
   <br/>
 </p>
   </div>
