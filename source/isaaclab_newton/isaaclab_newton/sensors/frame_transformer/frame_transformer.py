@@ -229,7 +229,7 @@ class FrameTransformer(BaseFrameTransformer):
         frame_found = False
         body_name = source_frame_prim_path.rsplit("/", 1)[-1]
         for view_id, view in enumerate(NewtonManager.get_physics_sim_view()):
-            for body_id, view_body_name in enumerate(view.body_names):
+            for body_id, view_body_name in enumerate(view.link_names):
                 if body_name == view_body_name:
                     self._warp_source_body_id = body_id
                     self._warp_source_view_id = view_id
@@ -292,7 +292,7 @@ class FrameTransformer(BaseFrameTransformer):
             body_name = prim_path.rsplit("/", 1)[-1]
             for view_id, view in enumerate(NewtonManager.get_physics_sim_view()):
                 # Get the body names from the view
-                view_body_names = view.body_names
+                view_body_names = view.link_names
                 for body_id, view_body_name in enumerate(view_body_names):
                     if body_name == view_body_name:
                         frame_found = True
