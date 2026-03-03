@@ -772,6 +772,11 @@
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Configuration for the task: &#39;</span><span class="si">{</span><span class="n">task_name</span><span class="si">}</span><span class="s2">&#39; is not a class. Please provide a class.&quot;</span><span class="p">)</span>
 
+    <span class="c1"># resolve PresetCfg fields (e.g. physics) to their default values</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils.hydra</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_preset_defaults</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">resolve_preset_defaults</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
     <span class="c1"># simulation device</span>
     <span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
     <span class="c1"># disable fabric to read/write through USD</span>

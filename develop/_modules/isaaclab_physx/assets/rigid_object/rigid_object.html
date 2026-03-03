@@ -968,14 +968,12 @@
                 <span class="n">full_data</span><span class="p">,</span>
             <span class="p">],</span>
             <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_pose_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_pose_w</span><span class="p">,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_link_state_w.data,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_state_w.data,</span>
             <span class="p">],</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Update the timestamps</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
         <span class="c1"># Invalidate dependent timestamps</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
@@ -1053,17 +1051,14 @@
                 <span class="n">full_data</span><span class="p">,</span>
             <span class="p">],</span>
             <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_pose_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_pose_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_com_pose_w</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_pose_w</span><span class="p">,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_com_state_w.data,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_link_state_w.data,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_state_w.data,</span>
             <span class="p">],</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Update the timestamps</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_pose_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
         <span class="c1"># Invalidate dependent timestamps</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
@@ -1144,16 +1139,13 @@
                 <span class="n">full_data</span><span class="p">,</span>
             <span class="p">],</span>
             <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_vel_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_body_com_acc_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_com_vel_w</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_com_acc_w</span><span class="p">,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_state_w.data,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_com_state_w.data,</span>
             <span class="p">],</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Update the timestamps</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_body_com_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
         <span class="c1"># Invalidate dependent timestamps</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
@@ -1240,19 +1232,15 @@
                 <span class="n">full_data</span><span class="p">,</span>
             <span class="p">],</span>
             <span class="n">outputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_vel_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_vel_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_body_com_acc_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_vel_w</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_com_vel_w</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_com_acc_w</span><span class="p">,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_link_state_w.data,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_state_w.data,</span>
                 <span class="kc">None</span><span class="p">,</span>  <span class="c1"># self.data._root_com_state_w.data,</span>
             <span class="p">],</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Update the timestamps</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_com_vel_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_body_com_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_sim_timestamp</span>
         <span class="c1"># Invalidate dependent timestamps</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_link_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>

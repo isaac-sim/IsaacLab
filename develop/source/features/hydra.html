@@ -1050,6 +1050,32 @@ python<span class="w"> </span>train.py<span class="w"> </span>--task<span class=
 <section id="real-world-example">
 <h3>Real-World Example<a class="headerlink" href="#real-world-example" title="Permalink to this heading">#</a></h3>
 <p>The Franka Reach environment demonstrates presets in practice:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FrankaReachEnvCfg</span><span class="p">(</span><span class="n">ReachEnvCfg</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># post init of parent</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+
+        <span class="c1"># switch robot to franka</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">FRANKA_PANDA_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot&quot;</span><span class="p">)</span>
+        <span class="c1"># override rewards</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rewards</span><span class="o">.</span><span class="n">end_effector_position_tracking</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;panda_hand&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rewards</span><span class="o">.</span><span class="n">end_effector_position_tracking_fine_grained</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;panda_hand&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rewards</span><span class="o">.</span><span class="n">end_effector_orientation_tracking</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;panda_hand&quot;</span><span class="p">]</span>
+
+        <span class="c1"># override actions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">arm_action</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointPositionActionCfg</span><span class="p">(</span>
+            <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;panda_joint.*&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">use_default_offset</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="c1"># override command generator body</span>
+        <span class="c1"># end-effector is along z-direction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">ee_pose</span><span class="o">.</span><span class="n">body_name</span> <span class="o">=</span> <span class="s2">&quot;panda_hand&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">ee_pose</span><span class="o">.</span><span class="n">ranges</span><span class="o">.</span><span class="n">pitch</span> <span class="o">=</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+
+
+<span class="nd">@configclass</span>
+</pre></div>
+</div>
 <p>This allows users to switch action types:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default: JointPositionActionCfg (from inheritance)</span>
 python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0
