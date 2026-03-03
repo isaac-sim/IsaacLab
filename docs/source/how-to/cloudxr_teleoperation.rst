@@ -204,8 +204,18 @@ choose the tab that matches your hardware.
             For rapid development, you can test the CloudXR.js client on a desktop browser
             before deploying to headsets.
 
-      #. Enter the IP address of your Isaac Lab host machine in the **Server IP** field
-         and click **Connect** to begin teleoperation.
+      #. Enter the IP address of your Isaac Lab host machine in the **Server IP** field.
+
+      #. Click the **Click https://<ip>:48322/ to accept cert** link that appears on the page.
+         Accept the certificate in the new page that opens, then navigate back to the
+         CloudXR.js client page.
+
+         .. image:: ../_static/setup/cloudxr_accept_cert.png
+            :alt: CloudXR.js certificate acceptance link
+            :align: center
+            :width: 400
+
+      #. Click **Connect** to begin teleoperation.
 
          For advanced configuration, troubleshooting, and additional details, see the
          `CloudXR.js User Guide
