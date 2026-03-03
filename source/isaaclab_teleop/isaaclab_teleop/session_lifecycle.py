@@ -229,7 +229,6 @@ class TeleopSessionLifecycle:
     def _on_pre_shutdown(self, _event):
         """Called when Kit is closing; run full cleanup since the app is exiting."""
         logger.info("Shutting down IsaacTeleop session due to Kit close")
-        self._pre_shutdown_subscription.unsubscribe()
         self._pre_shutdown_subscription = None
         self.stop()
 
