@@ -438,7 +438,7 @@ class RigidObject(BaseRigidObject):
                 env_ids,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -446,8 +446,6 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
@@ -491,7 +489,7 @@ class RigidObject(BaseRigidObject):
                 env_mask,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -499,8 +497,6 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
@@ -549,14 +545,12 @@ class RigidObject(BaseRigidObject):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
@@ -600,14 +594,12 @@ class RigidObject(BaseRigidObject):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
@@ -655,18 +647,15 @@ class RigidObject(BaseRigidObject):
                 1,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
@@ -710,18 +699,15 @@ class RigidObject(BaseRigidObject):
                 1,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
