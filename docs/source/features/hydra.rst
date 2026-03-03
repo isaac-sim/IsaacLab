@@ -312,7 +312,7 @@ The Franka Reach environment demonstrates presets in practice:
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py
     :language: python
     :start-at: @configclass
-    :end-before: ##
+    :end-before: class FrankaReachEnvCfg_PLAY
 
 This allows users to switch action types:
 
