@@ -52,10 +52,11 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     """
     # check if Kit is available (required for shader creation commands)
     if not has_kit():
-        raise RuntimeError(
+        logging.warning(
             f"Cannot spawn preview surface material '{prim_path}' in kitless mode. "
             "This functionality requires Kit/Isaac Sim as it uses omni.usd.commands."
         )
+        return None
 
     # get stage handle
     stage = get_current_stage()
