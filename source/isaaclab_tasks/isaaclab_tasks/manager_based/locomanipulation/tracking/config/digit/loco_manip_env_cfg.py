@@ -15,7 +15,7 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as manipulation_mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import EventCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import EventsCfg
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES
 
@@ -185,7 +185,7 @@ class DigitLocoManipCommands:
 
 
 @configclass
-class DigitEvents(EventCfg):
+class DigitEvents(EventsCfg):
     # Add an external force to simulate a payload being carried.
     left_hand_force = EventTermCfg(
         func=mdp.apply_external_force_torque,

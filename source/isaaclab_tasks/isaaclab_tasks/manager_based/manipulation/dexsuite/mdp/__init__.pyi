@@ -12,6 +12,7 @@ __all__ = [
     "object_point_cloud_b",
     "object_pos_b",
     "object_quat_b",
+    "vision_camera",
     "action_l2_clamped",
     "action_rate_l2_clamped",
     "contacts",
@@ -31,6 +32,7 @@ from .observations import (
     object_point_cloud_b,
     object_pos_b,
     object_quat_b,
+    vision_camera,
 )
 from .rewards import (
     action_l2_clamped,
