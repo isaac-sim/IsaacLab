@@ -13,8 +13,6 @@ import sys
 import pinocchio  # noqa: F401
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils.external_functions import call_externally_defined_function
-from isaaclab.utils.string import list_intersection
 
 # local imports
 import cli_args  # isort: skip
@@ -53,6 +51,9 @@ if args_cli.video:
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
+from isaaclab.utils.external_functions import call_externally_defined_function  # noqa: E402
+from isaaclab.utils.string import list_intersection  # noqa: E402
 
 # Call an external callback if requested. This gives opportunity to external code to register the environments
 remaining_args_env_registration = None
