@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -13,7 +16,28 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets.robots.ant import ANT_CFG
+
+
+@configclass
+class AntPhysicsCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg()
+    physx: PhysxCfg = PhysxCfg()
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=38,
+            nconmax=15,
+            ls_iterations=20,
+            cone="pyramidal",
+            ls_parallel=True,
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
 
 
 @configclass
@@ -27,7 +51,7 @@ class AntEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=AntPhysicsCfg())
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

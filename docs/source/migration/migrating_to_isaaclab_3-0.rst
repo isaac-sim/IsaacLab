@@ -165,30 +165,155 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
-``root_physx_view`` Deprecation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Backend Support: PresetCfg Pattern
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``root_physx_view`` property has been deprecated on :class:`~isaaclab.assets.Articulation`,
-:class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`, and
-:class:`~isaaclab_physx.assets.DeformableObject` in favor of the backend-agnostic ``root_view`` property.
+Isaac Lab 3.0 introduces a **PresetCfg pattern** for writing environment configurations
+that work with both the PhysX and Newton backends. Instead of hard-coding a single
+physics config, environments declare named configuration variants. The active variant
+is selected at launch via a Hydra CLI override.
 
-+----------------------------------------------+------------------------------------------+
-| Deprecated (2.x)                             | New (3.0)                                |
-+==============================================+==========================================+
-| ``articulation.root_physx_view``             | ``articulation.root_view``               |
-+----------------------------------------------+------------------------------------------+
-| ``rigid_object.root_physx_view``             | ``rigid_object.root_view``               |
-+----------------------------------------------+------------------------------------------+
-| ``rigid_object_collection.root_physx_view``  | ``rigid_object_collection.root_view``    |
-+----------------------------------------------+------------------------------------------+
-| ``deformable_object.root_physx_view``        | ``deformable_object.root_view``          |
-+----------------------------------------------+------------------------------------------+
+What is PresetCfg?
+------------------
 
-.. note::
+:class:`~isaaclab_tasks.utils.PresetCfg` is a base ``@configclass`` whose typed fields
+represent named variants of a configuration section. The field named ``default`` is used
+when no CLI override is given. Other fields are named presets selectable with
+``presets=<name>`` on the command line:
 
-   The ``root_view`` property returns the same underlying PhysX view object. This rename is part of
-   the multi-backend architecture to provide a consistent API across different physics backends.
-   The ``root_physx_view`` property will continue to work but will issue a deprecation warning.
+.. code-block:: python
+
+   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.utils import configclass
+
+   @configclass
+   class MyPhysicsCfg(PresetCfg):
+       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
+       newton:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton
+
+Selecting a preset at launch
+-----------------------------
+
+Pass ``presets=newton`` (or ``presets=physx``) on the CLI to swap the entire config section:
+
+.. code-block:: bash
+
+   # Run with Newton backend
+   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton
+
+   # Run with default (PhysX) backend
+   python train.py task=Isaac-Franka-Cabinet-v0
+
+Adding Multi-Backend Support to an Environment
+-----------------------------------------------
+
+**Step 1 — Physics config**
+
+Replace a plain ``PhysxCfg(...)`` assignment in ``__post_init__`` with a ``PresetCfg``
+subclass that carries both a PhysX and a Newton variant.
+
+*Before:*
+
+.. code-block:: python
+
+   def __post_init__(self):
+       self.sim.dt = 1 / 60
+       self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
+
+*After:*
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
+
+   @configclass
+   class ReachPhysicsCfg(PresetCfg):
+       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       newton:  NewtonCfg = NewtonCfg(
+           solver_cfg=MJWarpSolverCfg(
+               njmax=20, nconmax=20, ls_iterations=20,
+               cone="pyramidal", ls_parallel=True,
+               integrator="implicitfast", impratio=1,
+           ),
+           num_substeps=1,
+           debug_mode=False,
+       )
+
+   # In the env cfg __post_init__:
+   def __post_init__(self):
+       self.sim.dt = 1 / 60
+       self.sim.physics = ReachPhysicsCfg()
+
+Key Newton solver parameters:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Parameter
+     - Effect
+   * - ``njmax``
+     - Max constraint rows; set ≥ expected contact count per env
+   * - ``nconmax``
+     - Max contacts per env
+   * - ``ls_iterations``
+     - Linear solver iterations (higher = more stable, slower)
+   * - ``cone``
+     - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
+   * - ``integrator``
+     - ``"implicitfast"`` (recommended) or ``"euler"``
+   * - ``impratio``
+     - Impedance ratio; >1 improves soft contact stability
+   * - ``num_substeps``
+     - Physics substeps per environment step
+
+**Step 2 — Differentiating Newton and PhysX Configs**
+
+Not all configurations may be the same between Newton and PhysX simulations.
+We can provide a Newton-specific config such as:
+
+.. code-block:: python
+
+   @configclass
+   class EventCfg:
+       """Full event config (PhysX-compatible)."""
+       robot_physics_material = EventTerm(
+           func=mdp.randomize_rigid_body_material,
+           mode="startup",
+           params={...},
+       )
+       reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+       reset_robot_joints = EventTerm(
+           func=mdp.reset_joints_by_offset, mode="reset", params={...}
+       )
+
+
+   @configclass
+   class _EnvNewtonEventCfg:
+       """Newton-compatible events."""
+       reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+       reset_robot_joints = EventTerm(
+           func=mdp.reset_joints_by_offset, mode="reset", params={...}
+       )
+
+
+   @configclass
+   class EnvEventCfg(PresetCfg):
+       default: EventCfg = EventCfg()
+       physx:   EventCfg = EventCfg()
+       newton:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
+
+Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEventCfg``:
+
+.. code-block:: python
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+       events: EnvEventCfg = EnvEventCfg()  # was: EventCfg = EventCfg()
 
 
 RigidObjectCollection API Renaming

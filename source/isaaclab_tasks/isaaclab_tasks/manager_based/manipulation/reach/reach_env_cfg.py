@@ -5,6 +5,9 @@
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices import DevicesCfg
@@ -26,6 +29,27 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
+
+
+@configclass
+class ReachPhysicsCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=20,
+            nconmax=20,
+            ls_iterations=20,
+            cone="pyramidal",
+            ls_parallel=True,
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
+
 
 ##
 # Scene definition
@@ -210,6 +234,7 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
         self.sim.dt = 1.0 / 60.0
+        self.sim.physics = ReachPhysicsCfg()
 
         self.teleop_devices = DevicesCfg(
             devices={

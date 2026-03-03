@@ -3,4 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .pose_commands_cfg import *  # noqa: F401, F403
+"""Sub-module for frame transformer sensor based on Newton physics engine."""
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

@@ -3,13 +3,39 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+
+from isaaclab_tasks.utils import PresetCfg
 
 from .rough_env_cfg import UnitreeGo1RoughEnvCfg
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    newton = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=60,
+            nconmax=25,
+            ls_iterations=30,
+            cone="pyramidal",
+            impratio=1,
+            ls_parallel=True,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
+
+
+@configclass
 class UnitreeGo1FlatEnvCfg(UnitreeGo1RoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

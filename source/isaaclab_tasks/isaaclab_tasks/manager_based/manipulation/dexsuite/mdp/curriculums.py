@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import mdp
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
 

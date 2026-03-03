@@ -3232,6 +3232,8 @@ class Articulation(BaseArticulation):
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
+        # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
+        SimulationManager.get_physics_sim_view().append(self._root_view)
 
         # log information about the articulation
         logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
