@@ -51,7 +51,7 @@ if args_cli.video:
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-# Call and external callback if requested. This gives opportunity to external code to register the environments
+# Call an external callback if requested. This gives opportunity to external code to register the environments
 remaining_args_env_registration = None
 if args_cli.external_callback:
     remaining_args_env_registration = call_externally_defined_function(args_cli.external_callback)
