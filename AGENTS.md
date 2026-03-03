@@ -6,9 +6,9 @@
 
 ## API design rules (naming + structure)
 
-- **Prefix-first naming for discoverability (autocomplete).**
-  - **Classes**: `ActuatorPD`, `ActuatorLSTM` (not `PDActuator`, `LSTMActuator`).
-  - **Methods**: `add_shape_sphere()` (not `add_sphere_shape()`).
+- **Group by common prefix for discoverability (autocomplete).**
+  - **Classes**: group by domain concept — `ActuatorNetLSTM`, `ActuatorNetMLP` (not `LSTMActuatorNet`, `MLPActuatorNet`).
+  - **Methods**: group by noun before modifier — `set_joint_position_target()` (not `set_target_joint_position()`).
 - **Method names are `snake_case`.**
 - **CLI arguments are `snake_case`.**
 - **Prefer nested classes when self-contained.**
@@ -17,14 +17,14 @@
 - **Use modern Python type-hint syntax.**
   - Prefer PEP 604 unions: `x | y`, `x | None`. Do not use `typing.Union` or `typing.Optional`.
 - **Use specific type hints for public interfaces.**
-  - For Warp arrays, annotate concrete dtypes (e.g., `wp.array(dtype=wp.vec3)`) rather than generic `object`.
+  - For torch tensors, annotate with `torch.Tensor`. For Warp arrays, annotate concrete dtypes (e.g., `wp.array(dtype=wp.vec3)`) rather than generic `object`.
   - Prefer consistent parameter names across base/override APIs (e.g., `xforms`, `scales`, `colors`, `materials`).
 - **Use Google-style docstrings.**
   - Write clear, concise docstrings that explain what the function does, its parameters, and its return value.
   - Keep argument/return types in function annotations, not inline in docstrings.
   - In `Args:` entries, use `name: description` (not `name (Type): description`).
   - Use Sphinx cross-reference roles for symbol references (e.g. `:class:`, `:meth:`, `:attr:`, `:paramref:`), but keep targets as short as possible.
-  - Within the same class/module, prefer short local references (e.g. `:meth:\`log_mesh\``, `:attr:\`model\``) over fully qualified paths.
+  - Within the same class/module, prefer short local references (e.g. `:meth:\`set_joint_position_target\``, `:attr:\`num_joints\``) over fully qualified paths.
   - If qualification is needed, prefer public API paths (e.g. `isaaclab.assets.Articulation`) and do not use internal `_src` or private module paths in Sphinx role targets.
 - **State SI units for all physical quantities in docstrings.**
   - Use inline `[unit]` notation, e.g. `"""Particle positions [m], shape [particle_count, 3], float."""`.
@@ -52,7 +52,7 @@ We use a wrapped python call within `./isaaclab.sh`.
 ### Run tests
 
 ```bash
-# install development extras and run tests. This is extremely heavy and should be avoided.
+# run all tests (extremely heavy, should be avoided).
 ./isaaclab.sh -t
 
 # run a specific test file by name
@@ -60,7 +60,6 @@ We use a wrapped python call within `./isaaclab.sh`.
 
 # run a specific example test
 ./isaaclab.sh -p -m pytest PATH_TO_TEST::METHOD
-
 ```
 
 ### Pre-commit (lint/format hooks)
@@ -81,12 +80,12 @@ Proper workflow:
 ```
 
 **Common mistake to avoid:**
-- ❌ Don't commit first and then run pre-commit (requires amending commits)
-- ✅ Do run pre-commit before committing (clean workflow)
+- Don't commit first and then run pre-commit (requires amending commits)
+- Do run pre-commit before committing (clean workflow)
 
 ## Changelog
 
-- **Update `CHANGELOG.rst` for every change** targeting the source directory. Each extension has its own changelog at `source/<package>/docs/CHANGELOG.rst`.
+- **Update `CHANGELOG.rst` for every change** targeting the source directory. Each extension has its own changelog at `source/<package>/docs/CHANGELOG.rst` (e.g. `source/isaaclab/docs/CHANGELOG.rst`, `source/isaaclab_physx/docs/CHANGELOG.rst`).
 - **Always create a new version heading.** Never add entries to an existing version — they are released and immutable. Bump the patch version (e.g. `1.5.0` → `1.5.1`) and use today's date.
 - **Bump `config/extension.toml` to match.** When creating a new changelog version, update the `version` field in `source/<package>/config/extension.toml` to the same version string.
 - **Determine which changelog(s) to update** by looking at which `source/<package>/` directories your changes touch. A single PR may require entries in multiple changelogs.
@@ -168,4 +167,4 @@ To debug Warp kernel behavior:
 
 1. **Write a standalone reproduction script** and run it directly with `./isaaclab.sh -p -c "..."` or `./isaaclab.sh -p script.py`. This keeps stdout visible and avoids the test framework entirely.
 2. **Use high-precision format strings** for floating-point debugging (e.g., `wp.printf("val=%.15e\n", x)`) — the default `%f` format hides values smaller than ~1e-6 that can still affect control flow.
-3. **Remove debug prints before committing.** `wp.printf` in kernels affects performance and will cause `check_output=True` tests to fail.
+3. **Remove all `wp.printf` calls before committing.**
