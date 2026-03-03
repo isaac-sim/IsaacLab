@@ -199,6 +199,10 @@ class AppLauncher:
             # Store settings in the standalone settings manager
             self._store_settings_standalone()
 
+        # Clean up sys.argv after both Omniverse and standalone initialization
+        # This ensures Kit-specific arguments don't interfere with downstream argument parsers (e.g., Hydra)
+        self._cleanup_sys_argv()
+
         # Set up signal handlers for graceful shutdown
         # -- during keyboard interrupt (Ctrl+C)
         signal.signal(signal.SIGINT, self._interrupt_signal_handle_callback)
@@ -981,6 +985,26 @@ class AppLauncher:
             self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
             sys.argv += self._kit_args
 
+    def _cleanup_sys_argv(self):
+        """Clean up sys.argv by removing Kit-specific and internal arguments.
+
+        This method removes arguments that were added for Kit/Omniverse but should not be
+        visible to downstream argument parsers (e.g., Hydra). This is especially important
+        in standalone mode where these arguments would otherwise persist and cause parsing errors.
+        """
+        # Remove the threadCount argument from sys.argv if it was added for distributed training
+        # This argument is meant for Kit's carb.tasking plugin, not for user scripts
+        pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
+        sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
+
+        # Remove additional OV/Kit args from sys.argv
+        if len(self._kit_args) > 0:
+            sys.argv = [arg for arg in sys.argv if arg not in self._kit_args]
+
+        # Remove livestream args from sys.argv
+        if len(self._livestream_args) > 0:
+            sys.argv = [arg for arg in sys.argv if arg not in self._livestream_args]
+
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
         # Initialize SimulationApp
@@ -1008,14 +1032,6 @@ class AppLauncher:
         # add Isaac Lab modules back to sys.modules
         for key, value in hacked_modules.items():
             sys.modules[key] = value
-        # remove the threadCount argument from sys.argv if it was added for distributed training
-        pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
-        sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
-        # remove additional OV args from sys.argv
-        if len(self._kit_args) > 0:
-            sys.argv = [arg for arg in sys.argv if arg not in self._kit_args]
-        if len(self._livestream_args) > 0:
-            sys.argv = [arg for arg in sys.argv if arg not in self._livestream_args]
 
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""
