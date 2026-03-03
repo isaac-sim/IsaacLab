@@ -24,10 +24,10 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.hydra import (
     PresetCfg,
-    _resolve_preset_defaults,
     apply_overrides,
     collect_presets,
     parse_overrides,
+    resolve_preset_defaults,
 )
 
 # =============================================================================
@@ -647,8 +647,8 @@ def test_root_presetcfg_with_nested_preset_collect():
 
 
 def test_root_presetcfg_resolve_defaults():
-    """_resolve_preset_defaults resolves nested PresetCfg inside root."""
-    resolved = _resolve_preset_defaults(RootPresetEnvCfg())
+    """resolve_preset_defaults resolves nested PresetCfg inside root."""
+    resolved = resolve_preset_defaults(RootPresetEnvCfg())
     assert isinstance(resolved, RootEnvBaseCfg)
     assert isinstance(resolved.sensor, SensorBaseCfg)
     assert resolved.sensor.data_types == ["rgb"]
@@ -662,8 +662,8 @@ def test_root_presetcfg_global_depth_resolves_nested():
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
 
-    env_cfg = _resolve_preset_defaults(env_cfg)
-    agent_cfg_resolved = _resolve_preset_defaults(agent_cfg)
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg_resolved = resolve_preset_defaults(agent_cfg)
 
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg_resolved.to_dict()}
 
