@@ -24,7 +24,13 @@ from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
-from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg, Visualizer
+from isaaclab.visualizers import (
+    KitVisualizerCfg,
+    NewtonVisualizerCfg,
+    RerunVisualizerCfg,
+    ViserVisualizerCfg,
+    Visualizer,
+)
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
