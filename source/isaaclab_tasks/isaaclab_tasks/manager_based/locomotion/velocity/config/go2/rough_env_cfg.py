@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
@@ -11,6 +14,13 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
     StartupEventsCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = default
+
 
 ##
 # Pre-defined configs
@@ -56,6 +66,7 @@ class Go2EventsCfg(PresetCfg):
 
 @configclass
 class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
     events: Go2EventsCfg = Go2EventsCfg()
 
     def __post_init__(self):

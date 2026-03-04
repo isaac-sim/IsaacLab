@@ -81,9 +81,7 @@ import contextlib
 import os
 
 import carb
-import omni.kit.app
 
-import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.dict import print_dict
@@ -146,8 +144,10 @@ def main():
 
     # Simulate scene (if not headless)
     if local_gui or livestream_gui:
-        # Open the stage with USD
-        sim_utils.open_stage(urdf_converter.usd_path)
+        # Open the stage with USD and attach it to the Kit viewport context
+        import omni.usd
+
+        omni.usd.get_context().open_stage(urdf_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation
