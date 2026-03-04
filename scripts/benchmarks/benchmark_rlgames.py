@@ -46,11 +46,18 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
+from scripts.benchmarks.utils import get_preset_string
+
+_needs_kit = "newton" not in get_preset_string(hydra_args).split(",")
+
 app_start_time_begin = time.perf_counter_ns()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+if _needs_kit:
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+else:
+    app_launcher = None
+    simulation_app = None
 
 app_start_time_end = time.perf_counter_ns()
 
@@ -151,9 +158,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # process distributed
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
-        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
-        world_rank = app_launcher.global_rank
+        env_cfg.sim.device = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        world_rank = int(os.getenv("RANK", "0"))
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
@@ -168,12 +175,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # multi-gpu training config
     if args_cli.distributed:
-        agent_cfg["params"]["seed"] += app_launcher.global_rank
-        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
-        agent_cfg["params"]["config"]["device_name"] = f"cuda:{app_launcher.local_rank}"
+        agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
+        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        agent_cfg["params"]["config"]["device_name"] = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
         agent_cfg["params"]["config"]["multi_gpu"] = True
         # update env config device
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
 
     # max iterations
     if args_cli.max_iterations:
@@ -270,4 +277,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()
