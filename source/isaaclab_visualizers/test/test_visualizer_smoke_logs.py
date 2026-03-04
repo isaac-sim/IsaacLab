@@ -93,6 +93,7 @@ def _get_physics_cfg(backend_kind: str):
         physics_cfg = getattr(preset, "physx", None)
         if physics_cfg is None:
             from isaaclab_physx.physics import PhysxCfg
+
             physics_cfg = PhysxCfg()
         return physics_cfg, "physx"
     if backend_kind == "newton":
@@ -102,6 +103,7 @@ def _get_physics_cfg(backend_kind: str):
         physics_cfg = getattr(preset, "newton", None)
         if physics_cfg is None:
             from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
             physics_cfg = NewtonCfg(
                 solver_cfg=MJWarpSolverCfg(
                     njmax=5,
@@ -163,23 +165,19 @@ def _run_smoke_test(cfg, expected_visualizer_cls, expected_backend: str, caplog)
 
         # Always fail on errors
         error_logs = [
-            r for r in caplog.records
-            if r.levelno >= logging.ERROR and r.name.startswith(_VIS_LOGGER_PREFIXES)
+            r for r in caplog.records if r.levelno >= logging.ERROR and r.name.startswith(_VIS_LOGGER_PREFIXES)
         ]
-        assert not error_logs, (
-            "Visualizer emitted error logs during smoke stepping: " +
-            "; ".join(f"{r.name}: {r.message}" for r in error_logs)
+        assert not error_logs, "Visualizer emitted error logs during smoke stepping: " + "; ".join(
+            f"{r.name}: {r.message}" for r in error_logs
         )
 
         # Optionally fail on warnings
         if ASSERT_VISUALIZER_WARNINGS:
             warning_logs = [
-                r for r in caplog.records
-                if r.levelno >= logging.WARNING and r.name.startswith(_VIS_LOGGER_PREFIXES)
+                r for r in caplog.records if r.levelno >= logging.WARNING and r.name.startswith(_VIS_LOGGER_PREFIXES)
             ]
-            assert not warning_logs, (
-                "Visualizer emitted warning logs during smoke stepping: " +
-                "; ".join(f"{r.name}: {r.message}" for r in warning_logs)
+            assert not warning_logs, "Visualizer emitted warning logs during smoke stepping: " + "; ".join(
+                f"{r.name}: {r.message}" for r in warning_logs
             )
     finally:
         if env is not None:
@@ -192,7 +190,7 @@ def _run_smoke_test(cfg, expected_visualizer_cls, expected_backend: str, caplog)
 @pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun"])
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_visualizer_backend_smoke(visualizer_kind: str, backend_kind: str, caplog):
-    """Smoke test each (visualizer, backend) pair: step a few times and assert no visualizer errors (and optionally no warnings)."""
+    """Smoke test each (visualizer, backend) pair; assert no errors (optionally no warnings)."""
     cfg, expected_viz_cls, expected_backend = _resolve_case(visualizer_kind, backend_kind)
     _run_smoke_test(cfg, expected_viz_cls, expected_backend, caplog)
 

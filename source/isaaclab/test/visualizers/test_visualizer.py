@@ -15,7 +15,6 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
-
 #
 # Config factory
 #

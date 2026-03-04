@@ -131,6 +131,15 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # env_id -> list of body indices (in Newton body_key order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
 
+        # Reused pose buffers (MR perf): avoid per-call allocations in _read_poses_from_best_source.
+        self._pose_buf_num_bodies = 0
+        self._positions_buf = None
+        self._orientations_buf = None
+        self._covered_buf = None
+        self._xform_mask_buf = None
+        # View index order as device tensors for vectorized scatter in _apply_view_poses.
+        self._view_order_tensors: dict[str, Any] = {}
+
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
             self._build_newton_model_from_usd()
@@ -181,6 +190,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
             self._xform_views.clear()
             self._view_body_index_map = {}
+            self._view_order_tensors.clear()
+            self._pose_buf_num_bodies = 0
+            self._positions_buf = None
+            self._orientations_buf = None
+            self._covered_buf = None
+            self._xform_mask_buf = None
             self._env_id_to_body_indices = {}
             self._num_envs_at_last_newton_build = self.get_num_envs()
             # Invalidate any filtered model when full model changes.
@@ -342,6 +357,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         if all(idx is not None for idx in order):
             self._view_body_index_map[key] = order  # type: ignore[arg-type]
+            # Cache as device tensor for vectorized scatter in _apply_view_poses.
+            import torch
+
+            self._view_order_tensors[key] = torch.tensor(order, dtype=torch.long, device=self._device)
 
     def _split_env_relative_path(self, path: str) -> tuple[int | None, str]:
         """Extract (env_id, relative_path) from a prim path."""
@@ -395,7 +414,20 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         pos = pos.to(device=self._device, dtype=torch.float32)
         quat = quat.to(device=self._device, dtype=torch.float32)
 
-        # Scatter view outputs into the canonical Newton body order.
+        # Vectorized scatter when we have a cached order tensor (view fully covers bodies).
+        order_t = self._view_order_tensors.get(view_key)
+        if order_t is not None:
+            uncovered_mask = ~covered
+            if uncovered_mask.any():
+                newton_indices = uncovered_mask.nonzero(as_tuple=True)[0]
+                view_indices = order_t[newton_indices]
+                positions[newton_indices] = pos[view_indices]
+                orientations[newton_indices] = quat[view_indices]
+                covered[newton_indices] = True
+                return newton_indices.numel()
+            return 0
+
+        # Fallback: Python loop when view does not fully cover or cache missing.
         count = 0
         for newton_idx, view_idx in enumerate(order):
             if view_idx is not None and not covered[newton_idx]:
@@ -470,11 +502,21 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             logger.warning(f"Body count mismatch: body_key={num_bodies}, state={self._newton_state.body_q.shape[0]}")
             return None
 
-        # Allocate outputs in Newton body order.
-        positions = torch.zeros((num_bodies, 3), dtype=torch.float32, device=self._device)
-        orientations = torch.zeros((num_bodies, 4), dtype=torch.float32, device=self._device)
-        covered = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
-        xform_mask = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+        # Reuse buffers when size unchanged to avoid per-call allocations (MR perf).
+        if num_bodies != self._pose_buf_num_bodies or self._positions_buf is None:
+            self._pose_buf_num_bodies = num_bodies
+            self._positions_buf = torch.zeros((num_bodies, 3), dtype=torch.float32, device=self._device)
+            self._orientations_buf = torch.zeros((num_bodies, 4), dtype=torch.float32, device=self._device)
+            self._covered_buf = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+            self._xform_mask_buf = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+        else:
+            self._covered_buf.zero_()
+            self._xform_mask_buf.zero_()
+
+        positions = self._positions_buf
+        orientations = self._orientations_buf
+        covered = self._covered_buf
+        xform_mask = self._xform_mask_buf
 
         # Apply sources in preferred order: articulation, rigid bodies, then USD fallback.
         articulation_count = self._apply_view_poses(

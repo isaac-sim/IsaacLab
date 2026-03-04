@@ -84,7 +84,8 @@ class VisualizerCfg:
         if self.visualizer_type is None:
             raise ValueError(
                 "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific config from isaaclab_visualizers (e.g. KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg)."
+                "Use a specific config from isaaclab_visualizers "
+                "(e.g. KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg)."
             )
 
         try:
