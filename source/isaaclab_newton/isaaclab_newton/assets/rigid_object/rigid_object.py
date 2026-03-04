@@ -141,6 +141,11 @@ class RigidObject(BaseRigidObject):
         return self._root_view
 
     @property
+    def root_newton_model(self) -> Model:
+        """Newton model for the asset."""
+        return self._root_view.model
+
+    @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer.
 
