@@ -69,12 +69,6 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     disable_contacts: bool = False
     """Whether to disable contact computation in MuJoCo."""
 
-    default_actuator_gear: float | None = None
-    """Default gear ratio for all actuators."""
-
-    actuator_gears: dict[str, float] | None = None
-    """Dictionary mapping joint names to specific gear ratios, overriding the `default_actuator_gear`."""
-
     update_data_interval: int = 1
     """Frequency (in simulation steps) at which to update the MuJoCo Data object from the Newton state.
 
