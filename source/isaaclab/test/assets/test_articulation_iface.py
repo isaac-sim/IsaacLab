@@ -13,16 +13,25 @@ the base articulation class advertises. All articulation interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Launch Isaac Sim Simulator first (when available)."""
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
+import os
+import sys
 from unittest.mock import MagicMock
+
+# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
+# will try to boot Kit and hang. Skip it entirely when LD_PRELOAD is cleared
+# (the signature of run_ovphysx.sh) or when EXP_PATH is not set.
+_kitless = (os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ)
+
+if not _kitless:
+    from isaaclab.app import AppLauncher
+
+    simulation_app = AppLauncher(headless=True).app
+else:
+    simulation_app = None
+    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
+        sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
 import pytest
@@ -32,9 +41,10 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
-# This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
-# but there's no actual physics scene when running unit tests
+# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity.
+# This is needed because the PhysX Data classes call
+# SimulationManager.get_physics_sim_view().get_gravity() but there's no actual
+# physics scene when running unit tests.
 _mock_physics_sim_view = MagicMock()
 _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
@@ -54,6 +64,15 @@ try:
     from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
 
     BACKENDS.append("physx")
+except ImportError:
+    pass
+
+try:
+    from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
+    from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
+    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+
+    BACKENDS.append("ovphysx")
 except ImportError:
     pass
 
@@ -160,6 +179,85 @@ def create_physx_articulation(
     return articulation, mock_view
 
 
+def create_ovphysx_articulation(
+    num_instances: int = 2,
+    num_joints: int = 6,
+    num_bodies: int = 7,
+    num_fixed_tendons: int = 0,
+    num_spatial_tendons: int = 0,
+    device: str = "cuda:0",
+):
+    """Create a test OvPhysX Articulation instance with mocked tensor bindings."""
+    joint_names = [f"joint_{i}" for i in range(num_joints)]
+    body_names = [f"body_{i}" for i in range(num_bodies)]
+
+    articulation = object.__new__(OvPhysxArticulation)
+
+    articulation.cfg = ArticulationCfg(
+        prim_path="/World/Robot",
+        soft_joint_pos_limit_factor=1.0,
+        actuators={},
+    )
+
+    # Create mock binding set
+    mock_bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=num_joints,
+        num_bodies=num_bodies,
+        is_fixed_base=False,
+        joint_names=joint_names,
+        body_names=body_names,
+    )
+    mock_bindings.set_random_data()
+
+    fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
+    spatial_tendon_names = [f"spatial_tendon_{i}" for i in range(num_spatial_tendons)]
+
+    object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_ovphysx", MagicMock())
+    object.__setattr__(articulation, "_bindings", mock_bindings.bindings)
+    object.__setattr__(articulation, "_num_instances", num_instances)
+    object.__setattr__(articulation, "_num_joints", num_joints)
+    object.__setattr__(articulation, "_num_bodies", num_bodies)
+    object.__setattr__(articulation, "_is_fixed_base", False)
+    object.__setattr__(articulation, "_joint_names", joint_names)
+    object.__setattr__(articulation, "_body_names", body_names)
+    object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
+    object.__setattr__(articulation, "_spatial_tendon_names", spatial_tendon_names)
+    object.__setattr__(articulation, "_num_fixed_tendons", num_fixed_tendons)
+    object.__setattr__(articulation, "_num_spatial_tendons", num_spatial_tendons)
+
+    # Create ArticulationData
+    data = OvPhysxArticulationData(mock_bindings.bindings, device)
+    data._num_instances = num_instances
+    data._num_joints = num_joints
+    data._num_bodies = num_bodies
+    data._num_fixed_tendons = num_fixed_tendons
+    data._num_spatial_tendons = num_spatial_tendons
+    data._is_fixed_base = False
+    data.body_names = body_names
+    data.joint_names = joint_names
+    data.fixed_tendon_names = fixed_tendon_names
+    data.spatial_tendon_names = spatial_tendon_names
+    data._create_buffers()
+    object.__setattr__(articulation, "_data", data)
+
+    # Wrench composers
+    mock_inst_wrench = MockWrenchComposer(articulation)
+    mock_perm_wrench = MockWrenchComposer(articulation)
+    object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising
+    object.__setattr__(articulation, "_initialize_handle", None)
+    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
+    object.__setattr__(articulation, "_prim_deletion_handle", None)
+    object.__setattr__(articulation, "_debug_vis_handle", None)
+    object.__setattr__(articulation, "actuators", {})
+
+    return articulation, mock_bindings
+
+
 def create_newton_articulation(
     num_instances: int = 2,
     num_joints: int = 6,
@@ -201,6 +299,10 @@ def get_articulation(
 ):
     if backend == "physx":
         return create_physx_articulation(
+            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+        )
+    elif backend == "ovphysx":
+        return create_ovphysx_articulation(
             num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
         )
     elif backend == "newton":

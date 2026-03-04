@@ -1,0 +1,188 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""OvPhysX Manager for Isaac Lab.
+
+This module manages an ovphysx-based physics simulation lifecycle without Kit dependencies.
+It exports the current USD stage to disk, loads it into ovphysx, and steps the simulation
+using the ovphysx C/Python API.
+"""
+
+from __future__ import annotations
+
+import atexit
+import logging
+import os
+import tempfile
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+
+if TYPE_CHECKING:
+    from isaaclab.sim.simulation_context import SimulationContext
+
+    from .ovphysx_manager_cfg import OvPhysxCfg
+
+__all__ = ["OvPhysxManager"]
+
+logger = logging.getLogger(__name__)
+
+
+class OvPhysxManager(PhysicsManager):
+    """Manages an ovphysx-backed physics simulation lifecycle.
+
+    Unlike PhysxManager, this manager does not depend on Kit, Carbonite, or the
+    Omniverse timeline.  It drives the simulation entirely through the ovphysx
+    Python wheel.
+
+    Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
+    """
+
+    _cfg: ClassVar[OvPhysxCfg | None] = None
+    _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
+    _usd_handle: ClassVar[Any] = None
+    _stage_path: ClassVar[str | None] = None
+    _warmup_done: ClassVar[bool] = False
+    _tmp_dir: ClassVar[tempfile.TemporaryDirectory | None] = None
+
+    @classmethod
+    def initialize(cls, sim_context: SimulationContext) -> None:
+        """Initialize the physics manager with simulation context.
+
+        This stores the config and device but does not create the ovphysx
+        instance yet -- the USD stage may not be fully populated at this point.
+        The actual creation happens lazily in :meth:`reset`.
+        """
+        super().initialize(sim_context)
+        cls._warmup_done = False
+        cls._physx = None
+        cls._usd_handle = None
+        cls._stage_path = None
+
+    @classmethod
+    def reset(cls, soft: bool = False) -> None:
+        """Reset physics simulation.
+
+        On the first (non-soft) reset the method:
+        - Exports the current USD stage to a temp file
+        - Creates the ovphysx.PhysX instance
+        - Loads the exported USD
+        - Warms up GPU buffers (if on CUDA)
+        - Dispatches PHYSICS_READY
+        """
+        if not soft:
+            if not cls._warmup_done:
+                cls._warmup_and_load()
+            cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
+
+    @classmethod
+    def forward(cls) -> None:
+        """No-op -- ovphysx does not have a fabric/rendering pipeline."""
+        pass
+
+    @classmethod
+    def step(cls) -> None:
+        """Step the simulation by one physics timestep."""
+        if cls._physx is None:
+            return
+        dt = cls.get_physics_dt()
+        sim_time = PhysicsManager._sim_time
+        op_idx = cls._physx.step(dt=dt, sim_time=sim_time)
+        cls._physx.wait_op(op_idx)
+        PhysicsManager._sim_time += dt
+
+    @classmethod
+    def close(cls) -> None:
+        """Release ovphysx resources and clean up."""
+        cls._release_physx()
+
+        cls._usd_handle = None
+        cls._stage_path = None
+        cls._warmup_done = False
+
+        if cls._tmp_dir is not None:
+            cls._tmp_dir.cleanup()
+            cls._tmp_dir = None
+
+        super().close()
+
+    @classmethod
+    def _release_physx(cls) -> None:
+        """Release the ovphysx instance if it exists.  Safe to call multiple times."""
+        if cls._physx is not None:
+            try:
+                cls._physx.release()
+            except Exception:
+                pass
+            cls._physx = None
+
+    @classmethod
+    def get_physx_instance(cls) -> Any:
+        """Return the underlying ovphysx.PhysX instance (or None if not yet created)."""
+        return cls._physx
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _warmup_and_load(cls) -> None:
+        """Export the USD stage, create the ovphysx instance, and load the scene."""
+        sim = PhysicsManager._sim
+        if sim is None:
+            raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
+
+        device_str = PhysicsManager._device
+        if "cuda" in device_str:
+            parts = device_str.split(":")
+            gpu_index = int(parts[1]) if len(parts) > 1 else 0
+            ovphysx_device = "gpu"
+        else:
+            gpu_index = 0
+            ovphysx_device = "cpu"
+
+        # Configure GPU dynamics on the PhysicsScene prim before export.
+        # Without this, PhysX defaults to CPU broadphase even when
+        # ovphysx is created with device="gpu".
+        # We write the apiSchemas list entry and attributes directly because
+        # the PhysxSchema USD plugin may not be loaded in standalone mode.
+        from pxr import Sdf
+        scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
+        if scene_prim.IsValid() and ovphysx_device == "gpu":
+            schemas = Sdf.TokenListOp()
+            current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+            items = list(current.prependedItems) if current.prependedItems else []
+            if "PhysxSceneAPI" not in items:
+                items.append("PhysxSceneAPI")
+            schemas.prependedItems = items
+            scene_prim.SetMetadata("apiSchemas", schemas)
+            scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
+            scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
+
+        # Export the current USD stage to a temporary file so ovphysx can load it.
+        cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
+        stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
+        sim.stage.Export(stage_file)
+        cls._stage_path = stage_file
+        logger.info("OvPhysxManager: exported USD stage to %s", stage_file)
+
+        import ovphysx
+        cls._physx = ovphysx.PhysX(device=ovphysx_device, gpu_index=gpu_index)
+
+        # Ensure the C++ PhysX instance is released before the Python
+        # interpreter starts tearing down modules.  Without this, the
+        # destructor runs too late and segfaults.
+        atexit.register(cls._release_physx)
+
+        usd_handle, op_idx = cls._physx.add_usd(stage_file)
+        cls._physx.wait_op(op_idx)
+        cls._usd_handle = usd_handle
+        logger.info("OvPhysxManager: loaded USD into ovphysx (device=%s)", ovphysx_device)
+
+        if ovphysx_device == "gpu":
+            cls._physx.warmup_gpu()
+
+        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+        cls._warmup_done = True
