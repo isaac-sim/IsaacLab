@@ -169,14 +169,11 @@ class NewtonManager(PhysicsManager):
                 device=PhysicsManager._device,
             )
             wp.synchronize_device(PhysicsManager._device)
-            if hasattr(usdrt, "hierarchy") and usdrt.hierarchy:
-                try:
-                    fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                        cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
-                    )
-                    fabric_hierarchy.update_world_xforms()
-                except Exception:
-                    pass
+            if hasattr(usdrt, "hierarchy"):
+                fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                    cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
+                )
+                fabric_hierarchy.update_world_xforms()
         except Exception as exc:
             logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
 
