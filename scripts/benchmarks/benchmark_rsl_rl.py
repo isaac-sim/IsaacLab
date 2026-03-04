@@ -52,9 +52,9 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-from scripts.benchmarks.utils import get_preset_string
+from scripts.benchmarks.utils import needs_kit
 
-_needs_kit = "newton" not in get_preset_string(hydra_args).split(",")
+_needs_kit = needs_kit(hydra_args)
 
 app_start_time_begin = time.perf_counter_ns()
 
