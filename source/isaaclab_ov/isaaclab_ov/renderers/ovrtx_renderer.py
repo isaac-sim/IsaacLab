@@ -19,10 +19,13 @@ How it fits together
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import weakref
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -139,14 +142,14 @@ class OVRTXRenderer(BaseRenderer):
         usd_scene_path = None
         use_cloning = self.cfg.use_cloning
         if stage is not None:
-            print(f"[OVRTX] Preparing stage for export ({num_envs} envs, cloning={use_cloning})...")
+            logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
             create_cloning_attributes(stage, camera_prim_name, num_envs, use_cloning)
             export_path = "/tmp/stage_before_ovrtx.usda"
             export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
             usd_scene_path = export_path
-            print(f"   ✓ Exported to {export_path}")
+            logger.info("Exported to %s", export_path)
 
-        print("Creating OVRTX renderer...")
+        logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
@@ -154,10 +157,10 @@ class OVRTXRenderer(BaseRenderer):
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         assert self._renderer, "Renderer should be valid after creation"
-        print("OVRTX renderer created successfully!")
+        logger.info("OVRTX renderer created successfully")
 
         if usd_scene_path is not None:
-            print("[OVRTX] Injecting camera definitions...")
+            logger.info("Injecting camera definitions...")
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
                 self.cfg,
@@ -168,20 +171,17 @@ class OVRTXRenderer(BaseRenderer):
             )
             self._render_product_paths.append(render_product_path)
 
-            print("[OVRTX] Loading USD into OvRTX...")
+            logger.info("Loading USD into OvRTX...")
             try:
                 handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
                 self._usd_handles.append(handle)
-                print(f"USD loaded (path: {combined_usd_path}, handle: {handle})")
+                logger.info("USD loaded (path: %s, handle: %s)", combined_usd_path, handle)
             except Exception as e:
-                print(f"ERROR loading USD: {e}")
-                import traceback
-
-                traceback.print_exc()
+                logger.exception("Error loading USD: %s", e)
                 raise
 
             if use_cloning and num_envs > 1:
-                print("[OVRTX] Using OVRTX internal cloning")
+                logger.info("Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx(num_envs)
                 self._update_scene_partitions_after_clone(combined_usd_path, num_envs)
 
@@ -203,30 +203,30 @@ class OVRTXRenderer(BaseRenderer):
                     tensor=np.full(num_envs, True, dtype=np.bool_),
                 )
             except Exception as e:
-                print(f"  ⚠ Warning: Failed to write omni:resetXformStack: {e}")
+                logger.warning("Failed to write omni:resetXformStack: %s", e)
 
             if self._camera_binding is not None:
-                print("  ✓ Camera binding created successfully")
+                logger.info("Camera binding created successfully")
             else:
-                print("  ✗ WARNING: Camera binding is None!")
+                logger.warning("Camera binding is None")
 
             self._setup_object_bindings()
 
     def _clone_environments_in_ovrtx(self, num_envs: int):
         """Clone base environment (env_0) to all other environments using OvRTX."""
-        print(f"[OVRTX OPTIMIZE] Cloning base environment to {num_envs - 1} targets...")
+        logger.info("Cloning base environment to %d targets...", num_envs - 1)
         source_path = "/World/envs/env_0"
         target_paths = [f"/World/envs/env_{i}" for i in range(1, num_envs)]
         try:
             self._renderer.clone_usd(source_path, target_paths)
-            print(f"  ✓ Cloned {len(target_paths)} environments successfully")
+            logger.info("Cloned %d environments successfully", len(target_paths))
         except Exception as e:
-            print(f"  ✗ ERROR: Failed to clone environments: {e}")
+            logger.error("Failed to clone environments: %s", e)
             raise RuntimeError(f"OvRTX environment cloning failed: {e}")
 
     def _update_scene_partitions_after_clone(self, usd_file_path: str, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
-        print(f"[OVRTX] Writing scene partitions for {num_envs} environments...")
+        logger.info("Writing scene partitions for %d environments...", num_envs)
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
         camera_prim_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
@@ -238,7 +238,7 @@ class OVRTXRenderer(BaseRenderer):
                 partition_tokens,
                 semantic=Semantic.TOKEN_STRING,
             )
-            print(f"  ✓ Written primvars:omni:scenePartition to {num_envs} environments")
+            logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
 
             self._renderer.write_attribute(
                 camera_prim_paths,
@@ -246,12 +246,9 @@ class OVRTXRenderer(BaseRenderer):
                 partition_tokens,
                 semantic=Semantic.TOKEN_STRING,
             )
-            print(f"  ✓ Written omni:scenePartition to {num_envs} cameras")
+            logger.info("Written omni:scenePartition to %d cameras", num_envs)
         except Exception as e:
-            print(f"  ⚠ Warning: Failed to write scene partitions: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.warning("Failed to write scene partitions: %s", e, exc_info=True)
 
     def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
@@ -264,12 +261,12 @@ class OVRTXRenderer(BaseRenderer):
             )
             newton_model = provider.get_newton_model()
             if newton_model is None:
-                print("[OVRTX] Newton model not available, skipping object bindings")
+                logger.info("Newton model not available, skipping object bindings")
                 return
 
             all_body_paths = getattr(newton_model, "body_label", None)
             if all_body_paths is None:
-                print("[OVRTX] Newton model has no body_label, skipping object bindings")
+                logger.info("Newton model has no body_label, skipping object bindings")
                 return
 
             object_paths = []
@@ -280,7 +277,7 @@ class OVRTXRenderer(BaseRenderer):
                     newton_indices.append(idx)
 
             if len(object_paths) == 0:
-                print("[OVRTX] No dynamic objects found for binding")
+                logger.info("No dynamic objects found for binding")
                 return
 
             self._object_binding = self._renderer.bind_attribute(
@@ -297,17 +294,17 @@ class OVRTXRenderer(BaseRenderer):
                     tensor=np.full(len(object_paths), True, dtype=np.bool_),
                 )
             except Exception as e:
-                print(f"  ⚠ Warning: Failed to write omni:resetXformStack on objects: {e}")
+                logger.warning("Failed to write omni:resetXformStack on objects: %s", e)
 
             if self._object_binding is not None:
-                print("  ✓ Object binding created successfully")
+                logger.info("Object binding created successfully")
                 self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=DEVICE)
             else:
-                print("  ✗ WARNING: Object binding is None!")
+                logger.warning("Object binding is None")
         except ImportError:
-            print("[OVRTX] Newton not available, skipping object bindings")
+            logger.info("Newton not available, skipping object bindings")
         except Exception as e:
-            print(f"[OVRTX] Error setting up object bindings: {e}")
+            logger.warning("Error setting up object bindings: %s", e)
 
     def create_render_data(self, sensor: SensorBase) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -352,7 +349,7 @@ class OVRTXRenderer(BaseRenderer):
                     device=DEVICE,
                 )
         except Exception as e:
-            print(f"[OVRTX] Warning: Failed to update object transforms: {e}")
+            logger.warning("Failed to update object transforms: %s", e)
 
     def update_camera(
         self,
@@ -508,10 +505,7 @@ class OVRTXRenderer(BaseRenderer):
                     render_data.warp_buffers,
                 )
         except Exception as e:
-            print(f"Warning: OVRTX rendering failed: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.warning("OVRTX rendering failed: %s", e, exc_info=True)
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
@@ -527,7 +521,7 @@ class OVRTXRenderer(BaseRenderer):
                 binding.unbind()
             except Exception as e:
                 if "destroyed" not in str(e).lower():
-                    print(f"Warning: Error unbinding {name}: {e}")
+                    logger.warning("Error unbinding %s: %s", name, e)
 
         _safe_unbind(self._camera_binding, "camera transforms")
         self._camera_binding = None
@@ -540,7 +534,7 @@ class OVRTXRenderer(BaseRenderer):
                     try:
                         self._renderer.remove_usd(handle)
                     except Exception as e:
-                        print(f"Warning: Error removing USD: {e}")
+                        logger.warning("Error removing USD: %s", e)
                 self._usd_handles.clear()
             self._renderer = None
 
