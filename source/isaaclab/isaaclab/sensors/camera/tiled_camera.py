@@ -163,12 +163,11 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
 
-        # Create renderer after scene is ready (post-cloning) so world_count is correct
         self.renderer = Renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
 
-        # Stage preprocessing that needs to happen before creating the view
-        # since view keeps references to the prims located in the stage
+        # Stage preprocessing needs to happen before creating the view because
+        # the view keeps references to the prims located in the stage
         self.renderer.prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor
