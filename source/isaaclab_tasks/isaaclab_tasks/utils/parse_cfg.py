@@ -198,6 +198,13 @@ def parse_env_cfg(
     if _is_preset_cfg(cfg):
         cfg = cfg.default
 
+    # Resolve any PresetCfg wrappers to their default preset so the config
+    # is usable without a Hydra CLI override (e.g. in tests).
+    # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
+    # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
+    # is replaced by its .default.
+    _resolve_presets_to_default(cfg)
+
     # simulation device
     cfg.sim.device = device
     # disable fabric to read/write through USD
@@ -206,10 +213,6 @@ def parse_env_cfg(
     # number of environments
     if num_envs is not None:
         cfg.scene.num_envs = num_envs
-
-    # Resolve any PresetCfg wrappers to their default preset so the config
-    # is usable without a Hydra CLI override (e.g. in tests).
-    _resolve_presets_to_default(cfg)
 
     return cfg
 
