@@ -5,8 +5,7 @@
 
 """Tests for the Renderer factory."""
 
-import importlib
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -17,9 +16,9 @@ pytest.importorskip("isaaclab_physx")
 pytest.importorskip("isaaclab_newton")
 pytest.importorskip("isaaclab_ov")
 
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 
 def _make_mock_renderer_class(name: str):
