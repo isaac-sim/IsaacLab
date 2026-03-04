@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import TYPE_CHECKING, ClassVar
 
+import torch
 import warp as wp
 from isaaclab_newton.actuators.kernels import clip_efforts_with_limits
 
@@ -151,9 +152,34 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
+    def joint_indices(self) -> torch.Tensor:
+        """Articulation's joint indices that are part of the group."""
+        return torch.tensor(self._joint_indices, dtype=torch.long, device=self._device)
+
+    @property
     def joint_mask(self) -> wp.array:
         """Articulation's masked indices that denote which joints are part of the group."""
         return self._joint_mask
+
+    @property
+    def stiffness(self) -> torch.Tensor:
+        """Joint stiffness gains as a torch tensor [num_envs, num_joints]."""
+        return wp.to_torch(self.data._actuator_stiffness)
+
+    @stiffness.setter
+    def stiffness(self, value):
+        """Set joint stiffness gains from a torch tensor."""
+        wp.copy(self.data._actuator_stiffness, wp.from_torch(value))
+
+    @property
+    def damping(self) -> torch.Tensor:
+        """Joint damping gains as a torch tensor [num_envs, num_joints]."""
+        return wp.to_torch(self.data._actuator_damping)
+
+    @damping.setter
+    def damping(self, value):
+        """Set joint damping gains from a torch tensor."""
+        wp.copy(self.data._actuator_damping, wp.from_torch(value))
 
     """
     Operations.
