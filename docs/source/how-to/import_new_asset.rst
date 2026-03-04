@@ -37,6 +37,12 @@ Using URDF Importer
 For using the URDF importer in the GUI, please check the documentation at `URDF importer`_. For using the URDF importer from Python scripts, we include a utility tool called ``convert_urdf.py``. This script creates an instance of :class:`~sim.converters.UrdfConverterCfg` which
 is then passed to the :class:`~sim.converters.UrdfConverter` class.
 
+.. note::
+   The URDF importer was upgraded to version 3.0 in Isaac Sim 6, replacing the previous C++
+   binding-based API with a Python pipeline (``urdf-usd-converter``). Assets are now made
+   instanceable by default — ``make_instanceable`` is no longer a configuration option.
+   See the :doc:`/source/migration/migrating_to_isaaclab_3-0` for a full list of breaking changes.
+
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
 The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
 
@@ -44,6 +50,7 @@ The default values for the importer's configuration parameters are specified are
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
   ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
 * :attr:`~sim.converters.UrdfConverterCfg.root_link_name` - The link on which the PhysX articulation root is placed.
+  **Deprecated in URDF importer 3.0** — this option is ignored.
 * :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` * - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
   ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
@@ -59,7 +66,8 @@ The default values for the importer's configuration parameters are specified are
 
     * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg` - To directly set the stiffness and damping.
     * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg` - To set the gains using the
-      desired natural frequency response of the system.
+      desired natural frequency response of the system. **Deprecated in URDF importer 3.0** — use
+      ``PDGainsCfg`` instead.
 
 For more detailed information on the configuration parameters, please check the documentation for :class:`~sim.converters.UrdfConverterCfg`.
 
@@ -75,8 +83,11 @@ pre-processed URDF and the original URDF are:
 * We removed various collision bodies from the URDF to reduce the complexity of the asset.
 * We changed all the joint's damping and friction parameters to ``0.0``. This ensures that we can perform
   effort-control on the joints without PhysX adding additional damping.
-* We added the ``<dont_collapse>`` tag to fixed joints. This ensures that the importer does
-  not merge these fixed joints.
+* The ``<dont_collapse>`` URDF tag is **no longer supported** in URDF importer 3.0. Fixed joint
+  merging is now a Python pre-processing step that merges all fixed joints when
+  ``merge_fixed_joints`` is enabled. If you need to preserve a specific fixed joint, disable
+  ``merge_fixed_joints`` entirely or restructure the URDF to use a non-fixed joint type
+  (e.g. revolute with zero-range limits).
 
 The following shows the steps to clone the repository and run the converter:
 
@@ -97,7 +108,7 @@ The following shows the steps to clone the repository and run the converter:
         # run the converter
         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
           ../anymal_d_simple_description/urdf/anymal.urdf \
-          source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd \
+          source/isaaclab_assets/data/Robots/ANYbotics/ \
           --merge-joints \
           --joint-stiffness 0.0 \
           --joint-damping 0.0 \
@@ -116,16 +127,17 @@ The following shows the steps to clone the repository and run the converter:
         :: run the converter
         isaaclab.bat -p scripts\tools\convert_urdf.py ^
           ..\anymal_d_simple_description\urdf\anymal.urdf ^
-          source\isaaclab_assets\data\Robots\ANYbotics\anymal_d.usd ^
+          source\isaaclab_assets\data\Robots\ANYbotics\ ^
           --merge-joints ^
           --joint-stiffness 0.0 ^
           --joint-damping 0.0 ^
           --joint-target-type none
 
 Executing the above script will create a USD file inside the
-``source/isaaclab_assets/data/Robots/ANYbotics/`` directory:
+``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
+is derived automatically from the robot name in the URDF):
 
-* ``anymal_d.usd`` - This is the main asset file.
+* ``anymal.usda`` - This is the main asset file.
 
 
 To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and

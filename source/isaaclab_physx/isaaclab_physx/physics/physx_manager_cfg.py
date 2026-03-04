@@ -114,6 +114,22 @@ class PhysxCfg(PhysicsCfg):
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
     """
 
+    enable_scene_query_support: bool = False
+    """Enable/disable scene query support for collision shapes. Default is False.
+
+    This flag allows performing collision queries (raycasts, sweeps, and overlaps) on actors and
+    attached shapes in the scene. This is useful for implementing custom collision detection logic
+    outside of the physics engine.
+
+    If set to False, the physics engine does not create the scene query manager and the scene query
+    functionality will not be available. However, this provides some performance speed-up.
+
+    Note:
+        This flag is overridden to True
+        when running the simulation with the GUI enabled. This is to allow certain GUI features
+        to work properly.
+    """
+
     enable_ccd: bool = False
     """Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.
     Default is False."""

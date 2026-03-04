@@ -27,9 +27,12 @@ Or, equivalently, by directly calling the skrl library API as follows:
 # needed to import for type hinting: Agent | list[Agent]
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 
 """
 Vectorized environment wrapper.
@@ -62,11 +65,7 @@ def SkrlVecEnvWrapper(
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
     # check that input is valid
-    if (
-        not isinstance(env.unwrapped, ManagerBasedRLEnv)
-        and not isinstance(env.unwrapped, DirectRLEnv)
-        and not isinstance(env.unwrapped, DirectMARLEnv)
-    ):
+    if not isinstance(env.unwrapped.cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg, DirectMARLEnvCfg)):
         raise ValueError(
             "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv or DirectMARLEnv. Environment type:"
             f" {type(env)}"

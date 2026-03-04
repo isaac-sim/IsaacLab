@@ -596,8 +596,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
-        # scene settings
-        self.scene.replicate_physics = False
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path

@@ -100,16 +100,20 @@ def _make_mock_physx_rep_detailed():
 @pytest.mark.parametrize(
     "num_envs,src,expected_worlds",
     [
-        (3, "/World/envs/env_0", [3]),
-        (1, "/World/envs/env_0", [1]),
+        (3, "/World/envs/env_0", [2]),
+        (1, "/World/envs/env_0", []),
         (3, "/World/template/Robot", [3]),
     ],
 )
 def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
-    """physx_replicate calls rep.replicate with the correct world count (include-self).
+    """physx_replicate calls rep.replicate with the correct world count (exclude-self).
 
-    All mapped worlds are passed to rep.replicate, including the source environment
-    itself. This means a source that maps to N environments will replicate to N worlds.
+    With ``exclude_self_replication=True`` (default), the source environment is excluded
+    from the replication targets when it also maps to other environments.  A source at
+    ``env_0`` mapping to ``[0, 1, 2]`` only replicates to ``[1, 2]`` (2 worlds).
+    With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely.
+    Non-env sources (e.g. ``/World/template/Robot``) are never excluded because the
+    self-id is not a digit.
     """
     from unittest.mock import patch
 
@@ -139,9 +143,10 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
 def test_physx_replicate_isolated_source_loaded_without_replication(sim, device):
     """A single-env source (worlds=[self]) is correctly loaded after physx_replicate.
 
-    When there is only one environment and the source maps to itself, physx_replicate
-    calls rep.replicate with 1 world (include-self). After sim.reset(), PhysX must be
-    able to find the rigid body at the env path.
+    When there is only one environment and the source maps to itself,
+    ``exclude_self_replication=True`` (default) causes physx_replicate to skip
+    replication entirely. The prim already exists from USD, so after ``sim.reset()``
+    PhysX must still be able to find the rigid body at the env path.
     """
     stage = sim_utils.get_current_stage()
 
@@ -175,15 +180,18 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim, device)
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
-    """physx_replicate handles heterogeneous sources including self in all world lists.
+    """physx_replicate handles heterogeneous sources excluding self from world lists.
 
     This is the Dexsuite scenario: multiple object types, each with a designated proto-env.
-    With include-self, every source replicates to all its mapped worlds (including itself).
+    With ``exclude_self_replication=True`` (default), self is removed from the world list
+    only when the source also maps to other environments.  Self-only sources keep self so
+    that ``rep.replicate()`` still fires and the source prim gets its physics body (since
+    ``/World/envs`` is excluded from normal PhysX parsing).
 
     Sources and expected behaviour:
-      env_0/Object → worlds [0, 2, 4]   → replicate to [0, 2, 4]  (3 worlds)
-      env_5/Object → worlds [5]          → replicate to [5]         (1 world)
-      env_7/Object → worlds [7, 11]      → replicate to [7, 11]    (2 worlds)
+      env_0/Object → worlds [0, 2, 4]   → exclude 0 → replicate to [2, 4]  (2 worlds)
+      env_5/Object → worlds [5]          → exclude 5 → keep [5]             (1 world)
+      env_7/Object → worlds [7, 11]      → exclude 7 → replicate to [11]   (1 world)
     """
     from unittest.mock import patch
 
@@ -198,7 +206,7 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
     mapping[1, [5]] = True
     mapping[2, [7, 11]] = True
 
-    mock_rep, replicate_calls, _ = _make_mock_physx_rep_detailed()
+    mock_rep, replicate_calls, attach_excluded = _make_mock_physx_rep_detailed()
     with patch("isaaclab_physx.cloner.physx_replicate.get_physx_replicator_interface", return_value=mock_rep):
         physx_replicate(
             stage,
@@ -210,11 +218,17 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
         )
 
     expected = [
-        ("/World/envs/env_0/Object", 3),
+        ("/World/envs/env_0/Object", 2),
         ("/World/envs/env_5/Object", 1),
-        ("/World/envs/env_7/Object", 2),
+        ("/World/envs/env_7/Object", 1),
     ]
     assert replicate_calls == expected, f"Expected {expected}, got {replicate_calls}."
+
+    # attach_fn always returns ["/World/template", "/World/envs"] so the replicator
+    # owns all env prims.  Self-only sources get their physics body from the
+    # rep.replicate() call itself.
+    assert "/World/template" in attach_excluded
+    assert "/World/envs" in attach_excluded
 
 
 def test_clone_from_template(sim):
@@ -456,11 +470,16 @@ def test_physx_replicate_env_consistency(sim):
         assert diff < 1e-3, f"step {idx}: env_0 and env_1 diverge, max_diff={diff}"
 
 
-@pytest.mark.xfail(reason="replicate vs no-replicate diverge at step 0, max_diff=5.0")
+@pytest.mark.xfail(reason="Source env gets physics from replicator, not USD parsing; may diverge from baseline.")
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_physx_replicate_vs_no_replicate(device):
-    """Test that physx_replicate does not change the physics behavior of env_0."""
+    """Test that physx_replicate does not change the physics behavior of env_0.
+
+    With ``attach_fn`` excluding ``/World/envs``, env_0 receives its physics body
+    from the replicator (as the source of ``rep.replicate()``) rather than from
+    normal USD parsing, which may produce subtly different behaviour.
+    """
     with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim_no_rep:
         baseline = _run_sphere_velocity_sim(sim_no_rep, use_physx_replicate=False)
 

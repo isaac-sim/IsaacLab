@@ -7,12 +7,54 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
 import os
 import sys
+import tempfile
 from collections.abc import Callable
 
 import lazy_loader as lazy
+
+
+def _filter_stub(stub_file: str) -> str | None:
+    """Return a path to a filtered copy of *stub_file* that ``lazy_loader`` can parse.
+
+    ``lazy_loader.attach_stub`` only supports relative (``from .x import y``)
+    imports and rejects absolute imports and star (``*``) imports.  This helper
+    strips those unsupported nodes from the AST so the remaining (local)
+    relative imports can still be resolved through ``attach_stub``.
+
+    Returns the path to a temporary filtered ``.pyi`` file, or *None* if no
+    filtering was needed (i.e. the original stub is already compatible).
+    """
+    with open(stub_file) as f:
+        source = f.read()
+
+    tree = ast.parse(source)
+
+    needs_filter = False
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.level != 1 or any(alias.name == "*" for alias in node.names):
+                needs_filter = True
+                break
+
+    if not needs_filter:
+        return None
+
+    filtered = ast.Module(body=[], type_ignores=[])
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            if node.level != 1:
+                continue
+            if any(alias.name == "*" for alias in node.names):
+                continue
+        filtered.body.append(node)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pyi", delete=False) as tmp:
+        tmp.write(ast.unparse(filtered))
+    return tmp.name
 
 
 def lazy_export(
@@ -57,8 +99,14 @@ def lazy_export(
     has_stub = os.path.exists(stub_file)
 
     if has_stub:
-        stub_getattr, stub_dir, __all__ = lazy.attach_stub(package_name, caller_file)
-    else:
+        filtered_stub = _filter_stub(stub_file)
+        if filtered_stub is not None:
+            stub_getattr, stub_dir, __all__ = lazy.attach_stub(package_name, filtered_stub)
+            os.unlink(filtered_stub)
+        else:
+            stub_getattr, stub_dir, __all__ = lazy.attach_stub(package_name, caller_file)
+
+    if not has_stub:
         __all__: list[str] = []
 
     def _pkg_getattr(name: str):

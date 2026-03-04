@@ -90,5 +90,7 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Name of the asset in the environment for which the success color are indicated."""
 
     # success markers
-    success_visualizer_cfg = VisualizationMarkersCfg(prim_path="/Visuals/SuccessMarkers", markers={})
+    success_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
+        prim_path="/Visuals/SuccessMarkers", markers={}
+    )
     """The configuration for the success visualization marker. User needs to add the markers"""

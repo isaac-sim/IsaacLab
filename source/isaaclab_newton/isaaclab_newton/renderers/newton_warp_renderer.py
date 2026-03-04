@@ -172,7 +172,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        self.newton_sensor.render(
+        self.newton_sensor.update(
             self.get_scene_data_provider().get_newton_state(),
             render_data.camera_transforms,
             render_data.camera_rays,

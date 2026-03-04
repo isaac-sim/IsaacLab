@@ -35,7 +35,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "warp-lang==1.12.0rc2",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
@@ -51,7 +51,7 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     # visualizers
-    "newton @ git+https://github.com/newton-physics/newton.git@v0.2.3",
+    "newton==1.0.0rc1",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).

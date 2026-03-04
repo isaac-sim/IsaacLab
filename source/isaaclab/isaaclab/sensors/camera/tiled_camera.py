@@ -152,7 +152,9 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
+        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
+        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
