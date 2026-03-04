@@ -128,6 +128,7 @@ Guidelines for modifications:
 * Peter Du
 * Philipp Reist
 * Pulkit Goyal
+* Qian Lin
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu
