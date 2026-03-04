@@ -87,22 +87,3 @@ def sync_newton_transforms_kernel(
     body_idx = newton_body_indices[i]
     transform = newton_body_q[body_idx]
     ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
-
-
-def normalize_depth_to_uint8(
-    depth_np: np.ndarray,
-) -> tuple[np.ndarray, float | None, float | None]:
-    """Normalize depth to uint8 [0, 255] for visualization; invalid (inf/nan) -> 0.
-    Returns (normalized_uint8, depth_min, depth_max); min/max are None if no valid pixels.
-    """
-    depth_valid = np.isfinite(depth_np)
-    depth_min = depth_max = None
-    if np.any(depth_valid):
-        depth_min = float(depth_np[depth_valid].min())
-        depth_max = float(depth_np[depth_valid].max())
-    depth_normalized = np.zeros_like(depth_np, dtype=np.uint8)
-    if depth_min is not None and depth_max is not None and depth_max > depth_min:
-        depth_normalized[depth_valid] = (
-            (depth_np[depth_valid] - depth_min) / (depth_max - depth_min) * 255
-        ).astype(np.uint8)
-    return depth_normalized, depth_min, depth_max
