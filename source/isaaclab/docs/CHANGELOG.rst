@@ -34,6 +34,10 @@ Fixed
   :class:`~isaaclab.assets.BaseArticulation` to document the correct dtype
   (``wp.transformf``) and frame of reference (body link frame).
 
+* Fixed XR instruction widget for Fabric and switch to current scene view APIs.
+
+* Fixed session lifecycle pre-shutdown by removing invalid unsubscribe() call.
+
 
 4.5.0 (2026-02-27)
 ~~~~~~~~~~~~~~~~~~
