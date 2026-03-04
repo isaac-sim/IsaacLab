@@ -171,16 +171,11 @@ def create_cloning_attributes(
                 continue
             obj_attr = prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
             obj_attr.Set(partition_name)
-            type_name = prim.GetTypeName()
-            if not type_name.startswith("Render"):
-                reset_xform_attr = prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool)
-                reset_xform_attr.Set(True)
             total_objects += 1
         camera_path = f"{env_path}/{camera_prim_name}"
         camera_prim = stage.GetPrimAtPath(camera_path)
         if camera_prim.IsValid():
             camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
-            camera_prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool).Set(True)
     return total_objects
 
 
