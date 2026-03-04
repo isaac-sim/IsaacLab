@@ -3,13 +3,6 @@
 
 """Sub-module for OVRTX renderer backend."""
 
-from .ovrtx_renderer import OVRTXRenderer
-from .ovrtx_renderer_cfg import OVRTXRendererCfg
+from isaaclab.utils.module import lazy_export
 
-Renderer = OVRTXRenderer
-
-__all__ = [
-    "OVRTXRenderer",
-    "OVRTXRendererCfg",
-    "Renderer",
-]
+lazy_export()
