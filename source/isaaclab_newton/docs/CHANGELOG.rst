@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.4.1 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix asset writer methods in :class:`~isaaclab_newton.assets.Articulation` and
+  :class:`~isaaclab_newton.assets.RigidObject` to use public data properties
+  instead of internal timestamped buffer ``.data`` fields, removing redundant
+  manual timestamp updates.
+
+
 0.4.0 (2026-03-01)
 ~~~~~~~~~~~~~~~~~~
 

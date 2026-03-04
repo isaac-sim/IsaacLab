@@ -459,14 +459,13 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._root_link_pose_w.data,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
         # Update the timestamps
-        self.data._root_link_pose_w.timestamp = self.data._sim_timestamp
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new state.
@@ -549,8 +548,8 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
-                self.data._root_link_pose_w.data,
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
@@ -558,8 +557,6 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
-        self.data._root_link_pose_w.timestamp = self.data._sim_timestamp
         self.data._root_com_state_w.timestamp = -1.0
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
@@ -698,16 +695,14 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._root_com_vel_w.data,
-                self.data._body_com_acc_w.data,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
         # Update the timestamps
-        self.data._root_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
@@ -790,9 +785,9 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
-                self.data._root_com_vel_w.data,
-                self.data._body_com_acc_w.data,
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
@@ -800,9 +795,6 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._root_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
@@ -907,12 +899,10 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._joint_pos.data,
+                self.data.joint_pos,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._joint_pos.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self.data._body_com_vel_w.timestamp = -1.0
         self.data._body_link_vel_w.timestamp = -1.0
@@ -994,15 +984,12 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._joint_vel.data,
+                self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data._joint_acc.data,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._joint_vel.timestamp = self.data._sim_timestamp
-        self.data._joint_acc.timestamp = self.data._sim_timestamp
         # set into simulation
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
 
