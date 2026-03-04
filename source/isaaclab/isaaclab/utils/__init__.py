@@ -11,7 +11,6 @@ from .configclass import configclass
 from .dict import *
 from .interpolation import *
 from .logger import *
-from .mesh import *
 from .modifiers import *
 from .string import *
 from .timer import Timer
