@@ -43,6 +43,16 @@ args_cli, hydra_args = parser.parse_known_args()
 if args_cli.video:
     args_cli.enable_cameras = True
 
+# capture preset string from hydra args (e.g. presets=physx,ovrtx_renderer,rgb)
+# also check OMNIPERF_ISAACLAB_PRESET env var used by CI runner
+_preset_str = ""
+for _arg in hydra_args:
+    if _arg.startswith("presets="):
+        _preset_str = _arg.split("=", 1)[1]
+        break
+if not _preset_str:
+    _preset_str = os.environ.get("OMNIPERF_ISAACLAB_PRESET", "")
+
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
@@ -103,6 +113,7 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "num_frames", "data": args_cli.num_frames},
+            {"name": "presets", "data": _preset_str if _preset_str else "default"},
         ]
     },
     frametime_recorders=True,
