@@ -294,11 +294,11 @@ class Articulation(BaseArticulation):
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation via Newton bindings
-        wp.copy(self.data._sim_bind_joint_effort, self._joint_effort_target_sim)
+        self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
-            wp.copy(self.data._sim_bind_joint_position_target, self._joint_pos_target_sim)
-            wp.copy(self.data._sim_bind_joint_velocity_target, self._joint_vel_target_sim)
+            self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
+            self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
 
     def update(self, dt: float):
         """Updates the simulation data.

@@ -184,6 +184,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def step(cls) -> None:
+    
         """Step the physics simulation."""
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
@@ -205,9 +206,9 @@ class NewtonManager(PhysicsManager):
         # Debug convergence info
         if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
             convergence_data = cls.get_solver_convergence_steps()
+            logger.info(f"Solver convergence data: {convergence_data}")
             if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:
                 logger.warning(f"Solver didn't converge! max_iter={convergence_data['max']}")
-
         PhysicsManager._sim_time += cls._solver_dt * cls._num_substeps
 
     @classmethod
@@ -320,13 +321,67 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def instantiate_builder_from_stage(cls):
-        """Create builder from USD stage."""
+        """Create builder from USD stage.
+
+        Detects env Xforms (e.g. ``/World/Env_0``, ``/World/Env_1``) and builds
+        each as a separate Newton world via ``begin_world``/``end_world``.
+        Falls back to a flat ``add_usd`` when no env Xforms are found.
+        """
+        import re
+
         from pxr import UsdGeom
+
+        from isaaclab_newton.cloner.newton_replicate import get_inverse_env_xform
 
         stage = get_current_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
+
+        # Scan /World children for env-like Xforms (Env_0, env_1, ...)
+        env_pattern = re.compile(r"^[Ee]nv_(\d+)$")
+        world_prim = stage.GetPrimAtPath("/World")
+        env_paths: list[tuple[int, str]] = []
+        if world_prim and world_prim.IsValid():
+            for child in world_prim.GetChildren():
+                m = env_pattern.match(child.GetName())
+                if m:
+                    env_paths.append((int(m.group(1)), child.GetPath().pathString))
+        env_paths.sort(key=lambda x: x[0])
+
         builder = ModelBuilder(up_axis=up_axis)
-        builder.add_usd(stage)
+
+        if not env_paths:
+            # No env Xforms — flat loading
+            builder.add_usd(stage)
+        else:
+            # Load everything except the env subtrees (ground plane, lights, etc.)
+            ignore_paths = [path for _, path in env_paths]
+            builder.add_usd(stage, ignore_paths=ignore_paths)
+
+            # Build a prototype from the first env (all envs assumed identical)
+            _, proto_path = env_paths[0]
+            proto = ModelBuilder(up_axis=up_axis)
+            inverse_env_xform = get_inverse_env_xform(stage, proto_path)
+            proto.add_usd(stage, root_path=proto_path, xform=inverse_env_xform)
+
+            # Add each env as a separate Newton world
+            xform_cache = UsdGeom.XformCache()
+            for _, env_path in env_paths:
+                builder.begin_world()
+                world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
+                translation = world_xform.ExtractTranslation()
+                rotation = world_xform.ExtractRotationQuat()
+                pos = (translation[0], translation[1], translation[2])
+                quat = (
+                    rotation.GetImaginary()[0],
+                    rotation.GetImaginary()[1],
+                    rotation.GetImaginary()[2],
+                    rotation.GetReal(),
+                )
+                builder.add_builder(proto, xform=wp.transform(pos, quat))
+                builder.end_world()
+
+            cls._num_envs = len(env_paths)
+
         cls.set_builder(builder)
 
     @classmethod

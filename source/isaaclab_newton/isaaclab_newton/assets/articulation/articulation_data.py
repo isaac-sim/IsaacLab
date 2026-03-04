@@ -1224,7 +1224,11 @@ class ArticulationData(BaseArticulationData):
         if self._sim_bind_body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        # body_inertia comes as (N, 1, L) mat33f; flatten to (N, L, 9) float32 per base class contract
+        _inertia_mat33 = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        n_inst = _inertia_mat33.shape[0]
+        n_bodies = _inertia_mat33.shape[1]
+        self._sim_bind_body_inertia = _inertia_mat33.view(wp.float32).reshape((n_inst, n_bodies, 9))
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
