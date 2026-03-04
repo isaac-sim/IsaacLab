@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_ovrtx.renderers import OVRTXRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.utils import configclass

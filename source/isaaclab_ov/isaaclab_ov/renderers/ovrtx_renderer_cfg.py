@@ -16,7 +16,7 @@ class OVRTXRendererCfg(RendererCfg):
     create_render_data() is called (same pattern as Isaac RTX).
     """
 
-    renderer_type: str = "ov_rtx"
+    renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
     simple_shading_mode: bool = True
