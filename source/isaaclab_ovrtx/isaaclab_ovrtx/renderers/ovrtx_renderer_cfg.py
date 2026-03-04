@@ -19,7 +19,7 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ov_rtx"
     """Type identifier for OVRTX renderer."""
 
-    simple_shading_mode: bool = True
+    simple_shading_mode: bool = False
     """Whether to use simple shading mode (default: True).
 
     When enabled, uses SimpleShadingSD RenderVar instead of LdrColor for RGB rendering.
@@ -37,3 +37,9 @@ class OVRTXRendererCfg(RendererCfg):
 
     use_cloning: bool = False
     """When True, export only env_0 and use OVRTX clone_usd. When False, export full stage."""
+
+    log_level: str = "verbose"
+    """OVRTX carb log level: "verbose", "info", "warn", "error"."""
+
+    log_file_path: str = "/tmp/ovrtx_renderer.log"
+    """Path for OVRTX log file."""

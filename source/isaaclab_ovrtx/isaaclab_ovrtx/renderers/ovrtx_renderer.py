@@ -22,6 +22,7 @@ import os
 import weakref
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -147,8 +148,9 @@ class OVRTXRenderer(BaseRenderer):
 
         print("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
-            log_file_path="/tmp/ovrtx_renderer.log",
-            log_level="warning",
+            log_file_path=self.cfg.log_file_path,
+            log_level=self.cfg.log_level,
+            read_gpu_transforms=False,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         assert self._renderer, "Renderer should be valid after creation"
@@ -170,9 +172,9 @@ class OVRTXRenderer(BaseRenderer):
             try:
                 handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
                 self._usd_handles.append(handle)
-                print(f"   ✓ USD loaded (handle: {handle})")
+                print(f"USD loaded (path: {combined_usd_path}, handle: {handle})")
             except Exception as e:
-                print(f"   ✗ ERROR loading USD: {e}")
+                print(f"ERROR loading USD: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
@@ -191,6 +193,16 @@ class OVRTXRenderer(BaseRenderer):
                 semantic=Semantic.XFORM_MAT4x4,
                 prim_mode=PrimMode.EXISTING_ONLY,
             )
+
+            # OVRTX requires omni:resetXformStack on cameras for correct world transform binding
+            try:
+                self._renderer.write_attribute(
+                    prim_paths=camera_paths,
+                    attribute_name="omni:resetXformStack",
+                    tensor=np.full(num_envs, True, dtype=np.bool_),
+                )
+            except Exception as e:
+                print(f"  ⚠ Warning: Failed to write omni:resetXformStack: {e}")
 
             if self._camera_binding is not None:
                 print(f"  ✓ Camera binding created successfully")
@@ -253,9 +265,9 @@ class OVRTXRenderer(BaseRenderer):
                 print("[OVRTX] Newton model not available, skipping object bindings")
                 return
 
-            all_body_paths = getattr(newton_model, "body_key", None)
+            all_body_paths = getattr(newton_model, "body_label", None)
             if all_body_paths is None:
-                print("[OVRTX] Newton model has no body_key, skipping object bindings")
+                print("[OVRTX] Newton model has no body_label, skipping object bindings")
                 return
 
             object_paths = []
@@ -275,6 +287,15 @@ class OVRTXRenderer(BaseRenderer):
                 semantic=Semantic.XFORM_MAT4x4,
                 prim_mode=PrimMode.EXISTING_ONLY,
             )
+
+            try:
+                self._renderer.write_attribute(
+                    prim_paths=object_paths,
+                    attribute_name="omni:resetXformStack",
+                    tensor=np.full(len(object_paths), True, dtype=np.bool_),
+                )
+            except Exception as e:
+                print(f"  ⚠ Warning: Failed to write omni:resetXformStack on objects: {e}")
 
             if self._object_binding is not None:
                 print(f"  ✓ Object binding created successfully")
