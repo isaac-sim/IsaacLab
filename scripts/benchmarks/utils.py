@@ -109,6 +109,20 @@ def log_runtime_step_times(benchmark: BaseIsaacLabBenchmark, value: dict, comput
         log_min_max_mean_stats(benchmark, value)
 
 
+def get_preset_string(hydra_args: list[str]) -> str:
+    """Extract the active preset string from CLI hydra args or the OMNIPERF_ISAACLAB_PRESET env var.
+
+    Checks (in order):
+        1. ``presets=...`` in *hydra_args* (e.g. ``presets=physx,ovrtx_renderer,rgb``)
+        2. ``OMNIPERF_ISAACLAB_PRESET`` environment variable (set by the Omniperf CI runner)
+        3. Falls back to ``"default"``
+    """
+    for arg in hydra_args:
+        if arg.startswith("presets="):
+            return arg.split("=", 1)[1]
+    return os.environ.get("OMNIPERF_ISAACLAB_PRESET", "") or "default"
+
+
 def log_rl_policy_rewards(benchmark: BaseIsaacLabBenchmark, value: list):
     measurement = ListMeasurement(name="Rewards", value=value)
     benchmark.add_measurement("train", measurement=measurement)
