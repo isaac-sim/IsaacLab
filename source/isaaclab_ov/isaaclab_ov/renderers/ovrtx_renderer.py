@@ -26,6 +26,10 @@ import numpy as np
 import torch
 import warp as wp
 
+# The ovrtx C library links to its own version of the USD libraries. Having
+# the pxr Python package available can cause the C library to load an
+# incompatible version of libusd, potentially leading to undefined behavior.
+# By setting OVRTX_SKIP_USD_CHECK, we prevent the C library from loading the pxr Python package.
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
