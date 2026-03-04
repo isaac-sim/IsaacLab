@@ -20,7 +20,6 @@ from isaaclab.renderers import BaseRenderer
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.visualizers import VisualizerCfg
-from isaaclab.renderers.base_renderer import BaseRenderer
 
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
