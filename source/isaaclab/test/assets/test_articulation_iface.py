@@ -207,6 +207,8 @@ def create_ovphysx_articulation(
         is_fixed_base=False,
         joint_names=joint_names,
         body_names=body_names,
+        num_fixed_tendons=num_fixed_tendons,
+        num_spatial_tendons=num_spatial_tendons,
     )
     mock_bindings.set_random_data()
 

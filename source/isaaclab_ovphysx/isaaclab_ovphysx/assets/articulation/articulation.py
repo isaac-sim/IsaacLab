@@ -23,6 +23,8 @@ from isaaclab.physics import PhysicsManager
 
 from .articulation_data import ArticulationData
 
+from isaaclab_ovphysx import tensor_types as TT
+
 if TYPE_CHECKING:
     import ovphysx
 
@@ -37,6 +39,30 @@ def _get_ovphysx():
     """Lazy import to avoid USD version conflicts at module load time."""
     import ovphysx
     return ovphysx
+
+
+@wp.kernel
+def _body_wrench_to_world(
+    force_b: wp.array(dtype=wp.vec3f, ndim=2),
+    torque_b: wp.array(dtype=wp.vec3f, ndim=2),
+    poses: wp.array(dtype=wp.transformf, ndim=2),
+    wrench_out: wp.array(dtype=wp.float32, ndim=3),
+):
+    """Rotate body-frame force/torque to world frame and pack into [N, L, 9]."""
+    i, j = wp.tid()
+    q = wp.transform_get_rotation(poses[i, j])
+    f_w = wp.quat_rotate(q, force_b[i, j])
+    t_w = wp.quat_rotate(q, torque_b[i, j])
+    wrench_out[i, j, 0] = f_w[0]
+    wrench_out[i, j, 1] = f_w[1]
+    wrench_out[i, j, 2] = f_w[2]
+    wrench_out[i, j, 3] = t_w[0]
+    wrench_out[i, j, 4] = t_w[1]
+    wrench_out[i, j, 5] = t_w[2]
+    p_w = wp.transform_get_translation(poses[i, j])
+    wrench_out[i, j, 6] = p_w[0]
+    wrench_out[i, j, 7] = p_w[1]
+    wrench_out[i, j, 8] = p_w[2]
 
 
 class Articulation(BaseArticulation):
@@ -148,7 +174,10 @@ class Articulation(BaseArticulation):
         self._data._applied_torque.zero_()
 
     def write_data_to_sim(self) -> None:
-        """Apply actuator model and write joint commands into the simulation."""
+        """Apply external wrenches, actuator model, and write commands into the simulation."""
+        # Apply external wrenches (before actuators, same as PhysX backend).
+        self._apply_external_wrenches()
+
         T = _get_ovphysx()
         self._apply_actuator_model()
         # Write implicit targets
@@ -330,6 +359,7 @@ class Articulation(BaseArticulation):
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(limits, (n, d), wp.vec2f, "limits")
+        self._write_flat_tensor(TT.DOF_LIMIT, limits, env_ids, joint_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self, *, limits, joint_mask=None, env_mask=None, warn_limit_violation=True
@@ -337,22 +367,27 @@ class Articulation(BaseArticulation):
         if isinstance(limits, (int, float)):
             raise ValueError("Float scalars are not supported for position limits (vec2f dtype)")
         self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.vec2f, "limits")
+        self._write_flat_tensor_mask(TT.DOF_LIMIT, limits, env_mask, joint_mask)
 
     def write_joint_velocity_limit_to_sim_index(self, *, limits, joint_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(limits, (n, d), wp.float32, "limits")
+        self._write_flat_tensor(TT.DOF_MAX_VELOCITY, limits, env_ids, joint_ids)
 
     def write_joint_velocity_limit_to_sim_mask(self, *, limits, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.float32, "limits")
+        self._write_flat_tensor_mask(TT.DOF_MAX_VELOCITY, limits, env_mask, joint_mask)
 
     def write_joint_effort_limit_to_sim_index(self, *, limits, joint_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(limits, (n, d), wp.float32, "limits")
+        self._write_flat_tensor(TT.DOF_MAX_FORCE, limits, env_ids, joint_ids)
 
     def write_joint_effort_limit_to_sim_mask(self, *, limits, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.float32, "limits")
+        self._write_flat_tensor_mask(TT.DOF_MAX_FORCE, limits, env_mask, joint_mask)
 
     def write_joint_armature_to_sim_index(self, *, armature, joint_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
@@ -370,6 +405,7 @@ class Articulation(BaseArticulation):
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(joint_friction_coeff, (n, d), wp.float32, "joint_friction_coeff")
+        self._write_friction_column(joint_friction_coeff, env_ids, joint_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self, *, joint_friction_coeff, joint_mask=None, env_mask=None
@@ -377,6 +413,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(
             joint_friction_coeff, (self._num_instances, self._num_joints), wp.float32, "joint_friction_coeff"
         )
+        self._write_friction_column_mask(joint_friction_coeff, env_mask, joint_mask)
 
     # ------------------------------------------------------------------
     # Deprecated combined-state writers (required by ABC)
@@ -403,25 +440,31 @@ class Articulation(BaseArticulation):
         n = self._n_envs_index(env_ids)
         b = len(body_ids) if body_ids is not None else self._num_bodies
         self.assert_shape_and_dtype(masses, (n, b), wp.float32, "masses")
+        self._write_flat_tensor(TT.BODY_MASS, masses, env_ids, body_ids)
 
     def set_masses_mask(self, *, masses, body_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
+        self._write_flat_tensor_mask(TT.BODY_MASS, masses, env_mask, body_mask)
 
     def set_coms_index(self, *, coms, body_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         b = len(body_ids) if body_ids is not None else self._num_bodies
         self.assert_shape_and_dtype(coms, (n, b), wp.transformf, "coms")
+        self._write_flat_tensor(TT.BODY_COM_POSE, coms, env_ids, body_ids)
 
     def set_coms_mask(self, *, coms, body_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
+        self._write_flat_tensor_mask(TT.BODY_COM_POSE, coms, env_mask, body_mask)
 
     def set_inertias_index(self, *, inertias, body_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         b = len(body_ids) if body_ids is not None else self._num_bodies
         self.assert_shape_and_dtype(inertias, (n, b, 9), wp.float32, "inertias")
+        self._write_flat_tensor(TT.BODY_INERTIA, inertias, env_ids, body_ids)
 
     def set_inertias_mask(self, *, inertias, body_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
+        self._write_flat_tensor_mask(TT.BODY_INERTIA, inertias, env_mask, body_mask)
 
     # ------------------------------------------------------------------
     # Joint target setters
@@ -455,80 +498,164 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_stiffness_index(self, *, stiffness, fixed_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(fixed_tendon_ids) if fixed_tendon_ids else self._nft()
         self.assert_shape_and_dtype(stiffness, (n, t), wp.float32, "stiffness")
+        if self._data._fixed_tendon_stiffness is not None:
+            self._set_target_into_buffer(self._data._fixed_tendon_stiffness, stiffness, env_ids, fixed_tendon_ids)
 
     def set_fixed_tendon_stiffness_mask(self, *, stiffness, fixed_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(stiffness, (self._num_instances, self._nft()), wp.float32, "stiffness")
+        if self._data._fixed_tendon_stiffness is not None:
+            self._set_target_into_buffer_mask(self._data._fixed_tendon_stiffness, stiffness, env_mask, fixed_tendon_mask)
 
     def set_fixed_tendon_damping_index(self, *, damping, fixed_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(fixed_tendon_ids) if fixed_tendon_ids else self._nft()
         self.assert_shape_and_dtype(damping, (n, t), wp.float32, "damping")
+        if self._data._fixed_tendon_damping is not None:
+            self._set_target_into_buffer(self._data._fixed_tendon_damping, damping, env_ids, fixed_tendon_ids)
 
     def set_fixed_tendon_damping_mask(self, *, damping, fixed_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(damping, (self._num_instances, self._nft()), wp.float32, "damping")
+        if self._data._fixed_tendon_damping is not None:
+            self._set_target_into_buffer_mask(self._data._fixed_tendon_damping, damping, env_mask, fixed_tendon_mask)
 
     def set_fixed_tendon_limit_stiffness_index(self, *, limit_stiffness, fixed_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(fixed_tendon_ids) if fixed_tendon_ids else self._nft()
         self.assert_shape_and_dtype(limit_stiffness, (n, t), wp.float32, "limit_stiffness")
+        if self._data._fixed_tendon_limit_stiffness is not None:
+            self._set_target_into_buffer(self._data._fixed_tendon_limit_stiffness, limit_stiffness, env_ids, fixed_tendon_ids)
 
     def set_fixed_tendon_limit_stiffness_mask(self, *, limit_stiffness, fixed_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(limit_stiffness, (self._num_instances, self._nft()), wp.float32, "limit_stiffness")
+        if self._data._fixed_tendon_limit_stiffness is not None:
+            self._set_target_into_buffer_mask(self._data._fixed_tendon_limit_stiffness, limit_stiffness, env_mask, fixed_tendon_mask)
 
     def set_fixed_tendon_position_limit_index(self, *, limit, fixed_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(fixed_tendon_ids) if fixed_tendon_ids else self._nft()
         self.assert_shape_and_dtype(limit, (n, t), wp.vec2f, "limit")
+        if self._data._fixed_tendon_pos_limits is not None:
+            self._set_target_into_buffer(self._data._fixed_tendon_pos_limits, limit, env_ids, fixed_tendon_ids)
 
     def set_fixed_tendon_position_limit_mask(self, *, limit, fixed_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(limit, (self._num_instances, self._nft()), wp.vec2f, "limit")
+        if self._data._fixed_tendon_pos_limits is not None:
+            self._set_target_into_buffer_mask(self._data._fixed_tendon_pos_limits, limit, env_mask, fixed_tendon_mask)
 
     def set_fixed_tendon_rest_length_index(self, *, rest_length, fixed_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(fixed_tendon_ids) if fixed_tendon_ids else self._nft()
         self.assert_shape_and_dtype(rest_length, (n, t), wp.float32, "rest_length")
+        if self._data._fixed_tendon_rest_length is not None:
+            self._set_target_into_buffer(self._data._fixed_tendon_rest_length, rest_length, env_ids, fixed_tendon_ids)
 
     def set_fixed_tendon_rest_length_mask(self, *, rest_length, fixed_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(rest_length, (self._num_instances, self._nft()), wp.float32, "rest_length")
+        if self._data._fixed_tendon_rest_length is not None:
+            self._set_target_into_buffer_mask(self._data._fixed_tendon_rest_length, rest_length, env_mask, fixed_tendon_mask)
 
     def set_fixed_tendon_offset_index(self, *, offset, fixed_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(fixed_tendon_ids) if fixed_tendon_ids else self._nft()
         self.assert_shape_and_dtype(offset, (n, t), wp.float32, "offset")
+        if self._data._fixed_tendon_offset is not None:
+            self._set_target_into_buffer(self._data._fixed_tendon_offset, offset, env_ids, fixed_tendon_ids)
 
     def set_fixed_tendon_offset_mask(self, *, offset, fixed_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(offset, (self._num_instances, self._nft()), wp.float32, "offset")
+        if self._data._fixed_tendon_offset is not None:
+            self._set_target_into_buffer_mask(self._data._fixed_tendon_offset, offset, env_mask, fixed_tendon_mask)
 
-    def write_fixed_tendon_properties_to_sim_index(self, *, fixed_tendon_ids=None, env_ids=None): pass
+    def write_fixed_tendon_properties_to_sim_index(self, *, fixed_tendon_ids=None, env_ids=None):
+        if self._nft() == 0:
+            return
+        for tt, buf in [
+            (TT.FIXED_TENDON_STIFFNESS, self._data._fixed_tendon_stiffness),
+            (TT.FIXED_TENDON_DAMPING, self._data._fixed_tendon_damping),
+            (TT.FIXED_TENDON_LIMIT_STIFFNESS, self._data._fixed_tendon_limit_stiffness),
+            (TT.FIXED_TENDON_LIMIT, self._data._fixed_tendon_pos_limits),
+            (TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length),
+            (TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset),
+        ]:
+            if buf is not None:
+                self._write_flat_tensor(tt, buf, env_ids, fixed_tendon_ids)
 
-    def write_fixed_tendon_properties_to_sim_mask(self, *, fixed_tendon_mask=None, env_mask=None): pass
+    def write_fixed_tendon_properties_to_sim_mask(self, *, fixed_tendon_mask=None, env_mask=None):
+        if self._nft() == 0:
+            return
+        for tt, buf in [
+            (TT.FIXED_TENDON_STIFFNESS, self._data._fixed_tendon_stiffness),
+            (TT.FIXED_TENDON_DAMPING, self._data._fixed_tendon_damping),
+            (TT.FIXED_TENDON_LIMIT_STIFFNESS, self._data._fixed_tendon_limit_stiffness),
+            (TT.FIXED_TENDON_LIMIT, self._data._fixed_tendon_pos_limits),
+            (TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length),
+            (TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset),
+        ]:
+            if buf is not None:
+                self._write_flat_tensor_mask(tt, buf, env_mask, fixed_tendon_mask)
 
     def set_spatial_tendon_stiffness_index(self, *, stiffness, spatial_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(spatial_tendon_ids) if spatial_tendon_ids else self._nst()
         self.assert_shape_and_dtype(stiffness, (n, t), wp.float32, "stiffness")
+        if self._data._spatial_tendon_stiffness is not None:
+            self._set_target_into_buffer(self._data._spatial_tendon_stiffness, stiffness, env_ids, spatial_tendon_ids)
 
     def set_spatial_tendon_stiffness_mask(self, *, stiffness, spatial_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(stiffness, (self._num_instances, self._nst()), wp.float32, "stiffness")
+        if self._data._spatial_tendon_stiffness is not None:
+            self._set_target_into_buffer_mask(self._data._spatial_tendon_stiffness, stiffness, env_mask, spatial_tendon_mask)
 
     def set_spatial_tendon_damping_index(self, *, damping, spatial_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(spatial_tendon_ids) if spatial_tendon_ids else self._nst()
         self.assert_shape_and_dtype(damping, (n, t), wp.float32, "damping")
+        if self._data._spatial_tendon_damping is not None:
+            self._set_target_into_buffer(self._data._spatial_tendon_damping, damping, env_ids, spatial_tendon_ids)
 
     def set_spatial_tendon_damping_mask(self, *, damping, spatial_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(damping, (self._num_instances, self._nst()), wp.float32, "damping")
+        if self._data._spatial_tendon_damping is not None:
+            self._set_target_into_buffer_mask(self._data._spatial_tendon_damping, damping, env_mask, spatial_tendon_mask)
 
     def set_spatial_tendon_limit_stiffness_index(self, *, limit_stiffness, spatial_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(spatial_tendon_ids) if spatial_tendon_ids else self._nst()
         self.assert_shape_and_dtype(limit_stiffness, (n, t), wp.float32, "limit_stiffness")
+        if self._data._spatial_tendon_limit_stiffness is not None:
+            self._set_target_into_buffer(self._data._spatial_tendon_limit_stiffness, limit_stiffness, env_ids, spatial_tendon_ids)
 
     def set_spatial_tendon_limit_stiffness_mask(self, *, limit_stiffness, spatial_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(limit_stiffness, (self._num_instances, self._nst()), wp.float32, "limit_stiffness")
+        if self._data._spatial_tendon_limit_stiffness is not None:
+            self._set_target_into_buffer_mask(self._data._spatial_tendon_limit_stiffness, limit_stiffness, env_mask, spatial_tendon_mask)
 
     def set_spatial_tendon_offset_index(self, *, offset, spatial_tendon_ids=None, env_ids=None):
         n = self._n_envs_index(env_ids); t = len(spatial_tendon_ids) if spatial_tendon_ids else self._nst()
         self.assert_shape_and_dtype(offset, (n, t), wp.float32, "offset")
+        if self._data._spatial_tendon_offset is not None:
+            self._set_target_into_buffer(self._data._spatial_tendon_offset, offset, env_ids, spatial_tendon_ids)
 
     def set_spatial_tendon_offset_mask(self, *, offset, spatial_tendon_mask=None, env_mask=None):
         self.assert_shape_and_dtype(offset, (self._num_instances, self._nst()), wp.float32, "offset")
+        if self._data._spatial_tendon_offset is not None:
+            self._set_target_into_buffer_mask(self._data._spatial_tendon_offset, offset, env_mask, spatial_tendon_mask)
 
-    def write_spatial_tendon_properties_to_sim_index(self, *, spatial_tendon_ids=None, env_ids=None): pass
+    def write_spatial_tendon_properties_to_sim_index(self, *, spatial_tendon_ids=None, env_ids=None):
+        if self._nst() == 0:
+            return
+        for tt, buf in [
+            (TT.SPATIAL_TENDON_STIFFNESS, self._data._spatial_tendon_stiffness),
+            (TT.SPATIAL_TENDON_DAMPING, self._data._spatial_tendon_damping),
+            (TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._data._spatial_tendon_limit_stiffness),
+            (TT.SPATIAL_TENDON_OFFSET, self._data._spatial_tendon_offset),
+        ]:
+            if buf is not None:
+                self._write_flat_tensor(tt, buf, env_ids, spatial_tendon_ids)
 
-    def write_spatial_tendon_properties_to_sim_mask(self, *, spatial_tendon_mask=None, env_mask=None): pass
+    def write_spatial_tendon_properties_to_sim_mask(self, *, spatial_tendon_mask=None, env_mask=None):
+        if self._nst() == 0:
+            return
+        for tt, buf in [
+            (TT.SPATIAL_TENDON_STIFFNESS, self._data._spatial_tendon_stiffness),
+            (TT.SPATIAL_TENDON_DAMPING, self._data._spatial_tendon_damping),
+            (TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._data._spatial_tendon_limit_stiffness),
+            (TT.SPATIAL_TENDON_OFFSET, self._data._spatial_tendon_offset),
+        ]:
+            if buf is not None:
+                self._write_flat_tensor_mask(tt, buf, env_mask, spatial_tendon_mask)
 
     # ------------------------------------------------------------------
     # Internal: initialization
@@ -590,6 +717,11 @@ class Articulation(BaseArticulation):
 
         # Create data container.
         self._data = ArticulationData(self._bindings, self._device, binding_getter=self._get_binding)
+
+        # Discover tendon counts/names before buffer allocation so that
+        # _create_buffers can size the tendon property arrays.
+        self._process_tendons()
+
         self._create_buffers()
 
         self._process_cfg()
@@ -600,9 +732,12 @@ class Articulation(BaseArticulation):
     def _create_buffers(self) -> None:
         self._data._create_buffers()
 
-        # Wrench composers (no-ops for now).
-        self._instantaneous_wrench_composer = None
-        self._permanent_wrench_composer = None
+        from isaaclab.utils.wrench_composer import WrenchComposer
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
+        self._wrench_buf = wp.zeros(
+            (self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self._device
+        )
 
         # Joint-index arrays for each actuator (filled by _process_actuators_cfg).
         self._joint_ids_per_actuator: dict[str, list[int]] = {}
@@ -662,7 +797,81 @@ class Articulation(BaseArticulation):
             self._joint_ids_per_actuator[name] = joint_ids
 
     def _process_tendons(self) -> None:
-        pass
+        """Discover tendon counts from binding metadata and names from USD.
+
+        Tendon counts come from the ovphysx binding (fixed_tendon_count /
+        spatial_tendon_count). Tendon names come from walking the exported
+        USD stage and checking for PhysxTendon applied schemas on joints,
+        following the same logic as the PhysX backend.
+        """
+        self._fixed_tendon_names = []
+        self._spatial_tendon_names = []
+
+        sample = next(iter(self._bindings.values()))
+        self._num_fixed_tendons = getattr(sample, "fixed_tendon_count", 0)
+        self._num_spatial_tendons = getattr(sample, "spatial_tendon_count", 0)
+
+        if self._num_fixed_tendons > 0 or self._num_spatial_tendons > 0:
+            from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
+            stage_path = OvPhysxManager._stage_path
+            if stage_path is not None:
+                try:
+                    from pxr import Usd, UsdPhysics
+                    stage = Usd.Stage.Open(stage_path)
+                    for prim in stage.Traverse():
+                        if not prim.HasAPI(UsdPhysics.Joint):
+                            continue
+                        schemas_str = str(prim.GetAppliedSchemas())
+                        name = prim.GetPath().name
+                        if "PhysxTendonAxisRootAPI" in schemas_str:
+                            self._fixed_tendon_names.append(name)
+                        elif "PhysxTendonAttachmentRootAPI" in schemas_str or "PhysxTendonAttachmentLeafAPI" in schemas_str:
+                            self._spatial_tendon_names.append(name)
+                except Exception:
+                    logger.debug("Could not parse USD stage for tendon names at %s", stage_path)
+
+        self._data._num_fixed_tendons = self._num_fixed_tendons
+        self._data._num_spatial_tendons = self._num_spatial_tendons
+        self._data.fixed_tendon_names = self._fixed_tendon_names
+        self._data.spatial_tendon_names = self._spatial_tendon_names
+
+    def _apply_external_wrenches(self) -> None:
+        """Compose and write external wrenches to the LINK_WRENCH binding.
+
+        WrenchComposer accumulates forces/torques in body (link) frame.
+        The LINK_WRENCH binding expects world-frame [fx,fy,fz,tx,ty,tz,px,py,pz].
+        We rotate the body-frame vectors to world frame using the link quaternion
+        and pack them into the [N, L, 9] tensor with application position = origin.
+        """
+        inst = self._instantaneous_wrench_composer
+        perm = self._permanent_wrench_composer
+        if not inst.active and not perm.active:
+            return
+        if inst.active:
+            inst.add_forces_and_torques_index(
+                forces=perm.composed_force,
+                torques=perm.composed_torque,
+                body_ids=list(range(self._num_bodies)),
+                env_ids=list(range(self._num_instances)),
+            )
+            force_b = inst.composed_force
+            torque_b = inst.composed_torque
+        else:
+            force_b = perm.composed_force
+            torque_b = perm.composed_torque
+
+        poses = self._data.body_link_pose_w
+        wp.launch(
+            _body_wrench_to_world,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[force_b, torque_b, poses],
+            outputs=[self._wrench_buf],
+            device=self._device,
+        )
+        wrench_binding = self._get_binding(TT.LINK_WRENCH)
+        if wrench_binding is not None:
+            wrench_binding.write(self._wrench_buf)
+        inst.reset()
 
     def _apply_actuator_model(self) -> None:
         """Run the actuator model to compute torques from user targets.
@@ -814,7 +1023,11 @@ class Articulation(BaseArticulation):
             binding.write(full)
         elif env_ids is not None:
             idx = self._to_cpu_numpy(env_ids).astype(np.int32)
-            flat = self._to_flat_f32(data)
+            # When the caller passes a full-size buffer (e.g., tendon flush)
+            # but only a subset of envs should be written, extract the rows.
+            if np_data.shape[0] != len(idx) and np_data.shape[0] == binding.shape[0]:
+                np_data = np_data[idx.astype(np.intp)]
+            flat = wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=self._device)
             binding.write(flat, indices=idx)
         else:
             flat = self._to_flat_f32(data)
@@ -831,6 +1044,69 @@ class Articulation(BaseArticulation):
             binding.write(flat, mask=self._to_flat_f32(env_mask))
         else:
             binding.write(flat)
+
+    def _write_friction_column(self, data, env_ids=None, joint_ids=None) -> None:
+        """Write static friction coefficient into column 0 of DOF_FRICTION_PROPERTIES [N,D,3]."""
+        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
+        if binding is None:
+            return
+        full = np.zeros(binding.shape, dtype=np.float32)
+        binding.read(full)
+        if isinstance(data, (int, float)):
+            # Broadcast scalar to the targeted slice
+            if env_ids is not None and joint_ids is not None:
+                eids = self._to_cpu_numpy(env_ids).astype(np.intp)
+                jids = np.asarray(joint_ids, dtype=np.intp)
+                full[np.ix_(eids, jids, [0])] = data
+            elif env_ids is not None:
+                eids = self._to_cpu_numpy(env_ids).astype(np.intp)
+                full[eids, :, 0] = data
+            elif joint_ids is not None:
+                jids = np.asarray(joint_ids, dtype=np.intp)
+                full[:, jids, 0] = data
+            else:
+                full[..., 0] = data
+            binding.write(full)
+            return
+        np_data = self._to_cpu_numpy(data)
+        if env_ids is not None and joint_ids is not None:
+            eids = self._to_cpu_numpy(env_ids).astype(np.intp)
+            jids = np.asarray(joint_ids, dtype=np.intp)
+            full[np.ix_(eids, jids, [0])] = np_data.reshape(len(eids), len(jids), 1)
+        elif env_ids is not None:
+            eids = self._to_cpu_numpy(env_ids).astype(np.intp)
+            full[eids, :, 0] = np_data.reshape(len(eids), -1)
+        elif joint_ids is not None:
+            jids = np.asarray(joint_ids, dtype=np.intp)
+            full[:, jids, 0] = np_data.reshape(full.shape[0], len(jids))
+        else:
+            full[..., 0] = np_data.reshape(full.shape[0], full.shape[1])
+        binding.write(full)
+
+    def _write_friction_column_mask(self, data, env_mask=None, joint_mask=None) -> None:
+        """Write static friction coefficient via mask into column 0 of DOF_FRICTION_PROPERTIES."""
+        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
+        if binding is None:
+            return
+        full = np.zeros(binding.shape, dtype=np.float32)
+        binding.read(full)
+        if isinstance(data, (int, float)):
+            new_col = np.full((full.shape[0], full.shape[1]), data, dtype=np.float32)
+        else:
+            new_col = self._to_cpu_numpy(data).reshape(full.shape[0], full.shape[1])
+        if env_mask is not None:
+            emask = self._to_cpu_numpy(env_mask).astype(bool)
+            if joint_mask is not None:
+                jmask = self._to_cpu_numpy(joint_mask).astype(bool)
+                full[emask][:, jmask, 0] = new_col[emask][:, jmask]
+            else:
+                full[emask, :, 0] = new_col[emask]
+        elif joint_mask is not None:
+            jmask = self._to_cpu_numpy(joint_mask).astype(bool)
+            full[:, jmask, 0] = new_col[:, jmask]
+        else:
+            full[..., 0] = new_col
+        binding.write(full)
 
     def _write_joint_subset(self, tensor_type: int, buffer: wp.array, joint_ids: list[int]) -> None:
         """Write a full-width joint buffer into the simulation for an actuator's joints."""

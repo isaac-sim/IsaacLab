@@ -16,6 +16,8 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 
+from isaaclab_ovphysx import tensor_types as TT
+
 
 def _get_ovphysx():
     """Lazy import to avoid USD version conflicts at module load time."""
@@ -42,30 +44,44 @@ class ArticulationData(BaseArticulationData):
 
     __backend_name__ = "ovphysx"
 
-    # Tensor type constants (stable enum values from ovphysx_types.h).
-    # Defined here so we don't need to import ovphysx at class definition time
-    # (avoids USD version conflicts when running mock/shape-check UTs).
-    # TODO: once ovphysx ships a namespaced USD (e.g. "ovphysx_usd") that does
-    # not collide with the stock pxr USD bundled by IsaacSim, we can remove
-    # these constants and import ovphysx normally at module level.
-    _ROOT_POSE = 10
-    _ROOT_VELOCITY = 11
-    _LINK_POSE = 20
-    _LINK_VELOCITY = 21
-    _LINK_ACCELERATION = 22
-    _DOF_POSITION = 30
-    _DOF_VELOCITY = 31
-    _DOF_STIFFNESS = 35
-    _DOF_DAMPING = 36
-    _DOF_LIMIT = 37
-    _DOF_MAX_VELOCITY = 38
-    _DOF_MAX_FORCE = 39
-    _DOF_ARMATURE = 40
-    _DOF_FRICTION_PROPERTIES = 41
-    _BODY_MASS = 60
-    _BODY_COM_POSE = 61
-    _BODY_INERTIA = 62
-    _LINK_INCOMING_JOINT_FORCE = 74
+    # Shorthand aliases for the tensor type constants from tensor_types.py.
+    # Kept as class attributes so existing code referencing self._ROOT_POSE etc. still works.
+    _ROOT_POSE = TT.ROOT_POSE
+    _ROOT_VELOCITY = TT.ROOT_VELOCITY
+    _LINK_POSE = TT.LINK_POSE
+    _LINK_VELOCITY = TT.LINK_VELOCITY
+    _LINK_ACCELERATION = TT.LINK_ACCELERATION
+    _DOF_POSITION = TT.DOF_POSITION
+    _DOF_VELOCITY = TT.DOF_VELOCITY
+    _DOF_STIFFNESS = TT.DOF_STIFFNESS
+    _DOF_DAMPING = TT.DOF_DAMPING
+    _DOF_LIMIT = TT.DOF_LIMIT
+    _DOF_MAX_VELOCITY = TT.DOF_MAX_VELOCITY
+    _DOF_MAX_FORCE = TT.DOF_MAX_FORCE
+    _DOF_ARMATURE = TT.DOF_ARMATURE
+    _DOF_FRICTION_PROPERTIES = TT.DOF_FRICTION_PROPERTIES
+    _LINK_WRENCH = TT.LINK_WRENCH
+    _BODY_MASS = TT.BODY_MASS
+    _BODY_COM_POSE = TT.BODY_COM_POSE
+    _BODY_INERTIA = TT.BODY_INERTIA
+    _BODY_INV_MASS = TT.BODY_INV_MASS
+    _BODY_INV_INERTIA = TT.BODY_INV_INERTIA
+    _JACOBIAN = TT.JACOBIAN
+    _MASS_MATRIX = TT.MASS_MATRIX
+    _CORIOLIS = TT.CORIOLIS
+    _GRAVITY_FORCE = TT.GRAVITY_FORCE
+    _LINK_INCOMING_JOINT_FORCE = TT.LINK_INCOMING_JOINT_FORCE
+    _DOF_PROJECTED_JOINT_FORCE = TT.DOF_PROJECTED_JOINT_FORCE
+    _FIXED_TENDON_STIFFNESS = TT.FIXED_TENDON_STIFFNESS
+    _FIXED_TENDON_DAMPING = TT.FIXED_TENDON_DAMPING
+    _FIXED_TENDON_LIMIT_STIFFNESS = TT.FIXED_TENDON_LIMIT_STIFFNESS
+    _FIXED_TENDON_LIMIT = TT.FIXED_TENDON_LIMIT
+    _FIXED_TENDON_REST_LENGTH = TT.FIXED_TENDON_REST_LENGTH
+    _FIXED_TENDON_OFFSET = TT.FIXED_TENDON_OFFSET
+    _SPATIAL_TENDON_STIFFNESS = TT.SPATIAL_TENDON_STIFFNESS
+    _SPATIAL_TENDON_DAMPING = TT.SPATIAL_TENDON_DAMPING
+    _SPATIAL_TENDON_LIMIT_STIFFNESS = TT.SPATIAL_TENDON_LIMIT_STIFFNESS
+    _SPATIAL_TENDON_OFFSET = TT.SPATIAL_TENDON_OFFSET
 
     def __init__(self, bindings: dict[int, Any], device: str, binding_getter=None):
         """Initialize the articulation data.
@@ -283,6 +299,39 @@ class ArticulationData(BaseArticulationData):
             self._joint_friction_coeff = wp.from_numpy(
                 np_fric[..., 0].copy(), dtype=wp.float32, device=self.device
             )
+
+        # Fixed tendon properties (CPU-side, read once)
+        T_fix = getattr(self, "_num_fixed_tendons", 0)
+        if T_fix > 0:
+            for tt, dst in [
+                (self._FIXED_TENDON_STIFFNESS, self._fixed_tendon_stiffness),
+                (self._FIXED_TENDON_DAMPING, self._fixed_tendon_damping),
+                (self._FIXED_TENDON_LIMIT_STIFFNESS, self._fixed_tendon_limit_stiffness),
+                (self._FIXED_TENDON_REST_LENGTH, self._fixed_tendon_rest_length),
+                (self._FIXED_TENDON_OFFSET, self._fixed_tendon_offset),
+            ]:
+                np_buf = _read_cpu(tt)
+                if np_buf is not None and dst is not None:
+                    wp.copy(dst, wp.from_numpy(np_buf, dtype=wp.float32, device=self.device))
+            # Fixed tendon limits: [N, T, 2] -> (N, T) wp.vec2f
+            np_tlim = _read_cpu(self._FIXED_TENDON_LIMIT)
+            if np_tlim is not None and self._fixed_tendon_pos_limits is not None:
+                self._fixed_tendon_pos_limits = wp.from_numpy(
+                    np_tlim.reshape(self._num_instances, T_fix, 2), dtype=wp.vec2f, device=self.device
+                )
+
+        # Spatial tendon properties (CPU-side, read once)
+        T_spa = getattr(self, "_num_spatial_tendons", 0)
+        if T_spa > 0:
+            for tt, dst in [
+                (self._SPATIAL_TENDON_STIFFNESS, self._spatial_tendon_stiffness),
+                (self._SPATIAL_TENDON_DAMPING, self._spatial_tendon_damping),
+                (self._SPATIAL_TENDON_LIMIT_STIFFNESS, self._spatial_tendon_limit_stiffness),
+                (self._SPATIAL_TENDON_OFFSET, self._spatial_tendon_offset),
+            ]:
+                np_buf = _read_cpu(tt)
+                if np_buf is not None and dst is not None:
+                    wp.copy(dst, wp.from_numpy(np_buf, dtype=wp.float32, device=self.device))
 
     # ------------------------------------------------------------------
     # Binding read helpers

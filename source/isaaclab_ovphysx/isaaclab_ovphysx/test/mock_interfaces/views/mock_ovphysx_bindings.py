@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from isaaclab_ovphysx import tensor_types as TT
+
 
 class MockTensorBinding:
     """Mock of ovphysx.TensorBinding that stores data in numpy arrays.
@@ -29,6 +31,9 @@ class MockTensorBinding:
         dof_names: list[str] | None = None,
         body_names: list[str] | None = None,
         joint_names: list[str] | None = None,
+        fixed_tendon_count: int = 0,
+        spatial_tendon_count: int = 0,
+        write_only: bool = False,
     ):
         self.tensor_type = tensor_type
         self._shape = shape
@@ -40,13 +45,18 @@ class MockTensorBinding:
         self._dof_names = dof_names or []
         self._body_names = body_names or []
         self._joint_names = joint_names or []
+        self._fixed_tendon_count = fixed_tendon_count
+        self._spatial_tendon_count = spatial_tendon_count
+        self._write_only = write_only
         self._data = np.zeros(shape, dtype=np.float32)
-
-    # -- Properties matching TensorBinding --
 
     @property
     def shape(self) -> tuple[int, ...]:
         return self._shape
+
+    @property
+    def ndim(self) -> int:
+        return len(self._shape)
 
     @property
     def count(self) -> int:
@@ -80,10 +90,18 @@ class MockTensorBinding:
     def joint_names(self) -> list[str]:
         return self._joint_names
 
-    # -- I/O --
+    @property
+    def fixed_tendon_count(self) -> int:
+        return self._fixed_tendon_count
+
+    @property
+    def spatial_tendon_count(self) -> int:
+        return self._spatial_tendon_count
 
     def read(self, tensor) -> None:
         """Copy internal data into the provided array (numpy or warp)."""
+        if self._write_only:
+            raise RuntimeError("write-only tensor binding does not support read()")
         try:
             import warp as wp
             if isinstance(tensor, wp.array):
@@ -139,30 +157,6 @@ class MockOvPhysxBindingSet:
     Mirrors the tensor types that ``Articulation._initialize_impl`` creates.
     """
 
-    # Tensor type constants (matching ovphysx._bindings values).
-    ROOT_POSE = 10
-    ROOT_VELOCITY = 11
-    LINK_POSE = 20
-    LINK_VELOCITY = 21
-    LINK_ACCELERATION = 22
-    DOF_POSITION = 30
-    DOF_VELOCITY = 31
-    DOF_POSITION_TARGET = 32
-    DOF_VELOCITY_TARGET = 33
-    DOF_ACTUATION_FORCE = 34
-    DOF_STIFFNESS = 35
-    DOF_DAMPING = 36
-    DOF_LIMIT = 37
-    DOF_MAX_VELOCITY = 38
-    DOF_MAX_FORCE = 39
-    DOF_ARMATURE = 40
-    DOF_FRICTION_PROPERTIES = 41
-    LINK_WRENCH = 52
-    BODY_MASS = 60
-    BODY_COM_POSE = 61
-    BODY_INERTIA = 62
-    LINK_INCOMING_JOINT_FORCE = 74
-
     def __init__(
         self,
         num_instances: int,
@@ -171,10 +165,14 @@ class MockOvPhysxBindingSet:
         is_fixed_base: bool = False,
         joint_names: list[str] | None = None,
         body_names: list[str] | None = None,
+        num_fixed_tendons: int = 0,
+        num_spatial_tendons: int = 0,
     ):
         N = num_instances
         D = num_joints
         L = num_bodies
+        T_fix = num_fixed_tendons
+        T_spa = num_spatial_tendons
 
         if joint_names is None:
             joint_names = [f"joint_{i}" for i in range(D)]
@@ -185,47 +183,74 @@ class MockOvPhysxBindingSet:
             count=N, dof_count=D, body_count=L, joint_count=D,
             is_fixed_base=is_fixed_base, dof_names=joint_names,
             body_names=body_names, joint_names=joint_names,
+            fixed_tendon_count=T_fix, spatial_tendon_count=T_spa,
         )
 
         self.bindings: dict[int, MockTensorBinding] = {
-            self.ROOT_POSE: MockTensorBinding(self.ROOT_POSE, (N, 7), **common),
-            self.ROOT_VELOCITY: MockTensorBinding(self.ROOT_VELOCITY, (N, 6), **common),
-            self.LINK_POSE: MockTensorBinding(self.LINK_POSE, (N, L, 7), **common),
-            self.LINK_VELOCITY: MockTensorBinding(self.LINK_VELOCITY, (N, L, 6), **common),
-            self.LINK_ACCELERATION: MockTensorBinding(self.LINK_ACCELERATION, (N, L, 6), **common),
-            self.DOF_POSITION: MockTensorBinding(self.DOF_POSITION, (N, D), **common),
-            self.DOF_VELOCITY: MockTensorBinding(self.DOF_VELOCITY, (N, D), **common),
-            self.DOF_POSITION_TARGET: MockTensorBinding(self.DOF_POSITION_TARGET, (N, D), **common),
-            self.DOF_VELOCITY_TARGET: MockTensorBinding(self.DOF_VELOCITY_TARGET, (N, D), **common),
-            self.DOF_ACTUATION_FORCE: MockTensorBinding(self.DOF_ACTUATION_FORCE, (N, D), **common),
-            self.DOF_STIFFNESS: MockTensorBinding(self.DOF_STIFFNESS, (N, D), **common),
-            self.DOF_DAMPING: MockTensorBinding(self.DOF_DAMPING, (N, D), **common),
-            self.DOF_LIMIT: MockTensorBinding(self.DOF_LIMIT, (N, D, 2), **common),
-            self.DOF_MAX_VELOCITY: MockTensorBinding(self.DOF_MAX_VELOCITY, (N, D), **common),
-            self.DOF_MAX_FORCE: MockTensorBinding(self.DOF_MAX_FORCE, (N, D), **common),
-            self.DOF_ARMATURE: MockTensorBinding(self.DOF_ARMATURE, (N, D), **common),
-            self.DOF_FRICTION_PROPERTIES: MockTensorBinding(self.DOF_FRICTION_PROPERTIES, (N, D, 3), **common),
-            self.BODY_MASS: MockTensorBinding(self.BODY_MASS, (N, L), **common),
-            self.BODY_COM_POSE: MockTensorBinding(self.BODY_COM_POSE, (N, L, 7), **common),
-            self.BODY_INERTIA: MockTensorBinding(self.BODY_INERTIA, (N, L, 9), **common),
-            self.LINK_INCOMING_JOINT_FORCE: MockTensorBinding(self.LINK_INCOMING_JOINT_FORCE, (N, L, 6), **common),
+            TT.ROOT_POSE: MockTensorBinding(TT.ROOT_POSE, (N, 7), **common),
+            TT.ROOT_VELOCITY: MockTensorBinding(TT.ROOT_VELOCITY, (N, 6), **common),
+            TT.LINK_POSE: MockTensorBinding(TT.LINK_POSE, (N, L, 7), **common),
+            TT.LINK_VELOCITY: MockTensorBinding(TT.LINK_VELOCITY, (N, L, 6), **common),
+            TT.LINK_ACCELERATION: MockTensorBinding(TT.LINK_ACCELERATION, (N, L, 6), **common),
+            TT.DOF_POSITION: MockTensorBinding(TT.DOF_POSITION, (N, D), **common),
+            TT.DOF_VELOCITY: MockTensorBinding(TT.DOF_VELOCITY, (N, D), **common),
+            TT.DOF_POSITION_TARGET: MockTensorBinding(TT.DOF_POSITION_TARGET, (N, D), **common),
+            TT.DOF_VELOCITY_TARGET: MockTensorBinding(TT.DOF_VELOCITY_TARGET, (N, D), **common),
+            TT.DOF_ACTUATION_FORCE: MockTensorBinding(TT.DOF_ACTUATION_FORCE, (N, D), **common),
+            TT.DOF_STIFFNESS: MockTensorBinding(TT.DOF_STIFFNESS, (N, D), **common),
+            TT.DOF_DAMPING: MockTensorBinding(TT.DOF_DAMPING, (N, D), **common),
+            TT.DOF_LIMIT: MockTensorBinding(TT.DOF_LIMIT, (N, D, 2), **common),
+            TT.DOF_MAX_VELOCITY: MockTensorBinding(TT.DOF_MAX_VELOCITY, (N, D), **common),
+            TT.DOF_MAX_FORCE: MockTensorBinding(TT.DOF_MAX_FORCE, (N, D), **common),
+            TT.DOF_ARMATURE: MockTensorBinding(TT.DOF_ARMATURE, (N, D), **common),
+            TT.DOF_FRICTION_PROPERTIES: MockTensorBinding(TT.DOF_FRICTION_PROPERTIES, (N, D, 3), **common),
+            TT.LINK_WRENCH: MockTensorBinding(TT.LINK_WRENCH, (N, L, 9), write_only=True, **common),
+            TT.BODY_MASS: MockTensorBinding(TT.BODY_MASS, (N, L), **common),
+            TT.BODY_COM_POSE: MockTensorBinding(TT.BODY_COM_POSE, (N, L, 7), **common),
+            TT.BODY_INERTIA: MockTensorBinding(TT.BODY_INERTIA, (N, L, 9), **common),
+            TT.BODY_INV_MASS: MockTensorBinding(TT.BODY_INV_MASS, (N, L), **common),
+            TT.BODY_INV_INERTIA: MockTensorBinding(TT.BODY_INV_INERTIA, (N, L, 9), **common),
+            TT.LINK_INCOMING_JOINT_FORCE: MockTensorBinding(TT.LINK_INCOMING_JOINT_FORCE, (N, L, 6), **common),
+            TT.DOF_PROJECTED_JOINT_FORCE: MockTensorBinding(TT.DOF_PROJECTED_JOINT_FORCE, (N, D), **common),
         }
+
+        # Fixed tendon bindings (only when tendons are present)
+        if T_fix > 0:
+            self.bindings.update({
+                TT.FIXED_TENDON_STIFFNESS: MockTensorBinding(TT.FIXED_TENDON_STIFFNESS, (N, T_fix), **common),
+                TT.FIXED_TENDON_DAMPING: MockTensorBinding(TT.FIXED_TENDON_DAMPING, (N, T_fix), **common),
+                TT.FIXED_TENDON_LIMIT_STIFFNESS: MockTensorBinding(TT.FIXED_TENDON_LIMIT_STIFFNESS, (N, T_fix), **common),
+                TT.FIXED_TENDON_LIMIT: MockTensorBinding(TT.FIXED_TENDON_LIMIT, (N, T_fix, 2), **common),
+                TT.FIXED_TENDON_REST_LENGTH: MockTensorBinding(TT.FIXED_TENDON_REST_LENGTH, (N, T_fix), **common),
+                TT.FIXED_TENDON_OFFSET: MockTensorBinding(TT.FIXED_TENDON_OFFSET, (N, T_fix), **common),
+            })
+
+        # Spatial tendon bindings
+        if T_spa > 0:
+            self.bindings.update({
+                TT.SPATIAL_TENDON_STIFFNESS: MockTensorBinding(TT.SPATIAL_TENDON_STIFFNESS, (N, T_spa), **common),
+                TT.SPATIAL_TENDON_DAMPING: MockTensorBinding(TT.SPATIAL_TENDON_DAMPING, (N, T_spa), **common),
+                TT.SPATIAL_TENDON_LIMIT_STIFFNESS: MockTensorBinding(TT.SPATIAL_TENDON_LIMIT_STIFFNESS, (N, T_spa), **common),
+                TT.SPATIAL_TENDON_OFFSET: MockTensorBinding(TT.SPATIAL_TENDON_OFFSET, (N, T_spa), **common),
+            })
 
     def set_random_data(self) -> None:
         """Fill all bindings with random data."""
         for b in self.bindings.values():
-            b.set_random_data()
-        # Set sensible defaults for limits (lower < upper).
-        lim = self.bindings[self.DOF_LIMIT]
+            if not b._write_only:
+                b.set_random_data()
+        lim = self.bindings[TT.DOF_LIMIT]
         lim._data[..., 0] = -3.14
         lim._data[..., 1] = 3.14
-        # Set unit quaternions for poses.
-        for tt in (self.ROOT_POSE, self.LINK_POSE, self.BODY_COM_POSE):
+        for tt in (TT.ROOT_POSE, TT.LINK_POSE, TT.BODY_COM_POSE):
             b = self.bindings[tt]
             b._data[..., 3:6] = 0.0
             b._data[..., 6] = 1.0
-        # Set positive masses.
-        self.bindings[self.BODY_MASS]._data = np.abs(self.bindings[self.BODY_MASS]._data) + 0.1
-        # Set positive max velocity / force.
-        self.bindings[self.DOF_MAX_VELOCITY]._data = np.abs(self.bindings[self.DOF_MAX_VELOCITY]._data) + 1.0
-        self.bindings[self.DOF_MAX_FORCE]._data = np.abs(self.bindings[self.DOF_MAX_FORCE]._data) + 1.0
+        self.bindings[TT.BODY_MASS]._data = np.abs(self.bindings[TT.BODY_MASS]._data) + 0.1
+        self.bindings[TT.DOF_MAX_VELOCITY]._data = np.abs(self.bindings[TT.DOF_MAX_VELOCITY]._data) + 1.0
+        self.bindings[TT.DOF_MAX_FORCE]._data = np.abs(self.bindings[TT.DOF_MAX_FORCE]._data) + 1.0
+        # Set sensible defaults for fixed tendon limits
+        if TT.FIXED_TENDON_LIMIT in self.bindings:
+            tlim = self.bindings[TT.FIXED_TENDON_LIMIT]
+            tlim._data[..., 0] = -1.0
+            tlim._data[..., 1] = 1.0
