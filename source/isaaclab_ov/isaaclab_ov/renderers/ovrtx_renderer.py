@@ -91,7 +91,7 @@ class OVRTXRenderData:
         self.sensor: weakref.ref[object] | None = weakref.ref(sensor)
         self.width = sensor.cfg.width
         self.height = sensor.cfg.height
-        self.num_envs = sensor.num_instances
+        self.num_envs = sensor._num_envs
         self.data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
@@ -130,7 +130,7 @@ class OVRTXRenderer(BaseRenderer):
         self._sensor_ref = weakref.ref(sensor)
         width = sensor.cfg.width
         height = sensor.cfg.height
-        num_envs = sensor.num_instances
+        num_envs = sensor._num_envs
         data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
 
         camera_prim_path = sensor.cfg.prim_path
