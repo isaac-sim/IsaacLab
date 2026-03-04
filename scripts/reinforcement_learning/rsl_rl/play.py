@@ -14,7 +14,6 @@ import gymnasium as gym
 import torch
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
-from isaaclab.app import AppLauncher
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -58,27 +57,8 @@ if args_cli.video:
 
 sys.argv = [sys.argv[0]] + hydra_args
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
-"""Rest everything follows."""
-
-
-from isaaclab.envs import (
-    DirectRLEnvCfg,
-    ManagerBasedRLEnvCfg,
-)
-
-from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg
-
-from isaaclab_tasks.utils import hydra_task_config
-
-# PLACEHOLDER: Extension template (do not remove this comment)
-
-
-@hydra_task_config(args_cli.task, args_cli.agent)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
+def main():
     """Play with RSL-RL agent."""
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     with launch_simulation(env_cfg, args_cli):

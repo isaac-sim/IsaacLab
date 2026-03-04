@@ -85,23 +85,8 @@ def cleanup_pbar(*args):
 
 signal.signal(signal.SIGINT, cleanup_pbar)
 
-"""Rest everything follows."""
 
-import logging
-
-from isaaclab.envs import (
-    DirectRLEnvCfg,
-)
-
-from isaaclab_tasks.utils import hydra_task_config
-
-# import logger
-logger = logging.getLogger(__name__)
-# PLACEHOLDER: Extension template (do not remove this comment)
-
-
-@hydra_task_config(args_cli.task, args_cli.agent)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def main():
     """Train with stable-baselines agent."""
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     with launch_simulation(env_cfg, args_cli):

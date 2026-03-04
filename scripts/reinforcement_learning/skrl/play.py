@@ -89,12 +89,6 @@ if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     )
     exit()
 
-if args_cli.ml_framework.startswith("torch") or args_cli.ml_framework.startswith("jax"):
-    pass
-
-
-# PLACEHOLDER: Extension template (do not remove this comment)
-
 # config shortcuts
 if args_cli.agent is None:
     algorithm = args_cli.algorithm.lower()

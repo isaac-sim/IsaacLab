@@ -142,9 +142,9 @@ class NewtonManager(PhysicsManager):
         cadence (Kit), and after each physics step when using Newton+RTX so the renderer sees
         updated poses.
 
-        Uses ``wp.fabricarray`` and a Warp kernel (no per-prim Python loop). The kernel reads
-        ``state_0.body_q[newton_index[i]]`` and writes the corresponding ``mat44d`` to
-        ``omni:fabric:worldMatrix`` for each prim.
+        Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
+        The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
+        corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
             return
