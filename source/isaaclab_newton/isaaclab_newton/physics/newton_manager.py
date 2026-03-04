@@ -135,15 +135,16 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
-        """Write Newton body_q to USD Fabric world matrices for Kit viewport rendering.
+        """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
 
         No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active).
-        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider`
-        at render cadence, after forward kinematics have been evaluated.
+        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider` at render
+        cadence (Kit), and after each physics step when using Newton+RTX so the renderer sees
+        updated poses.
 
-        Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
-        The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
-        corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
+        Uses ``wp.fabricarray`` and a Warp kernel (no per-prim Python loop). The kernel reads
+        ``state_0.body_q[newton_index[i]]`` and writes the corresponding ``mat44d`` to
+        ``omni:fabric:worldMatrix`` for each prim.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
             return
@@ -168,6 +169,14 @@ class NewtonManager(PhysicsManager):
                 device=PhysicsManager._device,
             )
             wp.synchronize_device(PhysicsManager._device)
+            if hasattr(usdrt, "hierarchy") and usdrt.hierarchy:
+                try:
+                    fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                        cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
+                    )
+                    fabric_hierarchy.update_world_xforms()
+                except Exception:
+                    pass
         except Exception as exc:
             logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
 
@@ -461,74 +470,7 @@ class NewtonManager(PhysicsManager):
 
         # Sync Newton state to USD/Fabric for RTX rendering (e.g., Newton Physics + RTX Renderer preset)
         if cls._usdrt_stage is not None:
-            cls.sync_state_to_usd()
-
-    @classmethod
-    def sync_state_to_usd(cls) -> None:
-        """Write current Newton body poses to the Fabric stage so RTX/Replicator can render correctly.
-
-        Used when running with Newton physics and Isaac RTX renderer selected. Call after each step.
-        """
-        if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
-            return
-        view = None
-        for v in cls._views:
-            if hasattr(v, "get_link_transforms"):
-                view = v
-                break
-        if view is None:
-            return
-        link_tf = view.get_link_transforms(cls._state_0)
-        if link_tf is None:
-            return
-        wp.synchronize()
-        try:
-            link_tf_np = link_tf.numpy()
-        except Exception:
-            return
-        if link_tf_np.ndim == 4:
-            num_envs, _, num_links, _ = link_tf_np.shape
-        else:
-            num_envs, _, num_links = link_tf_np.shape
-        body_key = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
-        if body_key is None or len(body_key) != num_envs * num_links:
-            return
-        import usdrt
-        from pxr import Gf
-
-        stage = cls._usdrt_stage
-        for env in range(num_envs):
-            for link in range(num_links):
-                idx = env * num_links + link
-                prim_path = body_key[idx]
-                prim = stage.GetPrimAtPath(prim_path)
-                if not prim or not prim.IsValid():
-                    continue
-                if link_tf_np.ndim == 4:
-                    t = link_tf_np[env, 0, link, :]  # (7,) pos(3) + quat(4)
-                    pos = (float(t[0]), float(t[1]), float(t[2]))
-                    quat = (float(t[3]), float(t[4]), float(t[5]), float(t[6]))
-                else:
-                    t = link_tf_np[env, 0, link]
-                    if hasattr(t, "p") and hasattr(t, "q"):
-                        pos = (float(t.p[0]), float(t.p[1]), float(t.p[2]))
-                        quat = (float(t.q[0]), float(t.q[1]), float(t.q[2]), float(t.q[3]))
-                    else:
-                        pos = (float(t[0]), float(t[1]), float(t[2]))
-                        quat = (float(t[3]), float(t[4]), float(t[5]), float(t[6]))
-                xformable = usdrt.Rt.Xformable(prim)
-                if hasattr(xformable, "CreateWorldPositionAttr"):
-                    xformable.CreateWorldPositionAttr(Gf.Vec3d(pos[0], pos[1], pos[2]))
-                if hasattr(xformable, "CreateWorldOrientationAttr"):
-                    xformable.CreateWorldOrientationAttr(Gf.Quatf(quat[3], quat[0], quat[1], quat[2]))
-        if hasattr(usdrt, "hierarchy") and usdrt.hierarchy:
-            try:
-                fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                    stage.GetFabricId(), stage.GetStageIdAsStageId()
-                )
-                fabric_hierarchy.update_world_xforms()
-            except Exception:
-                pass
+            cls.sync_transforms_to_usd()
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
