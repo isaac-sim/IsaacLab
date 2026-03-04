@@ -55,11 +55,18 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
+from scripts.benchmarks.utils import needs_kit
+
+_needs_kit = needs_kit(hydra_args)
+
 app_start_time_begin = time.perf_counter_ns()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+if _needs_kit:
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+else:
+    app_launcher = None
+    simulation_app = None
 
 app_start_time_end = time.perf_counter_ns()
 
@@ -141,9 +148,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_size = 1
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         world_size = int(os.getenv("WORLD_SIZE", 1))
-        world_rank = app_launcher.global_rank
+        world_rank = int(os.getenv("RANK", "0"))
 
     task_startup_time_begin = time.perf_counter_ns()
 
@@ -174,7 +181,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Run with continuous benchmark monitoring
     with BenchmarkMonitor(benchmark, interval=1.0):
-        while simulation_app.is_running():
+        while simulation_app is None or simulation_app.is_running():
             while num_frames < args_cli.num_frames:
                 # get upper and lower bounds of action space, sample actions randomly on this interval
                 action_high = 1
@@ -228,4 +235,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()
