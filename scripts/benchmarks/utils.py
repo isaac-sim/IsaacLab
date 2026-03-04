@@ -119,7 +119,8 @@ def get_preset_string(hydra_args: list[str]) -> str:
     """
     for arg in hydra_args:
         if arg.startswith("presets="):
-            return arg.split("=", 1)[1]
+            value = arg.split("=", 1)[1]
+            return value if value else "default"
     return os.environ.get("OMNIPERF_ISAACLAB_PRESET", "") or "default"
 
 
