@@ -175,7 +175,6 @@ class InteractiveScene:
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
             self._add_entities_from_cfg()
-            self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
@@ -671,6 +670,9 @@ class InteractiveScene:
             (k, v) for k, v in all_items if isinstance(v, SensorBaseCfg)
         ]
 
+        # RigidObjectCfg with no spawn and env path: prims exist only after clone. Defer creation.
+        deferred_rigid_objects: list[tuple[str, Any]] = []
+
         for asset_name, asset_cfg in ordered_items:
             # resolve prim_path with env regex
             if hasattr(asset_cfg, "prim_path"):
@@ -701,7 +703,15 @@ class InteractiveScene:
             elif isinstance(asset_cfg, DeformableObjectCfg):
                 self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
-                self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                # Reference-only RigidObject under env path: prims exist only after clone. Defer.
+                if asset_cfg.spawn is None and hasattr(asset_cfg, "prim_path") and self.env_ns in asset_cfg.prim_path:
+                    deferred_rigid_objects.append((asset_name, asset_cfg))
+                    # Skip global_prim_paths (prims do not exist yet); handled after clone below.
+                else:
+                    self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                    if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
+                        asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
+                        self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
                     rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
@@ -765,6 +775,14 @@ class InteractiveScene:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 
             # store global collision paths
+            if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
+                asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
+                self._global_prim_paths += asset_paths
+
+        # Clone template to envs, then create deferred RigidObjects (reference-only under env path).
+        self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
+        for asset_name, asset_cfg in deferred_rigid_objects:
+            self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                 self._global_prim_paths += asset_paths
