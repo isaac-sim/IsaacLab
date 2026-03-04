@@ -335,33 +335,33 @@ class InHandManipulationEnv(DirectRLEnv):
             obs[inds] = 0.0
         return obs
 
-    # def compute_full_state(self):
-    #    states = torch.cat(
-    #        (
-    #            # hand
-    #            unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
-    #            self.cfg.vel_obs_scale * self.hand_dof_vel,
-    #            # object
-    #            self.object_pos,
-    #            self.object_rot,
-    #            self.object_linvel,
-    #            self.cfg.vel_obs_scale * self.object_angvel,
-    #            # goal
-    #            self.in_hand_pos,
-    #            self.goal_rot,
-    #            quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
-    #            # fingertips
-    #            self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
-    #            self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
-    #            self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-    #            self.cfg.force_torque_obs_scale
-    #            * self.fingertip_force_sensors.view(self.num_envs, self.num_fingertips * 6),
-    #            # actions
-    #            self.actions,
-    #        ),
-    #        dim=-1,
-    #    )
-    #    return states
+    def compute_full_state(self):
+        states = torch.cat(
+            (
+                # hand
+                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
+                self.cfg.vel_obs_scale * self.hand_dof_vel,
+                # object
+                self.object_pos,
+                self.object_rot,
+                self.object_linvel,
+                self.cfg.vel_obs_scale * self.object_angvel,
+                # goal
+                self.in_hand_pos,
+                self.goal_rot,
+                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
+                # fingertips
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
+                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
+                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
+                # self.cfg.force_torque_obs_scale *
+                # self.fingertip_force_sensors.view(self.num_envs, self.num_fingertips * 6),
+                # actions
+                self.actions,
+            ),
+            dim=-1,
+        )
+        return states
 
 
 @torch.jit.script

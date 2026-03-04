@@ -186,7 +186,7 @@ class TiledCamera(Camera):
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
-        self._frame[env_ids] += 1
+        self._frame[wp.to_torch(env_ids)] += 1
 
         # update latest camera pose
         if self.cfg.update_latest_camera_pose:

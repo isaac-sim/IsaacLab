@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import torch
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import TYPE_CHECKING, ClassVar
@@ -154,6 +155,16 @@ class ActuatorBase(ABC):
     def joint_mask(self) -> wp.array:
         """Articulation's masked indices that denote which joints are part of the group."""
         return self._joint_mask
+
+    @property
+    def joint_indices(self) -> slice | torch.Tensor:
+        """Articulation's joint indices that are part of the group.
+
+        Note:
+            If :obj:`slice(None)` is returned, then the group contains all the joints in the articulation.
+            We do this to avoid unnecessary indexing of the joints for performance reasons.
+        """
+        return self._joint_indices
 
     """
     Operations.
