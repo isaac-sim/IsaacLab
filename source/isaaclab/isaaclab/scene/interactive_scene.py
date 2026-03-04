@@ -681,9 +681,6 @@ class InteractiveScene:
                     template_base = asset_cfg.prim_path.replace(self.env_regex_ns, self.cloner_cfg.template_root)
                     proto_id = self.cloner_cfg.template_prototype_identifier
                     if isinstance(asset_cfg, SensorBaseCfg):
-                        # Sensor may be nested under a proto_asset_N prim (e.g. a camera on a robot
-                        # link). Search for the actual template location so spawning succeeds even
-                        # though the parent asset lives at template_root/<Asset>/proto_asset_0/...
                         asset_cfg.spawn.spawn_path = self._resolve_sensor_template_spawn_path(template_base, proto_id)
                     else:
                         asset_cfg.spawn.spawn_path = f"{template_base}/{proto_id}_.*"
@@ -735,6 +732,14 @@ class InteractiveScene:
                     asset_cfg.filter_prim_paths_expr = [
                         p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
                     ]
+                    if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr:
+                        asset_cfg.sensor_shape_prim_expr = [
+                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.sensor_shape_prim_expr
+                        ]
+                    if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr:
+                        asset_cfg.filter_shape_prim_expr = [
+                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_shape_prim_expr
+                        ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
