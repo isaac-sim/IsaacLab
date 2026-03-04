@@ -301,7 +301,7 @@ jobs:
         result-file: "cuda-issue-tests-report.xml"
         container-name: "isaac-lab-cuda-issue-test-$$"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
+        pytest-options: "-v -s"
         filter-pattern: ""
         cuda-issue-only: "true"
 
