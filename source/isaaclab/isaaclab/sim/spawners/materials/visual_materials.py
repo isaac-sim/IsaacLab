@@ -8,12 +8,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from omni.usd.commands import CreateMdlMaterialPrimCommand, CreateShaderPrimFromSdrCommand
 from pxr import Usd, UsdShade
 
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
@@ -50,6 +50,11 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # check if Kit is available (required for shader creation commands)
+    if not has_kit():
+        logger.warning("Skipping preview surface material at '%s' — Kit is not available.", prim_path)
+        return None
+
     # get stage handle
     stage = get_current_stage()
 
@@ -61,6 +66,8 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
         if material_prim:
+            from omni.usd.commands import CreateShaderPrimFromSdrCommand
+
             shader_prim = CreateShaderPrimFromSdrCommand(
                 parent_path=prim_path,
                 identifier="UsdPreviewSurface",
@@ -126,6 +133,11 @@ def spawn_from_mdl_file(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # check if Kit is available (required for MDL material creation commands)
+    if not has_kit():
+        logger.warning("Skipping MDL material at '%s' — Kit is not available.", prim_path)
+        return None
+
     # get stage handle
     stage = get_current_stage()
 
@@ -133,6 +145,8 @@ def spawn_from_mdl_file(
     if not stage.GetPrimAtPath(prim_path).IsValid():
         # extract material name from path
         material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
+        from omni.usd.commands import CreateMdlMaterialPrimCommand
+
         CreateMdlMaterialPrimCommand(
             mtl_url=cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR),
             mtl_name=material_name,

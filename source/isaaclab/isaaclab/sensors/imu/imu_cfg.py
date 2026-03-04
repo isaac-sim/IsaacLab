@@ -5,19 +5,23 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import RED_ARROW_X_MARKER_CFG
 from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .imu import Imu
+
+if TYPE_CHECKING:
+    from .imu import Imu
 
 
 @configclass
 class ImuCfg(SensorBaseCfg):
     """Configuration for an Inertial Measurement Unit (IMU) sensor."""
 
-    class_type: type = Imu
+    class_type: type[Imu] | str = "{DIR}.imu:Imu"
 
     @configclass
     class OffsetCfg:

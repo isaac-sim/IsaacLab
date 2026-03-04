@@ -18,7 +18,7 @@ from isaaclab.utils.math import (
     quat_apply_inverse,
     quat_conjugate,
     quat_mul,
-    unscale_transform,
+    scale_transform,
 )
 
 
@@ -115,8 +115,8 @@ class LocomotionEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self):
-        forces = self.action_scale * self.joint_gears * self.actions
-        self.robot.set_joint_effort_target(forces, joint_ids=self._joint_dof_idx)
+        forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
+        self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
         self.torso_position, self.torso_rotation = (
@@ -213,16 +213,18 @@ class LocomotionEnv(DirectRLEnv):
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids]
-        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids]
-        default_root_state = wp.to_torch(self.robot.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids].clone()
+        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids].clone()
+        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids].clone()
+        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
-        self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
-        to_target = self.targets[env_ids] - default_root_state[:, :3]
+        to_target = self.targets[env_ids] - default_root_pose[:, :3]
         to_target[:, 2] = 0.0
         self.potentials[env_ids] = -torch.linalg.norm(to_target, ord=2, dim=-1) / self.cfg.sim.dt
 
@@ -311,7 +313,7 @@ def compute_intermediate_values(
         torso_quat, velocity, ang_velocity, targets, torso_position
     )
 
-    dof_pos_scaled = unscale_transform(dof_pos, dof_lower_limits, dof_upper_limits)
+    dof_pos_scaled = scale_transform(dof_pos, dof_lower_limits, dof_upper_limits)
 
     to_target = targets - torso_position
     to_target[:, 2] = 0.0

@@ -9,11 +9,6 @@ import os
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.devices.device_base import DeviceBase, DevicesCfg
-from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
-from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3RelRetargeterCfg
-from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
@@ -68,39 +63,6 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
         self.decimation = 3
         self.episode_length_s = 30.0
 
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                    sim_device=self.sim.device,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                    sim_device=self.sim.device,
-                ),
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3RelRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            delta_pos_scale_factor=10.0,
-                            delta_rot_scale_factor=10.0,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )
-
 
 ##
 # RmpFlow Controller for Galbot Right Arm Cube Stack Task (with Surface Gripper)
@@ -136,39 +98,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 
         # Enable CCD to avoid tunneling
         self.sim.physics = PhysxCfg(enable_ccd=True)
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                    sim_device=self.sim.device,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                    sim_device=self.sim.device,
-                ),
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3RelRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            delta_pos_scale_factor=10.0,
-                            delta_rot_scale_factor=10.0,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )
 
 
 ##

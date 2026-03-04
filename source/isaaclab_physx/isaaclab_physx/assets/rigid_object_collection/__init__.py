@@ -5,10 +5,6 @@
 
 """Sub-module for rigid object collection."""
 
-from .rigid_object_collection import RigidObjectCollection
-from .rigid_object_collection_data import RigidObjectCollectionData
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "RigidObjectCollection",
-    "RigidObjectCollectionData",
-]
+lazy_export()

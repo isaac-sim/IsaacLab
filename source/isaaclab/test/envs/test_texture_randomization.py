@@ -22,9 +22,8 @@ import math
 import pytest
 import torch
 
-import omni.usd
-
 import isaaclab.envs.mdp as mdp
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -185,7 +184,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 def test_texture_randomization(device):
     """Test texture randomization for cartpole environment."""
     # Create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     try:
         # Set the arguments
@@ -212,13 +211,13 @@ def test_texture_randomization(device):
             env.close()
     finally:
         # Clean up stage
-        omni.usd.get_context().close_stage()
+        sim_utils.close_stage()
 
 
 def test_texture_randomization_failure_replicate_physics():
     """Test texture randomization failure when replicate physics is set to True."""
     # Create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     try:
         # Set the arguments
@@ -232,4 +231,4 @@ def test_texture_randomization_failure_replicate_physics():
             env.close()
     finally:
         # Clean up stage
-        omni.usd.get_context().close_stage()
+        sim_utils.close_stage()

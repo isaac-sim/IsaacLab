@@ -114,7 +114,7 @@ class MockWrenchComposer:
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ) -> None:
-        """Add forces and torques (mock - just sets active flag).
+        """Add forces and torques (deprecated, use add_forces_and_torques_index).
 
         Args:
             forces: Forces. (num_envs, num_bodies, 3). Defaults to None.
@@ -124,8 +124,14 @@ class MockWrenchComposer:
             env_ids: Environment ids. Defaults to None (all environments).
             is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
         """
-        if forces is not None or torques is not None:
-            self._active = True
+        self.add_forces_and_torques_index(
+            forces=forces,
+            torques=torques,
+            positions=positions,
+            body_ids=body_ids,
+            env_ids=env_ids,
+            is_global=is_global,
+        )
 
     def set_forces_and_torques(
         self,
@@ -136,7 +142,7 @@ class MockWrenchComposer:
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ) -> None:
-        """Set forces and torques (mock - just sets active flag).
+        """Set forces and torques (deprecated, use set_forces_and_torques_index).
 
         Args:
             forces: Forces. (num_envs, num_bodies, 3). Defaults to None.
@@ -146,14 +152,75 @@ class MockWrenchComposer:
             env_ids: Environment ids. Defaults to None (all environments).
             is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
         """
+        self.set_forces_and_torques_index(
+            forces=forces,
+            torques=torques,
+            positions=positions,
+            body_ids=body_ids,
+            env_ids=env_ids,
+            is_global=is_global,
+        )
+
+    # -- Index/Mask method variants --
+
+    def add_forces_and_torques_index(
+        self,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
+        body_ids: torch.Tensor | None = None,
+        env_ids: torch.Tensor | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Add forces and torques by index (mock - just sets active flag)."""
         if forces is not None or torques is not None:
             self._active = True
 
-    def reset(self, env_ids: wp.array | torch.Tensor | None = None) -> None:
+    def add_forces_and_torques_mask(
+        self,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
+        body_mask: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Add forces and torques by mask (mock - just sets active flag)."""
+        if forces is not None or torques is not None:
+            self._active = True
+
+    def set_forces_and_torques_index(
+        self,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
+        body_ids: wp.array | torch.Tensor | None = None,
+        env_ids: wp.array | torch.Tensor | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Set forces and torques by index (mock - just sets active flag)."""
+        if forces is not None or torques is not None:
+            self._active = True
+
+    def set_forces_and_torques_mask(
+        self,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
+        body_mask: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Set forces and torques by mask (mock - just sets active flag)."""
+        if forces is not None or torques is not None:
+            self._active = True
+
+    def reset(self, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the composed force and torque.
 
         Args:
             env_ids: Environment ids to reset. Defaults to None (all environments).
+            env_mask: Environment mask to reset. Defaults to None (all environments).
         """
         if env_ids is None:
             self._composed_force_b.zero_()

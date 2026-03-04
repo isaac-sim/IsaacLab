@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy>=2",
-    "torch>=2.9",
+    "torch>=2.10",
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
@@ -30,15 +30,18 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6",
+    "mujoco>=3.5",
+    "mujoco-warp>=3.5",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "warp-lang==1.12.0rc2",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
     # livestream
     "starlette==0.49.1",
+    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",
@@ -48,9 +51,12 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     # visualizers
-    "rerun-sdk==0.29.0",
+    "newton==1.0.0rc1",
+    "imgui-bundle>=1.92.5",
+    "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
+    "lazy_loader>=0.4",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
@@ -63,8 +69,38 @@ INSTALL_REQUIRES += [
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
+# Adds OpenUSD dependencies based on architecture for Kit less mode.
+INSTALL_REQUIRES += [
+    f"usd-core==25.5.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
+
+# Isaac Lab subpackages + Isaac Sim
+EXTRAS_REQUIRE = {
+    "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
+    # Individual Isaac Lab sub-packages
+    "assets": ["isaaclab_assets"],
+    "physx": ["isaaclab_physx"],
+    "contrib": ["isaaclab_contrib"],
+    "mimic": ["isaaclab_mimic"],
+    "newton": ["isaaclab_newton"],
+    "rl": ["isaaclab_rl"],
+    "tasks": ["isaaclab_tasks"],
+    "teleop": ["isaaclab_teleop"],
+    # Convenience: all sub-packages (does not include isaacsim)
+    "all": [
+        "isaaclab_assets",
+        "isaaclab_physx",
+        "isaaclab_contrib",
+        "isaaclab_mimic",
+        "isaaclab_newton",
+        "isaaclab_rl",
+        "isaaclab_tasks",
+        "isaaclab_teleop",
+    ],
+}
 
 # Installation operation
 setup(
@@ -77,8 +113,10 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[

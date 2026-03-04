@@ -5,7 +5,12 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
+    EventsCfg,
+    LocomotionVelocityRoughEnvCfg,
+    StartupEventsCfg,
+)
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -14,7 +19,21 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass
+class AnymalCPhysxEventsCfg(EventsCfg, StartupEventsCfg):
+    pass
+
+
+@configclass
+class AnymalCEventsCfg(PresetCfg):
+    default = AnymalCPhysxEventsCfg()
+    newton = EventsCfg()
+    physx = default
+
+
+@configclass
 class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    events: AnymalCEventsCfg = AnymalCEventsCfg()
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

@@ -13,11 +13,44 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
-New ``isaaclab_physx`` Extension
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Backend Architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A new extension ``isaaclab_physx`` has been introduced to contain PhysX-specific implementations
-of asset classes. The following classes have been moved to this new extension:
+Isaac Lab 3.0 introduces a **factory-based multi-backend architecture** that allows asset classes
+to be backed by different physics engines — currently **PhysX** and **Newton**.
+
+When you instantiate an asset class from the ``isaaclab`` package (e.g., ``Articulation``,
+``RigidObject``), a factory automatically resolves and loads the correct backend implementation:
+
+.. code-block:: python
+
+   from isaaclab.assets import Articulation, ArticulationCfg
+
+   # The factory pattern creates the appropriate backend implementation.
+   # No import changes are needed — the same isaaclab imports work regardless of backend.
+   robot = Articulation(cfg=ArticulationCfg(...))
+
+The factory works by convention: for a class defined in ``isaaclab.assets.articulation``, it
+imports the matching class from ``isaaclab_{backend}.assets.articulation``. This means the
+``isaaclab_physx`` and ``isaaclab_newton`` packages mirror the ``isaaclab`` module structure.
+
+.. note::
+
+   The backend is currently set to ``"physx"`` by default. Newton backend support is being
+   actively developed. When backend selection is fully configurable, you will be able to
+   switch backends without changing any asset import paths.
+
+
+New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two new backend extensions have been introduced:
+
+- **``isaaclab_physx``** — PhysX-specific implementations of all asset and sensor classes.
+- **``isaaclab_newton``** — Newton-specific implementations of asset classes (Articulation and
+  RigidObject).
+
+The following classes have been moved to ``isaaclab_physx``:
 
 .. list-table::
    :header-rows: 1
@@ -73,6 +106,33 @@ you can import from ``isaaclab_physx.sensors``:
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
 
 
+New ``isaaclab_newton`` Extension
+---------------------------------
+
+A new extension ``isaaclab_newton`` provides Newton physics backend implementations for:
+
+- :class:`~isaaclab_newton.assets.Articulation` and :class:`~isaaclab_newton.assets.ArticulationData`
+- :class:`~isaaclab_newton.assets.RigidObject` and :class:`~isaaclab_newton.assets.RigidObjectData`
+
+These classes implement the same base interfaces as their PhysX counterparts
+(:class:`~isaaclab.assets.BaseArticulation`, :class:`~isaaclab.assets.BaseRigidObject`),
+ensuring a consistent API across backends. They use the same warp-based data conventions
+(``wp.array`` with structured types, ``_index`` / ``_mask`` write methods).
+
+.. note::
+
+   The ``isaaclab_newton`` extension requires the ``newton`` package and its dependencies
+   (``mujoco``, ``mujoco-warp``). These are installed automatically when installing the
+   ``isaaclab_newton`` package.
+
+If you need to import Newton implementations directly (e.g., for type hints or subclassing):
+
+.. code-block:: python
+
+   from isaaclab_newton.assets import Articulation as NewtonArticulation
+   from isaaclab_newton.assets import RigidObject as NewtonRigidObject
+
+
 Sensor Pose Properties Deprecation
 ----------------------------------
 
@@ -105,30 +165,155 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
-``root_physx_view`` Deprecation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Backend Support: PresetCfg Pattern
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``root_physx_view`` property has been deprecated on :class:`~isaaclab.assets.Articulation`,
-:class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`, and
-:class:`~isaaclab_physx.assets.DeformableObject` in favor of the backend-agnostic ``root_view`` property.
+Isaac Lab 3.0 introduces a **PresetCfg pattern** for writing environment configurations
+that work with both the PhysX and Newton backends. Instead of hard-coding a single
+physics config, environments declare named configuration variants. The active variant
+is selected at launch via a Hydra CLI override.
 
-+----------------------------------------------+------------------------------------------+
-| Deprecated (2.x)                             | New (3.0)                                |
-+==============================================+==========================================+
-| ``articulation.root_physx_view``             | ``articulation.root_view``               |
-+----------------------------------------------+------------------------------------------+
-| ``rigid_object.root_physx_view``             | ``rigid_object.root_view``               |
-+----------------------------------------------+------------------------------------------+
-| ``rigid_object_collection.root_physx_view``  | ``rigid_object_collection.root_view``    |
-+----------------------------------------------+------------------------------------------+
-| ``deformable_object.root_physx_view``        | ``deformable_object.root_view``          |
-+----------------------------------------------+------------------------------------------+
+What is PresetCfg?
+------------------
 
-.. note::
+:class:`~isaaclab_tasks.utils.PresetCfg` is a base ``@configclass`` whose typed fields
+represent named variants of a configuration section. The field named ``default`` is used
+when no CLI override is given. Other fields are named presets selectable with
+``presets=<name>`` on the command line:
 
-   The ``root_view`` property returns the same underlying PhysX view object. This rename is part of
-   the multi-backend architecture to provide a consistent API across different physics backends.
-   The ``root_physx_view`` property will continue to work but will issue a deprecation warning.
+.. code-block:: python
+
+   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.utils import configclass
+
+   @configclass
+   class MyPhysicsCfg(PresetCfg):
+       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
+       newton:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton
+
+Selecting a preset at launch
+-----------------------------
+
+Pass ``presets=newton`` (or ``presets=physx``) on the CLI to swap the entire config section:
+
+.. code-block:: bash
+
+   # Run with Newton backend
+   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton
+
+   # Run with default (PhysX) backend
+   python train.py task=Isaac-Franka-Cabinet-v0
+
+Adding Multi-Backend Support to an Environment
+-----------------------------------------------
+
+**Step 1 — Physics config**
+
+Replace a plain ``PhysxCfg(...)`` assignment in ``__post_init__`` with a ``PresetCfg``
+subclass that carries both a PhysX and a Newton variant.
+
+*Before:*
+
+.. code-block:: python
+
+   def __post_init__(self):
+       self.sim.dt = 1 / 60
+       self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
+
+*After:*
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
+
+   @configclass
+   class ReachPhysicsCfg(PresetCfg):
+       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       newton:  NewtonCfg = NewtonCfg(
+           solver_cfg=MJWarpSolverCfg(
+               njmax=20, nconmax=20, ls_iterations=20,
+               cone="pyramidal", ls_parallel=True,
+               integrator="implicitfast", impratio=1,
+           ),
+           num_substeps=1,
+           debug_mode=False,
+       )
+
+   # In the env cfg __post_init__:
+   def __post_init__(self):
+       self.sim.dt = 1 / 60
+       self.sim.physics = ReachPhysicsCfg()
+
+Key Newton solver parameters:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Parameter
+     - Effect
+   * - ``njmax``
+     - Max constraint rows; set ≥ expected contact count per env
+   * - ``nconmax``
+     - Max contacts per env
+   * - ``ls_iterations``
+     - Linear solver iterations (higher = more stable, slower)
+   * - ``cone``
+     - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
+   * - ``integrator``
+     - ``"implicitfast"`` (recommended) or ``"euler"``
+   * - ``impratio``
+     - Impedance ratio; >1 improves soft contact stability
+   * - ``num_substeps``
+     - Physics substeps per environment step
+
+**Step 2 — Differentiating Newton and PhysX Configs**
+
+Not all configurations may be the same between Newton and PhysX simulations.
+We can provide a Newton-specific config such as:
+
+.. code-block:: python
+
+   @configclass
+   class EventCfg:
+       """Full event config (PhysX-compatible)."""
+       robot_physics_material = EventTerm(
+           func=mdp.randomize_rigid_body_material,
+           mode="startup",
+           params={...},
+       )
+       reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+       reset_robot_joints = EventTerm(
+           func=mdp.reset_joints_by_offset, mode="reset", params={...}
+       )
+
+
+   @configclass
+   class _EnvNewtonEventCfg:
+       """Newton-compatible events."""
+       reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+       reset_robot_joints = EventTerm(
+           func=mdp.reset_joints_by_offset, mode="reset", params={...}
+       )
+
+
+   @configclass
+   class EnvEventCfg(PresetCfg):
+       default: EventCfg = EventCfg()
+       physx:   EventCfg = EventCfg()
+       newton:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
+
+Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEventCfg``:
+
+.. code-block:: python
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+       events: EnvEventCfg = EnvEventCfg()  # was: EventCfg = EventCfg()
 
 
 RigidObjectCollection API Renaming
@@ -683,10 +868,10 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
    robot.write_root_pose_to_sim(pose_data, env_ids)
 
    # After (Isaac Lab 3.x) — indexed variant (partial data)
-   robot.write_root_pose_to_sim_index(pose_data, env_ids)
+   robot.write_root_pose_to_sim_index(root_pose=pose_data, env_ids=env_ids)
 
    # After (Isaac Lab 3.x) — mask variant (full data, boolean mask)
-   robot.write_root_pose_to_sim_mask(pose_data, env_mask)
+   robot.write_root_pose_to_sim_mask(root_pose=pose_data, env_mask=env_mask)
 
 .. list-table:: Affected write methods (RigidObject / Articulation)
    :header-rows: 1
@@ -772,6 +957,420 @@ wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
    self._data.root_pos_w = TimestampedBufferWarp(
        shape=(num_envs,), device=device, wp_dtype=wp.vec3f
    )
+
+
+URDF Importer
+~~~~~~~~~~~~~
+
+The URDF importer in Isaac Sim was rewritten to version 3.0, using the ``urdf-usd-converter``
+library and the ``isaacsim.asset.transformer.rules`` extension to produce structured USD output.
+The old C++ binding-based API (using Kit commands ``URDFParseFile``/``URDFImportRobot`` and the
+``_urdf`` interface from ``acquire_urdf_interface()``) has been replaced with a new Python-based
+pipeline.
+
+The IsaacLab :class:`~sim.converters.UrdfConverter` has been updated to replicate the new
+``URDFImporter.import_urdf()`` pipeline, inserting IsaacLab-specific post-processing (fix base,
+joint drives, link density) on the intermediate USD stage before the asset transformer
+restructures the output.
+
+.. important::
+
+   The previous version-pinning mechanism that locked the URDF importer extension to
+   ``isaacsim.asset.importer.urdf-2.4.31`` has been removed. The converter now uses whichever
+   version of the extension is available in your Isaac Sim installation.
+
+
+Deprecated Settings
+-------------------
+
+The following :class:`~sim.converters.UrdfConverterCfg` settings are **deprecated** because
+the new URDF importer 3.0 no longer supports them. They are kept for backward compatibility
+but will log warnings if enabled:
+
++-----------------------------------------------------------+-----------------------------------------------------+
+| Setting                                                   | Notes                                               |
++===========================================================+=====================================================+
+| ``convert_mimic_joints_to_normal_joints``                 | No longer supported by the importer.                |
++-----------------------------------------------------------+-----------------------------------------------------+
+| ``replace_cylinders_with_capsules``                       | No longer supported by the importer.                |
++-----------------------------------------------------------+-----------------------------------------------------+
+| ``root_link_name``                                        | No longer supported by the importer.                |
++-----------------------------------------------------------+-----------------------------------------------------+
+
+.. note::
+
+   The ``merge_fixed_joints`` setting is **still supported**. It is now implemented as a URDF XML
+   pre-processing step that runs before the USD conversion. Fixed joints are removed and child
+   link elements (visual, collision, inertial) are merged into the parent link with correct
+   transform composition.
+
+Additionally, the :class:`~sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg`
+gains mode is **deprecated**. The ``compute_natural_stiffness`` function that it depended on has
+been removed from the importer. If ``NaturalFrequencyGainsCfg`` is used, a
+:exc:`DeprecationWarning` is emitted and joint drive gains are left at the values produced by the
+URDF importer. Use :class:`~sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg` instead.
+
+The :attr:`~sim.converters.AssetConverterBaseCfg.make_instanceable` setting from the base class
+is also no longer supported and will be ignored. Assets will be made instanceable by default.
+
+
+Updated CLI Tool
+----------------
+
+The ``convert_urdf.py`` script has been updated. The ``usd_file_name`` is now determined
+automatically by the importer based on the robot name and cannot be overridden.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+     robot.urdf \
+     /output/dir/robot.usd \
+     --fix-base \
+     --merge-joints
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+     robot.urdf \
+     /output/dir \
+     --fix-base \
+     --joint-stiffness 100.0 \
+     --joint-damping 1.0
+
+.. note::
+
+   The ``--merge-joints`` flag is still accepted and correctly triggers the pre-processing
+   step to merge fixed joints.
+
+
+Updated Python API
+------------------
+
+If you use :class:`~sim.converters.UrdfConverter` or :class:`~sim.converters.UrdfConverterCfg`
+directly in your code, note the following changes:
+
+1. The ``usd_file_name`` is now set automatically by the converter based on the URDF file name.
+   The importer generates output at ``{usd_dir}/{robot_name}/{robot_name}.usda``.
+
+2. The ``make_instanceable`` setting is no longer supported. Assets will be made instanceable
+   by default.
+
+3. The ``merge_fixed_joints`` parameter is now implemented as a pre-processing step.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
+   cfg = UrdfConverterCfg(
+       asset_path="robot.urdf",
+       usd_dir="/output/dir",
+       usd_file_name="robot.usd",
+       fix_base=True,
+       merge_fixed_joints=True,
+       make_instanceable=True,
+       joint_drive=UrdfConverterCfg.JointDriveCfg(
+           gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+               stiffness=None,  # use URDF values
+               damping=None,
+           ),
+       ),
+   )
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
+   cfg = UrdfConverterCfg(
+       asset_path="robot.urdf",
+       usd_dir="/output/dir",
+       # usd_file_name is determined automatically from the robot name
+       fix_base=True,
+       merge_fixed_joints=True,  # supported via pre-processing
+       joint_drive=UrdfConverterCfg.JointDriveCfg(
+           gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+               stiffness=None,  # use URDF values
+               damping=None,
+           ),
+       ),
+   )
+
+
+MJCF Importer
+~~~~~~~~~~~~~
+
+The MJCF importer in Isaac Sim was rewritten to use the ``mujoco-usd-converter`` library.
+The old C++ binding-based API (using Kit commands ``MJCFCreateAsset``/``MJCFCreateImportConfig``
+and the ``ImportConfig`` class) has been replaced with a new pure-Python ``MJCFImporter`` class
+and ``MJCFImporterConfig`` dataclass.
+
+.. important::
+
+   The new MJCF importer produces USD assets with **nested rigid bodies** (i.e., ``RigidBodyAPI``
+   is applied to each link prim individually) instead of a single articulation root with rigid
+   body applied only at the top level. This matches how MuJoCo represents bodies and is
+   physically more accurate, but it may affect code that assumes a flat rigid body hierarchy.
+   If you have downstream logic that traverses the USD structure of MJCF-imported assets,
+   verify that it handles nested rigid body prims correctly.
+
+Removed Settings
+----------------
+
+The following :class:`~sim.converters.MjcfConverterCfg` settings have been **removed** because
+the new converter handles them automatically based on the MJCF file content:
+
+- ``fix_base`` — base fixedness is now inferred from the MJCF ``<freejoint>`` tag.
+- ``link_density`` — density is now read directly from the MJCF model.
+- ``import_inertia_tensor`` — inertia tensors are always imported.
+- ``import_sites`` — sites are always imported.
+
+The :attr:`~sim.converters.AssetConverterBaseCfg.make_instanceable` setting from the base class
+is also no longer supported and will be ignored.
+
+
+New Settings
+------------
+
+The following new settings were added to :class:`~sim.converters.MjcfConverterCfg`:
+
++-----------------------------------------------------------------+------------------------------------------------------+
+| Setting                                                         | Description                                          |
++=================================================================+======================================================+
+| :attr:`~sim.converters.MjcfConverterCfg.merge_mesh`             | Merge meshes where possible to optimize the model.   |
++-----------------------------------------------------------------+------------------------------------------------------+
+| :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.            |
++-----------------------------------------------------------------+------------------------------------------------------+
+| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"default"``,      |
+|                                                                 | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
++-----------------------------------------------------------------+------------------------------------------------------+
+
+
+Renamed Settings
+----------------
+
++------------------------------------------+------------------------------------------+
+| Old (2.x)                                | New (3.0)                                |
++==========================================+==========================================+
+| ``self_collision``                       | ``self_collision`` (unchanged)           |
++------------------------------------------+------------------------------------------+
+
+.. note::
+
+   The underlying Isaac Sim API renamed ``self_collision`` to ``allow_self_collision``.
+   The IsaacLab :class:`~sim.converters.MjcfConverterCfg` keeps using ``self_collision``
+   for backward compatibility and maps it to the new name internally.
+
+
+Updated CLI Tool
+----------------
+
+The ``convert_mjcf.py`` script has been updated to match the new importer settings.
+Old command-line flags (``--fix-base``, ``--make-instanceable``, ``--import-sites``)
+are no longer available.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+     ../mujoco_menagerie/unitree_h1/h1.xml \
+     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+     --import-sites \
+     --make-instanceable
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+     ../mujoco_menagerie/unitree_h1/h1.xml \
+     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+     --merge-mesh \
+     --self-collision
+
+New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
+
+
+Updated Python API
+------------------
+
+If you use :class:`~sim.converters.MjcfConverter` or :class:`~sim.converters.MjcfConverterCfg`
+directly in your code, update your configuration:
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
+
+   cfg = MjcfConverterCfg(
+       asset_path="robot.xml",
+       usd_dir="/output/dir",
+       fix_base=True,
+       import_sites=True,
+       make_instanceable=True,
+   )
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
+
+   cfg = MjcfConverterCfg(
+       asset_path="robot.xml",
+       usd_dir="/output/dir",
+       merge_mesh=True,
+       collision_from_visuals=False,
+       self_collision=False,
+   )
+
+
+XR Teleoperation: Isaac Teleop Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
+by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
+plugin support is now in Isaac Teleop.
+
+For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
+
+
+Installation Requirement
+------------------------
+
+Isaac Teleop must now be installed in your Isaac Lab environment:
+
+.. code-block:: bash
+
+   pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
+
+See :ref:`install-isaac-teleop` for complete installation instructions.
+
+
+Import Changes
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Deprecated (2.x)
+     - New (3.0)
+   * - ``from isaaclab.devices.openxr import OpenXRDevice``
+     - ``from isaaclab_teleop import IsaacTeleopDevice``
+   * - ``from isaaclab.devices.openxr import OpenXRDeviceCfg``
+     - ``from isaaclab_teleop import IsaacTeleopCfg``
+   * - ``from isaaclab.devices.openxr import XrCfg``
+     - ``from isaaclab_teleop import XrCfg``
+   * - ``from isaaclab.devices.openxr import ManusVive``
+     - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
+   * - ``from isaaclab.devices import RetargeterBase``
+     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+   * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
+     - ``from isaacteleop.retargeting_engine.retargeters import Se3AbsRetargeter``
+
+
+Environment Configuration Changes
+----------------------------------
+
+The ``teleop_devices`` field with ``OpenXRDeviceCfg`` has been replaced by the ``isaac_teleop``
+field with ``IsaacTeleopCfg`` and a pipeline builder callable.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.devices import DevicesCfg, OpenXRDeviceCfg
+   from isaaclab.devices.openxr import XrCfg
+   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+
+       xr: XrCfg = XrCfg(anchor_pos=[0.0, 0.0, 0.0])
+
+       teleop_devices: DevicesCfg = field(default_factory=lambda: DevicesCfg(
+           handtracking=OpenXRDeviceCfg(
+               xr_cfg=None,
+               retargeters=[
+                   Se3AbsRetargeterCfg(bound_hand=0, zero_out_xy_rotation=True),
+                   GripperRetargeterCfg(bound_hand=0),
+               ]
+           ),
+       ))
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+   def _build_pipeline():
+       from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+       from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+       from isaacteleop.retargeting_engine.retargeters import (
+           GripperRetargeter, GripperRetargeterConfig,
+           Se3AbsRetargeter, Se3RetargeterConfig, TensorReorderer,
+       )
+       from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
+
+       controllers = ControllersSource(name="controllers")
+       hands = HandsSource(name="hands")
+       transform = ValueInput("world_T_anchor", TransformMatrix())
+       t_controllers = controllers.transformed(transform.output(ValueInput.VALUE))
+
+       se3 = Se3AbsRetargeter(Se3RetargeterConfig(input_device=ControllersSource.RIGHT), name="ee")
+       c_se3 = se3.connect({ControllersSource.RIGHT: t_controllers.output(ControllersSource.RIGHT)})
+
+       grip = GripperRetargeter(GripperRetargeterConfig(hand_side="right"), name="grip")
+       c_grip = grip.connect({
+           ControllersSource.RIGHT: t_controllers.output(ControllersSource.RIGHT),
+           HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+       })
+
+       reorder = TensorReorderer(
+           input_config={"ee": ["pos_x","pos_y","pos_z","quat_x","quat_y","quat_z","quat_w"],
+                         "grip": ["gripper_value"]},
+           output_order=["pos_x","pos_y","pos_z","quat_x","quat_y","quat_z","quat_w","gripper_value"],
+           name="reorder", input_types={"ee": "array", "grip": "scalar"},
+       )
+       c_reorder = reorder.connect({"ee": c_se3.output("ee_pose"), "grip": c_grip.output("gripper_command")})
+       return OutputCombiner({"action": c_reorder.output("output")})
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+
+       xr: XrCfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0))
+
+       def __post_init__(self):
+           super().__post_init__()
+           self.isaac_teleop = IsaacTeleopCfg(
+               pipeline_builder=_build_pipeline,
+               sim_device=self.sim.device,
+               xr_cfg=self.xr,
+           )
+
+
+Backward Compatibility
+----------------------
+
+The old classes still exist and will issue ``DeprecationWarning`` when used:
+
+* ``isaaclab.devices.openxr.OpenXRDevice`` and ``OpenXRDeviceCfg``
+* ``isaaclab.devices.openxr.ManusVive`` and ``ManusViveCfg``
+* All retargeters under ``isaaclab.devices.openxr.retargeters``
+
+Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
+compatibility. These will be removed in a future release.
 
 
 Need Help?

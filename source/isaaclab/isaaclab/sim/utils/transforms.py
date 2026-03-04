@@ -172,6 +172,19 @@ def standardize_xform_ops(
 
     # Verify if xform stack is reset
     has_reset = xformable.GetResetXformStack()
+
+    # Ensure the prim has an "over" spec on the edit target layer. Prims from
+    # referenced USD files may only exist in the reference layer with no spec on
+    # the edit target. Inside an Sdf.ChangeBlock, AddXformOp calls CreateAttribute
+    # which needs an existing prim spec on the edit target — it cannot create one
+    # while stage recomposition is deferred.
+    edit_layer = prim.GetStage().GetEditTarget().GetLayer()
+    if not edit_layer.GetPrimAtPath(prim.GetPath()):
+        for prefix in prim.GetPath().GetPrefixes():
+            if not edit_layer.GetPrimAtPath(prefix):
+                parent_spec = edit_layer.GetPrimAtPath(prefix.GetParentPath()) or edit_layer.pseudoRoot
+                Sdf.PrimSpec(parent_spec, prefix.name, Sdf.SpecifierOver)
+
     # Batch the operations
     with Sdf.ChangeBlock():
         # Clear the existing transform operation order

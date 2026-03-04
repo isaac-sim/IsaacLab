@@ -38,11 +38,13 @@ Guidelines for modifications:
 * Sheikh Dawood
 * Ossama Ahmed
 * Greg Attra
+* Gavriel State
 
 ## Contributors
 
 * Alessandro Assirelli
 * Alex Omar
+* Alexander Millane
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -138,6 +140,7 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* RinZ27
 * Ritvik Singh
 * Rosario Scalise
 * Ryan Gresia
@@ -177,13 +180,13 @@ Guidelines for modifications:
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
+* Piotr Barejko
 
 ## Acknowledgements
 
 * Ajay Mandlekar
 * Animesh Garg
 * Buck Babich
-* Gavriel State
 * Hammad Mazhar
 * Marco Hutter
 * Yan Chang

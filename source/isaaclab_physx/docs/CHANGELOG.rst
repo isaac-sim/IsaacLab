@@ -1,6 +1,114 @@
 Changelog
 ---------
 
+0.5.6 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix asset writer methods in :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` to use public data
+  properties instead of internal timestamped buffer ``.data`` fields, removing
+  redundant manual timestamp updates.
+
+
+0.5.5 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Replaced all ``wp.nonzero()`` calls in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` mask methods with
+  ``torch.nonzero()`` via new ``_resolve_env_mask``, ``_resolve_body_mask``,
+  ``_resolve_joint_mask``, ``_resolve_fixed_tendon_mask``, and
+  ``_resolve_spatial_tendon_mask`` helpers, fixing mask-based writers that previously
+  raised errors at runtime.
+
+* Fixed device mismatch in ``RigidObjectCollection._env_body_ids_to_view_ids`` where GPU
+  index arrays were passed to a CPU kernel launch. Inputs are now cloned to the target
+  device before use.
+
+* Added ``_get_cpu_env_ids`` helper to :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` to safely clone environment
+  indices to CPU for PhysX model-property setters.
+
+* Fixed ``MockArticulationViewWarp`` to support the mock test infrastructure.
+
+
+0.5.4 (2026-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* fixed :func:`~isaaclab_physx.cloner.physx_replicate` to not exclude self replication by default.
+
+
+0.5.3 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ContactSensor ``body_names`` property to use ``num_sensors`` instead of
+  deprecated ``num_bodies``.
+
+
+0.5.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned asset API with the multi-backend architecture. Base class abstract methods
+  in :class:`~isaaclab.assets.BaseArticulation` and :class:`~isaaclab.assets.BaseRigidObject`
+  have been refined so that PhysX and Newton backends share a consistent interface.
+
+* Improved docstrings across all asset classes with precise shape and dtype annotations
+  for warp array properties and write methods.
+
+* Migrated tests to use the new ``_index`` / ``_mask`` write method APIs, removing
+  usage of deprecated write methods.
+
+
 0.4.1 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
 

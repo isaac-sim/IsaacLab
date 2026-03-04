@@ -7,55 +7,19 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
-
-
-@configclass
-class CartpoleEnvCfg(DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    action_scale = 100.0  # [N]
-    action_space = 1
-    observation_space = 4
-    state_space = 0
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
-
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
-    )
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_pole_pos = -1.0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_vel = -0.005
+if TYPE_CHECKING:
+    from .cartpole_env_cfg import CartpoleEnvCfg
 
 
 class CartpoleEnv(DirectRLEnv):
@@ -90,7 +54,7 @@ class CartpoleEnv(DirectRLEnv):
         self.actions = self.action_scale * actions.clone()
 
     def _apply_action(self) -> None:
-        self.cartpole.set_joint_effort_target(self.actions, joint_ids=self._cart_dof_idx)
+        self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
         obs = torch.cat(
@@ -134,24 +98,26 @@ class CartpoleEnv(DirectRLEnv):
             env_ids = self.cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids]
+        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids].clone()
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids]
+        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids].clone()
 
-        default_root_state = wp.to_torch(self.cartpole.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(self.cartpole.data.default_root_pose)[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = wp.to_torch(self.cartpole.data.default_root_vel)[env_ids].clone()
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self.cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.cartpole.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.cartpole.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self.cartpole.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.cartpole.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 @torch.jit.script

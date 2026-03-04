@@ -329,8 +329,8 @@ class FactoryEnv(DirectRLEnv):
         self.ctrl_target_joint_pos[:, 7:9] = ctrl_target_gripper_dof_pos
         self.joint_torque[:, 7:9] = 0.0
 
-        self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
-        self._robot.set_joint_effort_target(self.joint_torque)
+        self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
+        self._robot.set_joint_effort_target_index(target=self.joint_torque)
 
     def _get_dones(self):
         """Check which environments are terminated.
@@ -499,18 +499,20 @@ class FactoryEnv(DirectRLEnv):
 
     def _set_assets_to_default_pose(self, env_ids):
         """Move assets to default pose before randomization."""
-        held_state = wp.to_torch(self._held_asset.data.default_root_state).clone()[env_ids]
-        held_state[:, 0:3] += self.scene.env_origins[env_ids]
-        held_state[:, 7:] = 0.0
-        self._held_asset.write_root_pose_to_sim(held_state[:, 0:7], env_ids=env_ids)
-        self._held_asset.write_root_velocity_to_sim(held_state[:, 7:], env_ids=env_ids)
+        held_pose = wp.to_torch(self._held_asset.data.default_root_pose).clone()[env_ids]
+        held_vel = wp.to_torch(self._held_asset.data.default_root_vel).clone()[env_ids]
+        held_pose[:, 0:3] += self.scene.env_origins[env_ids]
+        held_vel[:] = 0.0
+        self._held_asset.write_root_pose_to_sim_index(root_pose=held_pose, env_ids=env_ids)
+        self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_vel, env_ids=env_ids)
         self._held_asset.reset()
 
-        fixed_state = wp.to_torch(self._fixed_asset.data.default_root_state).clone()[env_ids]
-        fixed_state[:, 0:3] += self.scene.env_origins[env_ids]
-        fixed_state[:, 7:] = 0.0
-        self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
-        self._fixed_asset.write_root_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
+        fixed_pose = wp.to_torch(self._fixed_asset.data.default_root_pose).clone()[env_ids]
+        fixed_vel = wp.to_torch(self._fixed_asset.data.default_root_vel).clone()[env_ids]
+        fixed_pose[:, 0:3] += self.scene.env_origins[env_ids]
+        fixed_vel[:] = 0.0
+        self._fixed_asset.write_root_pose_to_sim_index(root_pose=fixed_pose, env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim_index(root_velocity=fixed_vel, env_ids=env_ids)
         self._fixed_asset.reset()
 
     def set_pos_inverse_kinematics(
@@ -543,8 +545,9 @@ class FactoryEnv(DirectRLEnv):
 
             self.ctrl_target_joint_pos[env_ids, 0:7] = self.joint_pos[env_ids, 0:7]
             # Update dof state.
-            self._robot.write_joint_state_to_sim(self.joint_pos, self.joint_vel)
-            self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
+            self._robot.write_joint_position_to_sim_index(position=self.joint_pos)
+            self._robot.write_joint_velocity_to_sim_index(velocity=self.joint_vel)
+            self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
 
             # Simulate and update tensors.
             self.step_sim_no_action()
@@ -595,10 +598,11 @@ class FactoryEnv(DirectRLEnv):
         joint_vel = torch.zeros_like(joint_pos)
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
-        self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
         self._robot.reset()
-        self._robot.set_joint_effort_target(joint_effort, env_ids=env_ids)
+        self._robot.set_joint_effort_target_index(target=joint_effort, env_ids=env_ids)
 
         self.step_sim_no_action()
 
@@ -620,7 +624,8 @@ class FactoryEnv(DirectRLEnv):
         physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))
 
         # (1.) Randomize fixed asset pose.
-        fixed_state = wp.to_torch(self._fixed_asset.data.default_root_state).clone()[env_ids]
+        fixed_pose = wp.to_torch(self._fixed_asset.data.default_root_pose).clone()[env_ids]
+        fixed_vel = wp.to_torch(self._fixed_asset.data.default_root_vel).clone()[env_ids]
         # (1.a.) Position
         rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
         fixed_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
@@ -628,7 +633,7 @@ class FactoryEnv(DirectRLEnv):
             self.cfg_task.fixed_asset_init_pos_noise, dtype=torch.float32, device=self.device
         )
         fixed_pos_init_rand = fixed_pos_init_rand @ torch.diag(fixed_asset_init_pos_rand)
-        fixed_state[:, 0:3] += fixed_pos_init_rand + self.scene.env_origins[env_ids]
+        fixed_pose[:, 0:3] += fixed_pos_init_rand + self.scene.env_origins[env_ids]
         # (1.b.) Orientation
         fixed_orn_init_yaw = np.deg2rad(self.cfg_task.fixed_asset_init_orn_deg)
         fixed_orn_yaw_range = np.deg2rad(self.cfg_task.fixed_asset_init_orn_range_deg)
@@ -638,12 +643,12 @@ class FactoryEnv(DirectRLEnv):
         fixed_orn_quat = torch_utils.quat_from_euler_xyz(
             fixed_orn_euler[:, 0], fixed_orn_euler[:, 1], fixed_orn_euler[:, 2]
         )
-        fixed_state[:, 3:7] = fixed_orn_quat
+        fixed_pose[:, 3:7] = fixed_orn_quat
         # (1.c.) Velocity
-        fixed_state[:, 7:] = 0.0  # vel
+        fixed_vel[:] = 0.0  # vel
         # (1.d.) Update values.
-        self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
-        self._fixed_asset.write_root_velocity_to_sim(fixed_state[:, 7:], env_ids=env_ids)
+        self._fixed_asset.write_root_pose_to_sim_index(root_pose=fixed_pose, env_ids=env_ids)
+        self._fixed_asset.write_root_velocity_to_sim_index(root_velocity=fixed_vel, env_ids=env_ids)
         self._fixed_asset.reset()
 
         # (1.e.) Noisy position observation.
@@ -727,18 +732,20 @@ class FactoryEnv(DirectRLEnv):
 
         # Add flanking gears after servo (so arm doesn't move them).
         if self.cfg_task.name == "gear_mesh" and self.cfg_task.add_flanking_gears:
-            small_gear_state = wp.to_torch(self._small_gear_asset.data.default_root_state).clone()[env_ids]
-            small_gear_state[:, 0:7] = fixed_state[:, 0:7]
-            small_gear_state[:, 7:] = 0.0  # vel
-            self._small_gear_asset.write_root_pose_to_sim(small_gear_state[:, 0:7], env_ids=env_ids)
-            self._small_gear_asset.write_root_velocity_to_sim(small_gear_state[:, 7:], env_ids=env_ids)
+            small_gear_pose = wp.to_torch(self._small_gear_asset.data.default_root_pose).clone()[env_ids]
+            small_gear_vel = wp.to_torch(self._small_gear_asset.data.default_root_vel).clone()[env_ids]
+            small_gear_pose[:, 0:7] = fixed_pose[:, 0:7]
+            small_gear_vel[:] = 0.0  # vel
+            self._small_gear_asset.write_root_pose_to_sim_index(root_pose=small_gear_pose, env_ids=env_ids)
+            self._small_gear_asset.write_root_velocity_to_sim_index(root_velocity=small_gear_vel, env_ids=env_ids)
             self._small_gear_asset.reset()
 
-            large_gear_state = wp.to_torch(self._large_gear_asset.data.default_root_state).clone()[env_ids]
-            large_gear_state[:, 0:7] = fixed_state[:, 0:7]
-            large_gear_state[:, 7:] = 0.0  # vel
-            self._large_gear_asset.write_root_pose_to_sim(large_gear_state[:, 0:7], env_ids=env_ids)
-            self._large_gear_asset.write_root_velocity_to_sim(large_gear_state[:, 7:], env_ids=env_ids)
+            large_gear_pose = wp.to_torch(self._large_gear_asset.data.default_root_pose).clone()[env_ids]
+            large_gear_vel = wp.to_torch(self._large_gear_asset.data.default_root_vel).clone()[env_ids]
+            large_gear_pose[:, 0:7] = fixed_pose[:, 0:7]
+            large_gear_vel[:] = 0.0  # vel
+            self._large_gear_asset.write_root_pose_to_sim_index(root_pose=large_gear_pose, env_ids=env_ids)
+            self._large_gear_asset.write_root_velocity_to_sim_index(root_velocity=large_gear_vel, env_ids=env_ids)
             self._large_gear_asset.reset()
 
         # (3) Randomize asset-in-gripper location.
@@ -776,12 +783,13 @@ class FactoryEnv(DirectRLEnv):
             torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
         )
 
-        held_state = wp.to_torch(self._held_asset.data.default_root_state).clone()
-        held_state[:, 0:3] = translated_held_asset_pos + self.scene.env_origins
-        held_state[:, 3:7] = translated_held_asset_quat
-        held_state[:, 7:] = 0.0
-        self._held_asset.write_root_pose_to_sim(held_state[:, 0:7])
-        self._held_asset.write_root_velocity_to_sim(held_state[:, 7:])
+        held_pose = wp.to_torch(self._held_asset.data.default_root_pose).clone()
+        held_vel = wp.to_torch(self._held_asset.data.default_root_vel).clone()
+        held_pose[:, 0:3] = translated_held_asset_pos + self.scene.env_origins
+        held_pose[:, 3:7] = translated_held_asset_quat
+        held_vel[:] = 0.0
+        self._held_asset.write_root_pose_to_sim_index(root_pose=held_pose)
+        self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_vel)
         self._held_asset.reset()
 
         #  Close hand

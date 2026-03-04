@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
-
-from . import thrust_actions
+if TYPE_CHECKING:
+    from .thrust_actions import ThrustAction
 
 
 @configclass
@@ -72,7 +72,7 @@ class ThrustActionCfg(ActionTermCfg):
         - :class:`~isaaclab.managers.ActionTermCfg`: Base action term configuration
     """
 
-    class_type: type[ActionTerm] = thrust_actions.ThrustAction
+    class_type: type["ThrustAction"] | str = "{DIR}.thrust_actions:ThrustAction"
 
     asset_name: str = MISSING
     """Name or regex expression of the asset that the action will be mapped to.

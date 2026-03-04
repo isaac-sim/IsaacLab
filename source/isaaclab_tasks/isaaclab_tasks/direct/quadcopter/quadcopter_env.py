@@ -10,21 +10,15 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectRLEnv
 from isaaclab.envs.ui import BaseEnvWindow
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.math import subtract_frame_transforms
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets import CRAZYFLIE_CFG  # isort: skip
 from isaaclab.markers import CUBOID_MARKER_CFG  # isort: skip
+
+from .quadcopter_env_cfg import QuadcopterEnvCfg  # noqa: F401
 
 
 class QuadcopterEnvWindow(BaseEnvWindow):
@@ -45,60 +39,6 @@ class QuadcopterEnvWindow(BaseEnvWindow):
                 with self.ui_window_elements["debug_vstack"]:
                     # add command manager visualization
                     self._create_debug_vis_ui_element("targets", self.env)
-
-
-@configclass
-class QuadcopterEnvCfg(DirectRLEnvCfg):
-    # env
-    episode_length_s = 10.0
-    decimation = 2
-    action_space = 4
-    observation_space = 12
-    state_space = 0
-    debug_vis = True
-
-    ui_window_class_type = QuadcopterEnvWindow
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 100,
-        render_interval=decimation,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-    )
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-        debug_vis=False,
-    )
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=2.5, replicate_physics=True, clone_in_fabric=True
-    )
-
-    # robot
-    robot: ArticulationCfg = CRAZYFLIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    thrust_to_weight = 1.9
-    moment_scale = 0.01
-
-    # reward scales
-    lin_vel_reward_scale = -0.05
-    ang_vel_reward_scale = -0.01
-    distance_to_goal_reward_scale = 15.0
 
 
 class QuadcopterEnv(DirectRLEnv):
@@ -154,7 +94,7 @@ class QuadcopterEnv(DirectRLEnv):
         self._moment[:, 0, :] = self.cfg.moment_scale * self._actions[:, 1:]
 
     def _apply_action(self):
-        self._robot.permanent_wrench_composer.set_forces_and_torques(
+        self._robot.permanent_wrench_composer.set_forces_and_torques_index(
             body_ids=self._body_id, forces=self._thrust, torques=self._moment
         )
 
@@ -232,11 +172,13 @@ class QuadcopterEnv(DirectRLEnv):
         # Reset robot state
         joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
         joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
-        default_root_state = wp.to_torch(self._robot.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self._terrain.env_origins[env_ids]
-        self._robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
+        default_root_vel = wp.to_torch(self._robot.data.default_root_vel)[env_ids]
+        default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first time

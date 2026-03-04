@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import inspect
 import logging
 import math
@@ -20,21 +19,22 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-import omni.kit.app
-import omni.physx
-
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+if has_kit():
+    import omni.kit.app
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -131,7 +131,6 @@ class DirectRLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -156,18 +155,17 @@ class DirectRLEnv(gym.Env):
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.stage):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments
-                # so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.stage):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            # this shouldn't cause an issue since later on, users do a reset over all the environments
+            # so the lazy buffers would be reset.
+            self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)

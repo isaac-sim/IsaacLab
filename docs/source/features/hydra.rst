@@ -108,7 +108,7 @@ are modified.
 
 For example, for the configuration of the Cartpole camera depth environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env_cfg.py
     :language: python
     :start-at: class CartpoleDepthCameraEnvCfg
     :end-at: tiled_camera.width
@@ -127,3 +127,228 @@ the post init update is as follows:
 
 Here, when modifying ``env.decimation`` or ``env.sim.dt``, the user needs to give the updated ``env.sim.render_interval``,
 ``env.scene.height_scanner.update_period``, and ``env.scene.contact_forces.update_period`` as input as well.
+
+
+Preset System
+-------------
+
+The preset system lets you swap out entire config sections with a single command line argument.
+Instead of overriding individual fields, you select a named preset that **completely replaces** the
+config section (no field merging).
+
+Presets are defined directly on config classes using a ``presets`` attribute. The system recursively
+discovers all presets from nested configs automatically.
+
+
+Override Order
+^^^^^^^^^^^^^^
+
+Overrides are applied in sequence:
+
+1. **Auto-default**: Configs with a ``"default"`` preset auto-apply without CLI args
+2. **Global presets**: ``presets=inference,newton`` applies to ALL matching configs
+3. **Path presets**: ``env.actions.arm_action=relative_joint_position`` replaces specific section
+4. **Scalar overrides**: ``env.sim.dt=0.001`` modifies individual fields
+
+
+Defining Presets
+^^^^^^^^^^^^^^^^
+
+There are four styles for defining presets:
+
+**Style 1: Inheritance** - Default values from base class, presets for alternatives:
+
+.. code-block:: python
+
+    @configclass
+    class FrankaArmActionCfg(mdp.JointPositionActionCfg):
+        """Franka arm action config with presets for different action types."""
+
+        presets = {
+            "joint_position_to_limit": mdp.JointPositionToLimitsActionCfg(
+                asset_name="robot", joint_names=["panda_joint.*"]
+            ),
+            "relative_joint_position": mdp.RelativeJointPositionActionCfg(
+                asset_name="robot", joint_names=["panda_joint.*"], scale=0.2
+            ),
+        }
+
+**Style 2: Inner class** - Self-contained with nested preset definitions:
+
+.. code-block:: python
+
+    @configclass
+    class SimCfg:
+        """Simulation config with physics backend presets."""
+
+        backend: str = "physx"
+        dt: float = 0.005
+        substeps: int = 2
+
+        @configclass
+        class Newton:
+            backend: str = "newton"
+            dt: float = 0.002
+            substeps: int = 4
+            solver_iterations: int = 8
+
+        presets = {"newton": Newton()}
+
+**Style 3: Preset-only with auto-default** - Pure composition, no default fields:
+
+.. code-block:: python
+
+    @configclass
+    class ObservationsCfg:
+        """Observation specifications with presets."""
+
+        presets = {
+            "default": DefaultObservationsCfg(),
+            "noise_less": NoiselessObservationsCfg(),
+        }
+
+With Style 3, the ``"default"`` preset is automatically applied when no preset is selected.
+
+**Style 4: PresetCfg class** - Declarative, class-based preset definitions:
+
+.. code-block:: python
+
+    from isaaclab_tasks.utils import PresetCfg
+
+    @configclass
+    class PhysicsCfg(PresetCfg):
+        """Physics backend presets using class-based pattern."""
+
+        default: PhysxCfg = PhysxCfg()
+        newton: NewtonCfg = NewtonCfg()
+
+    @configclass
+    class SimCfg:
+        physics: PhysicsCfg = PhysicsCfg()
+
+With Style 4, each field on the ``PresetCfg`` subclass is a named preset. The ``default`` field
+holds the config instance used when no CLI override is given. ``collect_presets`` automatically
+discovers ``PresetCfg`` subclasses and converts their fields into a presets dict, so no
+``presets`` attribute is needed. CLI usage is the same as other styles:
+
+.. code-block:: bash
+
+    # Use Newton physics backend
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.sim.physics=newton
+
+
+Using Presets
+^^^^^^^^^^^^^
+
+**Path presets** - Select a specific preset for one config path:
+
+.. code-block:: bash
+
+    # Use relative joint position action
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=relative_joint_position
+
+    # Use noiseless observations
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.observations=noise_less
+
+**Path preset + scalar override** - Select preset then modify a field:
+
+.. code-block:: bash
+
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=relative_joint_position \
+        env.actions.arm_action.scale=0.5
+
+**Global presets** - Apply the same preset name everywhere it exists:
+
+.. code-block:: bash
+
+    # Apply "inference" preset to all configs that define it
+    # (e.g., observations, policy, etc.)
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=inference
+
+**Multiple global presets** - Apply several non-conflicting presets:
+
+.. code-block:: bash
+
+    # Newton physics backend + inference mode
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=newton,inference
+
+**Combined** - Global presets + path presets + scalar overrides:
+
+.. code-block:: bash
+
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=inference \
+        env.actions.arm_action=relative_joint_position \
+        env.actions.arm_action.scale=0.5 \
+        env.sim.dt=0.002
+
+
+Global Preset Conflict Detection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If multiple global presets define the same path, an error is raised:
+
+.. code-block:: bash
+
+    # ERROR: both "fast" and "noise_less" define env.observations
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=fast,noise_less
+
+    # ValueError: Conflicting global presets: 'fast' and 'noise_less'
+    #             both define preset for 'env.observations'
+
+
+Real-World Example
+^^^^^^^^^^^^^^^^^^
+
+The Franka Reach environment demonstrates presets in practice:
+
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py
+    :language: python
+    :start-at: @configclass
+    :end-before: class FrankaReachEnvCfg_PLAY
+
+This allows users to switch action types:
+
+.. code-block:: bash
+
+    # Default: JointPositionActionCfg (from inheritance)
+    python train.py --task=Isaac-Reach-Franka-v0
+
+    # Switch to relative joint position
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=relative_joint_position
+
+    # Switch to joint position with limits
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=joint_position_to_limit
+
+
+Summary
+^^^^^^^
+
+.. list-table::
+   :widths: 25 35 40
+   :header-rows: 1
+
+   * - Override Type
+     - Syntax
+     - Effect
+   * - Scalar
+     - ``env.sim.dt=0.001``
+     - Modify single field
+   * - Path preset
+     - ``env.actions.arm_action=relative``
+     - Replace entire section
+   * - Global preset
+     - ``presets=inference``
+     - Apply everywhere matching
+   * - Combined
+     - ``presets=newton env.sim.dt=0.001``
+     - Global + scalar overrides

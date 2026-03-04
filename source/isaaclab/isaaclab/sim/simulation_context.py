@@ -7,20 +7,23 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import toml
 import torch
 
-import carb
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.utils import create_new_stage_in_memory
+from isaaclab.sim.utils import create_new_stage
+from isaaclab.utils.version import has_kit
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
@@ -34,13 +37,13 @@ _VISUALIZER_TYPES = ("newton", "rerun", "kit")
 
 
 class SettingsHelper:
-    """Helper for typed Carbonite settings access."""
+    """Helper for typed settings access via SettingsManager."""
 
-    def __init__(self, settings: carb.settings.ISettings):
+    def __init__(self, settings: SettingsManager):
         self._settings = settings
 
     def set(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting with automatic type routing."""
+        """Set a setting with automatic type routing."""
         if isinstance(value, bool):
             self._settings.set_bool(name, value)
         elif isinstance(value, int):
@@ -55,7 +58,7 @@ class SettingsHelper:
             raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings.get(name)
 
 
@@ -101,14 +104,18 @@ class SimulationContext:
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
-            # Create a fresh in-memory stage (not attached to USD context)
-            self.stage = create_new_stage_in_memory()
+            self.stage = create_new_stage()
         else:
-            # Use existing stage from cache, or create in-memory as fallback
-            all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
-            self.stage = all_stages[0] if all_stages else create_new_stage_in_memory()
+            # Prefer the thread-local current stage (set by create_new_stage / test fixtures)
+            # over cache lookup, since the cache may contain stale stages from prior tests.
+            current = getattr(stage_utils._context, "stage", None)
+            if current is not None:
+                self.stage = current
+            else:
+                all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
+                self.stage = all_stages[0] if all_stages else create_new_stage()
 
-        # Cache stage in USD cache
+        # Ensure stage is in the USD cache
         stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
         if stage_id < 0:
             stage_cache.Insert(self.stage)  # type: ignore[union-attr]
@@ -116,9 +123,18 @@ class SimulationContext:
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
 
-        # Acquire settings interface and create helper
-        self._carb_settings = carb.settings.get_settings()
-        self._settings_helper = SettingsHelper(self._carb_settings)
+        # When Kit is running, attach the stage to Kit's USD context so that
+        # Kit extensions (PhysX views, Articulation, viewport) can discover it.
+        if has_kit():
+            import omni.usd
+
+            kit_context = omni.usd.get_context()
+            if kit_context is not None and kit_context.get_stage() is not self.stage:
+                kit_context.attach_stage_with_callback(stage_cache.GetId(self.stage).ToLongInt())
+
+        # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
+        self.settings = SettingsManager.instance()
+        self._settings_helper = SettingsHelper(self.settings)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -130,11 +146,15 @@ class SimulationContext:
         self._physics = self.cfg.physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
+        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
+        # Default visualization dt used before/without visualizer initialization.
+        physics_dt = getattr(self.cfg.physics, "dt", None)
+        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
@@ -144,7 +164,100 @@ class SimulationContext:
         # Simulation state
         self._is_playing = False
         self._is_stopped = True
+
+        # Monotonic physics-step counter used by camera sensors for
+        self._physics_step_count: int = 0
+
         type(self)._instance = self  # Mark as valid singleton only after successful init
+
+    def _apply_render_cfg_settings(self) -> None:
+        """Apply render preset and overrides from SimulationCfg.render."""
+        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
+        # (name subject to change) to keep quality profiles and carb mappings centralized.
+        render_cfg = getattr(self.cfg, "render", None)
+        if render_cfg is None:
+            return
+
+        # Priority:
+        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
+        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
+        if not rendering_mode:
+            rendering_mode = getattr(render_cfg, "rendering_mode", None)
+
+        if rendering_mode:
+            supported_rendering_modes = {"performance", "balanced", "quality"}
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
+                    f"{sorted(supported_rendering_modes)}."
+                )
+
+            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+            from isaaclab.utils.version import get_isaac_sim_version
+
+            if get_isaac_sim_version().major < 6:
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
+
+            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
+            if os.path.exists(preset_filename):
+                with open(preset_filename) as file:
+                    preset_dict = toml.load(file)
+
+                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
+                    for key, value in data.items():
+                        key_path = f"{path}/{key}" if path else f"/{key}"
+                        if isinstance(value, dict):
+                            _apply_nested(value, key_path)
+                        else:
+                            self.set_setting(key_path.replace(".", "/"), value)
+
+                _apply_nested(preset_dict)
+            else:
+                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
+
+        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
+        field_to_setting = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+        }
+
+        for key, value in vars(render_cfg).items():
+            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
+                continue
+            setting_path = field_to_setting.get(key)
+            if setting_path is not None:
+                self.set_setting(setting_path, value)
+
+        # Raw overrides from render_cfg (stored via SettingsManager)
+        extra_settings = getattr(render_cfg, "carb_settings", None)
+        if extra_settings:
+            for key, value in extra_settings.items():
+                if "_" in key:
+                    path = "/" + key.replace("_", "/")
+                elif "." in key:
+                    path = "/" + key.replace(".", "/")
+                else:
+                    path = key
+                self.set_setting(path, value)
+
+        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
+        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
+        if antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
+            except Exception:
+                pass
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -208,6 +321,7 @@ class SimulationContext:
         """Returns whether rendering is active (GUI, RTX sensors, or visualizers requested)."""
         return (
             self._has_gui
+            or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.get_setting("/isaaclab/visualizer"))
         )
@@ -237,7 +351,7 @@ class SimulationContext:
         return default_configs
 
     def _get_cli_visualizer_types(self) -> list[str]:
-        """Return list of visualizer types requested via CLI (carb setting)."""
+        """Return list of visualizer types requested via CLI (setting)."""
         requested = self.get_setting("/isaaclab/visualizer")
         if not requested:
             return []
@@ -291,13 +405,7 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
-        from .scene_data_providers import PhysxSceneDataProvider
-
-        # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-        # switch provider selection to route by physics backend:
-        # - Omni/PhysX -> PhysxSceneDataProvider
-        # - Newton/Warp -> NewtonSceneDataProvider
-        self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        self.initialize_scene_data_provider(visualizer_cfgs)
         self._visualizers = []
 
         for cfg in visualizer_cfgs:
@@ -314,6 +422,18 @@ class SimulationContext:
             if callable(close_provider):
                 close_provider()
             self._scene_data_provider = None
+
+    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
+        if self._scene_data_provider is None:
+            if "newton" in self.physics_manager.__name__.lower():
+                from .scene_data_providers import NewtonSceneDataProvider
+
+                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage, self)
+            else:
+                from .scene_data_providers import PhysxSceneDataProvider
+
+                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        return self._scene_data_provider
 
     @property
     def visualizers(self) -> list[Visualizer]:
@@ -355,18 +475,25 @@ class SimulationContext:
         self._is_stopped = False
 
     def step(self, render: bool = True) -> None:
-        """Step physics, update visualizers, and optionally render.
+        """Step physics and optionally render.
 
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
         """
+        self._physics_step_count += 1
         self.physics_manager.step()
-        if render:
+        if render and self.is_rendering:
             self.render()
 
     def render(self, mode: int | None = None) -> None:
-        """Render the scene via all active visualizers."""
+        """Update visualizers and render the scene.
+
+        Calls update_visualizers() so visualizers run at the render cadence (not at
+        every physics step). Camera sensors drive their configured renderer when
+        fetching data, so this method remains backend-agnostic.
+        """
         self.update_visualizers(self.get_rendering_dt())
+
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):
             for callback in self._render_callbacks.values():
@@ -377,24 +504,14 @@ class SimulationContext:
         if not self._visualizers:
             return
 
-        if self._should_forward_before_visualizer_update():
-            self.physics_manager.forward()
-        self._visualizer_step_counter += 1
-        if self._scene_data_provider:
-            env_ids_union: list[int] = []
-            for viz in self._visualizers:
-                ids = getattr(viz, "get_visualized_env_ids", lambda: None)()
-                if ids is not None:
-                    env_ids_union.extend(ids)
-            env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-            self._scene_data_provider.update(env_ids)
+        self.update_scene_data_provider()
 
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
                 if viz.is_rendering_paused():
                     continue
-                if getattr(viz, "is_closed", False):
+                if viz.is_closed:
                     logger.info("Visualizer closed: %s", type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
@@ -403,8 +520,8 @@ class SimulationContext:
                     visualizers_to_remove.append(viz)
                     continue
                 while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0, state=None)
-                viz.step(dt, state=None)
+                    viz.step(0.0)
+                viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)
@@ -416,6 +533,21 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
+
+    def update_scene_data_provider(self, force_require_forward: bool = False):
+        if force_require_forward or self._should_forward_before_visualizer_update():
+            self.physics_manager.forward()
+        self._visualizer_step_counter += 1
+        if self._scene_data_provider is None:
+            return
+        provider = self._scene_data_provider
+        env_ids_union: list[int] = []
+        for viz in self._visualizers:
+            ids = viz.get_visualized_env_ids()
+            if ids is not None:
+                env_ids_union.extend(ids)
+        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+        provider.update(env_ids)
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
@@ -453,11 +585,11 @@ class SimulationContext:
         return self._is_stopped
 
     def set_setting(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting value."""
+        """Set a setting value."""
         self._settings_helper.set(name, value)
 
     def get_setting(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings_helper.get(name)
 
     @classmethod
@@ -481,15 +613,8 @@ class SimulationContext:
                     close_provider()
                 cls._instance._scene_data_provider = None
 
-            # Remove stage from cache
-            stage_cache = UsdUtils.StageCache.Get()
-            stage_id = stage_cache.GetId(cls._instance.stage).ToLongInt()  # type: ignore[union-attr]
-            if stage_id > 0:
-                stage_cache.Erase(cls._instance.stage)  # type: ignore[union-attr]
-
-            # Clear thread-local stage context
-            if hasattr(stage_utils._context, "stage"):
-                delattr(stage_utils._context, "stage")
+            # Close the stage (clears cache, thread-local context, and Kit USD context)
+            stage_utils.close_stage()
 
             # Clear instance
             cls._instance = None
@@ -547,7 +672,7 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)

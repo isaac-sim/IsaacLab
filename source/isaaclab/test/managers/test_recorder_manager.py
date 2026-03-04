@@ -26,8 +26,7 @@ import h5py
 import pytest
 import torch
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -268,7 +267,7 @@ def test_close(device, dataset_dir):
     """Test whether data is correctly exported in the close function when fully integrated with ManagerBasedEnv and
     `export_in_close` is True."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     # create environment
     env_cfg = get_empty_base_env_cfg(device=device, num_envs=2)
     cfg = DummyRecorderManagerCfg()

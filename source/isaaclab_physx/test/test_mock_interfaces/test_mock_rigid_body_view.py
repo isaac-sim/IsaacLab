@@ -196,9 +196,9 @@ class TestMockRigidBodyViewActions:
         view = MockRigidBodyView(count=4)
         # Should not raise
         view.apply_forces_and_torques_at_position(
-            forces=torch.randn(4, 3),
-            torques=torch.randn(4, 3),
-            positions=torch.randn(4, 3),
+            force_data=torch.randn(4, 3),
+            torque_data=torch.randn(4, 3),
+            position_data=torch.randn(4, 3),
         )
 
 

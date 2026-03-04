@@ -8,5 +8,6 @@ with Isaac Lab.
   :maxdepth: 1
 
   teleop_imitation
+  humanoids_imitation
   augmented_imitation
   skillgen

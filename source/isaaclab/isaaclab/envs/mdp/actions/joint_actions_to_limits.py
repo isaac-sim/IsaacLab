@@ -176,7 +176,7 @@ class JointPositionToLimitsAction(ActionTerm):
 
     def apply_actions(self):
         # set position targets
-        self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0

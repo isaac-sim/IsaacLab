@@ -48,6 +48,7 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_contrib"],

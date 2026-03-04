@@ -322,18 +322,18 @@ class MockRigidBodyView:
 
     def apply_forces_and_torques_at_position(
         self,
-        forces: torch.Tensor | None = None,
-        torques: torch.Tensor | None = None,
-        positions: torch.Tensor | None = None,
+        force_data: torch.Tensor | None = None,
+        torque_data: torch.Tensor | None = None,
+        position_data: torch.Tensor | None = None,
         indices: torch.Tensor | None = None,
         is_global: bool = True,
     ) -> None:
         """Apply forces and torques at positions (no-op in mock).
 
         Args:
-            forces: Forces to apply, shape (N, 3) or (len(indices), 3).
-            torques: Torques to apply, shape (N, 3) or (len(indices), 3).
-            positions: Positions to apply forces at, shape (N, 3) or (len(indices), 3).
+            force_data: Forces to apply, shape (N, 3) or (len(indices), 3).
+            torque_data: Torques to apply, shape (N, 3) or (len(indices), 3).
+            position_data: Positions to apply forces at, shape (N, 3) or (len(indices), 3).
             indices: Optional indices of bodies to apply to.
             is_global: Whether forces/torques are in global frame.
         """

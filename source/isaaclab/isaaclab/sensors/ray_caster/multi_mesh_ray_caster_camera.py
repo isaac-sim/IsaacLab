@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import raycast_dynamic_meshes
@@ -133,16 +134,14 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         self._ray_starts_w[env_ids] = ray_starts_w
         self._ray_directions_w[env_ids] = ray_directions_w
 
-    def _update_buffers_impl(self, env_ids: Sequence[int] | torch.Tensor | None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         self._update_ray_infos(env_ids)
 
         # increment frame count
-        if env_ids is None:
-            env_ids = torch.arange(self._num_envs, device=self.device)
-        elif not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.tensor(env_ids, device=self.device)
-
         self._frame[env_ids] += 1
 
         # Update the mesh positions and rotations

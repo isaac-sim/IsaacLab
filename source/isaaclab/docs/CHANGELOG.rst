@@ -1,6 +1,342 @@
 Changelog
 ---------
 
+4.5.1 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added interface-conformance test suites that verify data property shapes/dtypes, writer
+  methods, setters, and alias consistency across Mock and PhysX backends:
+
+  - ``test/assets/test_articulation_iface.py`` for
+    :class:`~isaaclab.assets.BaseArticulation`.
+  - ``test/assets/test_rigid_object_iface.py`` for
+    :class:`~isaaclab.assets.BaseRigidObject`.
+  - ``test/assets/test_rigid_object_collection_iface.py`` for
+    :class:`~isaaclab.assets.BaseRigidObjectCollection`.
+
+Fixed
+^^^^^
+
+* Fixed structured warp types in ``MockArticulationData``, ``MockRigidObjectData``, and
+  ``MockRigidObjectCollectionData``: velocity, acceleration, and limit properties now
+  return the correct structured dtypes (``wp.spatial_vectorf``, ``wp.vec2f``, etc.) and
+  sliced velocity properties use zero-copy pointer arithmetic instead of torch-based
+  slicing, matching the PhysX backend contract.
+
+* Added shape and dtype validation to all ``_index`` / ``_mask`` writer methods in
+  ``MockArticulation``, ``MockRigidObject``, and ``MockRigidObjectCollection``, replacing
+  bare ``pass`` stubs.
+
+* Fixed ``set_coms_index`` / ``set_coms_mask`` docstrings in
+  :class:`~isaaclab.assets.BaseArticulation` to document the correct dtype
+  (``wp.transformf``) and frame of reference (body link frame).
+
+* Fixed XR instruction widget for Fabric and switch to current scene view APIs.
+
+* Fixed session lifecycle pre-shutdown by removing invalid unsubscribe() call.
+
+
+4.5.0 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced ``omni.kit.commands`` and async Nucleus calls in asset utilities, prim
+  helpers.
+
+
+4.4.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated lazy-loading to ``lazy_loader.attach_stub`` with ``.pyi`` stubs as the
+  single source of truth for module exports.  Removed the old ``attach_cascading``
+  helper, avoided eager callable resolution during deepcopy of
+  :class:`~isaaclab.utils.string.ResolvableString`, and updated MDP
+  exports/import boundaries so ``test_env_cfg_no_forbidden_imports.py`` passes
+  without importing runtime modules.
+
+
+4.3.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed inconsistent ``body_mass`` shape in :class:`~isaaclab.assets.BaseRigidObjectData`
+  from ``(num_instances, 1, 1)`` to ``(num_instances, 1)`` to align with the articulation
+  convention.
+
+* Unified inertia scaling in :func:`~isaaclab.envs.mdp.events.randomize_rigid_body_mass`
+  to use a single code path for both articulations and rigid objects.
+
+Changed
+^^^^^^^
+
+* Reworked mock interfaces for assets and sensors to align with updated data shapes and
+  remove stale convenience aliases.
+
+
+4.3.1 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype` and
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype_mask` validation methods to
+  :class:`~isaaclab.assets.AssetBase` for runtime shape and dtype checking of write method
+  inputs. Checks are only active in debug mode (``__debug__``), adding zero overhead in
+  optimized builds.
+
+Changed
+^^^^^^^
+
+* Fixed tendon setter signatures in :class:`~isaaclab.assets.BaseArticulation`
+  (``set_fixed_tendon_*`` and ``set_spatial_tendon_*``) now accept ``float`` values in
+  addition to tensors and warp arrays.
+
+
+4.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added lazy callable-string resolution for config fields through
+  :class:`~isaaclab.utils.string.ResolvableString` in :mod:`isaaclab.utils.configclass`.
+  Config values such as ``class_type``/``func`` can now remain as strings until first
+  use and then resolve/cached automatically.
+
+* Added ``{DIR}`` callable-string shorthand support in :mod:`isaaclab.utils.configclass`
+  for config defaults. ``"{DIR}.module:Symbol"`` now expands to the declaring config
+  module directory before resolution.
+
+* Updated :func:`~isaaclab.utils.dict.update_class_from_dict` to stop eagerly resolving
+  callable strings during updates. Callable-string inputs are now preserved as lazy
+  :class:`~isaaclab.utils.string.ResolvableString` values and resolve only on first use.
+
+
+4.2.3 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.cloner.usd_replicate` and :func:`~isaaclab.cloner.physx_replicate`
+  skipping ``Sdf.CopySpec`` when the source and destination paths are identical (self-copy),
+  avoiding a redundant and potentially destructive USD spec overwrite.
+
+
+4.2.2 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype` and
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype_mask` validation methods to
+  :class:`~isaaclab.assets.AssetBase` for runtime shape and dtype checking of write method
+  inputs. Checks are only active in debug mode (``__debug__``), adding zero overhead in
+  optimized builds.
+
+Changed
+^^^^^^^
+
+* Fixed tendon setter signatures in :class:`~isaaclab.assets.BaseArticulation`
+  (``set_fixed_tendon_*`` and ``set_spatial_tendon_*``) now accept ``float`` values in
+  addition to tensors and warp arrays.
+
+
+4.2.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all MDP action terms to use new ``_index`` write/set APIs with keyword-only arguments.
+
+* Migrated all MDP event terms to use new ``_index`` write/set APIs (mass, inertia, COM,
+  joint properties, root state resets, fixed tendon parameters).
+
+* Updated ``InteractiveScene.set_state`` to use new ``_index`` APIs for root pose/velocity
+  and joint state writes.
+
+* Updated ``SceneEntityCfg`` body resolution to use ``find_sensors``/``num_sensors`` for
+  ContactSensor entities.
+
+
+4.2.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refined base asset class abstractions (:class:`~isaaclab.assets.BaseArticulation`,
+  :class:`~isaaclab.assets.BaseRigidObject`) to better support multiple backends.
+  Removed abstract method requirements that forced unnecessary boilerplate in backend
+  implementations, making it easier to add new physics backends.
+
+* Unified docstrings across all base asset classes with precise shape and dtype annotations
+  for warp array properties and write methods, ensuring consistent documentation between
+  PhysX and Newton backend implementations.
+
+
+4.1.0 (2026-02-18)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed hard dependency on the Isaac Sim Cloner for scene replication. Replication now uses internal utilities
+  :func:`~isaaclab.scene.cloner.usd_replicate` and :func:`~isaaclab.scene.cloner.physx_replicate`, reducing coupling
+  to Isaac Sim. Public APIs in :class:`~isaaclab.scene.interactive_scene.InteractiveScene` remain unchanged; code
+  directly importing the external Cloner should migrate to these utilities.
+
+Added
+^^^^^
+
+* Added optional random prototype selection during environment cloning in
+  :class:`~isaaclab.scene.interactive_scene.InteractiveScene` via
+  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning`.
+  Defaults to ``True``; round-robin (modulo) mapping remains available by setting it to ``False``.
+
+* Added flexible per-object cloning path in
+  :class:`~isaaclab.scene.interactive_scene.InteractiveScene`: when environments are heterogeneous
+  (different prototypes across envs), replication switches to per-object instead of whole-env cloning.
+  This reduces PhysX cloning time in heterogeneous scenes.
+
+
+4.0.0 (2026-02-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab.sim.converters.MjcfConverter` and
+  :class:`~isaaclab.sim.converters.MjcfConverterCfg` for the rewritten MJCF importer in Isaac Sim 5.0.
+  The converter now uses the ``MJCFImporter`` / ``MJCFImporterConfig`` API backed by the
+  ``mujoco-usd-converter`` library. The old settings ``fix_base``, ``link_density``,
+  ``import_inertia_tensor``, ``import_sites``, and ``make_instanceable`` have been removed
+  (handled automatically by the new converter). New settings ``merge_mesh``,
+  ``collision_from_visuals``, and ``collision_type`` have been added. The ``convert_mjcf.py``
+  CLI tool has been updated accordingly. Note that the new importer produces assets with nested
+  rigid bodies (``RigidBodyAPI`` applied per link) instead of a flat hierarchy.
+
+
+
+3.5.3 (2026-02-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored ``SimulationContext.clear_instance`` to delegate stage teardown to
+  :func:`~isaaclab.sim.utils.close_stage` instead of manually clearing the stage cache,
+  thread-local context, and Kit USD context inline.
+* Updated :func:`~isaaclab.sim.utils.close_stage` to also close the Kit USD context stage
+  (``omni.usd.get_context().close_stage()``) when Kit is running, making it a complete
+  stage teardown function.
+
+
+3.5.2 (2026-02-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* ``NUCLEUS_ASSET_ROOT_DIR`` and derived Nucleus path constants are now parsed from ``apps/isaaclab.python.kit``
+
+
+3.5.1 (2026-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``omni.usd`` calls with pure USD (``pxr``) equivalents in sim utils and sensors.
+
+Deprecated
+^^^^^^^^^^
+
+* ``create_new_stage_in_memory`` — use ``create_new_stage`` instead.
+* ``is_stage_loading`` — Kit-only, no production callers.
+
+
+3.5.0 (2026-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* The in-memory stage created with ``SimulationCfg(create_stage_in_memory=True)`` is now automatically
+  attached to the USD context at :class:`~isaaclab.sim.SimulationContext` creation. This ensures proper
+  stage lifecycle events for viewport and physics systems, preventing test isolation issues.
+
+
+3.4.3 (2026-02-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated settings access from ``carb.settings`` to :class:`~isaaclab.app.settings_manager.SettingsManager`.
+  Application code and tests now use :func:`~isaaclab.app.settings_manager.get_settings_manager` or
+  :meth:`~isaaclab.sim.SimulationContext.get_setting` / :meth:`~isaaclab.sim.SimulationContext.set_setting`
+  instead of ``carb.settings.get_settings()``.
+
+
+3.4.2 (2026-02-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced PhysX schema interactions via ``pxr.PhysxSchema`` API helpers with direct prim schema apply/get calls.
+* Replaced ``omni.kit.commands.execute("ChangePropertyCommand")`` uses with direct ``CreateAttribute`` + ``Set`` calls.
+
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.sim.utils.attach_stage_to_usd_context`. This function is no longer needed
+  since the in-memory stage is now automatically attached to the USD context at ``SimulationContext``
+  creation. Remove any calls to this function from your code.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sim.utils.add_labels` to use :class:`UsdSemantics.LabelsAPI` directly
+  instead of the Replicator API for Isaac Sim 5.0+. This resolves ``'NoneType' object has no
+  attribute 'GetEditTarget'`` errors when using stage-in-memory mode.
+
+
+3.4.0 (2026-02-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Integrated TeleopCore as the teleoperation backend via the new :mod:`isaaclab_teleop` extension.
+  The :class:`~isaaclab_teleop.IsaacTeleopDevice` provides a unified teleoperation interface that
+  replaces the previous XR-specific device and retargeter classes.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the existing XR teleoperation solution. :class:`~isaaclab.devices.openxr.OpenXRDevice`,
+  :class:`~isaaclab.devices.openxr.OpenXRDeviceCfg`, :class:`~isaaclab.devices.openxr.ManusVive`,
+  :class:`~isaaclab.devices.RetargeterBase`, :class:`~isaaclab.devices.RetargeterCfg`, and all
+  retargeters under :mod:`isaaclab.devices.openxr.retargeters` are deprecated in favor of
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`. Existing imports will continue to work but emit
+  :class:`DeprecationWarning` when ``isaaclab_teleop`` is installed.
+
 
 3.3.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~

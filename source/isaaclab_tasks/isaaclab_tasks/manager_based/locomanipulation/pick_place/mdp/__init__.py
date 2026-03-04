@@ -6,7 +6,6 @@
 
 """This sub-module contains the functions that are specific to the locomanipulation environments."""
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
 
-from .actions import *  # noqa: F401, F403
-from .observations import *  # noqa: F401, F403
+lazy_export(packages=["isaaclab.envs.mdp"])

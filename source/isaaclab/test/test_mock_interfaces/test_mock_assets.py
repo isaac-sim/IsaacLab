@@ -59,14 +59,15 @@ class TestMockArticulation:
 
         # Link frame - pose is wp.transformf so shape is (4,) but converts to (4, 7)
         assert wp.to_torch(robot.data.root_link_pose_w).shape == (4, 7)
-        assert robot.data.root_link_vel_w.shape == (4, 6)
-        assert robot.data.root_link_state_w.shape == (4, 13)
+        # vel is wp.spatial_vectorf so shape is (4,) but converts to (4, 6)
+        assert wp.to_torch(robot.data.root_link_vel_w).shape == (4, 6)
+        assert wp.to_torch(robot.data.root_link_state_w).shape == (4, 13)
 
         # Sliced properties
         assert wp.to_torch(robot.data.root_link_pos_w).shape == (4, 3)
         assert wp.to_torch(robot.data.root_link_quat_w).shape == (4, 4)
-        assert robot.data.root_link_lin_vel_w.shape == (4, 3)
-        assert robot.data.root_link_ang_vel_w.shape == (4, 3)
+        assert wp.to_torch(robot.data.root_link_lin_vel_w).shape == (4, 3)
+        assert wp.to_torch(robot.data.root_link_ang_vel_w).shape == (4, 3)
 
     def test_body_state_shapes(self, robot):
         """Test body state tensor shapes."""
@@ -74,8 +75,9 @@ class TestMockArticulation:
 
         # body_link_pose_w is wp.transformf so shape is (4, 13) but converts to (4, 13, 7)
         assert wp.to_torch(robot.data.body_link_pose_w).shape == (4, 13, 7)
-        assert robot.data.body_link_vel_w.shape == (4, 13, 6)
-        assert robot.data.body_link_state_w.shape == (4, 13, 13)
+        # body_link_vel_w is wp.spatial_vectorf so shape is (4, 13) but converts to (4, 13, 6)
+        assert wp.to_torch(robot.data.body_link_vel_w).shape == (4, 13, 6)
+        assert wp.to_torch(robot.data.body_link_state_w).shape == (4, 13, 13)
 
     def test_default_state_shapes(self, robot):
         """Test default state tensor shapes."""
@@ -83,8 +85,9 @@ class TestMockArticulation:
 
         # default_root_pose is wp.transformf so shape is (4,) but converts to (4, 7)
         assert wp.to_torch(robot.data.default_root_pose).shape == (4, 7)
-        assert robot.data.default_root_vel.shape == (4, 6)
-        assert robot.data.default_root_state.shape == (4, 13)
+        # default_root_vel is wp.spatial_vectorf so shape is (4,) but converts to (4, 6)
+        assert wp.to_torch(robot.data.default_root_vel).shape == (4, 6)
+        assert wp.to_torch(robot.data.default_root_state).shape == (4, 13)
         assert robot.data.default_joint_pos.shape == (4, 12)
         assert robot.data.default_joint_vel.shape == (4, 12)
 
@@ -202,8 +205,9 @@ class TestMockRigidObject:
 
         # root_link_pose_w is wp.transformf so shape is (4,) but converts to (4, 7)
         assert wp.to_torch(obj.data.root_link_pose_w).shape == (4, 7)
-        assert obj.data.root_link_vel_w.shape == (4, 6)
-        assert obj.data.root_link_state_w.shape == (4, 13)
+        # root_link_vel_w is wp.spatial_vectorf so shape is (4,) but converts to (4, 6)
+        assert wp.to_torch(obj.data.root_link_vel_w).shape == (4, 6)
+        assert wp.to_torch(obj.data.root_link_state_w).shape == (4, 13)
 
     def test_body_state_shapes(self, obj):
         """Test body state tensor shapes (single body)."""
@@ -211,11 +215,12 @@ class TestMockRigidObject:
 
         # body_link_pose_w is wp.transformf so shape is (4, 1) but converts to (4, 1, 7)
         assert wp.to_torch(obj.data.body_link_pose_w).shape == (4, 1, 7)
-        assert obj.data.body_link_vel_w.shape == (4, 1, 6)
+        # body_link_vel_w is wp.spatial_vectorf so shape is (4, 1) but converts to (4, 1, 6)
+        assert wp.to_torch(obj.data.body_link_vel_w).shape == (4, 1, 6)
 
     def test_body_properties(self, obj):
         """Test body property shapes."""
-        assert obj.data.body_mass.shape == (4, 1, 1)
+        assert obj.data.body_mass.shape == (4, 1)
         assert obj.data.body_inertia.shape == (4, 1, 9)
 
 
@@ -247,12 +252,13 @@ class TestMockRigidObjectCollection:
 
         # body_link_pose_w is wp.transformf so shape is (4, 5) but converts to (4, 5, 7)
         assert wp.to_torch(collection.data.body_link_pose_w).shape == (4, 5, 7)
-        assert collection.data.body_link_vel_w.shape == (4, 5, 6)
-        assert collection.data.body_link_state_w.shape == (4, 5, 13)
+        # body_link_vel_w is wp.spatial_vectorf so shape is (4, 5) but converts to (4, 5, 6)
+        assert wp.to_torch(collection.data.body_link_vel_w).shape == (4, 5, 6)
+        assert wp.to_torch(collection.data.body_link_state_w).shape == (4, 5, 13)
 
     def test_find_bodies_returns_mask(self, collection):
         """Test that find_bodies returns a mask tensor."""
-        body_mask, names, indices = collection.find_bodies("body_0")
+        body_mask, names = collection.find_bodies("body_0")
         assert isinstance(body_mask, torch.Tensor)
         assert body_mask.shape == (5,)
         assert body_mask[0]

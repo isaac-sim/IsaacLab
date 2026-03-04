@@ -137,11 +137,11 @@ additional resources that help you use Omniverse features in Isaac Lab.
     master_omniverse
 
 
-Setting up CloudXR Teleoperation
---------------------------------
+Setting up Isaac Teleop with CloudXR
+------------------------------------
 
-This guide explains how to use CloudXR and Apple Vision Pro for immersive streaming and
-teleoperation in Isaac Lab.
+This guide explains how to install Isaac Teleop, start the CloudXR runtime, and connect XR
+devices for immersive teleoperation in Isaac Lab.
 
 .. toctree::
     :maxdepth: 1

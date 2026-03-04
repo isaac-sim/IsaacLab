@@ -6,12 +6,14 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.controllers.rmp_flow import RmpFlowControllerCfg
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
+from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import rmpflow_task_space_actions
+if TYPE_CHECKING:
+    from .rmpflow_task_space_actions import RMPFlowAction
 
 
 @configclass
@@ -31,7 +33,7 @@ class RMPFlowActionCfg(ActionTermCfg):
         rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[ActionTerm] = rmpflow_task_space_actions.RMPFlowAction
+    class_type: type[RMPFlowAction] | str = "{DIR}.rmpflow_task_space_actions:RMPFlowAction"
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""

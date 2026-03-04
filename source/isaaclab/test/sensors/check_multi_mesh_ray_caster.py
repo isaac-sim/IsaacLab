@@ -63,7 +63,7 @@ from isaaclab.utils.timer import Timer
 def design_scene(sim: SimulationContext, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=10.0)
+    cloner = GridCloner(spacing=10.0, stage=sim.stage)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")

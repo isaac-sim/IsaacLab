@@ -118,6 +118,7 @@ def spawn_camera(
         "visible",
         "semantic_tags",
         "from_intrinsic_matrix",
+        "spawn_path",
     ]
     # get camera prim
     prim = stage.GetPrimAtPath(prim_path)

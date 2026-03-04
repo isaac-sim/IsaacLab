@@ -140,7 +140,8 @@ def env_loop(
             if env.sim.is_stopped():
                 break
 
-    env.close()
+    # Do not close env here: async data generator tasks may still be running.
+    # Caller must close env after cancelling and awaiting those tasks.
 
 
 def setup_env_config(

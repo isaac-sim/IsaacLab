@@ -54,7 +54,7 @@ def sim():
     cfg.func("/World/GroundPlane", cfg)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = GridCloner(spacing=2.0, stage=stage)
     cloner.define_base_env("/World/envs")
     env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
     # create source prim

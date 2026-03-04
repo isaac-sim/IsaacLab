@@ -17,5 +17,5 @@ For questions that are related to running and understanding Isaac Sim, please po
 Describe the versions that you are currently using:
 
 <!-- Please complete the following description. -->
-- Isaac Lab Version: [e.g. 2.3.2]
-- Isaac Sim Version: [e.g. 5.1, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
+- Isaac Lab Version: [e.g. 3.0.0]
+- Isaac Sim Version: [e.g. 6.0, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]

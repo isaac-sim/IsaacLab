@@ -5,15 +5,18 @@
 
 """Functions specific to the in-hand dexterous manipulation environments."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
+
     from .commands import InHandReOrientationCommand
 
 

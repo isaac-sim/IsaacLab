@@ -91,7 +91,7 @@ def main():
     world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = GridCloner(spacing=2.0, stage=world.stage)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")

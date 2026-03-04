@@ -20,8 +20,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy",
-    "torch>=2.7",
-    "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
+    "torch>=2.10",
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10.0
     "protobuf>=4.25.8,!=5.26.0",
     # configuration management
     "hydra-core",
@@ -31,8 +31,6 @@ INSTALL_REQUIRES = [
     "tensorboard",
     # video recording
     "moviepy",
-    # make sure this is consistent with isaac sim version
-    "pillow==12.0.0",
     "packaging<24",
     "tqdm==4.67.1",  # previous version was causing sys errors
 ]
@@ -68,6 +66,7 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     dependency_links=PYTORCH_INDEX_URL,

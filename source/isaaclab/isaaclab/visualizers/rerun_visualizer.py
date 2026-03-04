@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import rerun as rr
 import rerun.blueprint as rrb
@@ -118,7 +118,7 @@ class RerunVisualizer(Visualizer):
             logger.error(f"[RerunVisualizer] Failed to initialize viewer: {exc}")
             raise
 
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
@@ -137,7 +137,7 @@ class RerunVisualizer(Visualizer):
             return
 
         try:
-            self._close_viewer(finalize_rrd=bool(self.cfg.record_to_rrd))
+            self._close_viewer(finalize_rrd=bool(self._active_record_path))
         except Exception as exc:
             logger.warning(f"[RerunVisualizer] Error during close: {exc}")
 
@@ -196,7 +196,7 @@ class RerunVisualizer(Visualizer):
         )
         self._rerun_address = f"rerun+http://127.0.0.1:{self.cfg.grpc_port}/proxy"
 
-    def _create_viewer(self, record_to_rrd: str | None, metadata: dict | None = None) -> None:
+    def _create_viewer(self, record_to_rrd: str | None, metadata: dict | None = None, reset_time: bool = True) -> None:
         self._viewer = NewtonViewerRerun(
             app_id=self.cfg.app_id,
             address=self._rerun_address,
@@ -210,22 +210,20 @@ class RerunVisualizer(Visualizer):
         self._viewer.set_model(self._model)
         self._set_rerun_camera_view(self._resolve_initial_camera_pose())
 
-        self._sim_time = 0.0
+        if reset_time:
+            self._sim_time = 0.0
 
-    def _close_viewer(self, finalize_rrd: bool = False) -> None:
+    def _close_viewer(self, finalize_rrd: bool = False, record_path: str | None = None) -> None:
         if self._viewer is None:
             return
         self._viewer.close()
-        if finalize_rrd and self._active_record_path:
-            if os.path.exists(self._active_record_path):
-                size = os.path.getsize(self._active_record_path)
-                logger.info(
-                    "[RerunVisualizer] Recording saved: %s (%s bytes)",
-                    self._active_record_path,
-                    size,
-                )
+        finalized_path = record_path if record_path is not None else self._active_record_path
+        if finalize_rrd and finalized_path:
+            if os.path.exists(finalized_path):
+                size = os.path.getsize(finalized_path)
+                logger.info("[RerunVisualizer] Recording saved: %s (%s bytes)", finalized_path, size)
             else:
-                logger.warning("[RerunVisualizer] Recording file not found: %s", self._active_record_path)
+                logger.warning("[RerunVisualizer] Recording file not found: %s", finalized_path)
         self._viewer = None
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:

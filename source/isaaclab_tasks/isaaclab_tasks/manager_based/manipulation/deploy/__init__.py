@@ -13,5 +13,3 @@ The deploy module includes:
 - Reach environments for end-effector pose tracking
 
 """
-
-from .reach import *  # noqa: F401, F403

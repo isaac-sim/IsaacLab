@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
@@ -46,13 +47,18 @@ class DummySensor(SensorBase):
         # return the data (where `_data` is the data for the sensor)
         return self._data
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         self._data.count[env_ids] += 1
 
-    def reset(self, env_ids: Sequence[int] | None = None):
-        super().reset(env_ids=env_ids)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        super().reset(env_ids=env_ids, env_mask=env_mask)
         # Resolve sensor ids
-        if env_ids is None:
+        if env_ids is None and env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        elif env_ids is None:
             env_ids = slice(None)
         self._data.count[env_ids] = 0
 

@@ -21,6 +21,7 @@ optional arguments:
     --video_height       Height of the output video in pixels. (default: 704)
     --video_width        Width of the output video in pixels. (default: 1280)
     --framerate          Frames per second for the output video. (default: 30)
+    --demo_id            If provided, only export this specific demo_id. (default: None)
 """
 
 import argparse
@@ -87,6 +88,12 @@ def parse_args():
         type=int,
         default=DEFAULT_FRAMERATE,
         help="Frames per second for the output video.",
+    )
+    parser.add_argument(
+        "--demo_id",
+        type=int,
+        default=None,
+        help="If provided, only export this specific demo_id.",
     )
 
     args = parser.parse_args()
@@ -188,8 +195,14 @@ def main():
     num_demos = get_num_demos(args.input_file)
     print(f"Found {num_demos} demonstrations in {args.input_file}")
 
+    if args.demo_id is not None:
+        demo_ids = [args.demo_id]
+        print(f"Exporting only demo_id {args.demo_id}")
+    else:
+        demo_ids = list(range(num_demos))
+
     # Convert each demonstration
-    for i in range(num_demos):
+    for i in demo_ids:
         frames_path = f"data/demo_{str(i)}/obs"
         for input_key in args.input_keys:
             write_demo_to_mp4(

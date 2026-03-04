@@ -1975,7 +1975,7 @@ Migration Guide
 
 Please find detailed migration guides as follows:
 
-* `From Orbit to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_orbit.html>`_
-* `From OmniIsaacGymEnvs to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_omniisaacgymenvs.html>`_
+* :doc:`From Orbit to IsaacLab <../migration/migrating_from_orbit>`
+* :doc:`From OmniIsaacGymEnvs to IsaacLab <../migration/migrating_from_omniisaacgymenvs>`
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

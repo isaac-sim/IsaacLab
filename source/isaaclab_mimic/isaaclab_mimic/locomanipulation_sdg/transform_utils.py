@@ -44,5 +44,8 @@ def transform_inv(transform: torch.Tensor) -> torch.Tensor:
 
 def transform_relative_pose(world_pose: torch.Tensor, src_frame_pose: torch.Tensor, dst_frame_pose: torch.Tensor):
     """Compute the relative pose with respect to a source frame, and apply this relative pose to a destination frame."""
+    device = dst_frame_pose.device
+    world_pose = world_pose.to(device)
+    src_frame_pose = src_frame_pose.to(device)
     pose = transform_mul(dst_frame_pose, transform_mul(transform_inv(src_frame_pose), world_pose))
     return pose

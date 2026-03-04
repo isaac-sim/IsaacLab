@@ -9,7 +9,7 @@ import warp as wp
 @wp.kernel
 def imu_update_kernel(
     # indexing
-    env_ids: wp.array(dtype=wp.int32),
+    env_mask: wp.array(dtype=wp.bool),
     # PhysX view data
     transforms: wp.array(dtype=wp.transformf),
     velocities: wp.array(dtype=wp.spatial_vectorf),
@@ -33,8 +33,9 @@ def imu_update_kernel(
     out_ang_acc_b: wp.array(dtype=wp.vec3f),
     out_projected_gravity_b: wp.array(dtype=wp.vec3f),
 ):
-    tid = wp.tid()
-    idx = env_ids[tid]
+    idx = wp.tid()
+    if not env_mask[idx]:
+        return
 
     # 1. Extract body pose
     body_pos = wp.transform_get_translation(transforms[idx])
@@ -80,7 +81,7 @@ def imu_update_kernel(
 
 @wp.kernel
 def imu_reset_kernel(
-    env_ids: wp.array(dtype=wp.int32),
+    env_mask: wp.array(dtype=wp.bool),
     out_pos_w: wp.array(dtype=wp.vec3f),
     out_quat_w: wp.array(dtype=wp.quatf),
     out_lin_vel_b: wp.array(dtype=wp.vec3f),
@@ -91,8 +92,9 @@ def imu_reset_kernel(
     prev_lin_vel_w: wp.array(dtype=wp.vec3f),
     prev_ang_vel_w: wp.array(dtype=wp.vec3f),
 ):
-    tid = wp.tid()
-    idx = env_ids[tid]
+    idx = wp.tid()
+    if not env_mask[idx]:
+        return
 
     out_pos_w[idx] = wp.vec3f(0.0, 0.0, 0.0)
     out_quat_w[idx] = wp.quatf(0.0, 0.0, 0.0, 1.0)

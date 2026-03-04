@@ -17,12 +17,12 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.terrains import TerrainImporter
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.terrains import TerrainImporter
 
 
 def terrain_levels_vel(

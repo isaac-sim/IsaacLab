@@ -17,7 +17,10 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-import omni.kit.app
+from isaaclab.utils.version import has_kit
+
+if has_kit():
+    import omni.kit.app
 
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 

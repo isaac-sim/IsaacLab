@@ -14,11 +14,11 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
 
-from isaaclab_contrib.assets import Multirotor
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
+
+    from isaaclab_contrib.assets import Multirotor
 
     from . import thrust_actions_cfg
 

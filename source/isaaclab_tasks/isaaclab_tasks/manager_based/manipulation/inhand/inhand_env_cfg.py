@@ -23,7 +23,7 @@ from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as Gnoise
+from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
 
 import isaaclab_tasks.manager_based.manipulation.inhand.mdp as mdp
 

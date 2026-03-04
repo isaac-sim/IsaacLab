@@ -3,9 +3,9 @@
 ##
 
 [package]
-title = "Isaac Lab Python"
+title = "Isaac Lab"
 description = "An app for running Isaac Lab"
-version = "2.3.2"
+version = "3.0.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -13,7 +13,7 @@ keywords = ["experience", "app", "usd"]
 [dependencies]
 # Isaac Sim extensions
 "isaacsim.app.about" = {}
-"isaacsim.asset.browser" = {}
+"isaacsim.examples.browser" = {}
 "isaacsim.core.api" = {}
 "isaacsim.core.cloner" = {}
 "isaacsim.core.nodes" = {}
@@ -161,8 +161,8 @@ indent_all_ticks = false
 show_menu_titles = true
 
 [settings.app]
-name = "Isaac-Sim"
-version = "6.0.0"
+name = "Isaac Lab"
+version = "3.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true
@@ -183,7 +183,7 @@ asyncRenderingLowLatency = false
 
 [settings.app.window]
 iconPath = "${isaacsim.simulation_app}/data/omni.isaac.sim.png"
-title = "Isaac Sim"
+title = "Isaac Lab"
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
@@ -235,6 +235,8 @@ renderer.startupMessageDisplayed = true # hides the IOMMU popup window
 resourcemonitor.timeBetweenQueries = 100 # improves performance
 simulation.defaultMetersPerUnit = 1.0 # Meters default
 omni.replicator.captureOnPlay = true
+UJITSO.geometry = true
+UJITSO.enabled = true
 
 [settings]
 ### async rendering settings
@@ -249,6 +251,12 @@ rtx.hydra.readTransformsFromFabricInRenderDelegate = true
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
+# NuRec
+omni.rtx.nre.compositing.rendererHints = 3
+
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 [settings.app.livestream]
 outDirectory = "${data}"
 
@@ -256,7 +264,7 @@ outDirectory = "${data}"
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/107/shared" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/${kit_version_short}/shared" },
     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
     { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]

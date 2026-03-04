@@ -7,17 +7,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
-from .operational_space import OperationalSpaceController
+if TYPE_CHECKING:
+    from .operational_space import OperationalSpaceController
 
 
 @configclass
 class OperationalSpaceControllerCfg:
     """Configuration for operational-space controller."""
 
-    class_type: type = OperationalSpaceController
+    class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
     """The associated controller class."""
 
     target_types: Sequence[str] = MISSING

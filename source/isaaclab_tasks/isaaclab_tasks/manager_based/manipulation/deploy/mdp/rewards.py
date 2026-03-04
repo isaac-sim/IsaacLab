@@ -13,11 +13,11 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
 
     from .events import randomize_gear_type
 

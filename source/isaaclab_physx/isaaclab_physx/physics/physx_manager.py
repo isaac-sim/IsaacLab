@@ -28,10 +28,11 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import PhysxSchema, Sdf
+from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -65,20 +66,23 @@ _PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
     PhysicsEvent.PHYSICS_READY: IsaacEvents.PHYSICS_READY,
     PhysicsEvent.STOP: IsaacEvents.TIMELINE_STOP,
 }
+_PHYSICS_EVENT_VALUE_TO_ISAAC_EVENT: dict[str, IsaacEvents] = {
+    event.value: isaac_event for event, isaac_event in _PHYSICS_EVENT_TO_ISAAC_EVENT.items()
+}
 
 
 class AnimationRecorder:
     """Handles animation recording using PhysX PVD interface."""
 
-    def __init__(self, carb_settings: carb.settings.ISettings):
-        self._settings = carb_settings
-        self._enabled = bool(carb_settings.get("/isaaclab/anim_recording/enabled"))
+    def __init__(self, sim_context: SimulationContext):
+        self._sim = sim_context
+        self._enabled = bool(sim_context.get_setting("/isaaclab/anim_recording/enabled"))
         self._started_at: float | None = None
         self._physx_pvd = None
 
         if self._enabled:
-            self._start_time = carb_settings.get("/isaaclab/anim_recording/start_time")
-            self._stop_time = carb_settings.get("/isaaclab/anim_recording/stop_time")
+            self._start_time = sim_context.get_setting("/isaaclab/anim_recording/start_time")
+            self._stop_time = sim_context.get_setting("/isaaclab/anim_recording/stop_time")
             self._setup_output_dir()
 
     def _setup_output_dir(self) -> None:
@@ -91,8 +95,8 @@ class AnimationRecorder:
         os.makedirs(self._output_dir, exist_ok=True)
 
         self._physx_pvd = _physxPvd.acquire_physx_pvd_interface()
-        self._settings.set_string("/persistent/physics/omniPvdOvdRecordingDirectory", self._output_dir)
-        self._settings.set_bool("/physics/omniPvdOutputEnabled", True)
+        self._sim.set_setting("/persistent/physics/omniPvdOvdRecordingDirectory", self._output_dir)
+        self._sim.set_setting("/physics/omniPvdOutputEnabled", True)
 
     @property
     def enabled(self) -> bool:
@@ -134,7 +138,7 @@ class AnimationRecorder:
             )
             self._update_usda_start_time(os.path.join(self._output_dir, "baked_animation_recording.usda"))
 
-        self._settings.set_bool("/physics/omniPvdOutputEnabled", False)
+        self._sim.set_setting("/physics/omniPvdOutputEnabled", False)
 
     def _update_usda_start_time(self, file_path: str) -> None:
         """Patch the start time in the exported USDA file."""
@@ -205,7 +209,7 @@ class PhysxManager(PhysicsManager):
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
-        cls._anim_recorder = AnimationRecorder(sim_context._carb_settings)
+        cls._anim_recorder = AnimationRecorder(sim_context)
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -220,7 +224,10 @@ class PhysxManager(PhysicsManager):
             # Ensure views are created (warmup only happens once per stage)
             if cls._view is None:
                 cls._warmup_and_create_views()
-            # Always dispatch PHYSICS_READY on hard reset to initialize newly registered sensors
+            # Deterministic lifecycle dispatch for backend-agnostic callbacks.
+            # This avoids relying on asynchronous event-bus ordering during env construction.
+            cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
+            # Legacy IsaacEvents dispatch for callbacks registered directly on IsaacEvents.
             cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
 
         device = PhysicsManager._device
@@ -370,6 +377,8 @@ class PhysxManager(PhysicsManager):
     ) -> Any:
         """Subscribe to PhysX events. Maps PhysicsEvent → IsaacEvents."""
         isaac_event = _PHYSICS_EVENT_TO_ISAAC_EVENT.get(event)
+        if isaac_event is None:
+            isaac_event = _PHYSICS_EVENT_VALUE_TO_ISAAC_EVENT.get(getattr(event, "value", event))
         return cls._subscribe_isaac(callback, isaac_event, order, name) if isaac_event else None
 
     @classmethod
@@ -433,60 +442,73 @@ class PhysxManager(PhysicsManager):
         if sim is None or cfg is None:
             return
 
-        settings = sim._carb_settings
         device = sim.device
 
-        # global carb settings
-        settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
-        settings.set_bool("/physics/physxDispatcher", True)
-        settings.set_bool("/physics/disableContactProcessing", True)
-        settings.set_bool("/physics/collisionConeCustomGeometry", False)
-        settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
-        settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        # global settings (via SettingsManager)
+        sim.set_setting("/persistent/omnihydra/useSceneGraphInstancing", True)  # type: ignore[union-attr]
+        sim.set_setting("/physics/physxDispatcher", True)  # type: ignore[union-attr]
+        sim.set_setting("/physics/disableContactProcessing", True)  # type: ignore[union-attr]
+        sim.set_setting("/physics/collisionConeCustomGeometry", False)  # type: ignore[union-attr]
+        sim.set_setting("/physics/collisionCylinderCustomGeometry", False)  # type: ignore[union-attr]
+        sim.set_setting("/physics/autoPopupSimulationOutputWindow", False)  # type: ignore[union-attr]
 
         # device setup (set on PhysicsManager so PhysicsManager.get_device() works)
         is_gpu = "cuda" in device
         if is_gpu:
             parts = device.split(":")
-            device_id = int(parts[1]) if len(parts) > 1 else max(0, settings.get_as_int("/physics/cudaDevice"))
-            settings.set_int("/physics/cudaDevice", device_id)
-            settings.set_bool("/physics/suppressReadback", True)
+            cuda_device = sim.get_setting("/physics/cudaDevice")  # type: ignore[union-attr]
+            device_id = int(parts[1]) if len(parts) > 1 else max(0, int(cuda_device) if cuda_device is not None else 0)
+            sim.set_setting("/physics/cudaDevice", device_id)  # type: ignore[union-attr]
+            sim.set_setting("/physics/suppressReadback", True)  # type: ignore[union-attr]
             PhysicsManager._device = f"cuda:{device_id}"
         else:
-            settings.set_int("/physics/cudaDevice", -1)
-            settings.set_bool("/physics/suppressReadback", False)
+            sim.set_setting("/physics/cudaDevice", -1)  # type: ignore[union-attr]
+            sim.set_setting("/physics/suppressReadback", False)  # type: ignore[union-attr]
             PhysicsManager._device = "cpu"
 
         # physx scene api (use sim.cfg for shared parameters like physics_prim_path, dt, physics_material)
+        # apply schema and set attributes by name
         sim_cfg = sim.cfg
         stage = sim.stage
         scene_prim = stage.GetPrimAtPath(sim_cfg.physics_prim_path)
-        PhysxSchema.PhysxSceneAPI.Apply(scene_prim)
-        scene_api = PhysxSchema.PhysxSceneAPI(scene_prim)
+        if "PhysxSceneAPI" not in scene_prim.GetAppliedSchemas():
+            scene_prim.AddAppliedSchema("PhysxSceneAPI")
 
         # timestep and frame rate
         steps_per_sec = int(1.0 / sim_cfg.dt)
-        scene_api.CreateTimeStepsPerSecondAttr(steps_per_sec)
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:timeStepsPerSecond", steps_per_sec, camel_case=False
+        )
         render_interval = max(sim_cfg.render_interval, 1)
-        settings.set_int("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)
+        sim.set_setting("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)  # type: ignore[union-attr]
 
         # gpu dynamics
-        scene_api.CreateBroadphaseTypeAttr("GPU" if is_gpu else "MBP")
-        scene_api.CreateEnableGPUDynamicsAttr(is_gpu)
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:broadphaseType", "GPU" if is_gpu else "MBP", camel_case=False
+        )
+        sim_utils.safe_set_attribute_on_usd_prim(scene_prim, "physxScene:enableGPUDynamics", is_gpu, camel_case=False)
 
         # ccd (not supported on gpu)
         enable_ccd = cfg.enable_ccd and not is_gpu
         if cfg.enable_ccd and is_gpu:
             logger.warning("CCD disabled when GPU dynamics is enabled.")
-        scene_api.CreateEnableCCDAttr(enable_ccd)
+        sim_utils.safe_set_attribute_on_usd_prim(scene_prim, "physxScene:enableCCD", enable_ccd, camel_case=False)
 
         # solver
-        scene_api.CreateSolverTypeAttr("TGS" if cfg.solver_type == 1 else "PGS")
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:solverType", "TGS" if cfg.solver_type == 1 else "PGS", camel_case=False
+        )
         scene_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             cfg.solve_articulation_contact_last
         )
 
-        # apply remaining cfg attributes to scene
+        # scene query support: forward SimulationCfg value and override for GUI
+        if hasattr(sim_cfg, "enable_scene_query_support"):
+            cfg.enable_scene_query_support = sim_cfg.enable_scene_query_support
+        if bool(sim.get_setting("/isaaclab/has_gui")):
+            cfg.enable_scene_query_support = True
+
+        # apply remaining cfg attributes to scene (physxScene:*)
         skip = {
             "solver_type",
             "enable_ccd",
@@ -503,7 +525,12 @@ class PhysxManager(PhysicsManager):
         for key, value in cfg.to_dict().items():  # type: ignore
             if key not in skip:
                 attr_name = "bounce_threshold" if key == "bounce_threshold_velocity" else key
-                sim_utils.safe_set_attribute_on_usd_schema(scene_api, attr_name, value, camel_case=True)
+                sim_utils.safe_set_attribute_on_usd_prim(
+                    scene_prim,
+                    f"physxScene:{to_camel_case(attr_name, 'cC')}",
+                    value,
+                    camel_case=False,
+                )
 
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material
@@ -529,7 +556,6 @@ class PhysxManager(PhysicsManager):
         if sim is None or cfg is None:
             return
 
-        settings = sim._carb_settings
         use_fabric = sim.cfg.use_fabric
         ext_mgr = omni.kit.app.get_app().get_extension_manager()
 
@@ -547,7 +573,7 @@ class PhysxManager(PhysicsManager):
             cls._fabric = None
             cls._update_fabric = None
 
-        # disable usd sync when fabric is enabled
+        # disable usd sync when fabric is enabled (via SettingsManager)
         for key in [
             "updateToUsd",
             "updateParticlesToUsd",
@@ -555,9 +581,9 @@ class PhysxManager(PhysicsManager):
             "updateForceSensorsToUsd",
             "updateResidualsToUsd",
         ]:
-            settings.set_bool(f"/physics/{key}", not use_fabric)
-        settings.set_bool("/isaaclab/fabric_enabled", use_fabric)
-        settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
+            sim.set_setting(f"/physics/{key}", not use_fabric)  # type: ignore[union-attr]
+        sim.set_setting("/isaaclab/fabric_enabled", use_fabric)  # type: ignore[union-attr]
+        sim.set_setting("/physics/visualizationDisplaySimulationOutput", False)  # type: ignore[union-attr]
 
     @classmethod
     def _warmup_and_create_views(cls) -> None:
@@ -570,8 +596,15 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
-        # Attach stage to PhysX BEFORE loading/starting - critical for GPU pipeline
-        cls._physx_sim.attach_stage(stage_id)
+        is_gpu = "cuda" in PhysicsManager.get_device()
+
+        # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
+        # For CPU, the old SimulationManager never called attach_stage() explicitly.
+        # Calling attach_stage() + force_load_physics_from_usd() together causes a
+        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
+        # causing objects to fall through surfaces non-deterministically.
+        if is_gpu:
+            cls._physx_sim.attach_stage(stage_id)
 
         # warmup physx
         cls._physx.force_load_physics_from_usd()
@@ -598,6 +631,7 @@ class PhysxManager(PhysicsManager):
         cls._view_created = True
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
+        cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
 
     @classmethod
@@ -612,7 +646,8 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _on_play(cls, event: Any) -> None:
-        if carb.settings.get_settings().get_as_bool("/app/player/playSimulations"):
+        sim = PhysicsManager._sim
+        if sim is not None and sim.get_setting("/app/player/playSimulations"):  # type: ignore[union-attr]
             cls._warmup_and_create_views()
 
     @classmethod

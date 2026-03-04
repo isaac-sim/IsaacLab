@@ -3,19 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from pink.tasks import DampingTask, FrameTask
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 
-import carb
-
-import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
-from isaaclab.devices import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg
-from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg
+from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.manipulation.pick_place.nutpour_gr1t2_base_env_cfg import NutPourGR1T2BaseEnvCfg
+from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg import (
+    _build_gr1t2_pickplace_pipeline,
+)
 
 
 @configclass
@@ -82,24 +79,24 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 # Determines whether Pink IK solver will fail due to a joint limit violation
                 fail_on_joint_limit_violation=False,
                 variable_input_tasks=[
-                    FrameTask(
-                        "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                    FrameTaskCfg(
+                        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link",
                         position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
                         gain=0.5,
                     ),
-                    FrameTask(
-                        "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                    FrameTaskCfg(
+                        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link",
                         position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
                         gain=0.5,
                     ),
-                    DampingTask(
+                    DampingTaskCfg(
                         cost=0.5,  # [cost] * [s] / [rad]
                     ),
-                    NullSpacePostureTask(
+                    NullSpacePostureTaskCfg(
                         cost=0.2,
                         lm_damping=1,
                         controlled_frames=[
@@ -122,32 +119,15 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                     ),
                 ],
                 fixed_input_tasks=[],
-                xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
             ),
         )
-        # Convert USD to URDF and change revolute joints to fixed
-        temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, self.temp_urdf_dir, force_conversion=True
-        )
+        # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
+        self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
+        self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # Set the URDF and mesh paths for the IK controller
-        self.actions.gr1_action.controller.urdf_path = temp_urdf_output_path
-        self.actions.gr1_action.controller.mesh_path = temp_urdf_meshes_output_path
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.gr1_action.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
+        # IsaacTeleop-based teleoperation pipeline.
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
         )

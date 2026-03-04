@@ -30,54 +30,89 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_pose_source(self) -> list[int]:
-        """Pose of the target frame(s) relative to source frame. Shape is (N, M, 7). Quaternion in xyzw order."""
+    def target_pose_source(self) -> wp.array | None:
+        """Pose of the target frame(s) relative to source frame.
+
+        Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_target_frames, 7). The pose is provided in (x, y, z, qx, qy, qz, qw) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def target_pos_source(self) -> wp.array:
-        """Position of the target frame(s) relative to source frame. Shape is (N, M, 3)."""
+        """Position of the target frame(s) relative to source frame.
+
+        Shape is (num_instances, num_target_frames), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_target_frames, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def target_quat_source(self) -> wp.array:
-        """Orientation of the target frame(s) relative to source frame (x, y, z, w). Shape is (N, M, 4)."""
+        """Orientation of the target frame(s) relative to source frame.
+
+        Shape is (num_instances, num_target_frames), dtype = wp.quatf. In torch this resolves to
+        (num_instances, num_target_frames, 4). The orientation is provided in (x, y, z, w) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def target_pose_w(self) -> wp.array:
-        """Pose of the target frame(s) after offset in world frame. Shape is (N, M, 7). Quaternion in xyzw order."""
+    def target_pose_w(self) -> wp.array | None:
+        """Pose of the target frame(s) after offset in world frame.
+
+        Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_target_frames, 7). The pose is provided in (x, y, z, qx, qy, qz, qw) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def target_pos_w(self) -> wp.array:
-        """Position of the target frame(s) after offset in world frame. Shape is (N, M, 3)."""
+        """Position of the target frame(s) after offset in world frame.
+
+        Shape is (num_instances, num_target_frames), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_target_frames, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def target_quat_w(self) -> wp.array:
-        """Orientation of the target frame(s) after offset in world frame (x, y, z, w). Shape is (N, M, 4)."""
+        """Orientation of the target frame(s) after offset in world frame.
+
+        Shape is (num_instances, num_target_frames), dtype = wp.quatf. In torch this resolves to
+        (num_instances, num_target_frames, 4). The orientation is provided in (x, y, z, w) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def source_pose_w(self) -> wp.array:
-        """Pose of the source frame after offset in world frame. Shape is (N, 7). Quaternion in xyzw order."""
+    def source_pose_w(self) -> wp.array | None:
+        """Pose of the source frame after offset in world frame.
+
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+        The pose is provided in (x, y, z, qx, qy, qz, qw) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def source_pos_w(self) -> wp.array:
-        """Position of the source frame after offset in world frame. Shape is (N, 3)."""
+        """Position of the source frame after offset in world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def source_quat_w(self) -> wp.array:
-        """Orientation of the source frame after offset in world frame (x, y, z, w). Shape is (N, 4)."""
+        """Orientation of the source frame after offset in world frame.
+
+        Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
+        The orientation is provided in (x, y, z, w) format.
+        """
         raise NotImplementedError

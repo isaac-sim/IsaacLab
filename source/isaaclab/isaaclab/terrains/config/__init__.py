@@ -5,4 +5,6 @@
 
 """Pre-defined terrain configurations for the terrain generator."""
 
-from .rough import *  # noqa: F401
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

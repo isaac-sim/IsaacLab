@@ -14,9 +14,8 @@ import pytest
 import torch
 import warp as wp
 
-import omni.usd
-
 import isaaclab.envs.mdp as mdp
+import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -69,7 +68,7 @@ class CurriculumsCfg:
 def test_curriculum_modify_env_param(device):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # configure the cartpole env
     env_cfg = CartpoleEnvCfg()

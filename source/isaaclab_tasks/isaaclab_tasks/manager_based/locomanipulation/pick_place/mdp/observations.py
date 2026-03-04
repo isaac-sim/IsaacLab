@@ -3,10 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import torch
 import warp as wp
 
-from isaaclab.envs import ManagerBasedRLEnv
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
+
 from isaaclab.managers import SceneEntityCfg
 
 

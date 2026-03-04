@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
@@ -14,8 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni
-from pxr import UsdGeom, UsdPhysics
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -70,16 +68,6 @@ class RayCaster(SensorBase):
             cfg: The configuration parameters.
         """
         RayCaster._instance_count += 1
-        # check if sensor path is valid
-        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Sensor_[1,2]".
-        sensor_path = cfg.prim_path.split("/")[-1]
-        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
-        if sensor_path_is_regex:
-            raise RuntimeError(
-                f"Invalid prim path for the ray-caster sensor: {cfg.prim_path}."
-                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
-            )
         # Initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data
@@ -116,15 +104,18 @@ class RayCaster(SensorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None:
+        super().reset(env_ids, env_mask)
+        # resolve to indices for torch indexing
+        if env_ids is not None:
+            num_envs_ids = len(env_ids)
+        elif env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+            num_envs_ids = len(env_ids)
+        else:
             env_ids = slice(None)
             num_envs_ids = self._view.count
-        else:
-            num_envs_ids = len(env_ids)
         # resample the drift
         r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
@@ -189,7 +180,10 @@ class RayCaster(SensorBase):
                 mesh_prim = UsdGeom.Mesh(mesh_prim)
                 # read the vertices and faces
                 points = np.asarray(mesh_prim.GetPointsAttr().Get())
-                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
+                # Get world transform using pure USD (UsdGeom.Xformable)
+                xformable = UsdGeom.Xformable(mesh_prim)
+                world_transform: Gf.Matrix4d = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+                transform_matrix = np.array(world_transform).T
                 points = np.matmul(points, transform_matrix[:3, :3].T)
                 points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
@@ -290,8 +284,11 @@ class RayCaster(SensorBase):
         self._ray_starts_w[env_ids] = ray_starts_w
         self._ray_directions_w[env_ids] = ray_directions_w
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         self._update_ray_infos(env_ids)
 
         # ray cast and store the hits

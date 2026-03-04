@@ -183,7 +183,7 @@ def _triangulate_faces(prim) -> np.ndarray:
     return np.asarray(faces, dtype=np.int64)
 
 
-def create_primitive_mesh(prim) -> trimesh.Trimesh:
+def create_primitive_mesh(prim):
     """Create a trimesh mesh from a USD primitive (Cube, Sphere, Cylinder, etc.)."""
     prim_type = prim.GetTypeName()
     if prim_type == "Cube":

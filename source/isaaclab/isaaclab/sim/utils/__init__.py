@@ -5,9 +5,6 @@
 
 """Utilities built around USD operations."""
 
-from .legacy import *  # noqa: F401, F403
-from .prims import *  # noqa: F401, F403
-from .queries import *  # noqa: F401, F403
-from .semantics import *  # noqa: F401, F403
-from .stage import *  # noqa: F401, F403
-from .transforms import *  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

@@ -18,11 +18,11 @@ import warp as wp
 
 from isaaclab.envs import mdp
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensor
 from isaaclab.utils.math import quat_apply_inverse, yaw_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import ContactSensor
 
 
 def feet_air_time(

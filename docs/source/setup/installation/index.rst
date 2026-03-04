@@ -93,6 +93,19 @@ Other notable limitations with respect to Isaac Lab include...
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
 
+.. note::
+
+   **Build prerequisites on aarch64:** Some Python packages (notably ``imgui-bundle``) do not ship
+   pre-built wheels for aarch64 and are compiled from source during installation. This requires
+   OpenGL and X11 development headers to be installed on the system:
+
+   .. code-block:: bash
+
+      sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+
+   Without these packages, the build will fail with a CMake error about missing ``OPENGL_opengl_LIBRARY``,
+   ``OPENGL_glx_LIBRARY``, and ``OPENGL_INCLUDE_DIR``.
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 

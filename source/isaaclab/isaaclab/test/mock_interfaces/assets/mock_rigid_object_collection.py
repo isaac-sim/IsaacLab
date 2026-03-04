@@ -92,18 +92,20 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def default_body_pose(self) -> wp.array:
-        """Default body poses. Shape: (N, num_bodies, 7)."""
+        """Default body poses. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._default_body_pose is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
-            pose_np[..., 3] = 1.0  # identity quat w=1
-            return wp.array(pose_np, dtype=wp.float32, device=self.device)
+            pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout
+            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._default_body_pose
 
     @property
     def default_body_vel(self) -> wp.array:
-        """Default body velocities. Shape: (N, num_bodies, 6)."""
+        """Default body velocities. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._default_body_vel is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._default_body_vel
 
     @property
@@ -126,9 +128,11 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_link_vel_w(self) -> wp.array:
-        """Body link velocities in world frame. Shape: (N, num_bodies, 6)."""
+        """Body link velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_link_vel_w is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_link_vel_w
 
     @property
@@ -145,7 +149,6 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         t = self.body_link_pose_w
         return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
-    # Sliced properties (convert through torch for simplicity in mock)
     @property
     def body_link_quat_w(self) -> wp.array:
         """Body link orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
@@ -154,15 +157,15 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
-        """Body link linear velocities. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(vel_torch[..., :3].contiguous())
+        """Body link linear velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_link_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
-        """Body link angular velocities. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(vel_torch[..., 3:6].contiguous())
+        """Body link angular velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_link_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Body state properties (CoM frame) --
 
@@ -175,7 +178,7 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_vel_w(self) -> wp.array:
-        """Body CoM velocities in world frame. Shape: (N, num_bodies, 6)."""
+        """Body CoM velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_vel_w is None:
             return wp.clone(self.body_link_vel_w, self.device)
         return self._body_com_vel_w
@@ -189,9 +192,11 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_acc_w(self) -> wp.array:
-        """Body CoM accelerations in world frame. Shape: (N, num_bodies, 6)."""
+        """Body CoM accelerations in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_acc_w is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_com_acc_w
 
     @property
@@ -218,27 +223,27 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
-        """Body CoM linear velocities. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(vel_torch[..., :3].contiguous())
+        """Body CoM linear velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_com_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
-        """Body CoM angular velocities. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(vel_torch[..., 3:6].contiguous())
+        """Body CoM angular velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_com_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
-        """Body CoM linear accelerations. Shape: (N, num_bodies, 3)."""
-        acc_torch = wp.to_torch(self.body_com_acc_w)
-        return wp.from_torch(acc_torch[..., :3].contiguous())
+        """Body CoM linear accelerations. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_com_acc_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
-        """Body CoM angular accelerations. Shape: (N, num_bodies, 3)."""
-        acc_torch = wp.to_torch(self.body_com_acc_w)
-        return wp.from_torch(acc_torch[..., 3:6].contiguous())
+        """Body CoM angular accelerations. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_com_acc_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_pos_b(self) -> wp.array:
@@ -276,10 +281,10 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def projected_gravity_b(self) -> wp.array:
-        """Gravity projection on bodies. Shape: (N, num_bodies, 3)."""
+        """Gravity projection on bodies. Shape: (N, num_bodies), dtype=wp.vec3f."""
         gravity_np = np.zeros((self._num_instances, self._num_bodies, 3), dtype=np.float32)
         gravity_np[..., 2] = -1.0
-        return wp.array(gravity_np, dtype=wp.float32, device=self.device)
+        return wp.array(gravity_np, dtype=wp.float32, device=self.device).view(wp.vec3f)
 
     @property
     def heading_w(self) -> wp.array:
@@ -288,22 +293,22 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_link_lin_vel_b(self) -> wp.array:
-        """Body link linear velocities in body frame. Shape: (N, num_bodies, 3)."""
+        """Body link linear velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
         return wp.clone(self.body_link_lin_vel_w, self.device)
 
     @property
     def body_link_ang_vel_b(self) -> wp.array:
-        """Body link angular velocities in body frame. Shape: (N, num_bodies, 3)."""
+        """Body link angular velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
         return wp.clone(self.body_link_ang_vel_w, self.device)
 
     @property
     def body_com_lin_vel_b(self) -> wp.array:
-        """Body CoM linear velocities in body frame. Shape: (N, num_bodies, 3)."""
+        """Body CoM linear velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
         return wp.clone(self.body_com_lin_vel_w, self.device)
 
     @property
     def body_com_ang_vel_b(self) -> wp.array:
-        """Body CoM angular velocities in body frame. Shape: (N, num_bodies, 3)."""
+        """Body CoM angular velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
         return wp.clone(self.body_com_ang_vel_w, self.device)
 
     # -- Body state (abstract) --
@@ -330,25 +335,25 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
     # -- Setters --
 
     def set_default_body_pose(self, value: torch.Tensor) -> None:
-        self._default_body_pose = wp.from_torch(value.to(self.device).contiguous())
+        self._default_body_pose = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_default_body_vel(self, value: torch.Tensor) -> None:
-        self._default_body_vel = wp.from_torch(value.to(self.device).contiguous())
+        self._default_body_vel = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
 
     def set_body_link_pose_w(self, value: torch.Tensor) -> None:
         self._body_link_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_body_link_vel_w(self, value: torch.Tensor) -> None:
-        self._body_link_vel_w = wp.from_torch(value.to(self.device).contiguous())
+        self._body_link_vel_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
 
     def set_body_com_pose_w(self, value: torch.Tensor) -> None:
         self._body_com_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_body_com_vel_w(self, value: torch.Tensor) -> None:
-        self._body_com_vel_w = wp.from_torch(value.to(self.device).contiguous())
+        self._body_com_vel_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
 
     def set_body_com_acc_w(self, value: torch.Tensor) -> None:
-        self._body_com_acc_w = wp.from_torch(value.to(self.device).contiguous())
+        self._body_com_acc_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
 
     def set_body_com_pose_b(self, value: torch.Tensor) -> None:
         self._body_com_pose_b = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
@@ -457,8 +462,9 @@ class MockRigidObjectCollection:
 
     def reset(
         self,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         object_ids: slice | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Reset rigid object collection state for specified environments."""
         pass
@@ -475,11 +481,11 @@ class MockRigidObjectCollection:
 
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str], list[int]]:
+    ) -> tuple[torch.Tensor, list[str]]:
         """Find bodies by name regex patterns.
 
         Returns:
-            Tuple of (body_mask, body_names, body_indices).
+            Tuple of (body_mask, body_names).
         """
         if isinstance(name_keys, str):
             name_keys = [name_keys]
@@ -507,7 +513,7 @@ class MockRigidObjectCollection:
         body_mask = torch.zeros(self._num_bodies, dtype=torch.bool, device=self._device)
         body_mask[matched_indices] = True
 
-        return body_mask, matched_names, matched_indices
+        return body_mask, matched_names
 
     def find_objects(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         return self.find_bodies(name_keys, preserve_order)
@@ -516,8 +522,8 @@ class MockRigidObjectCollection:
 
     def write_body_state_to_sim(
         self,
-        body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body states to simulation."""
@@ -525,8 +531,8 @@ class MockRigidObjectCollection:
 
     def write_body_com_state_to_sim(
         self,
-        body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body CoM states to simulation."""
@@ -534,8 +540,8 @@ class MockRigidObjectCollection:
 
     def write_body_link_state_to_sim(
         self,
-        body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body link states to simulation."""
@@ -543,8 +549,8 @@ class MockRigidObjectCollection:
 
     def write_body_pose_to_sim(
         self,
-        body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body poses to simulation."""
@@ -552,8 +558,8 @@ class MockRigidObjectCollection:
 
     def write_body_link_pose_to_sim(
         self,
-        body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body link poses to simulation."""
@@ -561,8 +567,8 @@ class MockRigidObjectCollection:
 
     def write_body_com_pose_to_sim(
         self,
-        body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body CoM poses to simulation."""
@@ -570,8 +576,8 @@ class MockRigidObjectCollection:
 
     def write_body_velocity_to_sim(
         self,
-        body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body velocities to simulation."""
@@ -579,8 +585,8 @@ class MockRigidObjectCollection:
 
     def write_body_com_velocity_to_sim(
         self,
-        body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body CoM velocities to simulation."""
@@ -588,8 +594,8 @@ class MockRigidObjectCollection:
 
     def write_body_link_velocity_to_sim(
         self,
-        body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Write body link velocities to simulation."""
@@ -599,188 +605,281 @@ class MockRigidObjectCollection:
 
     def set_masses(
         self,
-        masses: torch.Tensor,
+        masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body masses."""
         pass
 
     def set_coms(
         self,
-        coms: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body centers of mass."""
         pass
 
     def set_inertias(
         self,
-        inertias: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body inertias."""
         pass
 
     def set_external_force_and_torque(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        positions: torch.Tensor | None = None,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        is_global: bool = True,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        is_global: bool = False,
     ) -> None:
         """Set external forces and torques."""
         pass
 
-    # -- Index/Mask methods (no-op for mock) --
+    # -- Shape validation helpers --
+
+    _DTYPE_TO_TORCH_TRAILING_DIMS: dict[type, tuple[int, ...]] = {
+        wp.float32: (),
+        wp.int32: (),
+        wp.vec2f: (2,),
+        wp.vec3f: (3,),
+        wp.vec4f: (4,),
+        wp.transformf: (7,),
+        wp.spatial_vectorf: (6,),
+    }
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+    ) -> None:
+        if __debug__:
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, float):
+                return
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                offset = self._DTYPE_TO_TORCH_TRAILING_DIMS.get(dtype)
+                if offset is None:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), (
+                    f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                )
+
+    def _resolve_n_envs(self, env_ids):
+        if env_ids is None:
+            return self._num_instances
+        if isinstance(env_ids, (torch.Tensor, wp.array)):
+            return env_ids.shape[0]
+        return len(env_ids)
+
+    def _resolve_n_items(self, item_ids, total):
+        if item_ids is None or item_ids == slice(None):
+            return total
+        if isinstance(item_ids, (torch.Tensor, wp.array)):
+            return item_ids.shape[0]
+        return len(item_ids)
+
+    # -- Index/Mask methods --
+
+    # Body pose writers
 
     def write_body_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(body_poses, (n_e, n_b), wp.transformf, "body_poses")
 
     def write_body_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
 
     def write_body_link_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(body_poses, (n_e, n_b), wp.transformf, "body_poses")
 
     def write_body_link_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
 
     def write_body_com_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(body_poses, (n_e, n_b), wp.transformf, "body_poses")
 
     def write_body_com_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
+
+    # Body velocity writers
 
     def write_body_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(body_velocities, (n_e, n_b), wp.spatial_vectorf, "body_velocities")
 
     def write_body_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
+        )
 
     def write_body_com_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(body_velocities, (n_e, n_b), wp.spatial_vectorf, "body_velocities")
 
     def write_body_com_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
+        )
 
     def write_body_link_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(body_velocities, (n_e, n_b), wp.spatial_vectorf, "body_velocities")
 
     def write_body_link_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
+        )
+
+    # Body property setters
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(masses, (n_e, n_b), wp.float32, "masses")
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(coms, (n_e, n_b), wp.transformf, "coms")
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(inertias, (n_e, n_b, 9), wp.float32, "inertias")
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
 
     # -- Deprecated object_* methods (no-op for mock) --
 

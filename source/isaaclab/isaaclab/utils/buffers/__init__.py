@@ -5,7 +5,6 @@
 
 """Sub-module containing different buffers."""
 
-from .circular_buffer import CircularBuffer
-from .delay_buffer import DelayBuffer
-from .timestamped_buffer import TimestampedBuffer
-from .timestamped_buffer_warp import TimestampedBufferWarp
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

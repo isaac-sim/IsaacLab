@@ -15,19 +15,17 @@ import os
 from typing import TYPE_CHECKING
 
 import torch
-import torch.jit
 import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.sensors import Camera, MultiMeshRayCasterCamera, RayCasterCamera, TiledCamera
-
-from isaaclab_contrib.assets import Multirotor
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
+
+    from isaaclab_contrib.assets import Multirotor
 
 from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
 

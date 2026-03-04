@@ -21,6 +21,44 @@ import pytest
 import isaaclab.utils.string as string_utils
 
 
+def test_resolvable_string_metadata_is_non_eager():
+    """Test metadata access on ResolvableString without triggering import/resolve."""
+    ref = string_utils.ResolvableString("package.subpkg.module:Outer.InnerCallable")
+    assert ref.__module__ == "package.subpkg.module"
+    assert ref.__qualname__ == "Outer.InnerCallable"
+    assert ref.__name__ == "InnerCallable"
+
+
+def test_resolvable_string_metadata_stable_after_resolution():
+    """Test metadata before/after resolution remains consistent."""
+    ref = string_utils.ResolvableString("math:sin")
+    assert ref.__module__ == "math"
+    assert ref.__qualname__ == "sin"
+    assert ref.__name__ == "sin"
+    # Force resolution.
+    assert pytest.approx(ref(0.0), rel=0.0, abs=1e-9) == 0.0
+    # Metadata should remain identical after resolution cache is populated.
+    assert ref.__module__ == "math"
+    assert ref.__qualname__ == "sin"
+    assert ref.__name__ == "sin"
+
+
+def test_resolvable_string_dunder_introspection_stays_lazy():
+    """Test dunder probing doesn't force resolution for invalid references."""
+    ref = string_utils.ResolvableString("not_a_real_module.path:Nope")
+    # dunder attribute probe should not attempt import/resolve
+    assert hasattr(ref, "__dataclass_fields__") is False
+    # runtime use should still attempt resolve and fail
+    with pytest.raises(ValueError):
+        ref()
+
+
+def test_resolvable_string_runtime_resolution_still_works():
+    """Test runtime call path still resolves the callable target."""
+    ref = string_utils.ResolvableString("math:sin")
+    assert pytest.approx(ref(0.0), rel=0.0, abs=1e-9) == 0.0
+
+
 def test_case_conversion():
     """Test case conversion between camel case and snake case."""
     # test camel case to snake case

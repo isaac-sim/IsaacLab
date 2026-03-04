@@ -18,7 +18,7 @@ inputs:
     required: true
   dockerfile-path:
     description: 'Path to Dockerfile'
-    default: 'docker/Dockerfile.curobo'
+    default: 'docker/Dockerfile.base'
     required: false
   context-path:
     description: 'Build context path'

@@ -41,12 +41,11 @@ class Visualizer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         """Update visualization for one step.
 
         Args:
             dt: Time step in seconds.
-            state: Updated physics state (e.g., newton.State).
         """
         raise NotImplementedError
 
@@ -90,6 +89,15 @@ class Visualizer(ABC):
         """Whether simulation should run forward() before step()."""
         return False
 
+    def pumps_app_update(self) -> bool:
+        """Whether this visualizer calls omni.kit.app.get_app().update() in step().
+
+        Returns True for visualizers (e.g. KitVisualizer) that already pump the Kit
+        app loop, so SimulationContext.render() can skip its own app.update() call
+        and avoid double-rendering.
+        """
+        return False
+
     def get_visualized_env_ids(self) -> list[int] | None:
         """Return env IDs this visualizer is displaying, if any."""
         return getattr(self, "_env_ids", None)
@@ -98,14 +106,13 @@ class Visualizer(ABC):
         """Compute which env indices to show from config."""
         if self._scene_data_provider is None:
             return None
-        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
-        if num_envs <= 0:
-            logger.warning(
-                "[Visualizer] num_envs is 0 or missing from provider metadata; partial visualization disabled."
-            )
-            return None
         filter_mode = getattr(self.cfg, "env_filter_mode", "none")
         if filter_mode == "none":
+            return None
+
+        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
+        if num_envs <= 0:
+            logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env filtering disabled.")
             return None
         if filter_mode == "env_ids":
             env_ids_cfg = getattr(self.cfg, "env_filter_ids", None)

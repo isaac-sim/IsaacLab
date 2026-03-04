@@ -34,6 +34,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_teleop"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_teleop/isaaclab_teleop"))
 
 # -- Project information -----------------------------------------------------
 
@@ -143,7 +145,7 @@ templates_path = []
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store", "README.md", "licenses/*"]
+exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store", "README.md", "licenses/*", "plans"]
 
 # Mock out modules that are not available on RTD
 autodoc_mock_imports = [
@@ -201,6 +203,8 @@ autodoc_mock_imports = [
     "imageio",
     "ipywidgets",
     "mpl_toolkits",
+    "isaacteleop",
+    "scipy",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,

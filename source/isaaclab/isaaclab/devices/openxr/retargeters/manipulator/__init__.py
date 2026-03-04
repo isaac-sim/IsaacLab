@@ -3,11 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Franka manipulator retargeting module.
+""".. deprecated:: Moved to :mod:`isaaclab_teleop.deprecated.openxr.retargeters.manipulator`."""
 
-This module provides functionality for retargeting motion to Franka robots.
-"""
+from isaaclab.utils.module import lazy_export
 
-from .gripper_retargeter import GripperRetargeter, GripperRetargeterCfg
-from .se3_abs_retargeter import Se3AbsRetargeter, Se3AbsRetargeterCfg
-from .se3_rel_retargeter import Se3RelRetargeter, Se3RelRetargeterCfg
+lazy_export(packages=["isaaclab_teleop.deprecated.openxr.retargeters.manipulator"])

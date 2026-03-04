@@ -7,22 +7,21 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import torch
+import warp as wp
 from packaging import version
 
-import carb
-import omni.usd
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils import to_camel_case
+from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
@@ -115,16 +114,6 @@ class Camera(SensorBase):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        # check if sensor path is valid
-        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Sensor_[1,2]".
-        sensor_path = cfg.prim_path.split("/")[-1]
-        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
-        if sensor_path_is_regex:
-            raise RuntimeError(
-                f"Invalid prim path for the camera sensor: {self.cfg.prim_path}."
-                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
-            )
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class
@@ -132,38 +121,47 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        settings = get_settings_manager()
+        settings.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # This is only introduced in isaac sim 6.0
-        isaac_sim_version = get_isaac_sim_version()
-        if isaac_sim_version.major >= 6:
-            # Set RTX flag to enable fast path if only depth or albedo is requested
-            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
-            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
-                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+        if has_kit():
+            isaac_sim_version = get_isaac_sim_version()
+            if isaac_sim_version.major >= 6:
+                # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
+                needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
+                if not needs_color_render:
+                    settings.set_bool("/rtx/sdg/force/disableColorRender", True)
 
-            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-            if carb_settings_iface.get("/isaaclab/has_gui"):
-                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
-        else:
-            if "albedo" in self.cfg.data_types:
-                logger.warning(
-                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                )
-            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-                logger.warning(
-                    "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
-                    " will be ignored."
-                )
+                # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+                if settings.get("/isaaclab/has_gui"):
+                    settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+            else:
+                if "albedo" in self.cfg.data_types:
+                    logger.warning(
+                        "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                    )
+                if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
+                    logger.warning(
+                        "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
+                        " will be ignored."
+                    )
 
         # Set simple shading mode (if requested) before rendering
         simple_shading_mode = self._resolve_simple_shading_mode()
         if simple_shading_mode is not None:
-            carb_settings_iface.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # spawn the asset
         if self.cfg.spawn is not None:
+            # Use spawn_path when set (points to template location for scene-cloned sensors).
+            # This allows the camera to be spawned inside the asset template (e.g. inside
+            # proto_asset_0) before clone_environments replicates it to all env paths.
+            spawn_target = (
+                self.cfg.spawn.spawn_path
+                if getattr(self.cfg.spawn, "spawn_path", None) is not None
+                else self.cfg.prim_path
+            )
             # compute the rotation offset
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
             rot_offset = convert_camera_frame_orientation_convention(
@@ -173,20 +171,25 @@ class Camera(SensorBase):
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
                 self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
-            # spawn the asset
-            self.cfg.spawn.func(
-                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
-            )
-        # check that spawn was successful
-        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            self.cfg.spawn.func(spawn_target, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
+        # check that spawn was successful; use spawn_path if set (template location) since env
+        # paths are not yet populated at init time — they are filled in by clone_environments.
+        check_path = (
+            self.cfg.spawn.spawn_path
+            if self.cfg.spawn is not None and getattr(self.cfg.spawn, "spawn_path", None) is not None
+            else self.cfg.prim_path
+        )
+        matching_prims = sim_utils.find_matching_prims(check_path)
         if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
+            raise RuntimeError(f"Could not find prim with path {check_path}.")
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = CameraData()
 
+        if not has_kit():
+            return
         # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
         if get_isaac_sim_version() == version.parse("4.5"):
@@ -315,11 +318,8 @@ class Camera(SensorBase):
                 # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
                 if isinstance(param_value, np.floating):
                     param_value = float(param_value)
-                # set value
-                # note: We have to do it this way because the camera might be on a different
-                #   layer (default cameras are on session layer), and this is the simplest
-                #   way to set the property on the right layer.
-                omni.usd.set_prop_val(param_attr(), param_value)
+                # set value using pure USD API
+                param_attr().Set(param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
 
@@ -403,16 +403,17 @@ class Camera(SensorBase):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError(
                 "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
             )
         # reset the timestamps
-        super().reset(env_ids)
-        # resolve None
-        # note: cannot do smart indexing here since we do a for loop over data.
-        if env_ids is None:
+        super().reset(env_ids, env_mask)
+        # resolve to indices for torch indexing
+        if env_ids is None and env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        elif env_ids is None:
             env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
@@ -434,8 +435,9 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
+        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
+        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -553,12 +555,24 @@ class Camera(SensorBase):
         self._create_buffers()
         self._update_intrinsic_matrices(self._ALL_INDICES)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         # Increment frame count
         self._frame[env_ids] += 1
         # -- pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # Lazy import Isaac RTX Renderer dependency.
+        # For now the Camera implementation works only with Isaac RTX Renderer.
+        # Future consideration should be to move Renderer from TiledCamera up the hierarchy to Camera
+        # to make the Camera backend-agnostic.
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+
+        ensure_isaac_rtx_render_update()
+
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:

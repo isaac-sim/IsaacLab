@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import torch
+import warp as wp
 
 from pxr import UsdGeom
 
@@ -143,11 +144,13 @@ class RayCasterCamera(RayCaster):
             self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device
         )
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timestamps
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None or isinstance(env_ids, slice):
+        super().reset(env_ids, env_mask)
+        # resolve to indices for torch indexing
+        if env_ids is None and env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        elif env_ids is None or isinstance(env_ids, slice):
             env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
@@ -264,8 +267,11 @@ class RayCasterCamera(RayCaster):
         self._offset_quat = quat_w.repeat(self._view.count, 1)
         self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         # increment frame count
         self._frame[env_ids] += 1
 

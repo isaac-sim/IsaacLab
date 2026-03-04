@@ -387,7 +387,7 @@ class TestMockArticulationDataProperties:
         "property_name,expected_shape",
         [
             ("body_mass", (4, 13)),
-            ("body_inertia", (4, 13, 3, 3)),
+            ("body_inertia", (4, 13, 9)),
             ("body_incoming_joint_wrench_b", (4, 13, 6)),
         ],
     )
@@ -530,7 +530,7 @@ class TestMockRigidObjectDataProperties:
             ("body_com_vel_w", (4, 1, 6)),
             ("body_com_state_w", (4, 1, 13)),
             ("body_com_acc_w", (4, 1, 6)),
-            ("body_mass", (4, 1, 1)),
+            ("body_mass", (4, 1)),
             ("body_inertia", (4, 1, 9)),
             ("projected_gravity_b", (4, 3)),
             ("heading_w", (4,)),
@@ -753,8 +753,8 @@ class TestArticulationConvenienceAliases:
     @pytest.mark.parametrize(
         "alias,expected_shape",
         [
-            ("com_pos_b", (4, 3)),
-            ("com_quat_b", (4, 4)),
+            ("com_pos_b", (4, 13, 3)),
+            ("com_quat_b", (4, 13, 4)),
         ],
     )
     def test_com_body_frame_aliases(self, data, alias, expected_shape):
@@ -826,8 +826,8 @@ class TestRigidObjectConvenienceAliases:
     @pytest.mark.parametrize(
         "alias,expected_shape",
         [
-            ("com_pos_b", (4, 3)),
-            ("com_quat_b", (4, 4)),
+            ("com_pos_b", (4, 1, 3)),
+            ("com_quat_b", (4, 1, 4)),
         ],
     )
     def test_com_body_frame_aliases(self, data, alias, expected_shape):

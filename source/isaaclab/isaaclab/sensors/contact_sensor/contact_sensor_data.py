@@ -14,12 +14,13 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_contact_sensor_data import BaseContactSensorData
 
 if TYPE_CHECKING:
+    from isaaclab_newton.sensors.contact_sensor.contact_sensor_data import ContactSensorData as NewtonContactSensorData
     from isaaclab_physx.sensors.contact_sensor import ContactSensorData as PhysXContactSensorData
 
 
 class ContactSensorData(FactoryBase, BaseContactSensorData):
     """Factory for creating contact sensor data instances."""
 
-    def __new__(cls, *args, **kwargs) -> BaseContactSensorData | PhysXContactSensorData:
+    def __new__(cls, *args, **kwargs) -> BaseContactSensorData | PhysXContactSensorData | NewtonContactSensorData:
         """Create a new instance of a contact sensor data based on the backend."""
         return super().__new__(cls, *args, **kwargs)

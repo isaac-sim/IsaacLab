@@ -11,14 +11,16 @@ import weakref
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import isaacsim
-import omni.kit.app
-import omni.kit.commands
-import omni.usd
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.sim.utils.stage import resolve_paths
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.version import has_kit
+
+if has_kit():
+    import isaacsim
+    import omni.kit.commands
+
 
 if TYPE_CHECKING:
     import omni.ui
@@ -62,7 +64,7 @@ class BaseEnvWindow:
         ]
 
         # get stage handle
-        self.stage = get_current_stage()
+        self.stage = env.sim.stage
 
         # Listeners for environment selection changes
         self._ui_listeners: list[ManagerLiveVisualizer] = []
@@ -352,16 +354,16 @@ class BaseEnvWindow:
                 # if prim has articulation then disable it
                 if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                     prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                    prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+                    prim.RemoveAppliedSchema("PhysxArticulationAPI")
                 # if prim has rigid body then disable it
                 if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                    prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+                    prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
                 # if prim is a joint type then disable it
                 if prim.IsA(UsdPhysics.Joint):
                     prim.GetAttribute("physics:jointEnabled").Set(False)
-            # resolve all paths relative to layer path
-            omni.usd.resolve_paths(source_layer.identifier, temp_layer.identifier)
+            # resolve paths so asset references remain valid from the new location
+            resolve_paths(source_layer.identifier, temp_layer.identifier)
             # save the stage
             temp_layer.Save()
             # print the path to the saved stage

@@ -38,24 +38,12 @@ parser.add_argument(
     default=False,
     help="Validate the replay success rate using the task environment termination criteria",
 )
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 # args_cli.headless = True
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version
-    # installed by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -71,10 +59,6 @@ import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -18,7 +18,12 @@ from scipy.spatial.transform import Rotation
 import carb
 import omni
 
-from ..device_base import DeviceBase, DeviceCfg
+from isaaclab.app.settings_manager import get_settings_manager
+
+from ..device_base import DeviceBase
+
+if TYPE_CHECKING:
+    from .se3_gamepad_cfg import Se3GamepadCfg
 
 
 class Se3Gamepad(DeviceBase):
@@ -62,8 +67,7 @@ class Se3Gamepad(DeviceBase):
             cfg: Configuration object for gamepad settings.
         """
         # turn off simulator gamepad control
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
+        get_settings_manager().set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
@@ -256,14 +260,3 @@ class Se3Gamepad(DeviceBase):
         delta_command[delta_command_sign] *= -1
 
         return delta_command
-
-
-@dataclass
-class Se3GamepadCfg(DeviceCfg):
-    """Configuration for SE3 gamepad devices."""
-
-    gripper_term: bool = True
-    dead_zone: float = 0.01  # For gamepad devices
-    pos_sensitivity: float = 1.0
-    rot_sensitivity: float = 1.6
-    class_type: type[DeviceBase] = Se3Gamepad

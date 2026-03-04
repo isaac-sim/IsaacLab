@@ -11,8 +11,6 @@ from typing import Literal
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils import configclass
 
-from .asset_base import AssetBase
-
 
 @configclass
 class AssetBaseCfg:
@@ -41,7 +39,7 @@ class AssetBaseCfg:
         Defaults to (0.0, 0.0, 0.0, 1.0).
         """
 
-    class_type: type[AssetBase] = None
+    class_type: type | str | None = None
     """The associated asset class. Defaults to None, which means that the asset will be spawned
     but cannot be interacted with via the asset class.
 

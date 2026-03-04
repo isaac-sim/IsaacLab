@@ -170,6 +170,76 @@ def string_to_callable(name: str) -> Callable:
         raise ValueError(msg)
 
 
+class ResolvableString(str):
+    """String subtype that lazily resolves ``module.path:Callable`` values.
+
+    The object stays string-compatible for serialization and display, while also allowing callable
+    use and attribute access on the resolved callable/class.
+    """
+
+    __slots__ = ("_resolved_callable", "_resolve_error")
+
+    def __new__(cls, value: str):
+        obj = super().__new__(cls, value)
+        obj._resolved_callable = None
+        obj._resolve_error = None
+        return obj
+
+    def _resolve(self) -> Callable:
+        if self._resolved_callable is not None:
+            return self._resolved_callable
+        if self._resolve_error is not None:
+            raise self._resolve_error
+        try:
+            resolved = string_to_callable(str(self))
+        except (ImportError, AttributeError, ValueError) as error:
+            self._resolve_error = error
+            raise
+        self._resolved_callable = resolved
+        return resolved
+
+    def __call__(self, *args, **kwargs):
+        return self._resolve()(*args, **kwargs)
+
+    def _split_ref(self) -> tuple[str | None, str]:
+        """Parse ``module:attribute`` reference without importing."""
+        value = str(self)
+        if ":" not in value:
+            return None, value
+        module_name, attr_path = value.split(":", 1)
+        return module_name, attr_path
+
+    def __getattribute__(self, item: str):
+        # Provide callable metadata without forcing import/resolution.
+        if item == "__name__":
+            _, attr_path = object.__getattribute__(self, "_split_ref")()
+            return attr_path.rsplit(".", 1)[-1]
+        if item == "__qualname__":
+            _, attr_path = object.__getattribute__(self, "_split_ref")()
+            return attr_path
+        if item == "__module__":
+            module_name, _ = object.__getattribute__(self, "_split_ref")()
+            if module_name is None:
+                return str.__module__
+            return module_name
+        return super().__getattribute__(item)
+
+    def __getattr__(self, item: str):
+        # Keep generic dunder probing (e.g. hasattr(..., "__dataclass_fields__"))
+        # lazy and side-effect free. Metadata dunders are handled in __getattribute__.
+        if item.startswith("__") and item.endswith("__"):
+            raise AttributeError(item)
+        return getattr(self._resolve(), item)
+
+    def __copy__(self):
+        """Return self because strings are immutable."""
+        return self
+
+    def __deepcopy__(self, memo):
+        """Return self so deepcopy doesn't trigger lazy resolution."""
+        return self
+
+
 """
 Regex operations.
 """

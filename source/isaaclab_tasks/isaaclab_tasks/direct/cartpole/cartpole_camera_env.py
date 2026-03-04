@@ -7,167 +7,33 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectRLEnv
+from isaaclab.sensors import TiledCamera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+if TYPE_CHECKING:
+    from .cartpole_camera_env_cfg import (
+        CartpoleAlbedoCameraEnvCfg,
+        CartpoleDepthCameraEnvCfg,
+        CartpoleRGBCameraEnvCfg,
+        CartpoleSimpleShadingConstantCameraEnvCfg,
+        CartpoleSimpleShadingDiffuseCameraEnvCfg,
+        CartpoleSimpleShadingFullCameraEnvCfg,
+    )
+    from .cartpole_camera_env_preset_cfg import CartpoleCameraEnvCfg
 
 SIMPLE_SHADING_TYPES = {
     "simple_shading_constant_diffuse",
     "simple_shading_diffuse_mdl",
     "simple_shading_full_mdl",
 }
-
-
-@configclass
-class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    action_scale = 100.0  # [N]
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
-
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-    write_image_to_file = False
-
-    # spaces
-    action_space = 1
-    state_space = 0
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
-
-    # change viewer settings
-    viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_pole_pos = -1.0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_vel = -0.005
-
-
-@configclass
-class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
-        data_types=["depth"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-
-    # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 1]
-
-
-@configclass
-class CartpoleAlbedoCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
-        data_types=["albedo"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-
-    # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
-
-
-@configclass
-class CartpoleSimpleShadingConstantCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
-        data_types=["simple_shading_constant_diffuse"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-
-    # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
-
-
-@configclass
-class CartpoleSimpleShadingDiffuseCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
-        data_types=["simple_shading_diffuse_mdl"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-
-    # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
-
-
-@configclass
-class CartpoleSimpleShadingFullCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
-        data_types=["simple_shading_full_mdl"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-
-    # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
 
 
 class CartpoleCameraEnv(DirectRLEnv):
@@ -180,6 +46,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         | CartpoleSimpleShadingConstantCameraEnvCfg
         | CartpoleSimpleShadingDiffuseCameraEnvCfg
         | CartpoleSimpleShadingFullCameraEnvCfg
+        | CartpoleCameraEnvCfg
     )
 
     def __init__(
@@ -226,7 +93,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.actions = self.action_scale * actions.clone()
 
     def _apply_action(self) -> None:
-        self._cartpole.set_joint_effort_target(self.actions, joint_ids=self._cart_dof_idx)
+        self._cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.tiled_camera.data_types[0]
@@ -251,7 +118,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
         return observations
 
@@ -293,15 +160,17 @@ class CartpoleCameraEnv(DirectRLEnv):
         )
         joint_vel = wp.to_torch(self._cartpole.data.default_joint_vel)[env_ids]
 
-        default_root_state = wp.to_torch(self._cartpole.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(self._cartpole.data.default_root_pose)[env_ids]
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = wp.to_torch(self._cartpole.data.default_root_vel)[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self._cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self._cartpole.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self._cartpole.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self._cartpole.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._cartpole.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 @torch.jit.script

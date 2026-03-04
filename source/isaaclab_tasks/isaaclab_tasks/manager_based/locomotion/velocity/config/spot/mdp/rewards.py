@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.sensors import ContactSensor
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import RewardTermCfg
+    from isaaclab.sensors import ContactSensor
 
 
 ##
@@ -115,8 +115,8 @@ class GaitReward(ManagerTermBase):
             or len(synced_feet_pair_names[1]) != 2
         ):
             raise ValueError("This reward only supports gaits with two pairs of synchronized feet, like trotting.")
-        synced_feet_pair_0 = self.contact_sensor.find_bodies(synced_feet_pair_names[0])[0]
-        synced_feet_pair_1 = self.contact_sensor.find_bodies(synced_feet_pair_names[1])[0]
+        synced_feet_pair_0 = self.contact_sensor.find_sensors(synced_feet_pair_names[0])[0]
+        synced_feet_pair_1 = self.contact_sensor.find_sensors(synced_feet_pair_names[1])[0]
         self.synced_feet_pairs = [synced_feet_pair_0, synced_feet_pair_1]
 
     def __call__(

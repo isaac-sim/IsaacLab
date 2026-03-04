@@ -5,15 +5,30 @@
 
 from __future__ import annotations
 
+"""Base classes for legacy retargeting.
+
+.. deprecated::
+    :class:`RetargeterBase` and :class:`RetargeterCfg` are deprecated.
+    Please use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop`
+    instead. See :class:`isaaclab_teleop.IsaacTeleopCfg` for pipeline-based
+    retargeting configuration.
+"""
+
+import warnings
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from isaaclab.utils import configclass
 
-@dataclass
+
+@configclass
 class RetargeterCfg:
-    """Base configuration for hand tracking retargeters."""
+    """Base configuration for hand tracking retargeters.
+
+    .. deprecated::
+        Use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop` instead.
+    """
 
     sim_device: str = "cpu"
     # Concrete retargeter class to construct for this config. Set by each retargeter module.
@@ -22,6 +37,9 @@ class RetargeterCfg:
 
 class RetargeterBase(ABC):
     """Base interface for input data retargeting.
+
+    .. deprecated::
+        Use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop` instead.
 
     This abstract class defines the interface for components that transform
     raw device data into robot control commands. Implementations can handle
@@ -37,6 +55,11 @@ class RetargeterBase(ABC):
         Args:
             cfg: Configuration for the retargeter
         """
+        warnings.warn(
+            "RetargeterBase is deprecated. Please use the IsaacTeleop retargeting engine via isaaclab_teleop instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._sim_device = cfg.sim_device
 
     class Requirement(Enum):
