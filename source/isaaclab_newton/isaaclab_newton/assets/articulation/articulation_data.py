@@ -2192,7 +2192,6 @@ class ArticulationData(BaseArticulationData):
         # -- root properties
         if self._root_view.is_fixed_base:
             _rt = self._root_view.get_root_transforms(NewtonManager.get_state_0())
-            print(f"[DEBUG] fixed_base root_transforms: shape={_rt.shape}, ndim={_rt.ndim}, dtype={_rt.dtype}")
             self._sim_bind_root_link_pose_w = _rt[:, 0, 0] if _rt.ndim >= 3 else _rt[:, 0]
         else:
             self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0]
@@ -2238,12 +2237,8 @@ class ArticulationData(BaseArticulationData):
                 "joint_effort_limit", NewtonManager.get_model()
             )[:, 0]
             # -- joint states
-            print("joint pos shape:", self._root_view.get_dof_positions(NewtonManager.get_state_0()).shape)
-            print("joint vel shape:", self._root_view.get_dof_velocities(NewtonManager.get_state_0()).shape)
             self._sim_bind_joint_pos = self._root_view.get_dof_positions(NewtonManager.get_state_0())[:, 0]
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(NewtonManager.get_state_0())[:, 0]
-            print("joint pos shape:", self._sim_bind_joint_pos.shape)
-            print("joint vel shape:", self._sim_bind_joint_vel.shape)
             # -- joint commands (sent to the simulation)
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", NewtonManager.get_control())[:, 0]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(

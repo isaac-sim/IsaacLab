@@ -306,11 +306,6 @@ class FrameTransformer(SensorBase):
         if not frame_found:
             raise ValueError(f"Source frame '{body_name}' not found.")
         self._source_frame_body_name = body_name
-        # Print the information about the source frame body
-        print("[INFO]: Initializing FrameTransformer!")
-        print(f"[INFO]: Using source body: {body_name} as reference frame.")
-        print(f"[INFO]: + Body found in view id: {self._warp_source_view_id}.")
-        print(f"[INFO]: + Body id in view {self._warp_source_view_id}: {self._warp_source_body_id}.")
 
         # Go through all the target frames and find the bodies matching the regex
         matching_prims = []
@@ -377,14 +372,6 @@ class FrameTransformer(SensorBase):
                 raise ValueError(f"Frame '{body_name}' found.")
         # Set the target frame names
         self._data.target_frame_names = self._target_frame_names
-        print(f"[INFO]: Found {self._num_frames} target frames.")
-        for key in self._warp_view_body_name:
-            print(f"[INFO]: + Found {len(self._warp_view_body_name[key])} bodies in view {key}.")
-            for body_name, body_id, frame_id in zip(
-                self._warp_view_body_name[key], self._warp_view_body_id[key], self._warp_view_frame_id[key]
-            ):
-                print(f"[INFO]:   + Found {body_name} in view {key} with body id {body_id} and frame id {frame_id}.")
-        print("[INFO]: FrameTransformer initialized!")
         # Convert the pose to a wp.array
         self._warp_offset_buffer = wp.from_torch(pose, dtype=wp.transformf)
 
