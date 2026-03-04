@@ -247,6 +247,12 @@ class TestBaseIsaacLabBenchmark:
 class TestMetricsBackendFactory:
     """Tests for MetricsBackend factory class."""
 
+    @pytest.fixture
+    def temp_output_dir(self):
+        """Create a temporary output directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
     @pytest.fixture(autouse=True)
     def reset_backends(self):
         """Reset backend instances before each test."""
@@ -269,6 +275,31 @@ class TestMetricsBackendFactory:
         backend = backends.MetricsBackend.get_instance("omniperf")
         assert isinstance(backend, backends.OmniPerfKPIFile)
 
+    def test_get_summary_backend(self):
+        """Test getting Summary backend instance."""
+        backend = backends.MetricsBackend.get_instance("summary")
+        assert isinstance(backend, backends.SummaryMetrics)
+
+    def test_summary_backend_finalize_writes_json(self, temp_output_dir):
+        """Test that SummaryMetrics finalize writes JSON output (and does not raise)."""
+        backend = backends.MetricsBackend.get_instance("summary")
+        from isaaclab.test.benchmark.measurements import StringMetadata, TestPhase
+
+        phase = TestPhase(phase_name="runtime")
+        phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
+        phase.metadata.append(StringMetadata(name="runtime workflow_name", data="summary_test"))
+        phase.metadata.append(StringMetadata(name="runtime phase", data="runtime"))
+        backend.add_metrics(phase)
+        output_path = temp_output_dir
+        output_filename = "summary_test"
+        backend.finalize(output_path, output_filename)
+        expected_path = os.path.join(output_path, f"{output_filename}.json")
+        assert os.path.exists(expected_path)
+        with open(expected_path) as f:
+            data = json.load(f)
+        assert isinstance(data, list) and len(data) >= 1
+        assert any(p.get("phase_name") == "runtime" for p in data)
+
     def test_invalid_backend_type_raises_error(self):
         """Test that invalid backend type raises ValueError."""
         with pytest.raises(ValueError, match="Unknown backend type"):
@@ -286,3 +317,7 @@ class TestMetricsBackendFactory:
         backends.MetricsBackend.reset_instances()
         backend2 = backends.MetricsBackend.get_instance("omniperf")
         assert backend1 is not backend2
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--maxfail=1"])
