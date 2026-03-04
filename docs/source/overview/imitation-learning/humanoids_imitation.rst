@@ -529,13 +529,22 @@ Generate the dataset with manipulation and point-to-point navigation
 
 To create a comprehensive locomanipulation dataset that combines both manipulation and navigation capabilities, you can generate a navigation dataset using the manipulation dataset from the previous step as input.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/disjoint_navigation.gif
-   :width: 100%
-   :align: center
-   :alt: G1 humanoid robot combining navigation with locomanipulation
-   :figclass: align-center
+.. list-table::
+   :widths: 50 50
+   :header-rows: 0
 
-   G1 humanoid robot performing locomanipulation with navigation capabilities.
+   * - .. figure:: ../../_static/mimic/g1_locomanip_no_obstacles.gif
+         :height: 260px
+         :align: center
+         :alt: G1 locomanipulation data generation without obstacles
+
+         Default: no obstacles (open scene).
+     - .. figure:: ../../_static/mimic/g1_locomanip_with_obstacles.gif
+         :height: 260px
+         :align: center
+         :alt: G1 locomanipulation data generation with forklift obstacles
+
+         With 8 forklift obstacles and ``--randomize_placement`` enabled.
 
 The locomanipulation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
 
@@ -566,6 +575,10 @@ The key parameters for locomanipulation dataset generation are:
 * ``--lift_step 60``: Number of steps for the lifting phase of the manipulation task. This should mark the point immediately after the robot has grasped the object.
 * ``--navigate_step 130``: Number of steps for the navigation phase between locations. This should make the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
+
+.. note::
+
+   You can change the number of obstacles (forklifts and boxes) in the scene by editing the locomanipulation SDG environment configuration. In ``source/isaaclab_mimic/isaaclab_mimic/locomanipulation_sdg/envs/g1_locomanipulation_sdg_env.py``, set the module-level constants ``NUM_FORKLIFTS`` and ``NUM_BOXES`` to the desired counts. Use ``--randomize_placement`` when running :file:`generate_data.py` to randomize obstacle and fixture positions each run.
 
 This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
 
