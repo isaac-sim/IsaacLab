@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 03, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 04, 2026"/>
   </head>
   
   
@@ -1008,13 +1008,12 @@ sudo<span class="w"> </span>sh<span class="w"> </span>cuda_12.8.0_570.86.10_linu
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>cudatoolkit
 </pre></div>
 </div>
-<p>With 580 drivers on Linux with architecture x86_64, we install CUDA 13 and additionally install several packages. Please ensure that the pytorch version is compatible with the CUDA version.
-.. code-block:: bash</p>
-<blockquote>
-<div><p>wget <a class="reference external" href="https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/cuda_13.0.2_580.95.05_linux.run">https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/cuda_13.0.2_580.95.05_linux.run</a>
-sudo sh cuda_13.0.2_580.95.05_linux.run –toolkit
-pip install numba-cuda[cu13] coverage==7.6.1</p>
-</div></blockquote>
+<p>With 580 drivers on Linux with architecture x86_64, we install CUDA 13 and additionally install several packages. Please ensure that the pytorch version is compatible with the CUDA version.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/cuda_13.0.2_580.95.05_linux.run
+sudo<span class="w"> </span>sh<span class="w"> </span>cuda_13.0.2_580.95.05_linux.run<span class="w"> </span>--toolkit
+pip<span class="w"> </span>install<span class="w"> </span>numba-cuda<span class="o">[</span>cu13<span class="o">]</span><span class="w"> </span><span class="nv">coverage</span><span class="o">==</span><span class="m">7</span>.6.1
+</pre></div>
+</div>
 </div>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py">Isaac-AutoMate-Disassembly-Direct-v0</a>: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py</span> <span class="pre">--assembly_id=ASSEMBLY_ID</span> <span class="pre">--disassembly_dir=DISASSEMBLY_DIR</span></code>. All generated trajectories are saved to a local directory <code class="docutils literal notranslate"><span class="pre">DISASSEMBLY_DIR</span></code>.</p></li>
@@ -2178,7 +2177,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 03, 2026.
+  Last updated on Mar 04, 2026.
   <br/>
 </p>
   </div>
