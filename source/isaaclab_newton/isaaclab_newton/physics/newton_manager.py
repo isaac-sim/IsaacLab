@@ -506,6 +506,8 @@ class NewtonManager(PhysicsManager):
     ) -> tuple[str | list[str] | None, str | list[str] | None, str | list[str] | None, str | list[str] | None]:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
+        Regex expressions are resolved to ``list[int]`` indices before being forwarded to the Newton sensor.
+
         Note: Only one contact sensor can be active at a time.
 
         Args:

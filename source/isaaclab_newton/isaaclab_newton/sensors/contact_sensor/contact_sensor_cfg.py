@@ -85,7 +85,8 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
         if self.max_contact_data_count_per_prim is not None:
             warnings.warn(
-                "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend. Ignoring.",
+                "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend."
+                " Ignoring.",
                 stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
