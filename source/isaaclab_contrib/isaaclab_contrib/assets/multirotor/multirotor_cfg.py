@@ -5,13 +5,15 @@
 
 from collections.abc import Sequence
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.actuators import ThrusterCfg
 
-from .multirotor import Multirotor
+if TYPE_CHECKING:
+    from .multirotor import Multirotor
 
 
 @configclass
@@ -78,7 +80,7 @@ class MultirotorCfg(ArticulationCfg):
         - :class:`Multirotor`: Multirotor asset class
     """
 
-    class_type: type = Multirotor
+    class_type: type["Multirotor"] | str = "{DIR}.multirotor:Multirotor"
 
     @configclass
     class InitialStateCfg(ArticulationCfg.InitialStateCfg):

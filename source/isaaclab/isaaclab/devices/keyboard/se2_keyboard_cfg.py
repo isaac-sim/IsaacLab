@@ -7,17 +7,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from isaaclab.utils import configclass
 
 from ..device_base import DeviceCfg
-from .se2_keyboard import Se2Keyboard
+
+if TYPE_CHECKING:
+    from .se2_keyboard import Se2Keyboard
 
 
-@dataclass
+@configclass
 class Se2KeyboardCfg(DeviceCfg):
     """Configuration for SE2 keyboard devices."""
 
     v_x_sensitivity: float = 0.8
     v_y_sensitivity: float = 0.4
     omega_z_sensitivity: float = 1.0
-    class_type: type | str = Se2Keyboard
+    class_type: type[Se2Keyboard] | str = "{DIR}.se2_keyboard:Se2Keyboard"

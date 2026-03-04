@@ -35,12 +35,13 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "warp-lang==1.12.0rc2",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
     # livestream
     "starlette==0.49.1",
+    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",
@@ -50,11 +51,12 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     # visualizers
-    "newton @ git+https://github.com/newton-physics/newton.git@35657fc",
+    "newton==1.0.0rc1",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
+    "lazy_loader>=0.4",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
@@ -75,6 +77,31 @@ INSTALL_REQUIRES += [
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
+# Isaac Lab subpackages + Isaac Sim
+EXTRAS_REQUIRE = {
+    "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
+    # Individual Isaac Lab sub-packages
+    "assets": ["isaaclab_assets"],
+    "physx": ["isaaclab_physx"],
+    "contrib": ["isaaclab_contrib"],
+    "mimic": ["isaaclab_mimic"],
+    "newton": ["isaaclab_newton"],
+    "rl": ["isaaclab_rl"],
+    "tasks": ["isaaclab_tasks"],
+    "teleop": ["isaaclab_teleop"],
+    # Convenience: all sub-packages (does not include isaacsim)
+    "all": [
+        "isaaclab_assets",
+        "isaaclab_physx",
+        "isaaclab_contrib",
+        "isaaclab_mimic",
+        "isaaclab_newton",
+        "isaaclab_rl",
+        "isaaclab_tasks",
+        "isaaclab_teleop",
+    ],
+}
+
 # Installation operation
 setup(
     name="isaaclab",
@@ -86,8 +113,10 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[

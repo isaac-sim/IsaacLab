@@ -6,12 +6,15 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
 from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .frame_transformer import FrameTransformer
+
+if TYPE_CHECKING:
+    from .frame_transformer import FrameTransformer
 
 
 @configclass
@@ -54,7 +57,7 @@ class FrameTransformerCfg(SensorBaseCfg):
         offset: OffsetCfg = OffsetCfg()
         """The pose offset from the parent prim frame."""
 
-    class_type: type = FrameTransformer
+    class_type: type[FrameTransformer] | str = "{DIR}.frame_transformer:FrameTransformer"
 
     prim_path: str = MISSING
     """The prim path of the body to transform from (source frame)."""

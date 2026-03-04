@@ -102,10 +102,11 @@ def main():
         dest_path = os.path.abspath(dest_path)
 
     # Create Urdf converter config
+    # Note: usd_file_name is determined by the URDF importer 3.0 based on the robot name
+    # and cannot be overridden. The output is placed under dest_path as usd_dir.
     urdf_converter_cfg = UrdfConverterCfg(
         asset_path=urdf_path,
-        usd_dir=os.path.dirname(dest_path),
-        usd_file_name=os.path.basename(dest_path),
+        usd_dir=dest_path,
         fix_base=args_cli.fix_base,
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,

@@ -23,7 +23,17 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
-@pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
+@pytest.mark.parametrize(
+    "task_name",
+    setup_environment(
+        include_play=False,
+        factory_envs=False,
+        multi_agent=False,
+        teleop_envs=False,
+        cartpole_showcase_envs=False,
+        pickplace_stack_envs=False,
+    ),
+)
 @pytest.mark.isaacsim_ci
 def test_environments(task_name, num_envs, device):
     # run environments without stage in memory

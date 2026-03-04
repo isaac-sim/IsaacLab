@@ -11,12 +11,11 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-
-from isaaclab.assets import RigidObject
-from isaaclab.managers import SceneEntityCfg
 
 """
 Drone control rewards.

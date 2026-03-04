@@ -94,9 +94,10 @@ def env_and_cfg(request):
 
     env, env_cfg = create_test_env(env_name, num_envs=1)
 
-    # Get only the FrameTasks from variable_input_tasks
+    # Read instantiated task objects from the live action term/controller, not raw cfg wrappers.
+    action_term = env.action_manager.get_term(name="upper_body_ik")
     variable_input_tasks = [
-        task for task in env_cfg.actions.upper_body_ik.controller.variable_input_tasks if isinstance(task, FrameTask)
+        task for task in action_term._ik_controllers[0].cfg.variable_input_tasks if isinstance(task, FrameTask)
     ]
     assert len(variable_input_tasks) == 2, "Expected exactly two FrameTasks (left and right hand)."
     frames = [task.frame for task in variable_input_tasks]

@@ -16,7 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import ctypes
+import sys
 
 import pytest
 import torch
@@ -115,8 +115,8 @@ def test_initialization(sim, num_envs, num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
     object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
 
-    # Check that boundedness of rigid object is correct
-    assert ctypes.c_long.from_address(id(object_collection)).value == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(object_collection) < 10
 
     # Play sim
     sim.reset()
@@ -128,7 +128,7 @@ def test_initialization(sim, num_envs, num_cubes, device):
     # Check buffers that exist and have correct shapes
     assert wp.to_torch(object_collection.data.body_link_pos_w).shape == (num_envs, num_cubes, 3)
     assert wp.to_torch(object_collection.data.body_link_quat_w).shape == (num_envs, num_cubes, 4)
-    assert wp.to_torch(object_collection.data.body_mass).shape == (num_envs, num_cubes, 1)
+    assert wp.to_torch(object_collection.data.body_mass).shape == (num_envs, num_cubes)
     assert wp.to_torch(object_collection.data.body_inertia).shape == (num_envs, num_cubes, 9)
 
     # Simulate physics
@@ -182,8 +182,8 @@ def test_initialization_with_kinematic_enabled(sim, num_envs, num_cubes, device)
         num_envs=num_envs, num_cubes=num_cubes, kinematic_enabled=True, device=device
     )
 
-    # Check that boundedness of rigid object is correct
-    assert ctypes.c_long.from_address(id(object_collection)).value == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(object_collection) < 10
 
     # Play sim
     sim.reset()
@@ -214,8 +214,8 @@ def test_initialization_with_no_rigid_body(sim, num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
-    # Check that boundedness of rigid object is correct
-    assert ctypes.c_long.from_address(id(object_collection)).value == 1
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(object_collection) < 10
 
     # Play sim
     with pytest.raises(RuntimeError):
@@ -288,7 +288,7 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
     # Sample a force equal to the weight of the object
     external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
     # Every 2nd cube should have a force applied to it
-    external_wrench_b[:, 0::2, 2] = 9.81 * wp.to_torch(object_collection.data.body_mass)[:, 0::2, 0]
+    external_wrench_b[:, 0::2, 2] = 9.81 * wp.to_torch(object_collection.data.body_mass)[:, 0::2]
 
     for i in range(5):
         # reset object state

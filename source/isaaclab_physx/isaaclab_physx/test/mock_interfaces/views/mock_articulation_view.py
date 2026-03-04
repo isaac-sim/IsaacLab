@@ -142,6 +142,13 @@ class MockArticulationView:
         """USD prim paths for each instance."""
         return self._prim_paths
 
+    @property
+    def dof_paths(self) -> list[list[str]]:
+        """DOF paths for each instance."""
+        dof_names = self._shared_metatype.dof_names or [f"joint_{i}" for i in range(self._num_dofs)]
+        single_instance_paths = [f"{self._prim_paths[0]}/{name}" for name in dof_names]
+        return [single_instance_paths] * self._count
+
     # -- Root Getters --
 
     def get_root_transforms(self) -> torch.Tensor:
@@ -925,6 +932,95 @@ class MockArticulationView:
             forces: Tensor of shape (N, L, 6).
         """
         self._link_incoming_joint_force = forces.to(self._device)
+
+    # -- Actions (no-op for testing) --
+
+    def apply_forces_and_torques_at_position(
+        self,
+        force_data: torch.Tensor | None = None,
+        torque_data: torch.Tensor | None = None,
+        position_data: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+        is_global: bool = True,
+    ) -> None:
+        """Apply forces and torques at positions (no-op in mock).
+
+        Args:
+            force_data: Forces to apply, shape (N, 3) or (len(indices), 3).
+            torque_data: Torques to apply, shape (N, 3) or (len(indices), 3).
+            position_data: Positions to apply forces at, shape (N, 3) or (len(indices), 3).
+            indices: Optional indices of articulations to apply to.
+            is_global: Whether forces/torques are in global frame.
+        """
+        pass  # No-op for mock
+
+    # -- Tendon Getters (stubs) --
+
+    def get_fixed_tendon_stiffnesses(self) -> torch.Tensor:
+        """Get fixed tendon stiffnesses. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_dampings(self) -> torch.Tensor:
+        """Get fixed tendon dampings. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_limit_stiffnesses(self) -> torch.Tensor:
+        """Get fixed tendon limit stiffnesses. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_rest_lengths(self) -> torch.Tensor:
+        """Get fixed tendon rest lengths. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_offsets(self) -> torch.Tensor:
+        """Get fixed tendon offsets. Returns zeros of shape (N, max_fixed_tendons)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, device="cpu")
+
+    def get_fixed_tendon_limits(self) -> torch.Tensor:
+        """Get fixed tendon limits. Returns zeros of shape (N, max_fixed_tendons, 2)."""
+        return torch.zeros(self._count, self._max_fixed_tendons, 2, device="cpu")
+
+    def get_spatial_tendon_stiffnesses(self) -> torch.Tensor:
+        """Get spatial tendon stiffnesses. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    def get_spatial_tendon_dampings(self) -> torch.Tensor:
+        """Get spatial tendon dampings. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    def get_spatial_tendon_limit_stiffnesses(self) -> torch.Tensor:
+        """Get spatial tendon limit stiffnesses. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    def get_spatial_tendon_offsets(self) -> torch.Tensor:
+        """Get spatial tendon offsets. Returns zeros of shape (N, max_spatial_tendons)."""
+        return torch.zeros(self._count, self._max_spatial_tendons, device="cpu")
+
+    # -- Tendon Setters (no-op stubs) --
+
+    def set_fixed_tendon_properties(
+        self,
+        stiffness: torch.Tensor | None = None,
+        damping: torch.Tensor | None = None,
+        limit_stiffness: torch.Tensor | None = None,
+        pos_limits: torch.Tensor | None = None,
+        rest_length: torch.Tensor | None = None,
+        offset: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+    ) -> None:
+        """Set fixed tendon properties (no-op in mock)."""
+        pass  # No-op for mock
+
+    def set_spatial_tendon_properties(
+        self,
+        stiffness: torch.Tensor | None = None,
+        damping: torch.Tensor | None = None,
+        limit_stiffness: torch.Tensor | None = None,
+        offset: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+    ) -> None:
+        """Set spatial tendon properties (no-op in mock)."""
+        pass  # No-op for mock
 
     def set_random_mock_data(self) -> None:
         """Set all internal state to random values for benchmarking.

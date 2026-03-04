@@ -12,12 +12,11 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.math import quat_apply_inverse
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -70,8 +69,9 @@ def task_done_pick_place_table_frame(
 
     object: RigidObject = env.scene[object_cfg.name]
     table = env.scene[table_cfg.name]
-    if not isinstance(table, XformPrimView):
-        raise TypeError(f"Expected table '{table_cfg.name}' to be an XformPrimView, got {type(table)}")
+    # Avoid importing sim views at module-load time for pure cfg loading.
+    if not hasattr(table, "get_world_poses"):
+        raise TypeError(f"Expected table '{table_cfg.name}' to expose get_world_poses(), got {type(table)}")
 
     # Get table world pose
     table_pos_w, table_quat_w = table.get_world_poses()

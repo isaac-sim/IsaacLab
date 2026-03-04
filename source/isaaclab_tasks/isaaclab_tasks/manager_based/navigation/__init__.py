@@ -5,4 +5,6 @@
 
 """Navigation environments."""
 
-from .config import anymal_c
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

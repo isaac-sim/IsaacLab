@@ -16,6 +16,8 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 from isaaclab.utils.assets import check_file_path, read_file
 
+from .pre_trained_policy_action_cfg import PreTrainedPolicyActionCfg  # noqa: F401
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv

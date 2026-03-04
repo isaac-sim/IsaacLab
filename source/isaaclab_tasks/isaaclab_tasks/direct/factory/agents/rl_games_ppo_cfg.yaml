@@ -52,7 +52,6 @@ params:
   config:
     name: Factory
     device: cuda:0
-    full_experiment_name: test
     env_name: rlgpu
     multi_gpu: False
     ppo: True

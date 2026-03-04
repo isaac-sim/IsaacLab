@@ -84,7 +84,7 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils import hydra_task_config
 
 imports_time_end = time.perf_counter_ns()
 

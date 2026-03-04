@@ -4,11 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
-from . import actuator_pd
 from .actuator_base_cfg import ActuatorBaseCfg
+
+if TYPE_CHECKING:
+    from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
 
 """
 Implicit Actuator Models.
@@ -23,7 +26,7 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
         The PD control is handled implicitly by the simulation.
     """
 
-    class_type: type = actuator_pd.ImplicitActuator
+    class_type: type["ImplicitActuator"] | str = "{DIR}.actuator_pd:ImplicitActuator"
 
 
 """
@@ -35,14 +38,14 @@ Explicit Actuator Models.
 class IdealPDActuatorCfg(ActuatorBaseCfg):
     """Configuration for an ideal PD actuator."""
 
-    class_type: type = actuator_pd.IdealPDActuator
+    class_type: type["IdealPDActuator"] | str = "{DIR}.actuator_pd:IdealPDActuator"
 
 
 @configclass
 class DCMotorCfg(IdealPDActuatorCfg):
     """Configuration for direct control (DC) motor actuator model."""
 
-    class_type: type = actuator_pd.DCMotor
+    class_type: type["DCMotor"] | str = "{DIR}.actuator_pd:DCMotor"
 
     saturation_effort: float = MISSING
     """Peak motor force/torque of the electric DC motor (in N-m)."""
@@ -52,7 +55,7 @@ class DCMotorCfg(IdealPDActuatorCfg):
 class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     """Configuration for a delayed PD actuator."""
 
-    class_type: type = actuator_pd.DelayedPDActuator
+    class_type: type["DelayedPDActuator"] | str = "{DIR}.actuator_pd:DelayedPDActuator"
 
     min_delay: int = 0
     """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
@@ -71,7 +74,7 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
         the output torques.
     """
 
-    class_type: type = actuator_pd.RemotizedPDActuator
+    class_type: type["RemotizedPDActuator"] | str = "{DIR}.actuator_pd:RemotizedPDActuator"
 
     joint_parameter_lookup: list[list[float]] = MISSING
     """Joint parameter lookup table. Shape is (num_lookup_points, 3).

@@ -5,13 +5,6 @@
 
 """Sub-module for Newton renderer backends (Newton Warp)."""
 
-from .newton_warp_renderer import NewtonWarpRenderer
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
+from isaaclab.utils.module import lazy_export
 
-Renderer = NewtonWarpRenderer
-
-__all__ = [
-    "NewtonWarpRenderer",
-    "NewtonWarpRendererCfg",
-    "Renderer",
-]
+lazy_export()

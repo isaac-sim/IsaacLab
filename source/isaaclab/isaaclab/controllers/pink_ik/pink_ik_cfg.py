@@ -7,11 +7,15 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
-
-from pink.tasks import FrameTask
+from dataclasses import field
+from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
+
+from .pink_task_cfg import PinkIKTaskCfg
+
+if TYPE_CHECKING:
+    from pink.tasks import Task
 
 
 @configclass
@@ -21,9 +25,19 @@ class PinkIKControllerCfg:
     The Pink IK controller can be found at: https://github.com/stephane-caron/pink
     """
 
+    usd_path: str | None = None
+    """Path to the robot's USD file. When set and ``urdf_path`` is None, the controller will automatically
+    convert the USD to URDF at runtime using ``convert_usd_to_urdf``. Requires Isaac Sim at runtime.
+    """
+
+    urdf_output_dir: str | None = None
+    """Output directory for the USD-to-URDF conversion. Only used when ``usd_path`` is set and
+    ``urdf_path`` is None. Defaults to ``tempfile.gettempdir()`` if not provided.
+    """
+
     urdf_path: str | None = None
     """Path to the robot's URDF file. This file is used by Pinocchio's ``robot_wrapper.BuildFromURDF``
-    to load the robot model.
+    to load the robot model. If not provided, the URDF is generated from ``usd_path`` at runtime.
     """
 
     mesh_path: str | None = None
@@ -38,7 +52,7 @@ class PinkIKControllerCfg:
     The last ``num_hand_joints`` values of the action are the hand joint angles.
     """
 
-    variable_input_tasks: list[FrameTask] = MISSING
+    variable_input_tasks: list[Task | PinkIKTaskCfg] = field(default_factory=list)
     """A list of tasks for the Pink IK controller.
 
     These tasks are controllable by the environment action.
@@ -47,7 +61,7 @@ class PinkIKControllerCfg:
     For more details, visit: https://github.com/stephane-caron/pink
     """
 
-    fixed_input_tasks: list[FrameTask] = MISSING
+    fixed_input_tasks: list[Task | PinkIKTaskCfg] = field(default_factory=list)
     """
     A list of tasks for the Pink IK controller. These tasks are fixed and not controllable by the env action.
 

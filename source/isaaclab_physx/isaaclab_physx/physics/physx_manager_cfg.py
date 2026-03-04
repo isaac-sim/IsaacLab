@@ -12,10 +12,8 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
-from .physx_manager import PhysxManager
-
 if TYPE_CHECKING:
-    from isaaclab.physics import PhysicsManager
+    from .physx_manager import PhysxManager
 
 
 @configclass
@@ -41,7 +39,7 @@ class PhysxCfg(PhysicsCfg):
     # PhysX Scene Settings
     # ------------------------------------------------------------------
 
-    class_type: type[PhysicsManager] = PhysxManager
+    class_type: type[PhysxManager] | str = "{DIR}.physx_manager:PhysxManager"
     """The class type of the PhysxManager."""
 
     # ------------------------------------------------------------------
@@ -114,6 +112,22 @@ class PhysxCfg(PhysicsCfg):
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
+    """
+
+    enable_scene_query_support: bool = False
+    """Enable/disable scene query support for collision shapes. Default is False.
+
+    This flag allows performing collision queries (raycasts, sweeps, and overlaps) on actors and
+    attached shapes in the scene. This is useful for implementing custom collision detection logic
+    outside of the physics engine.
+
+    If set to False, the physics engine does not create the scene query manager and the scene query
+    functionality will not be available. However, this provides some performance speed-up.
+
+    Note:
+        This flag is overridden to True
+        when running the simulation with the GUI enabled. This is to allow certain GUI features
+        to work properly.
     """
 
     enable_ccd: bool = False

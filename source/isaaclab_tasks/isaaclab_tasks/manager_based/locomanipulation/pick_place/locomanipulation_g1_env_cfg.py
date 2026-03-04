@@ -25,7 +25,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.action_cfg import AgileBasedLowerBodyActionCfg
@@ -392,10 +392,9 @@ class TerminationsCfg:
     )
 
     success = DoneTerm(
-        func=locomanip_mdp.task_done_pick_place_table_frame,
+        func=manip_mdp.task_done_pick_place,
         params={
             "task_link_name": "right_wrist_yaw_link",
-            "table_cfg": SceneEntityCfg("packing_table_2"),
         },
     )
 
@@ -435,14 +434,9 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
-        # scene settings
-        self.scene.replicate_physics = False
 
-        # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
-
-        # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
-        self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
+        # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
+        self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
         if _TELEOP_AVAILABLE:
             self.xr = XrCfg(

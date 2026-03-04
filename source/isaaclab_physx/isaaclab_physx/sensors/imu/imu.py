@@ -165,9 +165,10 @@ class Imu(BaseImu):
             self._rigid_parent_expr = self.cfg.prim_path
             fixed_pos_b, fixed_quat_b = None, None
         else:
-            # Convert ancestor prim path to expression
+            # Convert ancestor prim path to expression by stripping the relative
+            # suffix (including its leading '/') so no trailing '/' remains.
             relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
-            self._rigid_parent_expr = self.cfg.prim_path.replace(relative_path, "")
+            self._rigid_parent_expr = self.cfg.prim_path.replace("/" + relative_path, "")
             # Resolve the relative pose between the target prim and the ancestor prim
             fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
 

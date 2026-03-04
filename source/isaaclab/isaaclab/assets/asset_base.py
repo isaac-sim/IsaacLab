@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -195,7 +196,7 @@ class AssetBase(ABC):
         if debug_vis:
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
-                if sim_ctx and "Physx" in sim_ctx.physics_manager.__name__:
+                if "physx" in sim_ctx.physics_manager.__name__.lower():
                     import omni.kit.app
 
                     app_interface = omni.kit.app.get_app_interface()
@@ -236,6 +237,76 @@ class AssetBase(ABC):
         raise NotImplementedError
 
     """
+    Validation.
+    """
+
+    # Mapping from warp dtype to the trailing dimensions that a torch.Tensor
+    # would have for the same data.  Subclasses may extend this (e.g. custom
+    # ``vec6f`` in deformable objects) by updating the dict in their ``__init__``.
+    _DTYPE_TO_TORCH_TRAILING_DIMS: dict[type, tuple[int, ...]] = {
+        wp.float32: (),
+        wp.int32: (),
+        wp.vec2f: (2,),
+        wp.vec3f: (3,),
+        wp.vec4f: (4,),
+        wp.transformf: (7,),
+        wp.spatial_vectorf: (6,),
+    }
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
+            dtype: The expected warp dtype.
+            name: Optional parameter name for error messages.
+        """
+        if __debug__:
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, (int, float)):
+                return
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                offset = self._DTYPE_TO_TORCH_TRAILING_DIMS.get(dtype)
+                if offset is None:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), (
+                    f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                )
+
+    def assert_shape_and_dtype_mask(
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        masks: tuple[wp.array, ...],
+        dtype: type,
+        name: str = "",
+        trailing_dims: tuple[int, ...] = (),
+    ) -> None:
+        """Assert the shape of a tensor or warp array against mask dimensions.
+
+        Mask-based write methods expect **full-sized** data — one element per entry in each mask
+        dimension, regardless of how many entries are ``True``. The expected leading shape is therefore
+        ``(mask_0.shape[0], mask_1.shape[0], ...)`` (i.e. the *total* size of each dimension, not the
+        number of selected entries).
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            masks: Tuple of mask arrays whose ``shape[0]`` dimensions form the expected leading shape.
+            dtype: The expected warp dtype.
+            name: Optional parameter name for error messages.
+            trailing_dims: Extra trailing dimensions to append (e.g. ``(9,)`` for inertias with ``wp.float32``).
+        """
+        if __debug__:
+            shape = (*tuple(m.shape[0] for m in masks), *trailing_dims)
+            self.assert_shape_and_dtype(tensor, shape, dtype, name)
+
+    """
     Implementation specific.
     """
 
@@ -268,37 +339,37 @@ class AssetBase(ABC):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
         physics_mgr_cls = SimulationContext.instance().physics_manager
 
-        def safe_callback(callback_name, event, obj_ref):
-            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
-            try:
-                obj = obj_ref
-                getattr(obj, callback_name)(event)
-            except ReferenceError:
-                # Object has been deleted; ignore.
-                pass
-
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
 
+        def _invoke(callback_name, event):
+            getattr(obj_ref, callback_name)(event)
+
         # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
         self._initialize_handle = physics_mgr_cls.register_callback(
-            lambda payload, obj_ref=obj_ref: safe_callback("_initialize_callback", payload, obj_ref),
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
-            lambda payload, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", payload, obj_ref),
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
             PhysicsEvent.STOP,
             order=10,
         )
         # Optional: prim deletion (only supported by PhysX backend)
         self._prim_deletion_handle = None
-        physics_backend = physics_mgr_cls.__name__
-        if "Physx" in physics_backend:
+        physics_backend = physics_mgr_cls.__name__.lower()
+        if "physx" in physics_backend:
             from isaaclab_physx.physics import IsaacEvents
 
             self._prim_deletion_handle = physics_mgr_cls.register_callback(
-                lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+                lambda event: PhysicsManager.safe_callback_invoke(
+                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                ),
                 IsaacEvents.PRIM_DELETION,
             )
 
@@ -310,20 +381,9 @@ class AssetBase(ABC):
             :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            self._backend = PhysicsManager.get_backend()
-            self._device = PhysicsManager.get_device()
-            try:
-                self._initialize_impl()
-            except Exception as e:
-                store_fn = getattr(
-                    SimulationContext.instance().physics_manager,
-                    "store_callback_exception",
-                    None,
-                )
-                if callable(store_fn):
-                    store_fn(e)
-                else:
-                    raise
+            self._backend = SimulationContext.instance().physics_manager.get_backend()
+            self._device = SimulationContext.instance().physics_manager.get_device()
+            self._initialize_impl()
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):

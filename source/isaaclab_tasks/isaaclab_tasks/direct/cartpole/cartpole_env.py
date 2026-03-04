@@ -98,18 +98,18 @@ class CartpoleEnv(DirectRLEnv):
             env_ids = self.cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids]
+        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids].clone()
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids]
+        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids].clone()
 
-        default_root_pose = wp.to_torch(self.cartpole.data.default_root_pose)[env_ids]
+        default_root_pose = wp.to_torch(self.cartpole.data.default_root_pose)[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
-        default_root_vel = wp.to_torch(self.cartpole.data.default_root_vel)[env_ids]
+        default_root_vel = wp.to_torch(self.cartpole.data.default_root_vel)[env_ids].clone()
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel

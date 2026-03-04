@@ -163,8 +163,8 @@ class FrameTransformer(BaseFrameTransformer):
         body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
         target_offsets: dict[str, dict[str, torch.Tensor]] = {}
-        # The frames whose offsets are not identity
-        non_identity_offset_frames: list[str] = []
+        # The frames whose offsets are not identity (use set to avoid duplicates across envs)
+        non_identity_offset_frames: set[str] = set()
 
         # Only need to perform offsetting of target frame if any of the position offsets are non-zero or any of the
         # rotation offsets are not the identity quaternion for efficiency in _update_buffer_impl
@@ -225,7 +225,7 @@ class FrameTransformer(BaseFrameTransformer):
                     offset_quat = torch.tensor(offset.rot, device=self.device)
                     # Check if we need to apply offsets (optimized code path in _update_buffer_impl)
                     if not is_identity_pose(offset_pos, offset_quat):
-                        non_identity_offset_frames.append(frame_name)
+                        non_identity_offset_frames.add(frame_name)
                         self._apply_target_frame_offset = True
                     target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
 
@@ -237,7 +237,7 @@ class FrameTransformer(BaseFrameTransformer):
         else:
             logger.info(
                 f"Offsets application needed from '{self.cfg.prim_path}' to the following target frames:"
-                f" {non_identity_offset_frames}"
+                f" {sorted(non_identity_offset_frames)}"
             )
 
         # The names of bodies that RigidPrim will be tracking to later extract transforms from

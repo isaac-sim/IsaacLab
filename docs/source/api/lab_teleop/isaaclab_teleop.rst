@@ -1,3 +1,5 @@
+.. _isaaclab_teleop-api:
+
 isaaclab_teleop
 ===============
 

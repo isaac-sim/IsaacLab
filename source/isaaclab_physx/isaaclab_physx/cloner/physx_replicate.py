@@ -21,12 +21,25 @@ def physx_replicate(
     quaternions: torch.Tensor | None = None,
     use_fabric: bool = False,
     device: str = "cpu",
+    exclude_self_replication: bool = True,
 ) -> None:
     """Replicate prims via PhysX replicator with per-row mapping.
 
     Builds per-source destination lists from ``mapping`` and calls PhysX ``replicate``.
     Rows covering all environments use ``useEnvIds=True``; partial rows use ``False``.
     The replicator is registered for the call and then unregistered.
+
+    ``attach_fn`` excludes ``/World/template`` and ``/World/envs`` so that PhysX does
+    not independently parse prims that the replicator will handle.  The source prim
+    receives its physics body as a side-effect of ``rep.replicate()`` (which always
+    parses the source internally), so every source must appear in at least one
+    ``replicate`` call.
+
+    When ``exclude_self_replication`` is True (default), each source environment is
+    removed from its own replication targets so the replicator only creates bodies at
+    non-self destinations.  If removing self would leave the world list empty (i.e. the
+    source maps only to its own environment), self is kept so that ``rep.replicate()``
+    is still called and the source prim gets its physics body.
 
     Args:
         stage: USD stage.
@@ -38,6 +51,9 @@ def physx_replicate(
         quaternions: Optional orientations (unused, for API compatibility).
         use_fabric: Use Fabric for replication.
         device: Torch device for determining replication mode.
+        exclude_self_replication: If True, skip replicating a source prim onto itself
+            when the source also maps to other environments.  Default is True.
+            Self-only sources always keep self so that ``rep.replicate()`` fires.
 
     Returns:
         None
@@ -51,26 +67,45 @@ def physx_replicate(
     current_template: str = ""
     num_envs = mapping.size(1)
 
-    def attach_fn(_stage_id: int):
-        return ["/World/envs", *sources]
-
-    def rename_fn(_replicate_path: str, i: int):
-        return current_template.format(current_worlds[i])
-
-    def attach_end_fn(_stage_id: int):
-        nonlocal current_template
-        rep = get_physx_replicator_interface()
+    if num_envs > 1:
+        # Pre-compute effective world lists after self-exclusion.
+        # Self is only removed when the source also maps to other environments;
+        # if it is the sole destination we must keep it so that rep.replicate()
+        # is still called (the source gets its physics body from that call).
+        effective_worlds: list[list[int]] = []
         for i, src in enumerate(sources):
-            current_worlds[:] = env_ids[mapping[i]].tolist()
-            current_template = destinations[i]
-            rep.replicate(
-                _stage_id,
-                src,
-                len(current_worlds),
-                useEnvIds=(len(current_worlds) == num_envs) and device != "cpu",
-                useFabricForReplication=use_fabric,
-            )
-        # unregister only AFTER all replicate() calls completed
-        rep.unregister_replicator(_stage_id)
+            worlds = env_ids[mapping[i]].tolist()
+            if exclude_self_replication:
+                pre, _, suf = destinations[i].partition("{}")
+                self_id = src.removeprefix(pre).removesuffix(suf)
+                if self_id.isdigit():
+                    filtered = [w for w in worlds if w != int(self_id)]
+                    worlds = filtered if filtered else worlds
+            effective_worlds.append(worlds)
 
-    get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)
+        def attach_fn(_stage_id: int):
+            return ["/World/template", "/World/envs"]
+
+        def rename_fn(_replicate_path: str, i: int):
+            return current_template.format(current_worlds[i])
+
+        def attach_end_fn(_stage_id: int):
+            nonlocal current_template
+            rep = get_physx_replicator_interface()
+            for i, src in enumerate(sources):
+                current_template = destinations[i]
+                current_worlds[:] = effective_worlds[i]
+                if not current_worlds:
+                    continue
+                rep.replicate(
+                    _stage_id,
+                    src,
+                    len(current_worlds),
+                    # TODO: envIds needs to support heterogeneous setup. for now, we rely on USD collision filtering
+                    useEnvIds=False,  # (len(current_worlds) == num_envs - 1) and device != "cpu",
+                    useFabricForReplication=use_fabric,
+                )
+            # unregister only AFTER all replicate() calls completed
+            rep.unregister_replicator(_stage_id)
+
+        get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)

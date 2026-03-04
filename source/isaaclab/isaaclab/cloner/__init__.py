@@ -3,6 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .cloner_cfg import TemplateCloneCfg
-from .cloner_strategies import *
-from .cloner_utils import *
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

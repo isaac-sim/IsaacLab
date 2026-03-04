@@ -5,12 +5,6 @@
 
 """Implementation backends for simulation interfaces."""
 
-from .physx_manager import PhysxManager, IsaacEvents
-from .physx_manager_cfg import PhysxCfg
+from isaaclab.utils.module import lazy_export
 
-
-__all__ = [
-    "PhysxManager",
-    "IsaacEvents",
-    "PhysxCfg",
-]
+lazy_export()

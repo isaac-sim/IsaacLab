@@ -30,6 +30,6 @@ Example usage:
 
 """
 
-from .assets import *
-from .sensors import *
-from .utils import *
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

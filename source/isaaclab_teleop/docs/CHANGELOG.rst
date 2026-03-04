@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.3.1 (2026-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Add cleanup for Isaac Teleop session when Stop XR button is clicked and when Kit is closed.
+
+
+0.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Update Isaac Teleop API usage for querying controller button states.
+
+
 0.2.0 (2026-02-24)
 ~~~~~~~~~~~~~~~~~~~
 

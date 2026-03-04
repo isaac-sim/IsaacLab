@@ -1,7 +1,50 @@
 Changelog
 ---------
 
-1.3.0 (2026-02-25)
+1.5.1 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Resolved :class:`~isaaclab_tasks.utils.PresetCfg` fields (e.g. physics) to their default values
+  in :func:`~isaaclab_tasks.utils.parse_env_cfg` so environments created via ``gym.make()`` outside
+  the Hydra pipeline no longer fail with ``AttributeError: 'XxxPhysicsCfg' object has no attribute 'class_type'``.
+
+1.5.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.utils.PresetCfg` base class — a ``@configclass`` whose typed
+  fields represent named configuration variants (e.g. ``default``, ``physx``, ``newton``).
+  The active variant is selected at launch with ``presets=<name>`` via the Hydra CLI, enabling
+  a single environment config to support multiple physics backends.
+
+* Added Newton backend support (via ``PresetCfg``) to the following environments:
+
+  * **Direct RL**: Cartpole (camera), Ant, Humanoid
+  * **Manager-based classic**: Ant, Humanoid
+  * **Manager-based locomotion velocity**: A1, AnymalB, AnymalC, AnymalD, Cassie, G1,
+    Go1, Go2, H1, Spot (flat and rough configs)
+  * **Manager-based manipulation reach**: Franka and UR10 reach
+  * **Dexsuite**: Kuka Allegro Lift
+
+
+1.4.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sim_launcher`` module with ``add_launcher_args`` and ``launch_simulation`` utilities
+  that auto-detect the physics backend (Newton vs Kit/PhysX) from the env config and launch the
+  appropriate simulation runtime. Training and play scripts no longer need to import ``AppLauncher``
+  directly.
+
+
+1.3.0 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -24,6 +67,7 @@ Changed
 * Added strict ``TYPE_CHECKING`` guards across MDP modules (observations, rewards, terminations,
   curriculums, events) so that heavy simulation-backend imports (``pxr``, ``omni``, ``carb``,
   ``scipy``) are not triggered when task configs are loaded without a running simulator.
+
 
 1.1.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
@@ -79,6 +123,17 @@ Changed
 ^^^^^^^
 
 * Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.11.14 (2026-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refactored automation scripts (``run_w_id.py`` and ``run_disassembly_w_id.py``) to use list-based command execution
+  via ``subprocess.run``. This avoids potential command injection risks by disabling shell execution and
+  properly handling environment variables.
 
 
 0.11.13 (2026-02-04)

@@ -258,6 +258,10 @@ Imports are sorted by the pre-commit hooks. Unless there is a good reason to do 
 import the modules inside functions or classes. To deal with circular imports, we use the
 :obj:`typing.TYPE_CHECKING` variable. Please refer to the `Circular Imports`_ section for more details.
 
+Note that ``__init__.py`` files are an exception to the above: they use
+:func:`~isaaclab.utils.module.lazy_export` instead of traditional imports.
+See the `Lazy Loading & Module Exports`_ section for details.
+
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
@@ -308,13 +312,183 @@ objects into separate files. This separation enhances code readability and maint
 it can result in circular imports because, in many configuration objects, we specify classes or functions
 as default values using the attributes ``class_type`` and ``func`` respectively.
 
-To address circular imports, we leverage the `typing.TYPE_CHECKING
-<https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ variable. This special variable is
-evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
-without triggering circular imports.
+To address this, we use two complementary techniques:
 
-It is important to note that this is the sole instance within our codebase where circular imports are used
-and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
+1. **Resolvable strings** — Store ``class_type`` and ``func`` as ``{DIR}``-based strings
+   (e.g. ``"{DIR}.sensor:Sensor"``) so the implementation module is never imported at config
+   construction time. The string is resolved to the actual class (via :class:`~isaaclab.utils.string.ResolvableString`)
+   after ``SimulationApp`` launches.
+2. **TYPE_CHECKING guards** — Import the implementation class under `typing.TYPE_CHECKING
+   <https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ so that IDEs and type
+   checkers can provide autocomplete on the type annotation without triggering a runtime import.
+
+See the `Resolvable Strings`_ and `Lazy Loading & Module Exports`_ sections for full
+examples of both patterns.
+
+Lazy Loading & Module Exports
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Every ``__init__.py`` in Isaac Lab uses **lazy loading** so that importing a top-level package
+(e.g. ``import isaaclab.sensors``) does not eagerly pull in heavyweight dependencies like
+``pxr``, ``omni``, or ``scipy``. This is critical because config classes must be constructable
+*before* ``SimulationApp`` is launched.
+
+We follow `SPEC 1 — Lazy Loading of Submodules and Functions
+<https://scientific-python.org/specs/spec-0001/>`__ and use the `lazy_loader
+<https://pypi.org/project/lazy-loader/>`__ library (endorsed by NumPy, SciPy, scikit-image,
+scikit-learn, NetworkX) with ``.pyi`` type-stub files. The stub is the **single source of
+truth** for both IDE autocomplete and runtime lazy loading.
+
+**Standard pattern** — the vast majority of ``__init__.py`` files:
+
+.. code:: python
+
+   # mypackage/__init__.py
+   from isaaclab.utils.module import lazy_export
+
+   lazy_export()
+
+With a corresponding type stub adjacent to it:
+
+.. code:: python
+
+   # mypackage/__init__.pyi
+   __all__ = ["MyClass", "MyOtherClass", "my_function"]
+
+   from .my_module import MyClass, MyOtherClass
+   from .my_other_module import my_function
+
+Key rules for ``.pyi`` stubs:
+
+* The ``__all__`` list at the top marks names as public re-exports (per `PEP 484
+  <https://peps.python.org/pep-0484/#stub-files>`__).
+* Group imports from the same submodule on one line. Use parenthesized multi-line
+  imports if the line exceeds 100 characters.
+* Only use **relative imports** (``from .something import ...``) — ``lazy_loader``
+  does not support absolute imports in stubs.
+* Include the standard Isaac Lab license header.
+
+**Cross-package fallback** — for modules that re-export names from another package
+(e.g. task MDP modules that delegate to ``isaaclab.envs.mdp``):
+
+.. code:: python
+
+   # isaaclab_tasks/.../mdp/__init__.py
+   from isaaclab.utils.module import lazy_export
+
+   lazy_export(packages=["isaaclab.envs.mdp"])
+
+The ``lazy_export`` helper in :mod:`isaaclab.utils.module` wraps ``lazy_loader.attach_stub``
+and, when ``packages`` is provided, adds a runtime fallback that scans the specified
+packages for names not found in the local stub.
+
+**Ensuring .pyi stubs are distributed**
+
+The ``setup.py`` for each package includes ``package_data={"": ["*.pyi"]}`` so that stub
+files are included in sdist and wheel distributions. The pre-commit ``insert-license`` hook
+is configured to add license headers to ``.pyi`` files automatically (``\.(pyi?|ya?ml)$``).
+
+Resolvable Strings
+^^^^^^^^^^^^^^^^^^
+
+When a config field needs to reference a class or callable that depends on the simulator
+runtime, store it as a :class:`~isaaclab.utils.string.ResolvableString` rather than a
+direct reference. This avoids eagerly importing heavyweight modules (``omni``, ``pxr``,
+etc.) at config construction time — the string is resolved to the actual callable only
+after ``SimulationApp`` has been initialized.
+
+You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
+
+.. code:: python
+
+   # Good — {DIR} shorthand (resolved to the current package at runtime)
+   class_type: type[Sensor] | str = "{DIR}.sensor:Sensor"
+
+   # Good — fully-qualified path (useful for cross-package references)
+   class_type: type[Sensor] | str = "isaaclab.sensors.my_sensor.sensor:Sensor"
+
+   # Bad — eagerly imports the implementation module
+   from .sensor import Sensor
+   class_type: type = Sensor
+
+The ``{DIR}`` placeholder is resolved at runtime to the fully-qualified package name of the
+directory containing the config file (e.g. ``isaaclab.sensors.my_sensor``). Prefer ``{DIR}``
+for references within the same package since it stays correct across renames and moves.
+
+For the type annotation (``type[Sensor]``), import the class under a ``TYPE_CHECKING`` guard
+so that the IDE can still provide autocomplete without triggering a runtime import:
+
+.. code:: python
+
+   from __future__ import annotations
+   import typing
+
+   if typing.TYPE_CHECKING:
+       from .sensor import Sensor
+
+Config + Implementation File Split
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Classes and their configuration objects live in separate files. This keeps config classes
+free of heavy runtime imports:
+
+.. code:: text
+
+   my_sensor/
+   ├── __init__.py          # lazy_export()
+   ├── __init__.pyi         # re-exports: SensorCfg, Sensor
+   ├── sensor_cfg.py        # pure data — no runtime deps
+   └── sensor.py            # implementation — may import omni, pxr, etc.
+
+``__init__.py`` — uses ``lazy_export()`` to lazily load names from the stub:
+
+.. code:: python
+
+   # my_sensor/__init__.py
+   from isaaclab.utils.module import lazy_export
+
+   lazy_export()
+
+``__init__.pyi`` — declares the public API for both IDE autocomplete and lazy loading:
+
+.. code:: python
+
+   # my_sensor/__init__.pyi
+   __all__ = ["SensorCfg", "Sensor"]
+
+   from .sensor_cfg import SensorCfg
+   from .sensor import Sensor
+
+``sensor_cfg.py`` — pure data; references the implementation class by resolvable string
+to avoid importing it:
+
+.. code:: python
+
+   # my_sensor/sensor_cfg.py
+   from __future__ import annotations
+   import typing
+
+   from isaaclab.utils import configclass
+
+   if typing.TYPE_CHECKING:
+       from .sensor import Sensor
+
+   @configclass
+   class SensorCfg:
+       class_type: type[Sensor] | str = "{DIR}.sensor:Sensor"
+
+``sensor.py`` — the implementation; may freely import heavyweight dependencies:
+
+.. code:: python
+
+   # my_sensor/sensor.py
+   import omni.isaac.core  # heavy — only loaded when this module is accessed
+
+   from .sensor_cfg import SensorCfg
+
+   class Sensor:
+       def __init__(self, cfg: SensorCfg):
+           ...
 
 Type-hinting
 ^^^^^^^^^^^^

@@ -5,5 +5,11 @@
 
 """Sub-module containing operations based on warp."""
 
-from . import fabric  # noqa: F401
-from .ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
+import warp as wp
+
+wp.config.quiet = True
+wp.init()
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

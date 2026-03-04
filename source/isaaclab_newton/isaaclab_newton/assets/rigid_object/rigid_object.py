@@ -332,6 +332,7 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_index,
@@ -377,6 +378,7 @@ class RigidObject(BaseRigidObject):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
 
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_mask,
@@ -423,6 +425,7 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
@@ -435,7 +438,7 @@ class RigidObject(BaseRigidObject):
                 env_ids,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -443,8 +446,6 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
@@ -478,6 +479,7 @@ class RigidObject(BaseRigidObject):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=root_pose.shape[0],
@@ -487,7 +489,7 @@ class RigidObject(BaseRigidObject):
                 env_mask,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -495,8 +497,6 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
@@ -533,6 +533,7 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_index,
@@ -544,14 +545,12 @@ class RigidObject(BaseRigidObject):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
@@ -584,6 +583,7 @@ class RigidObject(BaseRigidObject):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_velocity, (env_mask,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
@@ -594,14 +594,12 @@ class RigidObject(BaseRigidObject):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
@@ -635,6 +633,7 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
@@ -648,18 +647,15 @@ class RigidObject(BaseRigidObject):
                 1,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
@@ -691,6 +687,7 @@ class RigidObject(BaseRigidObject):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_velocity, (env_mask,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
@@ -702,18 +699,15 @@ class RigidObject(BaseRigidObject):
                 1,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
@@ -746,6 +740,7 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -789,6 +784,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
@@ -834,6 +830,7 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_index,
@@ -882,6 +879,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
@@ -922,6 +920,7 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer_index,
@@ -965,6 +964,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),

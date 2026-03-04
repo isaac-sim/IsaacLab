@@ -218,21 +218,23 @@ class TestG1LowerBodyStandingRetargeter(unittest.TestCase):
 
 
 class TestUnitreeG1Retargeter(unittest.TestCase):
-    @patch(
-        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter.UnitreeG1DexRetargeting"
-    )
-    def test_retarget(self, mock_dex_retargeting_cls):
-        mock_dex_retargeting = mock_dex_retargeting_cls.return_value
+    def test_retarget(self):
+        cfg = UnitreeG1RetargeterCfg(
+            enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"]
+        )
+        retargeter = UnitreeG1Retargeter(cfg)
+
+        # Replace _hands_controller with a configured mock.
+        # NOTE: We cannot use @patch on the module-level class because lazy_export()
+        # in parent __init__.py files replaces the module __dict__, so the class's
+        # __globals__ (old dict) diverges from the module attribute (new dict).
+        mock_dex_retargeting = MagicMock()
         mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
         mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
         mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
         mock_dex_retargeting.compute_left.return_value = np.array([0.1])
         mock_dex_retargeting.compute_right.return_value = np.array([0.2])
-
-        cfg = UnitreeG1RetargeterCfg(
-            enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"]
-        )
-        retargeter = UnitreeG1Retargeter(cfg)
+        retargeter._hands_controller = mock_dex_retargeting
 
         wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         data = {
@@ -245,17 +247,18 @@ class TestUnitreeG1Retargeter(unittest.TestCase):
 
 
 class TestGR1T2Retargeter(unittest.TestCase):
-    @patch("isaaclab_teleop.deprecated.openxr.retargeters.humanoid.fourier.gr1t2_retargeter.GR1TR2DexRetargeting")
-    def test_retarget(self, mock_dex_retargeting_cls):
-        mock_dex_retargeting = mock_dex_retargeting_cls.return_value
+    def test_retarget(self):
+        cfg = GR1T2RetargeterCfg(enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"])
+        retargeter = GR1T2Retargeter(cfg)
+
+        # Replace _hands_controller with a configured mock (see TestUnitreeG1Retargeter note).
+        mock_dex_retargeting = MagicMock()
         mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
         mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
         mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
         mock_dex_retargeting.compute_left.return_value = np.array([0.1])
         mock_dex_retargeting.compute_right.return_value = np.array([0.2])
-
-        cfg = GR1T2RetargeterCfg(enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"])
-        retargeter = GR1T2Retargeter(cfg)
+        retargeter._hands_controller = mock_dex_retargeting
 
         wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         data = {
@@ -349,21 +352,20 @@ class TestG1TriHandUpperBodyMotionControllerRetargeter(unittest.TestCase):
 
 
 class TestG1TriHandUpperBodyRetargeter(unittest.TestCase):
-    @patch(
-        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter.G1TriHandDexRetargeting"
-    )
-    def test_retarget(self, mock_dex_retargeting_cls):
-        mock_dex_retargeting = mock_dex_retargeting_cls.return_value
+    def test_retarget(self):
+        cfg = G1TriHandUpperBodyRetargeterCfg(
+            enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"]
+        )
+        retargeter = G1TriHandUpperBodyRetargeter(cfg)
+
+        # Replace _hands_controller with a configured mock (see TestUnitreeG1Retargeter note).
+        mock_dex_retargeting = MagicMock()
         mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
         mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
         mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
         mock_dex_retargeting.compute_left.return_value = np.array([0.1])
         mock_dex_retargeting.compute_right.return_value = np.array([0.2])
-
-        cfg = G1TriHandUpperBodyRetargeterCfg(
-            enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"]
-        )
-        retargeter = G1TriHandUpperBodyRetargeter(cfg)
+        retargeter._hands_controller = mock_dex_retargeting
 
         wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         data = {

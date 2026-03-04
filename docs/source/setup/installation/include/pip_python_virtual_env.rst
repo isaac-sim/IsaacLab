@@ -73,7 +73,7 @@ If you wish to install Isaac Sim 5.X, please use modify the instructions accordi
                   :: activate the virtual environment
                   env_isaaclab\Scripts\activate
 
-      .. tab-item::  UV Environment (experimental)
+      .. tab-item::  UV Environment
 
          To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
 

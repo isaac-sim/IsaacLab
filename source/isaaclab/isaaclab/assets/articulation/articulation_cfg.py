@@ -6,12 +6,15 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
-from .articulation import Articulation
+
+if TYPE_CHECKING:
+    from .articulation import Articulation
 
 
 @configclass
@@ -38,7 +41,7 @@ class ArticulationCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    class_type: type = Articulation
+    class_type: type[Articulation] | str = "{DIR}.articulation:Articulation"
 
     articulation_root_prim_path: str | None = None
     """Path to the articulation root prim under the :attr:`prim_path`. Defaults to None, in which case the class

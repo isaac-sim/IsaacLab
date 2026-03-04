@@ -9,14 +9,6 @@ This sub-package contains configuration classes and implementations for
 different renderer backends that can be used with Isaac Lab.
 """
 
-from __future__ import annotations
+from isaaclab.utils.module import lazy_export
 
-from .base_renderer import BaseRenderer
-from .renderer import Renderer
-from .renderer_cfg import RendererCfg
-
-__all__ = [
-    "BaseRenderer",
-    "Renderer",
-    "RendererCfg",
-]
+lazy_export()

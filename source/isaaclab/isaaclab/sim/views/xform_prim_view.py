@@ -12,10 +12,10 @@ import numpy as np
 import torch
 import warp as wp
 
-import carb
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,8 @@ class XformPrimView:
                     )
 
         # Determine if Fabric is supported on the device
-        self._use_fabric = carb.settings.get_settings().get("/physics/fabricEnabled")
+        settings = SettingsManager.instance()
+        self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
         logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination

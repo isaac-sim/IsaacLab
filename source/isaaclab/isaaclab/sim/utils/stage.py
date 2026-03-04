@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import builtins
 import contextlib
 import logging
 import os
@@ -251,7 +250,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...     pass
         >>> # operate on the default stage attached to the USD context
     """
-    if get_isaac_sim_version().major < 5:
+    if has_kit() and get_isaac_sim_version().major < 5:
         logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
     else:
@@ -472,8 +471,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
     delete_prim(prim_paths_to_delete)
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:  # type: ignore
+    if has_kit():
         omni.kit.app.get_app_interface().update()
 
 

@@ -16,6 +16,7 @@ import newton
 import torch
 import warp as wp
 
+from isaaclab.renderers import BaseRenderer
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.visualizers import VisualizerCfg
@@ -140,8 +141,8 @@ class RenderData:
         output[0, tid] = wp.transformf(positions[tid], orientations[tid])
 
 
-class NewtonWarpRenderer:
-    """Newton Warp backend for tiled camera rendering"""
+class NewtonWarpRenderer(BaseRenderer):
+    """Newton Warp backend for tiled camera rendering."""
 
     RenderData = RenderData
 
@@ -171,7 +172,7 @@ class NewtonWarpRenderer:
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        self.newton_sensor.render(
+        self.newton_sensor.update(
             self.get_scene_data_provider().get_newton_state(),
             render_data.camera_transforms,
             render_data.camera_rays,

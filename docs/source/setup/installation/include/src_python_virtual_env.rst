@@ -76,7 +76,7 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
                :: Activate environment
                conda activate env_isaaclab  # or "conda activate my_env"
 
-   .. tab-item::  UV Environment (experimental)
+   .. tab-item::  UV Environment
 
       To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
       You can create the Isaac Lab environment using the following commands:

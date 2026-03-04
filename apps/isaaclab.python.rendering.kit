@@ -92,6 +92,9 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 # disable the metrics assembler change listener, we don't want to do any runtime changes
 metricsAssembler.changeListenerEnabled = false
 
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 [settings.physics]
 updateToUsd = false
 updateParticlesToUsd = false
@@ -140,6 +143,10 @@ folders = [
     "${app}", # needed to find other app files
     "${app}/../source", # needed to find extensions in Isaac Lab
 ]
+
+[settings.persistent]
+UJITSO.geometry = true
+UJITSO.enabled = true
 
 # Asset path
 # set the S3 directory manually to the latest published S3

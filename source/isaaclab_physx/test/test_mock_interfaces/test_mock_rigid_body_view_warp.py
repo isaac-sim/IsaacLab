@@ -236,9 +236,9 @@ class TestMockRigidBodyViewWarpActions:
         torques = wp.zeros((4, 3), dtype=wp.float32, device="cpu")
         positions = wp.zeros((4, 3), dtype=wp.float32, device="cpu")
         view.apply_forces_and_torques_at_position(
-            forces=forces,
-            torques=torques,
-            positions=positions,
+            force_data=forces,
+            torque_data=torques,
+            position_data=positions,
         )
 
 

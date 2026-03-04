@@ -3,6 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .newton_replicate import newton_replicate
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["newton_replicate"]
+lazy_export()

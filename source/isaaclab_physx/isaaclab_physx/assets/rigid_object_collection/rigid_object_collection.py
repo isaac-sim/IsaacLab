@@ -309,11 +309,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
-            body_ids = wp.nonzero(body_mask)
+            body_ids = self._resolve_body_mask(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
         self.write_body_link_pose_to_sim_index(
@@ -379,11 +379,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
-            body_ids = wp.nonzero(body_mask)
+            body_ids = self._resolve_body_mask(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
         self.write_body_com_velocity_to_sim_index(
@@ -419,6 +419,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+        else:
+            self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_link_pose_to_sim,
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -429,14 +433,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_link_pose_w.data,
+                self.data.body_link_pose_w,
                 None,  # self.data._body_link_state_w.data,
                 None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_link_pose_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
@@ -474,7 +476,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         self.write_body_link_pose_to_sim_index(
@@ -511,6 +513,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+        else:
+            self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim,
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -522,17 +528,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_com_pose_w.data,
-                self.data._body_link_pose_w.data,
+                self.data.body_com_pose_w,
+                self.data.body_link_pose_w,
                 None,  # self.data._body_com_state_w.data,
                 None,  # self.data._body_link_state_w.data,
                 None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_pose_w.timestamp = self.data._sim_timestamp
-        self.data._body_link_pose_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
@@ -570,7 +573,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
@@ -607,6 +610,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
+            )
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim,
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -617,16 +628,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_com_vel_w.data,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._body_state_w.data,
                 None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_link_vel_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
@@ -668,7 +676,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         self.write_body_com_velocity_to_sim_index(
@@ -707,6 +715,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
+            )
         # Access body_com_pose_b and body_link_pose_w to ensure they are current.
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim,
@@ -720,19 +736,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_link_vel_w.data,
-                self.data._body_com_vel_w.data,
-                self.data._body_com_acc_w.data,
+                self.data.body_link_vel_w,
+                self.data.body_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._body_link_state_w.data,
                 None,  # self.data._body_state_w.data,
                 None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
@@ -772,7 +784,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         self.write_body_link_velocity_to_sim_index(
@@ -810,6 +822,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+        else:
+            self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -854,11 +870,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Resolve masks.
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
-            body_ids = wp.nonzero(body_mask)
+            body_ids = self._resolve_body_mask(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
@@ -891,6 +907,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+        else:
+            self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer,
@@ -938,11 +958,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Resolve masks.
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
-            body_ids = wp.nonzero(body_mask)
+            body_ids = self._resolve_body_mask(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
@@ -975,6 +995,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+        else:
+            self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer,
@@ -1019,11 +1043,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Resolve masks.
         if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
+            env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
-            body_ids = wp.nonzero(body_mask)
+            body_ids = self._resolve_body_mask(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
@@ -1184,6 +1208,32 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
         return body_ids
 
+    def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
+        """Resolve environment mask to indices via torch.nonzero."""
+        if env_mask is not None:
+            if isinstance(env_mask, wp.array):
+                env_mask = wp.to_torch(env_mask)
+            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
+        else:
+            env_ids = self._ALL_ENV_INDICES
+        return env_ids
+
+    def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
+        """Resolve body mask to indices via torch.nonzero."""
+        if body_mask is not None:
+            if isinstance(body_mask, wp.array):
+                body_mask = wp.to_torch(body_mask)
+            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        return body_ids
+
+    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+        """Get CPU environment indices."""
+        if isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+        return wp.clone(env_ids, device="cpu")
+
     def _initialize_impl(self):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
@@ -1308,6 +1358,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # the order is body_0/env_0, body_0/env_1, body_0/env_..., body_1/env_0, body_1/env_1, ...
         # return a flat tensor of indices
+        # ensure env_ids and body_ids are on the target device
+        if isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+        if isinstance(body_ids, torch.Tensor):
+            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
+        if env_ids.device != device:
+            env_ids = wp.clone(env_ids, device=device)
+        if body_ids.device != device:
+            body_ids = wp.clone(body_ids, device=device)
         num_query_envs = env_ids.shape[0]
         view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
         wp.launch(

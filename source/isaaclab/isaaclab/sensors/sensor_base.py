@@ -19,11 +19,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
-from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.utils.version import has_kit
 
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -57,8 +56,7 @@ class SensorBase(ABC):
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
-        # get stage handle
-        self.stage = get_current_stage()
+        self.stage = sim_utils.get_current_stage()
 
         # register various callback functions
         self._register_callbacks()
@@ -150,12 +148,13 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                import omni.kit.app  # noqa: PLC0415
+                if has_kit():
+                    import omni.kit.app  # noqa: PLC0415
 
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                    app_interface = omni.kit.app.get_app_interface()
+                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                    )
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:
@@ -272,53 +271,51 @@ class SensorBase(ABC):
     """
 
     def _register_callbacks(self):
-        """Registers physics lifecycle and prim deletion callbacks."""
+        """Registers physics lifecycle callbacks via the current backend's physics manager."""
+        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
 
-        # register simulator callbacks (with weakref safety to avoid crashes on deletion)
-        def safe_callback(callback_name, event, obj_ref):
-            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
-            try:
-                obj = obj_ref
-                getattr(obj, callback_name)(event)
-            except ReferenceError:
-                # Object has been deleted; ignore.
-                pass
-
-        # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
 
-        # Register PHYSICS_READY callback for initialization (order=10 for lower priority)
-        self._initialize_handle = PhysxManager.register_callback(
-            lambda payload, obj_ref=obj_ref: safe_callback("_initialize_callback", payload, obj_ref),
+        def _invoke(callback_name, event):
+            getattr(obj_ref, callback_name)(event)
+
+        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        self._initialize_handle = physics_mgr_cls.register_callback(
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        # Register TIMELINE_STOP callback for invalidation (PhysX-specific)
-        self._invalidate_initialize_handle = PhysxManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
-            IsaacEvents.TIMELINE_STOP,
+        self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
+            PhysicsEvent.STOP,
             order=10,
         )
-        # Register PRIM_DELETION callback (PhysX-specific)
-        self._prim_deletion_handle = PhysxManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            IsaacEvents.PRIM_DELETION,
-        )
+        # Optional: prim deletion (only supported by PhysX backend)
+        self._prim_deletion_handle = None
+        if "physx" in physics_mgr_cls.__name__.lower():
+            from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415
+
+            self._prim_deletion_handle = physics_mgr_cls.register_callback(
+                lambda event: PhysicsManager.safe_callback_invoke(
+                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                ),
+                IsaacEvents.PRIM_DELETION,
+            )
 
     def _initialize_callback(self, event):
         """Initializes the scene elements.
 
         .. note::
-            PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
-            called whenever the simulator "plays" from a "stop" state.
+            Physics handles are only valid once the simulation is ready. This callback runs when
+            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            try:
-                self._initialize_impl()
-                self._is_initialized = True
-            except Exception as e:
-                # Store exception to be raised after callback completes
-                PhysxManager.store_callback_exception(e)
+            self._initialize_impl()
+            self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""

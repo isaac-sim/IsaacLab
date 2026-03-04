@@ -5,4 +5,6 @@
 
 """.. deprecated:: Moved to :mod:`isaaclab_teleop.deprecated.openxr.retargeters.manipulator`."""
 
-from isaaclab_teleop.deprecated.openxr.retargeters.manipulator import *  # noqa: F401,F403
+from isaaclab.utils.module import lazy_export
+
+lazy_export(packages=["isaaclab_teleop.deprecated.openxr.retargeters.manipulator"])

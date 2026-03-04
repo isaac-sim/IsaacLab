@@ -2,27 +2,18 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import logging
 import os
 import tempfile
 
 import torch
-from pink.tasks import FrameTask
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.xr_cfg import XrCfg
 
-try:
-    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
-    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
-
-import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -406,21 +397,21 @@ class ActionsCfg:
             show_ik_warnings=False,
             fail_on_joint_limit_violation=False,
             variable_input_tasks=[
-                FrameTask(
-                    "g1_29dof_rev_1_0_left_wrist_yaw_link",
+                FrameTaskCfg(
+                    frame="g1_29dof_rev_1_0_left_wrist_yaw_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=2.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
-                FrameTask(
-                    "g1_29dof_rev_1_0_right_wrist_yaw_link",
+                FrameTaskCfg(
+                    frame="g1_29dof_rev_1_0_right_wrist_yaw_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=2.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
-                NullSpacePostureTask(
+                NullSpacePostureTaskCfg(
                     cost=0.5,
                     lm_damping=1,
                     controlled_frames=[
@@ -596,24 +587,22 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
 
-        # Convert USD to URDF and change revolute joints to fixed
-        temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, self.temp_urdf_dir, force_conversion=True
+        self.sim.physics = PhysxCfg(
+            gpu_found_lost_pairs_capacity=2**26,
+            gpu_found_lost_aggregate_pairs_capacity=2**25,
         )
 
-        # Set the URDF and mesh paths for the IK controller
-        self.actions.pink_ik_cfg.controller.urdf_path = temp_urdf_output_path
-        self.actions.pink_ik_cfg.controller.mesh_path = temp_urdf_meshes_output_path
+        # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
+        self.actions.pink_ik_cfg.controller.usd_path = self.scene.robot.spawn.usd_path
+        self.actions.pink_ik_cfg.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # IsaacTeleop-based teleoperation pipeline
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, 0.0),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
-            pipeline = _build_g1_inspire_pickplace_pipeline()
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        # IsaacTeleop-based teleoperation pipeline (resolved lazily at runtime).
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, 0.0),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
+        )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=_build_g1_inspire_pickplace_pipeline,
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )

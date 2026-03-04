@@ -19,6 +19,8 @@ _RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton"}
 class Renderer(FactoryBase, BaseRenderer):
     """Factory for creating renderer instances."""
 
+    _backend_class_names = {"physx": "IsaacRtxRenderer", "newton": "NewtonWarpRenderer"}
+
     @classmethod
     def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
         return _RENDERER_TYPE_TO_BACKEND.get(cfg.renderer_type, "physx")
@@ -26,6 +28,12 @@ class Renderer(FactoryBase, BaseRenderer):
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""
         # The `FactoryBase` __new__ method will handle the logic and return
-        # an instance of the correct backend-specific renderer class,
-        # which is guaranteed to be a subclass of `BaseRenderer` by convention.
-        return super().__new__(cls, cfg, *args, **kwargs)
+        # an instance of the correct backend-specific renderer class.
+        result = super().__new__(cls, cfg, *args, **kwargs)
+        if not isinstance(result, BaseRenderer):
+            name = type(result).__name__
+            bases = type(result).__bases__
+            raise TypeError(
+                f"Backend renderer {name!r} must inherit from BaseRenderer, but it inherits from {bases!r}."
+            )
+        return result

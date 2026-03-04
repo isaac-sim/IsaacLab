@@ -10,8 +10,6 @@ import logging
 import math
 from typing import Any
 
-import omni.physx.scripts.utils as physx_utils
-from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
@@ -199,6 +197,8 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
+            from omni.physx.scripts import utils as physx_utils
+
             physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
@@ -586,6 +586,19 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             all_prims += child_prim.GetChildren()
     # check if no contact sensors were found
     if num_contact_sensors == 0:
+        descendant_count = 0
+        frontier = [prim]
+        while frontier:
+            node = frontier.pop(0)
+            children = list(node.GetChildren())
+            descendant_count += len(children)
+            frontier.extend(children)
+        logger.warning(
+            "[activate_contact_sensors] no rigid bodies found under prim=%r (type=%r, descendants=%d)",
+            prim_path,
+            prim.GetTypeName(),
+            descendant_count,
+        )
         raise ValueError(
             f"No contact sensors added to the prim: '{prim_path}'. This means that no rigid bodies"
             " are present under this prim. Please check the prim path."
@@ -971,6 +984,8 @@ def modify_deformable_body_properties(
             "self_collision_filter_distance",
         ]
     }
+    from omni.physx.scripts import deformableUtils as deformable_utils
+
     status = deformable_utils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
     # check if the deformable body was successfully added
     if not status:

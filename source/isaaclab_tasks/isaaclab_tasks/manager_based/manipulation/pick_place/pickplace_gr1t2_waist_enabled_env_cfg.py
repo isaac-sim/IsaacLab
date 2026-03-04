@@ -3,18 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
 import tempfile
 
-try:
-    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.xr_cfg import XrCfg
 
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
-
-import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 
@@ -63,25 +56,17 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         for joint_name in waist_joint_names:
             self.actions.upper_body_ik.pink_controlled_joint_names.append(joint_name)
 
-        # Convert USD to URDF and change revolute joints to fixed
-        temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, self.temp_urdf_dir, force_conversion=True
+        # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
+        self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
+        self.actions.upper_body_ik.controller.urdf_output_dir = self.temp_urdf_dir
+
+        # IsaacTeleop-based teleoperation pipeline.
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, 0.0),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
-
-        # Set the URDF and mesh paths for the IK controller
-        self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
-        self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
-
-        # IsaacTeleop-based teleoperation pipeline
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, 0.0),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
-            pipeline, retargeters = _build_gr1t2_pickplace_pipeline()
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                # retargeters_to_tune=lambda: retargeters,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )

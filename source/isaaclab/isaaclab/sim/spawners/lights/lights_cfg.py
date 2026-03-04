@@ -12,8 +12,6 @@ from typing import Literal
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
 
-from . import lights
-
 
 @configclass
 class LightCfg(SpawnerCfg):
@@ -26,7 +24,7 @@ class LightCfg(SpawnerCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    func: Callable = lights.spawn_light
+    func: Callable | str = "{DIR}.lights:spawn_light"
 
     prim_type: str = MISSING
     """The prim type name for the light prim."""

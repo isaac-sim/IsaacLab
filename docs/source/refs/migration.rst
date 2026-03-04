@@ -134,4 +134,70 @@ For any existing imports such as ``from omni.isaac.lab_assets.anymal import ANYM
 ``from isaaclab.robots.anymal import ANYMAL_C_CFG``.
 
 
+Lazy Exporting and Resolvable Strings
+--------------------------------------
+
+Isaac Lab now uses **lazy exporting** throughout all packages so that importing a top-level
+module (e.g. ``import isaaclab.sensors``) no longer eagerly pulls in heavyweight
+dependencies such as ``pxr``, ``omni``, or ``scipy``. This is critical because Kit and the
+Isaac Sim viewer do **not** tolerate imports of ``pxr``, ``omni``, or ``scipy`` before the
+application is launched — doing so will cause crashes or undefined behavior. With lazy
+exporting, config objects can be constructed *before* ``SimulationApp`` is launched, which
+enables automatic physics-backend selection without requiring flags like
+``--enable_cameras``.
+
+Two key patterns support this:
+
+1. **Lazy exports** — Every ``__init__.py`` uses :func:`~isaaclab.utils.module.lazy_export`
+   together with an adjacent ``.pyi`` stub to defer submodule and symbol imports until
+   first access.
+2. **Resolvable strings** — Config fields such as ``class_type`` store implementation
+   references as strings (e.g. ``"{DIR}.sensor:Sensor"``) instead of direct class imports.
+   The string is resolved to the actual class only after ``SimulationApp`` has been
+   initialized.
+
+For full details, examples, and the ``{DIR}`` placeholder convention, see the
+:ref:`contributing` guide — in particular the
+`Lazy Loading & Module Exports <contributing.html#lazy-loading-module-exports>`__,
+`Resolvable Strings <contributing.html#resolvable-strings>`__, and
+`Config + Implementation File Split <contributing.html#config-implementation-file-split>`__
+sections.
+
+Lazy Exporting in User Code
+----------------------------
+
+If your own project imports Isaac Lab symbols eagerly (i.e. via normal ``from ... import``
+statements in ``__init__.py``), those imports may trigger heavyweight modules before the
+simulation app is ready. This prevents automatic backend selection and may require you to
+pass explicit flags like ``--enable_cameras`` or ``--kit``.
+
+To fix this, adopt the same lazy-exporting pattern used throughout Isaac Lab:
+
+1. Rename your existing ``__init__.py`` to ``__init__.pyi`` (this becomes the type stub).
+2. Create a new ``__init__.py`` that calls ``lazy_export()``:
+
+.. code:: python
+
+   # my_package/__init__.py
+   from isaaclab.utils.module import lazy_export
+
+   lazy_export()
+
+3. Ensure the ``.pyi`` stub uses **relative imports** and declares ``__all__``:
+
+.. code:: python
+
+   # my_package/__init__.pyi
+   __all__ = ["MyCfg", "MyClass"]
+
+   from .my_cfg import MyCfg
+   from .my_class import MyClass
+
+With this in place, ``import my_package`` will not eagerly import any submodules. Symbols
+are loaded on first access, giving ``SimulationApp`` time to initialize and auto-detect the
+correct backend.
+
+For more details, refer to the :ref:`contributing` guide.
+
+
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

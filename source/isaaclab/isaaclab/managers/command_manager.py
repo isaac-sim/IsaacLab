@@ -106,7 +106,7 @@ class CommandTerm(ManagerTermBase):
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
-        if debug_vis:
+        if debug_vis and has_kit():
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 app_interface = omni.kit.app.get_app_interface()

@@ -5,13 +5,6 @@
 
 """Mock asset interfaces for testing without Isaac Sim."""
 
-from .mock_articulation import MockArticulation, MockArticulationData
-from .mock_rigid_object import MockRigidObject, MockRigidObjectData
-from .mock_rigid_object_collection import MockRigidObjectCollection, MockRigidObjectCollectionData
-from .factories import (
-    create_mock_articulation,
-    create_mock_humanoid,
-    create_mock_quadruped,
-    create_mock_rigid_object,
-    create_mock_rigid_object_collection,
-)
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

@@ -40,7 +40,17 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
 @pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
-@pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
+@pytest.mark.parametrize(
+    "task_name",
+    setup_environment(
+        include_play=False,
+        factory_envs=False,
+        multi_agent=False,
+        teleop_envs=False,
+        cartpole_showcase_envs=False,
+        pickplace_stack_envs=False,
+    ),
+)
 def test_environments_with_stage_in_memory_and_clone_in_fabric_disabled(task_name, num_envs, device):
     # skip test if stage in memory is not supported
     if get_isaac_sim_version().major < 5:

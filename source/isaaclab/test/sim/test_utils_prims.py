@@ -23,7 +23,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
 @pytest.fixture(autouse=True)
@@ -93,7 +93,8 @@ def test_create_prim():
     for prim_spec in prim.GetPrimStack():
         references.extend(prim_spec.referenceList.prependedItems)
     assert len(references) == 1
-    assert str(references[0].assetPath) == franka_usd
+    expected_path = retrieve_file_path(franka_usd)
+    assert str(references[0].assetPath) == expected_path
 
     # check adding semantic label
     prim = sim_utils.create_prim(
@@ -361,10 +362,11 @@ def test_get_usd_references():
     # Create a prim with a USD reference
     franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
-    # Check that it has the expected reference
+    # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
     assert len(refs) == 1
-    assert refs == [franka_usd]
+    expected_path = retrieve_file_path(franka_usd)
+    assert refs == [expected_path]
 
     # Test with invalid prim path
     with pytest.raises(ValueError, match="not valid"):

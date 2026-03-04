@@ -16,6 +16,6 @@
     :mod:`isaaclab_teleop.xr_anchor_utils`.
 """
 
-from .manus_vive import ManusVive, ManusViveCfg
-from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
-from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

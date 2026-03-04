@@ -38,22 +38,6 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from .articulation import Articulation, ArticulationData
-from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
-from .rigid_object import RigidObject, RigidObjectData
-from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionData
-from .surface_gripper import SurfaceGripper, SurfaceGripperCfg
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "Articulation",
-    "ArticulationData",
-    "DeformableObject",
-    "DeformableObjectCfg",
-    "DeformableObjectData",
-    "RigidObject",
-    "RigidObjectData",
-    "RigidObjectCollection",
-    "RigidObjectCollectionData",
-    "SurfaceGripper",
-    "SurfaceGripperCfg",
-]
+lazy_export()

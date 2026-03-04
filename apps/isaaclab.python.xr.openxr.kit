@@ -39,7 +39,8 @@ xr.skipInputDeviceUSDWrites = true
 [dependencies]
 "isaaclab.python" = {}
 
-# Kit extensions
+# Required for XR instruction widget (CopyFabricPrim)
+"omni.fabric.commands" = {}
 "omni.kit.xr.system.openxr" = {}
 "omni.kit.xr.bundle.generic" = {}
 
@@ -61,6 +62,9 @@ persistent.xr.profile.ar.render.nearPlane = 0.15
 xr.openxr.components."omni.kit.xr.openxr.ext.hand_tracking".enabled = true
 xr.openxr.components."isaacsim.xr.openxr.hand_tracking".enabled = true
 xr.openxr.components."isaacsim.kit.xr.teleop.bridge".enabled = true
+
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
@@ -84,6 +88,10 @@ folders = [
     "${app}", # needed to find other app files
     "${app}/../source", # needed to find extensions in Isaac Lab
 ]
+
+[settings.persistent]
+UJITSO.geometry = true
+UJITSO.enabled = true
 
 # Asset path
 # set the S3 directory manually to the latest published S3

@@ -9,8 +9,6 @@ from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
 
-from . import wrappers
-
 
 @configclass
 class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
@@ -29,7 +27,7 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     """
 
-    func = wrappers.spawn_multi_asset
+    func: str = "{DIR}.wrappers:spawn_multi_asset"
 
     assets_cfg: list[SpawnerCfg] = MISSING
     """List of asset configurations to spawn."""
@@ -57,7 +55,7 @@ class MultiUsdFileCfg(UsdFileCfg):
 
     """
 
-    func = wrappers.spawn_multi_usd_file
+    func: str = "{DIR}.wrappers:spawn_multi_usd_file"
 
     usd_path: str | list[str] = MISSING
     """Path or a list of paths to the USD files to spawn asset from."""

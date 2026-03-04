@@ -41,6 +41,6 @@ Example:
     - :mod:`isaaclab_contrib.mdp.actions`: Thrust action terms for RL
 """
 
-from .multirotor import Multirotor
-from .multirotor_cfg import MultirotorCfg
-from .multirotor_data import MultirotorData
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

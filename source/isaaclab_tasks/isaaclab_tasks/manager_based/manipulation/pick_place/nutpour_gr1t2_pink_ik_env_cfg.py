@@ -3,20 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 
-from pink.tasks import DampingTask, FrameTask
-
-try:
-    from isaaclab_teleop import IsaacTeleopCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
-
-import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
@@ -90,24 +79,24 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 # Determines whether Pink IK solver will fail due to a joint limit violation
                 fail_on_joint_limit_violation=False,
                 variable_input_tasks=[
-                    FrameTask(
-                        "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                    FrameTaskCfg(
+                        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link",
                         position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
                         gain=0.5,
                     ),
-                    FrameTask(
-                        "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                    FrameTaskCfg(
+                        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link",
                         position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
                         gain=0.5,
                     ),
-                    DampingTask(
+                    DampingTaskCfg(
                         cost=0.5,  # [cost] * [s] / [rad]
                     ),
-                    NullSpacePostureTask(
+                    NullSpacePostureTaskCfg(
                         cost=0.2,
                         lm_damping=1,
                         controlled_frames=[
@@ -132,20 +121,13 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 fixed_input_tasks=[],
             ),
         )
-        # Convert USD to URDF and change revolute joints to fixed
-        temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, self.temp_urdf_dir, force_conversion=True
+        # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
+        self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
+        self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
+
+        # IsaacTeleop-based teleoperation pipeline.
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
         )
-
-        # Set the URDF and mesh paths for the IK controller
-        self.actions.gr1_action.controller.urdf_path = temp_urdf_output_path
-        self.actions.gr1_action.controller.mesh_path = temp_urdf_meshes_output_path
-
-        # IsaacTeleop-based teleoperation pipeline
-        if _TELEOP_AVAILABLE:
-            pipeline = _build_gr1t2_pickplace_pipeline()
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )

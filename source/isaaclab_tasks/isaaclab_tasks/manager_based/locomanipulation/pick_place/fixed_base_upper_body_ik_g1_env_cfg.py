@@ -4,16 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-import logging
-
-try:
-    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
-    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.xr_cfg import XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -26,7 +18,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
@@ -346,8 +338,8 @@ class TerminationsCfg:
     )
 
     success = DoneTerm(
-        func=locomanip_mdp.task_done_pick_place_table_frame,
-        params={"task_link_name": "right_wrist_yaw_link", "table_cfg": SceneEntityCfg("packing_table")},
+        func=manip_mdp.task_done_pick_place,
+        params={"task_link_name": "right_wrist_yaw_link"},
     )
 
 
@@ -387,26 +379,20 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
-        # scene settings
-        self.scene.replicate_physics = False
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
-        # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
-        self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
+        # Defer Nucleus path resolution to controller initialization at runtime.
+        self.actions.upper_body_ik.controller.urdf_path = urdf_omniverse_path
 
-        # IsaacTeleop-based teleoperation pipeline
-        # Build the pipeline and extract SE3 retargeters for UI parameter tuning
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, -0.45),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
-            pipeline, se3_retargeters = _build_g1_upper_body_pipeline()
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                # retargeters_to_tune=lambda: se3_retargeters,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        # IsaacTeleop-based teleoperation pipeline (resolved lazily at runtime).
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, -0.45),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
+        )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=_build_g1_upper_body_pipeline,
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )

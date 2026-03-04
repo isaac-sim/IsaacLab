@@ -3,27 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
 import os
 import tempfile
 
 import torch
-from pink.tasks import DampingTask, FrameTask
 
-try:
-    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
-    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
-
-import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -39,6 +27,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
+from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -115,9 +105,21 @@ def _build_gr1t2_pickplace_pipeline():
     # DexHand Retargeters (left and right hands)
     # -------------------------------------------------------------------------
     # Resolve dex-retargeting YAML config paths from IsaacLab's retargeter data directory
-    import isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils as _dex_utils
+    import isaaclab_teleop.isaac_teleop_cfg as _teleop_cfg_mod
 
-    _data_dir = os.path.abspath(os.path.join(os.path.dirname(_dex_utils.__file__), "data"))
+    _teleop_cfg_file = _teleop_cfg_mod.__file__
+    if _teleop_cfg_file is None:
+        raise RuntimeError("Could not resolve isaaclab_teleop package path for dex-retargeting configs.")
+    _teleop_pkg_dir = os.path.dirname(_teleop_cfg_file)
+    _data_dir = os.path.join(
+        _teleop_pkg_dir,
+        "deprecated",
+        "openxr",
+        "retargeters",
+        "humanoid",
+        "fourier",
+        "data",
+    )
     _config_dir = os.path.join(_data_dir, "configs", "dex-retargeting")
     left_yaml_path = os.path.join(_config_dir, "fourier_hand_left_dexpilot.yml")
     right_yaml_path = os.path.join(_config_dir, "fourier_hand_right_dexpilot.yml")
@@ -401,24 +403,24 @@ class ActionsCfg:
             # Determines whether Pink IK solver will fail due to a joint limit violation
             fail_on_joint_limit_violation=False,
             variable_input_tasks=[
-                FrameTask(
-                    "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                FrameTaskCfg(
+                    frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=12,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
-                FrameTask(
-                    "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                FrameTaskCfg(
+                    frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=12,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
-                DampingTask(
+                DampingTaskCfg(
                     cost=0.5,  # [cost] * [s] / [rad]
                 ),
-                NullSpacePostureTask(
+                NullSpacePostureTaskCfg(
                     cost=0.5,
                     lm_damping=1,
                     controlled_frames=[
@@ -594,30 +596,18 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
-        # scene settings
-        self.scene.replicate_physics = False
 
-        # Convert USD to URDF and change revolute joints to fixed
-        temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, self.temp_urdf_dir, force_conversion=True
+        # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
+        self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
+        self.actions.upper_body_ik.controller.urdf_output_dir = self.temp_urdf_dir
+
+        # IsaacTeleop-based teleoperation pipeline.
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, 0.0),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
-
-        # Set the URDF and mesh paths for the IK controller
-        self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
-        self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
-
-        # IsaacTeleop-based teleoperation pipeline
-        # Both are wrapped in lambdas so they survive @configclass deepcopy
-        # (retargeters contain non-picklable SWIG handles).
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, 0.0),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
-            pipeline, retargeters = _build_gr1t2_pickplace_pipeline()
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                # retargeters_to_tune=lambda: retargeters,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )

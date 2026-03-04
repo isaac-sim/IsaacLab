@@ -30,7 +30,7 @@ class TeleopSessionLifecycle:
     This class is responsible for:
 
     1. Building the retargeting pipeline from configuration
-    2. Discovering ``ControllerTracker`` instances within the pipeline
+    2. Adding a parallel ``ControllersSource`` for button-state access
     3. Acquiring OpenXR handles from Kit's XR bridge extension
     4. Creating, entering, and exiting the ``TeleopSession``
     5. Building external inputs for pipeline leaf nodes (e.g. world-to-anchor transform)
@@ -41,6 +41,9 @@ class TeleopSessionLifecycle:
     WORLD_T_ANCHOR_INPUT_NAME = "world_T_anchor"
     """Well-known name for the ValueInput node that receives the
     world-to-XR-anchor 4x4 transform matrix."""
+
+    _CONTROLLER_RIGHT_KEY = "_controller_right"
+    """Internal pipeline output key for the right controller ``TensorGroup``."""
 
     def __init__(self, cfg: IsaacTeleopCfg):
         """Initialize the session lifecycle manager.
@@ -54,7 +57,7 @@ class TeleopSessionLifecycle:
         # Session state (populated during start)
         self._session: TeleopSession | None = None
         self._pipeline = None
-        self._controller_tracker = None
+        self._last_right_controller = None
         self._session_start_deferred_logged = False
 
         # Retargeting tuning UI (created in start, closed in stop)
@@ -78,6 +81,33 @@ class TeleopSessionLifecycle:
         except (ImportError, ModuleNotFoundError):
             logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
 
+        try:
+            import carb.settings
+
+            # Subscribe to the setting (may not fire when Kit closes; see pre-shutdown below)
+            self._xr_enabled_subscription = carb.settings.get_settings().subscribe_to_node_change_events(
+                "/xr/enabled",
+                self._on_xr_enabled_changed,
+            )
+        except (ImportError, ModuleNotFoundError):
+            logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
+
+        try:
+            import omni.kit.app
+            from carb.eventdispatcher import get_eventdispatcher
+
+            # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
+            # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
+            # The /xr/enabled setting often does not fire on close, so this is required.
+            self._pre_shutdown_subscription = get_eventdispatcher().observe_event(
+                event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
+                on_event=self._on_pre_shutdown,
+                observer_name="IsaacTeleop session lifecycle",
+                order=-100,
+            )
+        except (ImportError, ModuleNotFoundError):
+            logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
+
     @property
     def is_active(self) -> bool:
         """Whether the teleop session is currently running."""
@@ -89,16 +119,14 @@ class TeleopSessionLifecycle:
         return self._pipeline
 
     @property
-    def controller_tracker(self):
-        """The ``ControllerTracker`` discovered or created for the pipeline."""
-        return self._controller_tracker
+    def last_right_controller(self):
+        """Right controller ``TensorGroup`` from the most recent step, or ``None``.
 
-    @property
-    def deviceio_session(self):
-        """The underlying ``DeviceIOSession``, or ``None`` if the session hasn't started."""
-        if self._session is not None:
-            return self._session.deviceio_session
-        return None
+        The ``TensorGroup`` follows the ``ControllerInput`` schema.  Button
+        fields can be read by index (e.g. index 4 = ``primary_click``,
+        index 11 = ``is_active``).
+        """
+        return self._last_right_controller
 
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
@@ -107,23 +135,29 @@ class TeleopSessionLifecycle:
     def start(self) -> None:
         """Build the pipeline and attempt to start the session.
 
-        Builds the retargeting pipeline, discovers the ``ControllerTracker``,
-        attempts to acquire OpenXR handles, and opens the retargeting tuning
-        UI if retargeters are configured.
+        Builds the retargeting pipeline, wraps it with a parallel
+        ``ControllersSource`` for button-state access, attempts to acquire
+        OpenXR handles, and opens the retargeting tuning UI if retargeters
+        are configured.
 
         If the OpenXR handles are not yet available (e.g. user hasn't clicked
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
-        # Build the pipeline from the config
-        self._pipeline = self._cfg.pipeline_builder()
-        self._session_start_deferred_logged = False
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+        from isaacteleop.retargeting_engine.interface import OutputCombiner
 
-        # Discover the ControllerTracker from the pipeline's DeviceIO source
-        # nodes instead of creating a new one.  Creating a second
-        # ControllerTracker would cause an XR_ERROR_NAME_DUPLICATED because
-        # the OpenXR action set name is fixed.
-        self._controller_tracker = self._find_controller_tracker()
+        user_pipeline = self._cfg.pipeline_builder()
+        self._session_start_deferred_logged = False
+        self._last_right_controller = None
+
+        button_controllers = ControllersSource("_button_controllers")
+        self._pipeline = OutputCombiner(
+            {
+                "action": user_pipeline.output("action"),
+                self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+            }
+        )
 
         # Try to start the session now; it may be deferred
         self._try_start_session()
@@ -183,6 +217,21 @@ class TeleopSessionLifecycle:
         logger.info(f"Required extensions: {required_extensions}")
         return required_extensions
 
+    def _on_xr_enabled_changed(self, item, event_type):
+        import carb.settings
+
+        enabled = carb.settings.get_settings().get("/xr/enabled")
+        logger.info(f"XR enabled changed to: {enabled}")
+
+        if not enabled:
+            self._teardown_dead_session()
+
+    def _on_pre_shutdown(self, _event):
+        """Called when Kit is closing; run full cleanup since the app is exiting."""
+        logger.info("Shutting down IsaacTeleop session due to Kit close")
+        self._pre_shutdown_subscription = None
+        self.stop()
+
     # ------------------------------------------------------------------
     # Deferred session creation
     # ------------------------------------------------------------------
@@ -223,20 +272,9 @@ class TeleopSessionLifecycle:
                 self._session_start_deferred_logged = True
             return False
 
-        # Determine whether the controller tracker was auto-discovered from
-        # the pipeline.  If so, TeleopSession will collect it automatically
-        # and we must NOT list it again in ``trackers`` (OpenXR forbids
-        # duplicate action set names).
-        manual_trackers: list = []
-        pipeline_tracker = self._find_controller_tracker_in(self._pipeline)
-        if pipeline_tracker is None and self._controller_tracker is not None:
-            # The tracker was created as a fallback; pass it manually.
-            manual_trackers.append(self._controller_tracker)
-
-        # Create TeleopSession config
         session_config = TeleopSessionConfig(
             app_name=self._cfg.app_name,
-            trackers=manual_trackers,
+            trackers=[],
             pipeline=self._pipeline,
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
@@ -303,6 +341,9 @@ class TeleopSessionLifecycle:
             logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
             return None
+
+        # Store the right controller TensorGroup for button polling
+        self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
 
         # Extract the flattened action array from TensorReorderer output
         action_np = result["action"][0]
@@ -379,57 +420,6 @@ class TeleopSessionLifecycle:
                 )
 
         return external_inputs if external_inputs else None
-
-    # ------------------------------------------------------------------
-    # Controller tracker discovery
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _find_controller_tracker_in(pipeline):
-        """Recursively search *pipeline* for an existing ControllerTracker.
-
-        Checks leaf nodes for ``IDeviceIOSource`` instances whose tracker is a
-        ``ControllerTracker``.
-
-        Returns:
-            The first ``ControllerTracker`` found, or ``None``.
-        """
-        from isaacteleop.deviceio import ControllerTracker
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
-
-        try:
-            leaf_nodes = pipeline.get_leaf_nodes()
-        except AttributeError:
-            return None
-
-        for node in leaf_nodes:
-            if isinstance(node, IDeviceIOSource):
-                tracker = node.get_tracker()
-                if isinstance(tracker, ControllerTracker):
-                    return tracker
-        return None
-
-    def _find_controller_tracker(self):
-        """Find a ControllerTracker from the pipeline, or create one as fallback.
-
-        The pipeline typically contains a ``ControllersSource`` that owns a
-        ``ControllerTracker``.  Reusing it avoids the
-        ``XR_ERROR_NAME_DUPLICATED`` error that occurs when two trackers try to
-        register the same OpenXR action set name.
-
-        Returns:
-            A ``ControllerTracker`` instance.
-        """
-        tracker = self._find_controller_tracker_in(self._pipeline)
-        if tracker is not None:
-            logger.debug("Reusing ControllerTracker from pipeline source node")
-            return tracker
-
-        # Fallback: pipeline has no ControllersSource (unlikely but possible)
-        from isaacteleop.deviceio import ControllerTracker
-
-        logger.debug("No ControllerTracker found in pipeline; creating a new one")
-        return ControllerTracker()
 
     # ------------------------------------------------------------------
     # OpenXR handle acquisition

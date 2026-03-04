@@ -185,7 +185,10 @@ def usd_replicate(
                 for wid in target_envs.tolist():
                     dp = tmpl.format(wid)
                     Sdf.CreatePrimInLayer(rl, dp)
-                    Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
+                    if src == dp:
+                        pass  # self-copy: CreatePrimInLayer already ensures it exists; CopySpec would be destructive
+                    else:
+                        Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
 
                     if positions is not None or quaternions is not None:
                         ps = rl.GetPrimAtPath(dp)

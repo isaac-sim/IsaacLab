@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
@@ -11,7 +12,8 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from . import pose_commands as dex_cmd
+if TYPE_CHECKING:
+    from .pose_commands import ObjectUniformPoseCommand
 
 ALIGN_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -35,7 +37,7 @@ ALIGN_MARKER_CFG = VisualizationMarkersCfg(
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type = dex_cmd.ObjectUniformPoseCommand
+    class_type: type["ObjectUniformPoseCommand"] | str = "{DIR}.pose_commands:ObjectUniformPoseCommand"
 
     asset_name: str = MISSING
     """Name of the coordinate referencing asset in the environment for which the commands are generated respect to."""
@@ -88,5 +90,7 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Name of the asset in the environment for which the success color are indicated."""
 
     # success markers
-    success_visualizer_cfg = VisualizationMarkersCfg(prim_path="/Visuals/SuccessMarkers", markers={})
+    success_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
+        prim_path="/Visuals/SuccessMarkers", markers={}
+    )
     """The configuration for the success visualization marker. User needs to add the markers"""

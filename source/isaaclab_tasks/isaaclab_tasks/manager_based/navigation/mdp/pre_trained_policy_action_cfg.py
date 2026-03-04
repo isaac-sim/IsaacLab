@@ -8,8 +8,6 @@ from dataclasses import MISSING
 from isaaclab.managers import ActionTermCfg, ObservationGroupCfg
 from isaaclab.utils import configclass
 
-from .pre_trained_policy_action import PreTrainedPolicyAction
-
 
 @configclass
 class PreTrainedPolicyActionCfg(ActionTermCfg):
@@ -18,7 +16,7 @@ class PreTrainedPolicyActionCfg(ActionTermCfg):
     See :class:`PreTrainedPolicyAction` for more details.
     """
 
-    class_type: type | str = PreTrainedPolicyAction
+    class_type: type | str = "{DIR}.pre_trained_policy_action:PreTrainedPolicyAction"
     """Class of the action term."""
 
     asset_name: str = MISSING

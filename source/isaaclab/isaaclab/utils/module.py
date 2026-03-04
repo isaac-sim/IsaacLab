@@ -7,55 +7,109 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
+import os
 import sys
+import tempfile
+from collections.abc import Callable
+
+import lazy_loader as lazy
 
 
-def attach_cascading(
-    package_name: str,
-    submodules: list[str],
-    packages: list[str] | tuple[str, ...] = (),
-) -> tuple:
-    """Create ``__getattr__`` and ``__dir__`` for a *cascading namespace* package.
+def _filter_stub(stub_file: str) -> str | None:
+    """Return a path to a filtered copy of *stub_file* that ``lazy_loader`` can parse.
 
-    Replaces the hand-rolled scanning ``__getattr__`` boilerplate that used to
-    appear in every ``mdp/__init__.py``.  Usage::
+    ``lazy_loader.attach_stub`` only supports relative (``from .x import y``)
+    imports and rejects absolute imports and star (``*``) imports.  This helper
+    strips those unsupported nodes from the AST so the remaining (local)
+    relative imports can still be resolved through ``attach_stub``.
 
-        from isaaclab.utils.module import attach_cascading
+    Returns the path to a temporary filtered ``.pyi`` file, or *None* if no
+    filtering was needed (i.e. the original stub is already compatible).
+    """
+    with open(stub_file) as f:
+        source = f.read()
 
-        __getattr__, __dir__ = attach_cascading(
-            __name__,
-            submodules=["rewards", "terminations"],
-            packages=["isaaclab.envs.mdp"],
-        )
+    tree = ast.parse(source)
 
-    Lookup order
-    ------------
-    1. Local submodules (tried in the order given).
-    2. Fallback packages (tried in the order given).
+    needs_filter = False
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.level != 1 or any(alias.name == "*" for alias in node.names):
+                needs_filter = True
+                break
 
-    Once an attribute is resolved it is written into the calling module's
-    ``__dict__`` so that subsequent accesses bypass ``__getattr__`` entirely.
+    if not needs_filter:
+        return None
+
+    filtered = ast.Module(body=[], type_ignores=[])
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            if node.level != 1:
+                continue
+            if any(alias.name == "*" for alias in node.names):
+                continue
+        filtered.body.append(node)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pyi", delete=False) as tmp:
+        tmp.write(ast.unparse(filtered))
+    return tmp.name
+
+
+def lazy_export(
+    *,
+    packages: list[str] | tuple[str, ...] | None = None,
+) -> tuple[Callable[[str], object], Callable[[], list[str]], list[str]]:
+    """Lazy-load names from a ``.pyi`` stub, with optional cross-package fallback.
+
+    Call with no arguments to lazily export everything declared in the
+    adjacent ``.pyi`` stub::
+
+        from isaaclab.utils.module import lazy_export
+
+        lazy_export()
+
+    When a module re-exports names from another package at runtime (e.g.
+    task MDP modules that fall back to ``isaaclab.envs.mdp``), pass the
+    package names to scan as a fallback::
+
+        from isaaclab.utils.module import lazy_export
+
+        lazy_export(packages=["isaaclab.envs.mdp"])
 
     Args:
-        package_name: Value of ``__name__`` in the calling ``__init__.py``.
-        submodules: Submodule names relative to *package_name* to scan first.
-        packages: Fully-qualified package names to fall back to.
-
-    Returns:
-        A ``(__getattr__, __dir__)`` tuple ready for direct assignment.
+        packages: Fully-qualified package names to fall back to when a
+            name is not found in the local ``.pyi`` stub.  When *None*
+            (the default), only the stub is used.
     """
+    caller_globals = sys._getframe(1).f_globals
+    package_name: str = caller_globals["__name__"]
+    caller_file: str = caller_globals["__file__"]
 
-    def __getattr__(name: str):
-        for mod_name in submodules:
-            try:
-                mod = importlib.import_module(f"{package_name}.{mod_name}")
-                if hasattr(mod, name):
-                    val = getattr(mod, name)
-                    sys.modules[package_name].__dict__[name] = val
-                    return val
-            except ImportError:
-                pass
+    if packages is None:
+        __getattr__, __dir__, __all__ = lazy.attach_stub(package_name, caller_file)
+        mod = sys.modules[package_name]
+        setattr(mod, "__getattr__", __getattr__)
+        setattr(mod, "__dir__", __dir__)
+        setattr(mod, "__all__", __all__)
+        return __getattr__, __dir__, __all__
+
+    stub_file = f"{os.path.splitext(caller_file)[0]}.pyi"
+    has_stub = os.path.exists(stub_file)
+
+    if has_stub:
+        filtered_stub = _filter_stub(stub_file)
+        if filtered_stub is not None:
+            stub_getattr, stub_dir, __all__ = lazy.attach_stub(package_name, filtered_stub)
+            os.unlink(filtered_stub)
+        else:
+            stub_getattr, stub_dir, __all__ = lazy.attach_stub(package_name, caller_file)
+
+    if not has_stub:
+        __all__: list[str] = []
+
+    def _pkg_getattr(name: str):
         for pkg in packages:
             try:
                 mod = importlib.import_module(pkg)
@@ -63,24 +117,41 @@ def attach_cascading(
                     val = getattr(mod, name)
                     sys.modules[package_name].__dict__[name] = val
                     return val
-            except ImportError:
-                pass
+            except (ImportError, ModuleNotFoundError):
+                continue
         raise AttributeError(f"module {package_name!r} has no attribute {name!r}")
 
-    def __dir__():
+    def _pkg_dir():
         names: list[str] = []
-        for mod_name in submodules:
-            try:
-                mod = importlib.import_module(f"{package_name}.{mod_name}")
-                names.extend(n for n in dir(mod) if not n.startswith("_"))
-            except ImportError:
-                pass
         for pkg in packages:
             try:
                 mod = importlib.import_module(pkg)
                 names.extend(n for n in dir(mod) if not n.startswith("_"))
-            except ImportError:
-                pass
+            except (ImportError, ModuleNotFoundError):
+                continue
         return sorted(set(names))
 
-    return __getattr__, __dir__
+    if has_stub:
+
+        def __getattr__(name: str):
+            try:
+                return stub_getattr(name)
+            except AttributeError:
+                return _pkg_getattr(name)
+
+        def __dir__():
+            return sorted(set(stub_dir()) | set(_pkg_dir()))
+
+    else:
+
+        def __getattr__(name: str):
+            return _pkg_getattr(name)
+
+        def __dir__():
+            return _pkg_dir()
+
+    mod = sys.modules[package_name]
+    setattr(mod, "__getattr__", __getattr__)
+    setattr(mod, "__dir__", __dir__)
+    setattr(mod, "__all__", __all__)
+    return __getattr__, __dir__, __all__

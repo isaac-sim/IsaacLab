@@ -85,15 +85,8 @@ class NullSpacePostureTask(Task):
     # Regularization factor for pseudoinverse computation to ensure numerical stability
     PSEUDOINVERSE_DAMPING_FACTOR: float = 1e-9
 
-    def __init__(
-        self,
-        cost: float,
-        lm_damping: float = 0.0,
-        gain: float = 1.0,
-        controlled_frames: list[str] | None = None,
-        controlled_joints: list[str] | None = None,
-    ) -> None:
-        r"""Initialize the null space posture task.
+    def __init__(self, cfg) -> None:
+        r"""Initialize the null space posture task from a configuration object.
 
         This task maintains a desired joint posture in the null space of higher-priority
         frame tasks. Joint selection allows excluding specific joints (e.g., wrist joints
@@ -101,20 +94,21 @@ class NullSpacePostureTask(Task):
         errors in critical joints like shoulders and waist.
 
         Args:
-            cost: Task weighting factor in the optimization objective.
-                Units: :math:`[\text{cost}] / [\text{rad}]`.
-            lm_damping: Levenberg-Marquardt regularization scale (unitless). Defaults to 0.0.
-            gain: Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.
-                Defaults to 1.0 (no filtering).
-            controlled_frames: Frame names whose Jacobians define the primary tasks for
-                null space projection. If None or empty, no projection is applied.
-            controlled_joints: Joint names to control in the posture task. If None or
-                empty, all actuated joints are controlled.
+            cfg: A :class:`~isaaclab.controllers.pink_ik.pink_task_cfg.NullSpacePostureTaskCfg`
+                (or any object with the same attributes).
+
+                - ``cost`` -- Task weighting factor (units: :math:`[\text{cost}] / [\text{rad}]`).
+                - ``lm_damping`` -- Levenberg-Marquardt regularization scale (unitless).
+                - ``gain`` -- Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.
+                - ``controlled_frames`` -- Frame names whose Jacobians define the primary
+                  tasks for null space projection. If empty, no projection is applied.
+                - ``controlled_joints`` -- Joint names to control. If empty, all actuated
+                  joints are controlled.
         """
-        super().__init__(cost=cost, gain=gain, lm_damping=lm_damping)
+        super().__init__(cost=float(cfg.cost), gain=float(cfg.gain), lm_damping=float(cfg.lm_damping))
         self.target_q: np.ndarray | None = None
-        self.controlled_frames: list[str] = controlled_frames or []
-        self.controlled_joints: list[str] = controlled_joints or []
+        self.controlled_frames: list[str] = list(getattr(cfg, "controlled_frames", None) or [])
+        self.controlled_joints: list[str] = list(getattr(cfg, "controlled_joints", None) or [])
         self._joint_mask: np.ndarray | None = None
         self._frame_names: list[str] | None = None
 

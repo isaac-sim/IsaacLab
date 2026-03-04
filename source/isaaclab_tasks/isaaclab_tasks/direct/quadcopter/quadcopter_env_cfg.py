@@ -8,7 +8,6 @@ from __future__ import annotations
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.envs.ui import BaseEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -27,7 +26,7 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     state_space = 0
     debug_vis = True
 
-    ui_window_class_type: BaseEnvWindow
+    ui_window_class_type: type | str | None = "{DIR}.quadcopter_env:QuadcopterEnvWindow"
 
     # simulation
     sim: SimulationCfg = SimulationCfg(

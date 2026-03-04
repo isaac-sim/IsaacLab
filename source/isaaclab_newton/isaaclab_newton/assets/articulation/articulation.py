@@ -471,6 +471,7 @@ class Articulation(BaseArticulation):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_index,
@@ -526,6 +527,7 @@ class Articulation(BaseArticulation):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
 
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_mask,
@@ -582,6 +584,7 @@ class Articulation(BaseArticulation):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
@@ -594,7 +597,7 @@ class Articulation(BaseArticulation):
                 env_ids,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -602,8 +605,6 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_com_state_w is not None:
@@ -647,6 +648,7 @@ class Articulation(BaseArticulation):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=root_pose.shape[0],
@@ -656,7 +658,7 @@ class Articulation(BaseArticulation):
                 env_mask,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -664,8 +666,6 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_com_state_w is not None:
@@ -762,6 +762,7 @@ class Articulation(BaseArticulation):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_index,
@@ -773,14 +774,12 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
@@ -813,6 +812,7 @@ class Articulation(BaseArticulation):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_velocity, (env_mask,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
@@ -823,14 +823,12 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
@@ -863,6 +861,7 @@ class Articulation(BaseArticulation):
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
@@ -876,18 +875,15 @@ class Articulation(BaseArticulation):
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_link_state_w is not None:
             self.data._root_link_state_w.timestamp = -1.0
@@ -922,6 +918,7 @@ class Articulation(BaseArticulation):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(root_velocity, (env_mask,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
@@ -933,18 +930,15 @@ class Articulation(BaseArticulation):
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_link_state_w is not None:
             self.data._root_link_state_w.timestamp = -1.0
@@ -1004,6 +998,7 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -1058,6 +1053,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if joint_mask is None:
             joint_mask = self._ALL_JOINT_MASK
+        self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1110,6 +1106,7 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             articulation_kernels.write_joint_vel_data_index,
@@ -1122,12 +1119,10 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data._joint_acc.data,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._joint_acc.timestamp = self.data._sim_timestamp
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1154,6 +1149,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if joint_mask is None:
             joint_mask = self._ALL_JOINT_MASK
+        self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
         wp.launch(
             articulation_kernels.write_joint_vel_data_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1165,12 +1161,10 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data._joint_acc.data,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._joint_acc.timestamp = self.data._sim_timestamp
 
     """
     Operations - Simulation Parameters Writers.
@@ -1216,6 +1210,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "stiffness")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1272,6 +1267,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype_mask(stiffness, (env_mask, joint_mask), wp.float32, "stiffness")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1329,6 +1325,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype(damping, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "damping")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1385,6 +1382,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype_mask(damping, (env_mask, joint_mask), wp.float32, "damping")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1435,6 +1433,7 @@ class Articulation(BaseArticulation):
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
+        self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
         wp.launch(
             articulation_kernels.write_joint_limit_data_to_buffer_index,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1497,6 +1496,7 @@ class Articulation(BaseArticulation):
         clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
+        self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
         wp.launch(
             articulation_kernels.write_joint_limit_data_to_buffer_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1572,6 +1572,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1632,6 +1633,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.float32, "limits")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1692,6 +1694,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1751,6 +1754,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.float32, "limits")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1810,6 +1814,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype(armature, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "armature")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1870,6 +1875,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype_mask(armature, (env_mask, joint_mask), wp.float32, "armature")
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1927,6 +1933,9 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype(
+                joint_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_friction_coeff"
+            )
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1984,6 +1993,9 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
+            self.assert_shape_and_dtype_mask(
+                joint_friction_coeff, (env_mask, joint_mask), wp.float32, "joint_friction_coeff"
+            )
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -2028,6 +2040,7 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -2071,6 +2084,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
@@ -2109,13 +2123,15 @@ class Articulation(BaseArticulation):
             aligned with the body frame.
 
         Args:
-            coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+            coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3). In warp
+                the expected shape is (num_instances, num_bodies), with dtype wp.vec3f.
             body_ids: Body indices. If None, then all bodies are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_index,
@@ -2155,7 +2171,8 @@ class Articulation(BaseArticulation):
             aligned with the body frame.
 
         Args:
-            coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
+            coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies). In warp
+                the expected shape is (num_instances, num_bodies), with dtype wp.vec3f.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -2164,6 +2181,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
@@ -2197,13 +2215,15 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9). In warp
+                the expected shape is (num_instances, num_bodies, 9), with dtype wp.float32.
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer_index,
@@ -2247,6 +2267,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
@@ -2290,6 +2311,7 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -2331,6 +2353,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if joint_mask is None:
             joint_mask = self._ALL_JOINT_MASK
+        self.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -2373,6 +2396,7 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -2415,6 +2439,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if joint_mask is None:
             joint_mask = self._ALL_JOINT_MASK
+        self.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -2457,6 +2482,7 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
@@ -2498,6 +2524,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if joint_mask is None:
             joint_mask = self._ALL_JOINT_MASK
+        self.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -2520,7 +2547,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_stiffness_index(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2547,7 +2574,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_stiffness_mask(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2575,7 +2602,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_damping_index(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2602,7 +2629,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_damping_mask(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2630,7 +2657,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_limit_stiffness_index(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2657,7 +2684,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_limit_stiffness_mask(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2685,7 +2712,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_index(
         self,
         *,
-        limit: torch.Tensor | wp.array,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2712,7 +2739,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_mask(
         self,
         *,
-        limit: torch.Tensor | wp.array,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2740,7 +2767,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_rest_length_index(
         self,
         *,
-        rest_length: torch.Tensor | wp.array,
+        rest_length: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2767,7 +2794,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_rest_length_mask(
         self,
         *,
-        rest_length: torch.Tensor | wp.array,
+        rest_length: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2795,7 +2822,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_offset_index(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2822,7 +2849,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_offset_mask(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2884,7 +2911,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_stiffness_index(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2911,7 +2938,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_stiffness_mask(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2939,7 +2966,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_damping_index(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2966,7 +2993,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_damping_mask(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2994,7 +3021,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_limit_stiffness_index(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -3022,7 +3049,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_limit_stiffness_mask(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -3050,7 +3077,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_offset_index(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -3077,7 +3104,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_offset_mask(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -3187,6 +3214,8 @@ class Articulation(BaseArticulation):
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
+        # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
+        SimulationManager.get_physics_sim_view().append(self._root_view)
 
         # log information about the articulation
         logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
