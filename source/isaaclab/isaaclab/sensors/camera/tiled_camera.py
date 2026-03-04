@@ -179,9 +179,6 @@ class TiledCamera(Camera):
                 f" the number of environments ({self._num_envs})."
             )
 
-        # Create renderer and render data (view exists, so Isaac RTX can access camera paths)
-        self.render_data = self.renderer.create_render_data(self)
-
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
@@ -196,6 +193,9 @@ class TiledCamera(Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
+
+        # View needs to exist before creating render data
+        self.render_data = self.renderer.create_render_data(self)
 
         # Create internal buffers
         self._create_buffers()
