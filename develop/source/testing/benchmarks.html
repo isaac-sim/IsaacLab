@@ -711,6 +711,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#json-backend">JSON Backend</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#osmo-backend">Osmo Backend</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omniperf-backend">OmniPerf Backend</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-backend">Summary Backend</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmarkmonitor">BenchmarkMonitor</a></li>
@@ -776,7 +777,7 @@ with pluggable output backends.</p>
 <li><p><strong>Metadata</strong>: Data classes for recording context (hardware, versions, parameters)</p></li>
 <li><p><strong>TestPhase</strong>: Container for organizing measurements into logical groups</p></li>
 <li><p><strong>Recorders</strong>: System information collectors (CPU, GPU, memory, versions)</p></li>
-<li><p><strong>Backends</strong>: Output formatters (JSON, Osmo, OmniPerf)</p></li>
+<li><p><strong>Backends</strong>: Output formatters (JSON, Osmo, OmniPerf, Summary)</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -906,7 +907,7 @@ input modes, and how to add new benchmarks, see <a class="reference internal" hr
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--benchmark_backend</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">json</span></code></p></td>
-<td><p>Output backend: <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">osmo</span></code>, or <code class="docutils literal notranslate"><span class="pre">omniperf</span></code></p></td>
+<td><p>Output backend: <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">osmo</span></code>, <code class="docutils literal notranslate"><span class="pre">omniperf</span></code>, or <code class="docutils literal notranslate"><span class="pre">summary</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--output_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">./</span></code></p></td>
@@ -1137,6 +1138,17 @@ into logical groups. Common phases include:</p>
 </pre></div>
 </div>
 </section>
+<section id="summary-backend">
+<h3>Summary Backend<a class="headerlink" href="#summary-backend" title="Permalink to this heading">#</a></h3>
+<p>Human-readable console report plus JSON file. Prints a formatted summary (runtime,
+startup, train, frametime, and system info) to the terminal while also writing
+the same data as JSON. Use when you want a quick readout without opening the JSON:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>...<span class="w"> </span>--benchmark_backend<span class="w"> </span>summary<span class="w"> </span>--output_path<span class="w"> </span>./results
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">summary</span></code> is selected, frametime recorders are enabled automatically when
+running with Isaac Sim (Kit).</p>
+</section>
 </section>
 <section id="benchmarkmonitor">
 <h2>BenchmarkMonitor<a class="headerlink" href="#benchmarkmonitor" title="Permalink to this heading">#</a></h2>
@@ -1302,7 +1314,7 @@ monitoring during blocking operations like RL training loops:</p>
 </section>
 <section id="backend-not-recognized">
 <h3>Backend Not Recognized<a class="headerlink" href="#backend-not-recognized" title="Permalink to this heading">#</a></h3>
-<p>Valid backend types are: <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">osmo</span></code>, <code class="docutils literal notranslate"><span class="pre">omniperf</span></code></p>
+<p>Valid backend types are: <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">osmo</span></code>, <code class="docutils literal notranslate"><span class="pre">omniperf</span></code>, <code class="docutils literal notranslate"><span class="pre">summary</span></code></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Correct</span>
 --benchmark_backend<span class="w"> </span>json
 
@@ -1387,6 +1399,7 @@ monitoring during blocking operations like RL training loops:</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#json-backend">JSON Backend</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#osmo-backend">Osmo Backend</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omniperf-backend">OmniPerf Backend</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-backend">Summary Backend</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmarkmonitor">BenchmarkMonitor</a></li>
