@@ -518,18 +518,21 @@ class OVRTXRenderer(BaseRenderer):
         if render_data is not None:
             render_data.sensor = None  # Break weak ref (Newton pattern)
         self._sensor_ref = None
-        if self._camera_binding:
+
+        # Unbind before tearing down renderer
+        def _safe_unbind(binding, name: str) -> None:
+            if binding is None:
+                return
             try:
-                self._camera_binding.unbind()
+                binding.unbind()
             except Exception as e:
-                print(f"Warning: Error unbinding camera transforms: {e}")
-            self._camera_binding = None
-        if self._object_binding:
-            try:
-                self._object_binding.unbind()
-            except Exception as e:
-                print(f"Warning: Error unbinding object transforms: {e}")
-            self._object_binding = None
+                if "destroyed" not in str(e).lower():
+                    print(f"Warning: Error unbinding {name}: {e}")
+
+        _safe_unbind(self._camera_binding, "camera transforms")
+        self._camera_binding = None
+        _safe_unbind(self._object_binding, "object transforms")
+        self._object_binding = None
 
         if self._renderer:
             if self._usd_handles:
