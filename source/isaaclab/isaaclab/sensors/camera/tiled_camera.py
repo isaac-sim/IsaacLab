@@ -166,7 +166,10 @@ class TiledCamera(Camera):
         # Create renderer after scene is ready (post-cloning) so world_count is correct
         self.renderer = Renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
-        self.render_data = self.renderer.create_render_data(self)
+
+        # Stage preprocessing that needs to happen before creating the view
+        # since view keeps references to the prims located in the stage
+        self.renderer.prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor
         self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
@@ -176,6 +179,9 @@ class TiledCamera(Camera):
                 f"Number of camera prims in the view ({self._view.count}) does not match"
                 f" the number of environments ({self._num_envs})."
             )
+
+        # Create renderer and render data (view exists, so Isaac RTX can access camera paths)
+        self.render_data = self.renderer.create_render_data(self)
 
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)

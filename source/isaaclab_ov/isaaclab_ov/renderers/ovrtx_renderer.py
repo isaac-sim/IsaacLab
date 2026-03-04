@@ -23,7 +23,7 @@ import logging
 import math
 import os
 import weakref
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class OVRTXRenderData:
         self.sensor: weakref.ref[object] | None = weakref.ref(sensor)
         self.width = sensor.cfg.width
         self.height = sensor.cfg.height
-        self.num_envs = sensor._num_envs
+        self.num_envs = sensor.num_instances
         self.data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
@@ -119,12 +119,30 @@ class OVRTXRenderer(BaseRenderer):
         self._object_newton_indices: wp.array | None = None
         self._initialized_scene = False
         self._sensor_ref: weakref.ref[object] | None = None
+        self._exported_usd_path: str | None = None
+
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """Export the USD stage for OVRTX before create_render_data.
+
+        Adds cloning attributes and exports the stage to a temporary file.
+        The exported path is used by create_render_data when loading into OVRTX.
+        """
+        if stage is None:
+            return
+
+        use_cloning = self.cfg.use_cloning
+
+        logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
+        create_cloning_attributes(stage, "Camera", num_envs, use_cloning)
+
+        export_path = "/tmp/stage_before_ovrtx.usda"
+        export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
+        self._exported_usd_path = export_path
+        logger.info("Exported to %s", export_path)
 
     def initialize(self, sensor: SensorBase):
         """Initialize the OVRTX renderer with internal environment cloning.
 
-        Only env_0 is exported to USD; OVRTX clone_usd() replicates environments
-        for fast initialization (O(1) or O(log N) for many envs).
 
         Args:
             sensor: The TiledCamera sensor. width, height, num_envs, data_types are
@@ -133,21 +151,11 @@ class OVRTXRenderer(BaseRenderer):
         self._sensor_ref = weakref.ref(sensor)
         width = sensor.cfg.width
         height = sensor.cfg.height
-        num_envs = sensor._num_envs
+        num_envs = sensor.num_instances
         data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
 
-        camera_prim_path = sensor.cfg.prim_path
-        camera_prim_name = (camera_prim_path or "").strip().split("/")[-1] or "Camera"
-        stage = sensor.stage
-        usd_scene_path = None
+        usd_scene_path = self._exported_usd_path
         use_cloning = self.cfg.use_cloning
-        if stage is not None:
-            logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
-            create_cloning_attributes(stage, camera_prim_name, num_envs, use_cloning)
-            export_path = "/tmp/stage_before_ovrtx.usda"
-            export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
-            usd_scene_path = export_path
-            logger.info("Exported to %s", export_path)
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
