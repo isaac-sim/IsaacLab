@@ -2,7 +2,7 @@
 version = "0.1.0"
 title = "Omniverse renderers for IsaacLab"
 description = "Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for tiled camera rendering."
-readme = "README.md"
+readme = "docs/README.md"
 repository = "https://github.com/isaac-sim/IsaacLab"
 category = "robotics"
 keywords = ["robotics", "simulation", "rendering", "ovrtx", "omniverse"]
