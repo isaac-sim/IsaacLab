@@ -6,12 +6,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING
 import gymnasium as gym
 import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
 

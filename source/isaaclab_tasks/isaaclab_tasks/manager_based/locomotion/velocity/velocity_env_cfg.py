@@ -11,7 +11,6 @@ from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -21,10 +20,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import RayCasterCfg, patterns
-from isaaclab.sensors import ContactSensorCfg
-from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
-from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -302,26 +298,6 @@ class CurriculumCfg:
 ##
 # Environment configuration
 ##
-
-@configclass
-class PhysicsCfg:
-    presets = {
-        "default" : PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15),
-        "newton" : NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=170,
-                nconmax=30,
-                ls_iterations=30,
-                cone="pyramidal",
-                impratio=1,
-                ls_parallel=True,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        ),
-    }
-
 
 
 @configclass
