@@ -204,8 +204,8 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
-            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
+            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
+            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
         },
     )
 
@@ -354,23 +354,27 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # Override gear initial states for Rizon (closer to robot, centered)
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
             # pos=(-0.6, 0.0, -0.1),
-            pos=(0.63, -0.083, -0.1),
-            rot=(0.0, 0.0, 0.70711, 0.70711),
+            # pos=(0.63, -0.083, -0.1),
+            pos=(0.481, -0.073, 0.071),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
             # pos=(-0.6, 0.0, -0.1),
-            pos=(0.63, -0.083, -0.1),
-            rot=(0.0, 0.0, 0.70711, 0.70711),
+            # pos=(0.63, -0.083, -0.1),
+            pos=(0.481, -0.073, 0.071),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
             # pos=(-0.6, 0.0, -0.1),
-            pos=(0.63, -0.083, -0.1),
-            rot=(0.0, 0.0, 0.70711, 0.70711),
+            # pos=(0.63, -0.083, -0.1),
+            pos=(0.481, -0.073, 0.071),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
             # pos=(-0.6, 0.0, -0.1),
-            pos=(0.63, -0.083, -0.1),
-            rot=(0.0, 0.0, 0.70711, 0.70711),
+            # pos=(0.63, -0.083, -0.1),
+            pos=(0.481, -0.073, 0.071),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Gear offsets and grasp positions for Rizon 4s with Grav gripper
