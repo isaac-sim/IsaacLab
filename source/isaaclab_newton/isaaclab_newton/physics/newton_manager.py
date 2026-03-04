@@ -13,7 +13,7 @@ import re
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import Axis, BroadPhaseMode, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
@@ -277,7 +277,7 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase_mode=BroadPhaseMode.EXPLICIT)
+                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -320,6 +320,9 @@ class NewtonManager(PhysicsManager):
             solver_cfg = cfg.solver_cfg  # type: ignore[union-attr]
             cfg_dict = solver_cfg.to_dict() if hasattr(solver_cfg, "to_dict") else {}
             cls._solver_type = cfg_dict.pop("solver_type", "mujoco_warp")
+            # Remove IsaacLab-specific config fields not accepted by Newton solvers
+            cfg_dict.pop("default_actuator_gear", None)
+            cfg_dict.pop("actuator_gears", None)
 
             if cls._solver_type == "mujoco_warp":
                 # SolverMuJoCo does not require distinct input & output states
