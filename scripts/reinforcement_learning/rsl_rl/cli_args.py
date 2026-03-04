@@ -8,8 +8,9 @@ from __future__ import annotations
 import argparse
 import random
 from dataclasses import MISSING
-from packaging import version
 from typing import TYPE_CHECKING
+
+from packaging import version
 
 if TYPE_CHECKING:
     from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg

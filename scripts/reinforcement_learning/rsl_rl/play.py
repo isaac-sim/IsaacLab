@@ -54,6 +54,7 @@ simulation_app = app_launcher.app
 """Check for installed RSL-RL version."""
 
 import importlib.metadata as metadata
+
 from packaging import version
 
 installed_version = metadata.version("rsl-rl-lib")
