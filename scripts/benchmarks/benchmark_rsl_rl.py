@@ -155,8 +155,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_rank = 0
     world_size = 1
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
-        agent_cfg.device = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
 
         # set seed to have diversity in different threads
         seed = agent_cfg.seed + int(os.getenv("LOCAL_RANK", "0"))

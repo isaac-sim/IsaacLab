@@ -176,11 +176,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # multi-gpu training config
     if args_cli.distributed:
         agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
-        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
-        agent_cfg["params"]["config"]["device_name"] = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg["params"]["config"]["device_name"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         agent_cfg["params"]["config"]["multi_gpu"] = True
         # update env config device
-        env_cfg.sim.device = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
 
     # max iterations
     if args_cli.max_iterations:
