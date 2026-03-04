@@ -2,9 +2,3 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-"""PhysX visualizer backends."""
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export()

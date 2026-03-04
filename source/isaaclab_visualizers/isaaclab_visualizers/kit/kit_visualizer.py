@@ -200,8 +200,6 @@ class KitVisualizer(BaseVisualizer):
             self._viewport_window = vp_utils.get_active_viewport_window()
 
         self._viewport_api = self._viewport_window.viewport_api
-        # TODO: Unify camera initialization with a renderer-level rendering_cfg/camera_cfg
-        # so visualizers can consume one canonical camera policy.
         if self.cfg.camera_source == "usd_path":
             if not self._set_active_camera_path(self.cfg.camera_usd_path):
                 logger.warning(
@@ -243,7 +241,6 @@ class KitVisualizer(BaseVisualizer):
             viewport_window.focus()
 
     def _create_and_assign_camera(self, usd_stage) -> None:
-        # Create camera prim path based on viewport name (sanitize to ensure valid USD path).
         camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
 
         camera_prim = usd_stage.GetPrimAtPath(camera_path)

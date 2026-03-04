@@ -106,17 +106,14 @@ def _ensure_rerun_server(
     connect_host = _normalize_host(bind_address)
     grpc_uri = f"rerun+http://{connect_host}:{int(grpc_port)}/proxy"
 
-    # Reuse existing server when gRPC endpoint is already reachable.
     if _is_port_open(grpc_port, host=connect_host):
         return grpc_uri, False
 
-    # If web port is occupied but gRPC isn't, try cleaning stale rerun listener.
     if not _is_port_free(web_port, host=connect_host):
         pid = _listening_rerun_pid(web_port)
         if pid is not None and auto_kill_stale_rerun_process:
             logger.info("[RerunVisualizer] Terminating stale rerun process on web port %s (pid=%s).", web_port, pid)
             _terminate_pid(pid)
-            # Give socket state a moment to settle.
             time.sleep(0.1)
         if not _is_port_free(web_port, host=connect_host):
             if pid is not None and not auto_kill_stale_rerun_process:
@@ -251,7 +248,6 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.open_browser:
             _open_rerun_web_viewer(_normalize_host(bind_address), web_port, rerun_address)
 
-        # Current Newton ViewerRerun API owns rr.init/connect/serve lifecycle.
         self._viewer = NewtonViewerRerun(
             app_id=self.cfg.app_id,
             address=rerun_address,

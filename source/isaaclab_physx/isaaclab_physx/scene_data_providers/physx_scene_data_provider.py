@@ -191,7 +191,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun visualizers."
+                "Install the Newton physics backend (isaaclab_newton) to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
@@ -234,7 +234,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun visualizers."
+                "Install the Newton physics backend (isaaclab_newton) to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None
@@ -378,12 +378,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         order = self._view_body_index_map.get(view_key)
         if not order:
-            self._warn_once(
-                f"missing-index-map-{view_key}",
-                "[PhysxSceneDataProvider] Missing index map for %s; cannot scatter transforms.",
-                view_key,
-                level=logging.DEBUG,
-            )
             return 0
 
         # Normalize returned arrays to torch tensors across backends (torch/warp/other).

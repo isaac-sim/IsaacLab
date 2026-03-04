@@ -330,26 +330,40 @@ class SimulationContext:
         return self.physics_manager.get_physics_dt()
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
-        """Create default visualizer configs for requested types."""
+        """Create default visualizer configs for requested types.
+
+        Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
+        so dependencies for other backends are not imported.
+        """
+        import importlib
+
         default_configs = []
+        cfg_class_names = {"kit": "KitVisualizerCfg", "newton": "NewtonVisualizerCfg", "rerun": "RerunVisualizerCfg"}
         for viz_type in requested_visualizers:
             try:
-                if viz_type == "newton":
-                    from isaaclab_newton.visualizers import NewtonVisualizerCfg
-
-                    default_configs.append(NewtonVisualizerCfg())
-                elif viz_type == "rerun":
-                    from isaaclab_newton.visualizers import RerunVisualizerCfg
-
-                    default_configs.append(RerunVisualizerCfg())
-                elif viz_type == "kit":
-                    from isaaclab_physx.visualizers import KitVisualizerCfg
-
-                    default_configs.append(KitVisualizerCfg())
-                else:
+                if viz_type not in _VISUALIZER_TYPES:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
+                    )
+                    continue
+                mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
+                cfg_cls = getattr(mod, cfg_class_names[viz_type])
+                default_configs.append(cfg_cls())
+            except (ImportError, ModuleNotFoundError) as exc:
+                # isaaclab_visualizers is optional; log once at warning level
+                if "isaaclab_visualizers" in str(exc):
+                    logger.warning(
+                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
+                        "Install with: pip install isaaclab_visualizers[%s]",
+                        viz_type,
+                        viz_type,
+                    )
+                else:
+                    logger.error(
+                        "[SimulationContext] Failed to create default config for visualizer '%s': %s",
+                        viz_type,
+                        exc,
                     )
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")

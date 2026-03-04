@@ -16,7 +16,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
-from isaaclab_physx.visualizers import KitVisualizer, KitVisualizerCfg
+from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import (

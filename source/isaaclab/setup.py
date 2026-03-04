@@ -85,6 +85,11 @@ EXTRAS_REQUIRE = {
     "rl": ["isaaclab_rl"],
     "tasks": ["isaaclab_tasks"],
     "teleop": ["isaaclab_teleop"],
+    # Visualizers (optional: install only the backends you use)
+    "visualizers": ["isaaclab_visualizers[all]"],
+    "visualizers-kit": ["isaaclab_visualizers[kit]"],
+    "visualizers-newton": ["isaaclab_visualizers[newton]"],
+    "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
     # Convenience: all sub-packages (does not include isaacsim)
     "all": [
         "isaaclab_assets",
@@ -95,6 +100,7 @@ EXTRAS_REQUIRE = {
         "isaaclab_rl",
         "isaaclab_tasks",
         "isaaclab_teleop",
+        "isaaclab_visualizers[all]",
     ],
 }
 

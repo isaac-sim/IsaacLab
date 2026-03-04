@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton visualizer backends."""
+"""Rerun visualizer backend."""
 
-from isaaclab.utils.module import lazy_export
+from .rerun_visualizer import RerunVisualizer
+from .rerun_visualizer_cfg import RerunVisualizerCfg
 
-lazy_export()
+__all__ = ["RerunVisualizer", "RerunVisualizerCfg"]

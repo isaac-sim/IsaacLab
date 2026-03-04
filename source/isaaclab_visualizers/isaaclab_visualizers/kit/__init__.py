@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "KitVisualizer",
-    "KitVisualizerCfg",
-]
+"""Kit visualizer backend (Isaac Sim viewport)."""
 
 from .kit_visualizer import KitVisualizer
 from .kit_visualizer_cfg import KitVisualizerCfg
+
+__all__ = ["KitVisualizer", "KitVisualizerCfg"]

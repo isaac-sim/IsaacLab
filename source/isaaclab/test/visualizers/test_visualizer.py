@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for visualizer base behavior."""
+"""Unit tests for visualizer config factory and base visualizer behavior."""
 
 from __future__ import annotations
 
@@ -12,6 +12,37 @@ from types import SimpleNamespace
 import pytest
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer import Visualizer
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+
+#
+# Config factory
+#
+
+
+def test_create_visualizer_raises_for_base_cfg():
+    cfg = VisualizerCfg()
+    with pytest.raises(ValueError, match="Cannot create visualizer from base VisualizerCfg class"):
+        cfg.create_visualizer()
+
+
+def test_create_visualizer_raises_for_unknown_type():
+    cfg = VisualizerCfg(visualizer_type="unknown-backend")
+    with pytest.raises(ValueError, match="not registered"):
+        cfg.create_visualizer()
+
+
+def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypatch):
+    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
+    cfg = VisualizerCfg(visualizer_type="newton")
+    with pytest.raises(ImportError, match="isaaclab_visualizers"):
+        cfg.create_visualizer()
+
+
+#
+# Base visualizer (env filtering, camera pose)
+#
 
 
 class _DummyVisualizer(BaseVisualizer):

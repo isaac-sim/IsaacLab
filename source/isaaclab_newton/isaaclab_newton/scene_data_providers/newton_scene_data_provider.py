@@ -36,6 +36,10 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._metadata = {"physics_backend": "newton"}
         self._num_envs: int | None = None
         self._warned_once: set[str] = set()
+        # Only sync Newton -> USD when a Kit (or other USD-based) visualizer is active.
+        # When both sim and rendering are Newton (or Rerun), they use Newton state directly.
+        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
+        self._needs_usd_sync = "kit" in viz_types
 
     def _warn_once(self, key: str, message: str, *args) -> None:
         if key in self._warned_once:
@@ -70,13 +74,16 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
     # ---- Core provider API -------------------------------------------------------------------
 
     def update(self, env_ids: list[int] | None = None) -> None:
-        """Sync Newton body transforms to USD Fabric for Kit viewport rendering.
+        """Sync Newton body transforms to USD Fabric when a Kit viewport is active.
 
         Called at render cadence by :meth:`~isaaclab.sim.SimulationContext.update_scene_data_provider`,
-        after forward kinematics have been evaluated.  Delegates to
-        :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd`, which is a
-        no-op when no Kit visualizer is active (``_fabric_manager is None``).
+        after forward kinematics have been evaluated.  Only calls
+        :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd` when a Kit
+        (or other USD-based) visualizer is in use. When both sim and rendering backend
+        are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
         """
+        if not self._needs_usd_sync:
+            return
         try:
             from isaaclab_newton.physics import NewtonManager
 

@@ -136,8 +136,8 @@ class NewtonManager(PhysicsManager):
     def sync_transforms_to_usd(cls) -> None:
         """Write Newton body_q to USD Fabric world matrices for Kit viewport rendering.
 
-        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active).
-        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider`
+        No-op when ``_usdrt_stage`` is None (i.e. Kit viewport visualizer is not active).
+        Called by :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`
         at render cadence, after forward kinematics have been evaluated.
 
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).

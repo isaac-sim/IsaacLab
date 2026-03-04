@@ -82,17 +82,6 @@ class NewtonViewerGL(ViewerGL):
     def on_key_press(self, symbol, modifiers):
         if self.ui.is_capturing():
             return
-
-        try:
-            import pyglet  # noqa: PLC0415
-        except Exception:
-            return
-
-        if symbol == pyglet.window.key.SPACE:
-            self._paused_rendering = not self._paused_rendering
-            self._paused = self._paused_rendering
-            return
-
         super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
@@ -117,7 +106,6 @@ class NewtonViewerGL(ViewerGL):
         import newton as nt
 
         imgui = self.ui.imgui
-        nav_highlight_color = self.ui.get_theme_color(imgui.Col_.nav_cursor, (1.0, 1.0, 1.0, 1.0))
 
         io = self.ui.io
         imgui.set_next_window_pos(imgui.ImVec2(10, 10))
@@ -187,14 +175,10 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text(f"Pitch: {self.camera.pitch:.1f}°")
 
                 imgui.separator()
-                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
-                imgui.text("Controls:")
-                imgui.pop_style_color()
                 imgui.text("WASD - Forward/Left/Back/Right")
                 imgui.text("QE - Down/Up")
                 imgui.text("Left Click - Look around")
                 imgui.text("Scroll - Zoom")
-                imgui.text("Space - Pause/Resume Rendering")
                 imgui.text("H - Toggle UI")
                 imgui.text("ESC - Exit")
 

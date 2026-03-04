@@ -7,9 +7,8 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.module import lazy_export
-
 from .base_visualizer import BaseVisualizer
 from .visualizer import Visualizer
+from .visualizer_cfg import VisualizerCfg
 
-lazy_export(packages=["isaaclab_physx.visualizers", "isaaclab_newton.visualizers"])
+__all__ = ["BaseVisualizer", "Visualizer", "VisualizerCfg"]

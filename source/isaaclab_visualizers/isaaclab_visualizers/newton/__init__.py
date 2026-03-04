@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "NewtonVisualizer",
-    "NewtonVisualizerCfg",
-    "RerunVisualizer",
-    "RerunVisualizerCfg",
-]
+"""Newton OpenGL visualizer backend."""
 
 from .newton_visualizer import NewtonVisualizer
 from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .rerun_visualizer import RerunVisualizer
-from .rerun_visualizer_cfg import RerunVisualizerCfg
+
+__all__ = ["NewtonVisualizer", "NewtonVisualizerCfg"]
