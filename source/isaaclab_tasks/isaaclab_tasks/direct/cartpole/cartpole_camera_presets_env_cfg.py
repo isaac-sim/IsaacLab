@@ -35,7 +35,7 @@ class PhysicsCfg(PresetCfg):
 class MultiBackendRendererCfg(PresetCfg):
     default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
-    isaac_sim_rtx: IsaacRtxRendererCfg = default
+    isaacsim_rtx_renderer: IsaacRtxRendererCfg = default
 
 
 @configclass
