@@ -106,6 +106,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._num_envs: int | None = None
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
+        # TODO: Include renderer capability checks (not just visualizer types)
+        # when computing sync requirements in SimulationContext and pass them into the provider.
         self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers

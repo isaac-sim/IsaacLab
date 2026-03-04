@@ -38,6 +38,8 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._warned_once: set[str] = set()
         # Only sync Newton -> USD when a Kit (or other USD-based) visualizer is active.
         # When both sim and rendering are Newton (or Rerun), they use Newton state directly.
+        # TODO: Include renderer capability checks (not just visualizer types)
+        # when computing sync requirements in SimulationContext and pass them into the provider.
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
         self._needs_usd_sync = "kit" in viz_types
 
