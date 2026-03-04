@@ -225,7 +225,8 @@ class PinkIKController:
                 solver="daqp",
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
-            assert not np.isnan(velocity).any(), "Solution to IK contains NaN."
+            if np.isnan(velocity).any():
+                raise RuntimeError("Solution to IK contains NaN.")
             joint_angle_changes = velocity * dt
         except (AssertionError, Exception) as e:
             # Print warning and return the current joint positions as the target
