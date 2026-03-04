@@ -193,9 +193,9 @@ class NewtonManager(PhysicsManager):
                 cls._solver.notify_model_changed(change)
             cls._model_changes = set()
 
-        # Step simulation (graphed or not)
+        # Step simulation (graphed or not; _graph is None when RTX/Fabric sync is active)
         cfg = PhysicsManager._cfg
-        if cfg is not None and cfg.use_cuda_graph:  # type: ignore[union-attr]
+        if cls._graph is not None:
             wp.capture_launch(cls._graph)  # type: ignore[arg-type]
         else:
             cls._simulate()
@@ -423,11 +423,17 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         assert device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
 
+        # Skip CUDA graph when syncing to USD/Fabric for RTX: capture conflicts with RTX/Replicator
+        # using the legacy stream (cudaErrorStreamCaptureImplicit).
+        use_cuda_graph = cfg.use_cuda_graph and (cls._usdrt_stage is None)  # type: ignore[union-attr]
+
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-            if cfg.use_cuda_graph:  # type: ignore[union-attr]
+            if use_cuda_graph:
                 with wp.ScopedCapture() as capture:
                     cls._simulate()
                 cls._graph = capture.graph
+            else:
+                cls._graph = None
 
     @classmethod
     def _simulate(cls) -> None:
