@@ -1,9 +1,10 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Warp kernels and device constant for OVRTX renderer."""
 
-import numpy as np
 import warp as wp
 
 DEVICE = "cuda:0"
@@ -34,10 +35,22 @@ def create_camera_transforms_kernel(
     _0 = wp.float64(0.0)
     _1 = wp.float64(1.0)
     transforms[i] = wp.mat44d(  # type: ignore
-        wp.float64(r00), wp.float64(r10), wp.float64(r20), _0,
-        wp.float64(r01), wp.float64(r11), wp.float64(r21), _0,
-        wp.float64(r02), wp.float64(r12), wp.float64(r22), _0,
-        wp.float64(float(pos[0])), wp.float64(float(pos[1])), wp.float64(float(pos[2])), _1,
+        wp.float64(r00),
+        wp.float64(r10),
+        wp.float64(r20),
+        _0,
+        wp.float64(r01),
+        wp.float64(r11),
+        wp.float64(r21),
+        _0,
+        wp.float64(r02),
+        wp.float64(r12),
+        wp.float64(r22),
+        _0,
+        wp.float64(float(pos[0])),
+        wp.float64(float(pos[1])),
+        wp.float64(float(pos[2])),
+        _1,
     )
 
 

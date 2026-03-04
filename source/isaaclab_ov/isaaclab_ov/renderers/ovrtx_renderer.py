@@ -1,4 +1,6 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """OVRTX Renderer implementation.
@@ -78,14 +80,10 @@ class OVRTXRenderData:
         if "albedo" in data_types:
             buffers["albedo"] = wp.zeros((num_envs, height, width, 4), dtype=wp.uint8, device=device)
         if "semantic_segmentation" in data_types:
-            buffers["semantic_segmentation"] = wp.zeros(
-                (num_envs, height, width, 4), dtype=wp.uint8, device=device
-            )
+            buffers["semantic_segmentation"] = wp.zeros((num_envs, height, width, 4), dtype=wp.uint8, device=device)
         for depth_key in ("depth", "distance_to_image_plane", "distance_to_camera"):
             if depth_key in data_types:
-                buffers[depth_key] = wp.zeros(
-                    (num_envs, height, width, 1), dtype=wp.float32, device=device
-                )
+                buffers[depth_key] = wp.zeros((num_envs, height, width, 1), dtype=wp.float32, device=device)
         return buffers
 
     def __init__(self, sensor: SensorBase, device):
@@ -97,9 +95,7 @@ class OVRTXRenderData:
         self.data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
-        self.warp_buffers = self._create_warp_buffers(
-            self.width, self.height, self.num_envs, self.data_types, device
-        )
+        self.warp_buffers = self._create_warp_buffers(self.width, self.height, self.num_envs, self.data_types, device)
 
 
 class OVRTXRenderer(BaseRenderer):
@@ -161,7 +157,7 @@ class OVRTXRenderer(BaseRenderer):
         print("OVRTX renderer created successfully!")
 
         if usd_scene_path is not None:
-            print(f"[OVRTX] Injecting camera definitions...")
+            print("[OVRTX] Injecting camera definitions...")
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
                 self.cfg,
@@ -172,7 +168,7 @@ class OVRTXRenderer(BaseRenderer):
             )
             self._render_product_paths.append(render_product_path)
 
-            print(f"[OVRTX] Loading USD into OvRTX...")
+            print("[OVRTX] Loading USD into OvRTX...")
             try:
                 handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
                 self._usd_handles.append(handle)
@@ -180,11 +176,12 @@ class OVRTXRenderer(BaseRenderer):
             except Exception as e:
                 print(f"ERROR loading USD: {e}")
                 import traceback
+
                 traceback.print_exc()
                 raise
 
             if use_cloning and num_envs > 1:
-                print(f"[OVRTX] Using OVRTX internal cloning")
+                print("[OVRTX] Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx(num_envs)
                 self._update_scene_partitions_after_clone(combined_usd_path, num_envs)
 
@@ -209,9 +206,9 @@ class OVRTXRenderer(BaseRenderer):
                 print(f"  ⚠ Warning: Failed to write omni:resetXformStack: {e}")
 
             if self._camera_binding is not None:
-                print(f"  ✓ Camera binding created successfully")
+                print("  ✓ Camera binding created successfully")
             else:
-                print(f"  ✗ WARNING: Camera binding is None!")
+                print("  ✗ WARNING: Camera binding is None!")
 
             self._setup_object_bindings()
 
@@ -253,6 +250,7 @@ class OVRTXRenderer(BaseRenderer):
         except Exception as e:
             print(f"  ⚠ Warning: Failed to write scene partitions: {e}")
             import traceback
+
             traceback.print_exc()
 
     def _setup_object_bindings(self):
@@ -302,10 +300,10 @@ class OVRTXRenderer(BaseRenderer):
                 print(f"  ⚠ Warning: Failed to write omni:resetXformStack on objects: {e}")
 
             if self._object_binding is not None:
-                print(f"  ✓ Object binding created successfully")
+                print("  ✓ Object binding created successfully")
                 self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=DEVICE)
             else:
-                print(f"  ✗ WARNING: Object binding is None!")
+                print("  ✗ WARNING: Object binding is None!")
         except ImportError:
             print("[OVRTX] Newton not available, skipping object bindings")
         except Exception as e:
@@ -365,9 +363,7 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(
-            orientations, origin="world", target="opengl"
-        )
+        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
         camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
         camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
@@ -444,9 +440,7 @@ class OVRTXRenderer(BaseRenderer):
                         device=DEVICE,
                     )
 
-    def _process_render_frame(
-        self, render_data: OVRTXRenderData, frame, output_buffers: dict
-    ) -> None:
+    def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         rgb_render_var = (
             "SimpleShadingSD"
@@ -475,9 +469,7 @@ class OVRTXRenderer(BaseRenderer):
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
             with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
-                self._extract_rgba_tiles(
-                    render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo"
-                )
+                self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in output_buffers:
             with frame.render_vars["SemanticSegmentationSD"].map(device=Device.CUDA) as mapping:
@@ -518,6 +510,7 @@ class OVRTXRenderer(BaseRenderer):
         except Exception as e:
             print(f"Warning: OVRTX rendering failed: {e}")
             import traceback
+
             traceback.print_exc()
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:

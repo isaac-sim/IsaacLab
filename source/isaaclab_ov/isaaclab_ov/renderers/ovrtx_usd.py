@@ -1,4 +1,6 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """USD manipulation for OVRTX: Render scope building, camera injection, and stage prim activation."""
@@ -14,13 +16,9 @@ if TYPE_CHECKING:
     from .ovrtx_renderer_cfg import OVRTXRendererCfg
 
 
-def get_render_var_config(
-    data_types: list[str], simple_shading_mode: bool
-) -> tuple[str, str, str]:
+def get_render_var_config(data_types: list[str], simple_shading_mode: bool) -> tuple[str, str, str]:
     """Return (render_var_path, render_var_name, source_name) from data_types and shading mode."""
-    use_depth = any(
-        dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types
-    )
+    use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types)
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
@@ -100,7 +98,7 @@ def inject_cameras_into_usd(
         num_envs: Number of environments from scene.
         data_types: Data types from sensor config.
     """
-    with open(usd_scene_path, "r") as f:
+    with open(usd_scene_path) as f:
         original_usd = f.read()
 
     data_types = data_types if data_types else ["rgb"]
@@ -110,9 +108,7 @@ def inject_cameras_into_usd(
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
-    render_var_path, render_var_name, source_name = get_render_var_config(
-        data_types, cfg.simple_shading_mode
-    )
+    render_var_path, render_var_name, source_name = get_render_var_config(data_types, cfg.simple_shading_mode)
     print(f"  Rendering mode: {render_var_name}")
     if cfg.simple_shading_mode:
         print("[OVRTX] Simple shading mode ENABLED")
@@ -131,9 +127,7 @@ def inject_cameras_into_usd(
     combined_usd = original_usd.rstrip() + "\n\n" + camera_content
 
     Path(cfg.temp_usd_dir).mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=cfg.temp_usd_suffix, delete=False, dir=cfg.temp_usd_dir
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=cfg.temp_usd_suffix, delete=False, dir=cfg.temp_usd_dir) as f:
         f.write(combined_usd)
         temp_path = f.name
     print(f"   Created combined USD: {temp_path}")
@@ -179,9 +173,7 @@ def create_cloning_attributes(
     return total_objects
 
 
-def export_stage_for_ovrtx(
-    stage, export_path: str, num_envs: int, use_cloning: bool = True
-) -> str:
+def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: bool = True) -> str:
     """Export the stage to a USD file; when num_envs > 1, only env_0 is exported for OVRTX cloning.
 
     When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
