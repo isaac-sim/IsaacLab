@@ -72,6 +72,7 @@ from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
     get_backend_type,
+    get_preset_string,
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -114,6 +115,7 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "num_frames", "data": args_cli.num_frames},
+            {"name": "presets", "data": get_preset_string(hydra_args)},
         ]
     },
 )

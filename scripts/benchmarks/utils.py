@@ -111,6 +111,21 @@ def log_runtime_step_times(benchmark: BaseIsaacLabBenchmark, value: dict, comput
         log_min_max_mean_stats(benchmark, value)
 
 
+def get_preset_string(hydra_args: list[str]) -> str:
+    """Extract the active preset string from CLI hydra args or an environment variable.
+
+    Checks (in order):
+        1. ``presets=...`` in *hydra_args* (e.g. ``presets=physx,ovrtx_renderer,rgb``)
+        2. ``ISAACLAB_BENCHMARK_PRESET`` environment variable
+        3. Falls back to ``"default"``
+    """
+    for arg in hydra_args:
+        if arg.startswith("presets="):
+            value = arg.split("=", 1)[1]
+            return value if value else "default"
+    return os.environ.get("ISAACLAB_BENCHMARK_PRESET", "") or "default"
+
+
 def log_rl_policy_rewards(benchmark: BaseIsaacLabBenchmark, value: list):
     measurement = ListMeasurement(name="Rewards", value=value)
     benchmark.add_measurement("train", measurement=measurement)

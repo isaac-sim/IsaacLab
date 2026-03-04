@@ -94,6 +94,7 @@ from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
     get_backend_type,
+    get_preset_string,
     log_app_start_time,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
@@ -126,6 +127,7 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "max_iterations", "data": args_cli.max_iterations},
+            {"name": "presets", "data": get_preset_string(hydra_args)},
         ]
     },
 )
