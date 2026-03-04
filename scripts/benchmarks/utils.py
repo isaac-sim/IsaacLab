@@ -29,6 +29,7 @@ def get_backend_type(cli_backend: str) -> str:
         "omniperf": "omniperf",
         "json": "json",
         "osmo": "osmo",
+        "summary": "summary",
     }
     return mapping.get(cli_backend, "omniperf")
 
@@ -64,11 +65,12 @@ def parse_tf_logs(log_dir: str):
 
 def log_min_max_mean_stats(benchmark: BaseIsaacLabBenchmark, values: dict):
     for k, v in values.items():
-        measurement = SingleMeasurement(name=f"Min {k}", value=min(v), unit="ms")
+        unit = "FPS" if "FPS" in k else "ms" if "Time" in k or "time" in k else ""
+        measurement = SingleMeasurement(name=f"Min {k}", value=min(v), unit=unit)
         benchmark.add_measurement("runtime", measurement=measurement)
-        measurement = SingleMeasurement(name=f"Max {k}", value=max(v), unit="ms")
+        measurement = SingleMeasurement(name=f"Max {k}", value=max(v), unit=unit)
         benchmark.add_measurement("runtime", measurement=measurement)
-        measurement = SingleMeasurement(name=f"Mean {k}", value=sum(v) / len(v), unit="ms")
+        measurement = SingleMeasurement(name=f"Mean {k}", value=sum(v) / len(v), unit=unit)
         benchmark.add_measurement("runtime", measurement=measurement)
 
 

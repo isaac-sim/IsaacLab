@@ -30,7 +30,16 @@ parser.add_argument(
     "--benchmark_backend",
     type=str,
     default="omniperf",
-    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    choices=[
+        "json",
+        "osmo",
+        "omniperf",
+        "summary",
+        "LocalLogMetrics",
+        "JSONFileMetrics",
+        "OsmoKPIFile",
+        "OmniPerfKPIFile",
+    ],
     help="Benchmarking backend options, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
@@ -99,11 +108,13 @@ imports_time_end = time.perf_counter_ns()
 
 
 # Create the benchmark
+backend_type = get_backend_type(args_cli.benchmark_backend)
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_non_rl",
-    backend_type=get_backend_type(args_cli.benchmark_backend),
+    backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
+    frametime_recorders=backend_type in ("summary", "omniperf"),
     output_prefix=f"benchmark_non_rl_{args_cli.task}",
     workflow_metadata={
         "metadata": [
@@ -114,7 +125,6 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "presets", "data": get_preset_string(hydra_args)},
         ]
     },
-    frametime_recorders=True,
 )
 
 
