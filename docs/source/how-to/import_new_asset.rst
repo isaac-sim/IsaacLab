@@ -140,7 +140,7 @@ is derived automatically from the robot name in the URDF):
 * ``anymal.usda`` - This is the main asset file.
 
 
-To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
+To run the script headless, omit the ``--visualizer`` argument. This will not open the GUI and
 exit the script after the conversion is complete.
 
 You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
@@ -167,20 +167,15 @@ We made a few commonly modified settings to be available as command-line argumen
 ``convert_mjcf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration
 parameters, please check the the documentation at `MJCF importer`_.
 
-.. note::
-   The MJCF importer was rewritten in Isaac Sim 5.0 to use the ``mujoco-usd-converter`` library.
-   Settings such as ``fix_base``, ``import_sites``, ``import_inertia_tensor``, and ``make_instanceable``
-   are no longer needed — the converter now handles these automatically based on the MJCF file content.
 
-* :attr:`~sim.converters.MjcfConverterCfg.merge_mesh` * - Whether to merge meshes where possible to
-  optimize the model. The command-line flag is ``--merge-mesh``.
-* :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` * - Whether to generate collision
-  geometry from visual geometries. The command-line flag is ``--collision-from-visuals``.
-* :attr:`~sim.converters.MjcfConverterCfg.collision_type` * - Type of collision geometry to use
-  (e.g. ``"default"``, ``"Convex Hull"``, ``"Convex Decomposition"``). The command-line flag is
-  ``--collision-type``.
-* :attr:`~sim.converters.MjcfConverterCfg.self_collision` * - Whether to activate self-collisions
-  between links of the articulation. The command-line flag is ``--self-collision``.
+* :attr:`~sim.converters.MjcfConverterCfg.fix_base*` - Whether to fix the base of the robot.
+  This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
+  ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
+* :attr:`~sim.converters.MjcfConverterCfg.make_instanceable*` - Whether to create instanceable assets.
+  Usually, this should be set to ``True``. The command-line flag is ``--make-instanceable`` where
+  when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.
+* :attr:`~sim.converters.MjcfConverterCfg.import_sites*` - Whether to parse the <site> tag in the MJCF.
+  Usually, this should be set to ``True``. The command-line flag is ``--import-sites`` where when set, the importer will parse the <site> tag, otherwise it will default to not parsing the <site> tag.
 
 
 Example Usage
@@ -199,7 +194,7 @@ The following shows the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with MJCF files
+        # clone a repository with URDF files
         git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
         # go to top of the Isaac Lab repository
@@ -208,14 +203,15 @@ The following shows the steps to clone the repository and run the converter:
         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
           ../mujoco_menagerie/unitree_h1/h1.xml \
           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-          --merge-mesh
+          --import-sites \
+          --make-instanceable
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with MJCF files
+        :: clone a repository with URDF files
         git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
         :: go to top of the Isaac Lab repository
@@ -224,12 +220,14 @@ The following shows the steps to clone the repository and run the converter:
         isaaclab.bat -p scripts\tools\convert_mjcf.py ^
           ..\mujoco_menagerie\unitree_h1\h1.xml ^
           source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
-          --merge-mesh
+          --import-sites ^
+          --make-instanceable
 
-Executing the above script will create the USD file inside the
+Executing the above script will create USD files inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
 
-* ``h1.usd`` - This is the converted USD asset file.
+* ``h1.usd`` - This is the main asset file. It contains all the non-mesh data.
+* ``Props/instanceable_assets.usd`` - This is the mesh data file.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center

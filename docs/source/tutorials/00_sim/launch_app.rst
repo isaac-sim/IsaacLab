@@ -75,7 +75,8 @@ custom arguments and those from :class:`~app.AppLauncher`.
    [INFO] Using python from: /isaac-sim/python.sh
    [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
    [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
-   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2}]
+   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless]
+                        [--visualizer VISUALIZER [VISUALIZER ...]] [--livestream {0,1,2}]
                         [--enable_cameras] [--verbose] [--experience EXPERIENCE]
 
    Tutorial on running IsaacSim via the AppLauncher.
@@ -87,7 +88,9 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --height HEIGHT       Height of the viewport and generated images. Defaults to 720
 
    app_launcher arguments:
-   --headless            Force display off at all times.
+   --headless            [DEPRECATED] Disable visualizers and force host headless mode.
+   --visualizer VISUALIZER [VISUALIZER ...], --viz VISUALIZER [VISUALIZER ...]
+                         Visualizer backends to enable (e.g., kit, newton, rerun).
    --livestream {0,1,2}
                          Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
    --enable_cameras      Enable cameras when running without a GUI.
@@ -112,7 +115,7 @@ for more examples.
 Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--headless``)
+As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--visualizer``)
 have corresponding environment variables (envar) as well. These are detailed in :mod:`isaaclab.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.
@@ -139,7 +142,7 @@ We will now run the example script:
    LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
-to if we had passed the ``--headless`` flag because headlessness is implied by our ``LIVESTREAM``
+to omitting ``--visualizer`` because headlessness is implied by our ``LIVESTREAM``
 envar. If a visualization is desired, we could get one via Isaac's `WebRTC Livestreaming`_. Streaming
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing ``Ctrl+C`` in the launching terminal.

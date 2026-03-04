@@ -983,7 +983,7 @@ To launch a training in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
+   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~

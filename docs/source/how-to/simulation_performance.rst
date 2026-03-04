@@ -5,7 +5,7 @@ The performance of the simulation can be affected by various factors, including 
 the complexity of the physics simulation, and the hardware being used. Here are some tips to improve performance:
 
 1. **Use Headless Mode**: Running the simulation in headless mode can significantly improve performance, especially
-   when rendering is not required. You can enable headless mode by using the ``--headless`` flag when running the
+   when rendering is not required. You can enable headless mode by omitting the ``--visualizer`` argument when running the
    simulator.
 2. **Avoid Unnecessary Collisions**: If possible, reduce the number of object overlaps to reduce overhead in the simulation.
    Excessive contacts and collisions in the simulation can be expensive in the collision phase in the simulation.

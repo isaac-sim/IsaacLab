@@ -13,6 +13,38 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
+Headless and Visualizer CLI Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab now treats ``--visualizer`` (or ``--viz``) as the primary user-facing control for launching interactive UIs.
+
+- If ``--visualizer`` is omitted, no visualizers are launched and execution is headless by default.
+- If ``--visualizer`` is provided, only the requested visualizer backends are launched.
+- The Isaac Lab CLI flag ``--headless`` is deprecated, but still accepted for compatibility.
+- If both ``--headless`` and ``--visualizer`` are passed, ``--headless`` takes precedence, disables all visualizers, and warning messages are printed.
+
+**Before (Isaac Lab 2.x style):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: bash
+
+   # Headless by default (no visualizer argument)
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
+
+   # Explicitly enable visualizers when needed
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit
+
+   # Deprecated compatibility path (prints warning and runs headless)
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless
+
+
+New ``isaaclab_physx`` Extension
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

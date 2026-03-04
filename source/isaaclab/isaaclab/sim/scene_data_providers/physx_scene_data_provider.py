@@ -143,17 +143,21 @@ class PhysxSceneDataProvider:
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
-            builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
-            for env_id in range(self.get_num_envs()):
-                builder.begin_world()
-                builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
-                builder.end_world()
+            builder.add_usd(self._stage)
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
-            # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_label)
-            self._articulation_paths = list(self._newton_model.articulation_label)
+            # Extract scene structure from Newton model (single source of truth).
+            # Support both legacy and newer Newton model field names.
+            body_paths = getattr(self._newton_model, "body_label", None)
+            if body_paths is None:
+                body_paths = getattr(self._newton_model, "body_key", [])
+            articulation_paths = getattr(self._newton_model, "articulation_label", None)
+            if articulation_paths is None:
+                articulation_paths = getattr(self._newton_model, "articulation_key", [])
+
+            self._rigid_body_paths = list(body_paths)
+            self._articulation_paths = list(articulation_paths)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -186,9 +190,7 @@ class PhysxSceneDataProvider:
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
-                builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
-                builder.end_world()
             self._filtered_newton_model = builder.finalize(device=self._device)
             self._filtered_newton_state = self._filtered_newton_model.state()
 

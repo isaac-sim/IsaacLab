@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-
 import pytest
 
 from isaaclab.app import AppLauncher
@@ -35,3 +34,69 @@ def test_livestream_launch_with_argparser(mocker):
 
     # close the app on exit
     app.close()
+
+
+def test_headless_deprecated_arg_parsing():
+    """Test deprecated --headless CLI argument parsing."""
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+    args = parser.parse_args(["--headless"])
+
+    assert args.headless is True
+    assert args.headless_explicit is True
+
+
+def test_visualizer_alias_parsing():
+    """Test --viz alias parsing and explicit tracking."""
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+    args = parser.parse_args(["--viz", "newton", "rerun"])
+
+    assert args.visualizer == ["newton", "rerun"]
+    assert args.visualizer_explicit is True
+
+
+def test_visualizer_none_parsing():
+    """Test --visualizer none parsing and explicit tracking."""
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+    args = parser.parse_args(["--visualizer", "none"])
+
+    assert args.visualizer == ["none"]
+    assert args.visualizer_explicit is True
+
+
+def test_visualizer_none_cannot_be_combined_with_others():
+    """Test that 'none' cannot be combined with other visualizer tokens."""
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._livestream = 0
+    launcher_args = {
+        "headless": False,
+        "headless_explicit": False,
+        "visualizer": ["none", "kit"],
+        "visualizer_explicit": True,
+    }
+
+    with pytest.raises(ValueError, match="cannot be combined"):
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setenv("HEADLESS", "0")
+            launcher._resolve_headless_settings(launcher_args, livestream_arg=-1, livestream_env=0)
+
+
+def test_visualizer_none_forces_headless_without_headless_flag():
+    """Test that explicit '--visualizer none' implies headless when livestream is disabled."""
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._livestream = 0
+    launcher_args = {
+        "headless": False,
+        "headless_explicit": False,
+        "visualizer": ["none"],
+        "visualizer_explicit": True,
+    }
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setenv("HEADLESS", "0")
+        launcher._resolve_headless_settings(launcher_args, livestream_arg=-1, livestream_env=0)
+
+    assert launcher._headless is True
+    assert launcher_args["visualizer"] == []

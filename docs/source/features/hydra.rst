@@ -25,28 +25,28 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole-v0 env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run the training script with the task ``Isaac-Cartpole-v0`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.

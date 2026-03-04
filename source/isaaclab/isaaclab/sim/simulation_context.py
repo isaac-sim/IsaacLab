@@ -355,14 +355,38 @@ class SimulationContext:
         requested = self.get_setting("/isaaclab/visualizer")
         if not requested:
             return []
-        parts = [p.strip() for p in requested.split(",") if p.strip()]
-        return [v for part in parts for v in part.split() if v]
+        if isinstance(requested, dict):
+            # Guard against stale settings trees where /isaaclab/visualizer was used as both
+            # a scalar leaf and a parent node.
+            return []
+        parts = [p.strip().lower() for p in requested.replace(",", " ").split() if p.strip()]
+        return list(dict.fromkeys(parts))
+
+    def _is_cli_visualizer_explicit(self) -> bool:
+        """Return whether visualizer CLI args were explicitly provided."""
+        explicit = self.get_setting("/isaaclab/visualizer_cli/explicit")
+        if explicit is None:
+            # Backward compatibility for in-process sessions using older setting path.
+            explicit = self.get_setting("/isaaclab/visualizer/explicit")
+        return bool(explicit)
+
+    def _is_cli_visualizer_disable_all(self) -> bool:
+        """Return whether CLI explicitly disabled all visualizers."""
+        disable_all = self.get_setting("/isaaclab/visualizer_cli/disable_all")
+        if disable_all is None:
+            # Backward compatibility for in-process sessions using older setting path.
+            disable_all = self.get_setting("/isaaclab/visualizer/disable_all")
+        return bool(disable_all)
 
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
+        cli_requested = self._get_cli_visualizer_types()
+        if self._is_cli_visualizer_explicit():
+            return [] if self._is_cli_visualizer_disable_all() else cli_requested
+
         visualizer_cfgs = self.cfg.visualizer_cfgs
         if visualizer_cfgs is None:
-            return self._get_cli_visualizer_types()
+            return cli_requested
 
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
@@ -377,21 +401,25 @@ class SimulationContext:
             )
 
         cli_requested = self._get_cli_visualizer_types()
-        if not visualizer_cfgs:
-            return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+        if self._is_cli_visualizer_explicit():
+            if self._is_cli_visualizer_disable_all():
+                return []
+            if not visualizer_cfgs:
+                return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
+            cli_requested_set = set(cli_requested)
+            selected_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in selected_cfgs}
+            for viz_type in cli_requested:
+                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                    selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
+                    existing_types.add(viz_type)
+            return selected_cfgs
 
-        if not cli_requested:
+        # No explicit CLI request: defer to SimulationCfg.visualizer_cfgs, with legacy fallback to settings.
+        if visualizer_cfgs:
             return visualizer_cfgs
-
-        # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
-        cli_requested_set = set(cli_requested)
-        selected_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
-        existing_types = {getattr(cfg, "visualizer_type", None) for cfg in selected_cfgs}
-        for viz_type in cli_requested:
-            if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
-                existing_types.add(viz_type)
-        return selected_cfgs
+        return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
 
     def initialize_visualizers(self) -> None:
         """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
@@ -413,7 +441,6 @@ class SimulationContext:
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
-                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
                 logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
 

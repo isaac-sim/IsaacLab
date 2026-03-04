@@ -96,7 +96,7 @@ For trajectory visualization during development:
    * Enable trajectory visualization by setting ``visualize_plan = True`` in the cuRobo planner configuration
    * When enabled, cuRobo planner interface will stream planned end-effector trajectories, waypoints, and collision data to Rerun for interactive inspection
    * Visualization helps identify planning issues, collision problems, and trajectory smoothness before full dataset generation
-   * Can also be ran with ``--headless`` to disable isaacsim visualization but still visualize and debug end effector trajectories
+   * Can also be run while omitting ``--visualizer`` to disable Isaac Sim visualization but still visualize and debug end-effector trajectories
 
 Step 4: Verify Installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -250,7 +250,7 @@ Key parameters for SkillGen data generation:
 * ``--generation_num_trials``: Number of demonstrations to generate
 * ``--num_envs``: Parallel environments (tune based on GPU memory)
 * ``--device``: Computation device (cpu/cuda). Use cpu for stable physics
-* ``--headless``: Disable visualization for faster generation
+* Omitting ``--visualizer``: Disable visualization for faster generation
 
 .. _task-basic-cube-stacking:
 
@@ -296,7 +296,7 @@ Once satisfied with small-scale results, generate a full training dataset:
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
-   --headless \
+   \
    --num_envs 1 \
    --generation_num_trials 1000 \
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
@@ -306,9 +306,9 @@ Once satisfied with small-scale results, generate a full training dataset:
 
 .. note::
 
-   * Use ``--headless`` to disable visualization for faster generation. Rerun visualization can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration with ``--headless`` enabled as well for debugging.
+   * Omit ``--visualizer`` to disable visualization for faster generation. Rerun visualization can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration for debugging.
    * Adjust ``--num_envs`` based on your GPU memory (start with 1, increase gradually). The performance gain is not very significant when num_envs is greater than 1. A value of 5 seems to be a sweet spot for most GPUs to balance performance and memory usage between cuRobo instances and simulation environments.
-   * Generation time: ~90 to 120 minutes for one environment with ``--headless`` enabled for 1000 demonstrations on a RTX 6000 Ada GPU. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).
+   * Generation time: ~90 to 120 minutes for one environment without ``--visualizer`` for 1000 demonstrations on an RTX 6000 Ada GPU. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).
    * cuRobo planner interface and configurations are described in :ref:`cuRobo-interface-features`.
 
 .. _task-bin-cube-stacking:
@@ -350,7 +350,7 @@ Generate the complete adaptive stacking dataset:
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
-   --headless \
+   \
    --num_envs 1 \
    --generation_num_trials 1000 \
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
@@ -364,7 +364,7 @@ Generate the complete adaptive stacking dataset:
 
 .. note::
 
-   If the pre-annotated dataset is used and the data generation command is run with ``--headless`` enabled, the generation time is typically around ~220 minutes for 1000 demonstrations for a single environment on a RTX 6000 Ada GPU.
+   If the pre-annotated dataset is used and the data generation command is run without ``--visualizer``, the generation time is typically around ~220 minutes for 1000 demonstrations for a single environment on an RTX 6000 Ada GPU.
 
 .. note::
 
@@ -374,7 +374,7 @@ Generate the complete adaptive stacking dataset:
     * Vanilla Cube Stacking: 1 env ~9.3–9.6 GB steady; 5 envs ~21.8–22.2 GB steady (briefly higher during initialization).
     * Adaptive Bin Cube Stacking: 1 env ~9.3–9.6 GB steady; 5 envs ~22.0–22.3 GB steady (briefly higher during initialization).
     * Minimum recommended GPU: ≥24 GB VRAM for ``--num_envs`` 1–2; ≥48 GB VRAM for ``--num_envs`` up to ~5.
-    * To reduce VRAM: prefer ``--headless`` and keep ``--num_envs`` modest. Numbers can vary with scene assets and number of demonstrations.
+    * To reduce VRAM: prefer omitting ``--visualizer`` and keep ``--num_envs`` modest. Numbers can vary with scene assets and number of demonstrations.
 
 Learning Policies from SkillGen Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

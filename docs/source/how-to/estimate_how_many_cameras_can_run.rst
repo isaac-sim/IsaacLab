@@ -109,7 +109,7 @@ to live monitor resources while running this script, and in Windows, you can use
 
 If your system has a hard time handling the desired cameras, you can try the following
 
-   - Switch to headless mode (supply ``--headless``)
+   - Switch to headless mode (omit the ``--visualizer`` argument)
    - Ensure you are using the GPU pipeline not CPU!
    - If you aren't using Tiled Cameras, switch to Tiled Cameras
    - Decrease camera resolution

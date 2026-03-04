@@ -211,7 +211,7 @@ These friction values (0.75) were determined through iterative visual comparison
 
        python scripts/reinforcement_learning/rsl_rl/train.py \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
+           \
            --video --video_length 800 --video_interval 5000
 
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
@@ -461,7 +461,7 @@ Now launch the full training run with more parallel environments in headless mod
     # Full training with video recording
     python scripts/reinforcement_learning/rsl_rl/train.py \
         --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-        --headless \
+        \
         --num_envs 256 \
         --video --video_length 800 --video_interval 5000
 
@@ -557,7 +557,7 @@ CUDA Out of Memory
 
        python scripts/reinforcement_learning/rsl_rl/train.py \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
+           \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
 
    **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
@@ -588,7 +588,7 @@ CUDA Out of Memory
 
        python scripts/reinforcement_learning/rsl_rl/train.py \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
+           \
            --num_envs 256
 
    You can always evaluate the trained policy later with visualization.

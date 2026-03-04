@@ -113,7 +113,7 @@ Launch *N* workers, where *n* indicates each worker index:
      --seed=<n> \
      --task=Isaac-Dexsuite-Kuka-Allegro-Lift-v0 \
      --num_envs=8192 \
-     --headless \
+     \
      --track \
      --wandb-name=idx<n> \
      --wandb-entity=<**entity**> \

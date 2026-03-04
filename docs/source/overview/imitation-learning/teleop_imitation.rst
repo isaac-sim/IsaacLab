@@ -274,11 +274,8 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --headless \
-         --num_envs 10 \
-         --generation_num_trials 1000 \
-         --input_file ./datasets/annotated_dataset.hdf5 \
-         --output_file ./datasets/generated_dataset.hdf5
+         --num_envs 10 --generation_num_trials 1000 \
+         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
 
    .. tab-item:: Visuomotor policy
       :sync: visuomotor

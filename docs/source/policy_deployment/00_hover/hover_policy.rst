@@ -60,7 +60,7 @@ Execute the following command from the ``HOVER`` directory to train the teacher 
     ${ISAACLAB_PATH:?}/isaaclab.sh -p scripts/rsl_rl/train_teacher_policy.py \
         --num_envs 1024 \
         --reference_motion_path neural_wbc/data/data/motions/stable_punch.pkl \
-        --headless
+       
 
 The teacher policy is trained for 10000000 iterations, or until the user interrupts the training.
 The resulting checkpoint is stored in ``neural_wbc/data/data/policy/h1:teacher/`` and the filename is ``model_<iteration_number>.pt``.
@@ -76,7 +76,7 @@ Execute the following command from the ``HOVER`` directory to train the student 
         --reference_motion_path neural_wbc/data/data/motions/stable_punch.pkl \
         --teacher_policy.resume_path neural_wbc/data/data/policy/h1:teacher \
         --teacher_policy.checkpoint model_<iteration_number>.pt \
-        --headless
+       
 
 This assumes that you have already trained the teacher policy as there is no provided teacher policy in the repo.
 
@@ -148,7 +148,7 @@ Use the provided `Mujoco Environment`_ for conducting sim-to-sim validation of t
 
     ${ISAACLAB_PATH:?}/isaaclab.sh -p neural_wbc/inference_env/scripts/eval.py \
         --num_envs 1 \
-        --headless \
+        \
         --student_path neural_wbc/data/data/policy/h1:student/ \
         --student_checkpoint model_<iteration_number>.pt
 
@@ -171,7 +171,7 @@ To deploy the trained policy on the H1 robot,
         --robot unitree_h1 \
         --max_iterations 5000 \
         --num_envs 1 \
-        --headless
+       
 
 .. note::
 
