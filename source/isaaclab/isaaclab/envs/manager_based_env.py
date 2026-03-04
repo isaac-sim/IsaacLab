@@ -172,6 +172,10 @@ class ManagerBasedEnv:
             # this is needed for the observation manager to get valid tensors for initialization.
             # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        # register scene cameras with visualizers that support it
+        for viz in self.sim.visualizers:
+            if hasattr(viz, "register_scene_cameras"):
+                viz.register_scene_cameras(self.scene)
         # add timeline event to load managers
         self.load_managers()
 
