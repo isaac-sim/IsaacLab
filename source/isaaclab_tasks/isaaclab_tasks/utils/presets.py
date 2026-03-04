@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ovrtx.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.utils import configclass
@@ -15,4 +16,4 @@ from isaaclab_tasks.utils import PresetCfg
 class MultiBackendRendererCfg(PresetCfg):
     default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
-    ovrtx_renderer: IsaacRtxRendererCfg = default
+    ovrtx_renderer: OVRTXRendererCfg = OVRTXRendererCfg()
