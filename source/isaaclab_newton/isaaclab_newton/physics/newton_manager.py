@@ -109,12 +109,13 @@ class NewtonManager(PhysicsManager):
         if sim is not None:
             cls._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
 
-            # USD/Fabric sync only needed when Kit viewport is active.
-            # Parse mirrors SimulationContext._get_cli_visualizer_types (comma-and-space separated).
+            # USD/Fabric sync for Omniverse rendering (visualizer) or Newton+RTX (Kit cameras)
             viz_str = sim.get_setting("/isaaclab/visualizer") or ""
-            parts = [p.strip() for p in viz_str.split(",") if p.strip()]
-            requested = {v for part in parts for v in part.split() if v}
-            cls._clone_physics_only = "kit" not in requested
+            requested = [v.strip() for v in viz_str.split(",") if v.strip()]
+            from isaaclab.app.settings_manager import get_settings_manager
+
+            cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
+            cls._clone_physics_only = "kit" not in requested and not cameras_enabled
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -292,14 +293,18 @@ class NewtonManager(PhysicsManager):
         if not cls._clone_physics_only:
             import usdrt
 
-            cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(cls._model.body_label):
-                prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
-                prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-                prim.GetAttribute(cls._newton_index_attr).Set(i)
-                xformable_prim = usdrt.Rt.Xformable(prim)
-                if not xformable_prim.HasWorldXform():
-                    xformable_prim.SetWorldXformFromUsd()
+            body_paths = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
+            if body_paths is None:
+                logger.warning("NewtonManager: model has no body_label/body_key, skipping USD/Fabric sync for RTX.")
+            else:
+                cls._usdrt_stage = get_current_stage(fabric=True)
+                for i, prim_path in enumerate(body_paths):
+                    prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
+                    prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                    prim.GetAttribute(cls._newton_index_attr).Set(i)
+                    xformable_prim = usdrt.Rt.Xformable(prim)
+                    if not xformable_prim.HasWorldXform():
+                        xformable_prim.SetWorldXformFromUsd()
 
             cls.sync_transforms_to_usd()
 
@@ -451,6 +456,77 @@ class NewtonManager(PhysicsManager):
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls._state_0, eval_contacts)
+
+        # Sync Newton state to USD/Fabric for RTX rendering (e.g., Newton Physics + RTX Renderer preset)
+        if cls._usdrt_stage is not None:
+            cls.sync_state_to_usd()
+
+    @classmethod
+    def sync_state_to_usd(cls) -> None:
+        """Write current Newton body poses to the Fabric stage so RTX/Replicator can render correctly.
+
+        Used when running with Newton physics and Isaac RTX renderer selected. Call after each step.
+        """
+        if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
+            return
+        view = None
+        for v in cls._views:
+            if hasattr(v, "get_link_transforms"):
+                view = v
+                break
+        if view is None:
+            return
+        link_tf = view.get_link_transforms(cls._state_0)
+        if link_tf is None:
+            return
+        wp.synchronize()
+        try:
+            link_tf_np = link_tf.numpy()
+        except Exception:
+            return
+        if link_tf_np.ndim == 4:
+            num_envs, _, num_links, _ = link_tf_np.shape
+        else:
+            num_envs, _, num_links = link_tf_np.shape
+        body_key = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
+        if body_key is None or len(body_key) != num_envs * num_links:
+            return
+        import usdrt
+        from pxr import Gf
+
+        stage = cls._usdrt_stage
+        for env in range(num_envs):
+            for link in range(num_links):
+                idx = env * num_links + link
+                prim_path = body_key[idx]
+                prim = stage.GetPrimAtPath(prim_path)
+                if not prim or not prim.IsValid():
+                    continue
+                if link_tf_np.ndim == 4:
+                    t = link_tf_np[env, 0, link, :]  # (7,) pos(3) + quat(4)
+                    pos = (float(t[0]), float(t[1]), float(t[2]))
+                    quat = (float(t[3]), float(t[4]), float(t[5]), float(t[6]))
+                else:
+                    t = link_tf_np[env, 0, link]
+                    if hasattr(t, "p") and hasattr(t, "q"):
+                        pos = (float(t.p[0]), float(t.p[1]), float(t.p[2]))
+                        quat = (float(t.q[0]), float(t.q[1]), float(t.q[2]), float(t.q[3]))
+                    else:
+                        pos = (float(t[0]), float(t[1]), float(t[2]))
+                        quat = (float(t[3]), float(t[4]), float(t[5]), float(t[6]))
+                xformable = usdrt.Rt.Xformable(prim)
+                if hasattr(xformable, "CreateWorldPositionAttr"):
+                    xformable.CreateWorldPositionAttr(Gf.Vec3d(pos[0], pos[1], pos[2]))
+                if hasattr(xformable, "CreateWorldOrientationAttr"):
+                    xformable.CreateWorldOrientationAttr(Gf.Quatf(quat[3], quat[0], quat[1], quat[2]))
+        if hasattr(usdrt, "hierarchy") and usdrt.hierarchy:
+            try:
+                fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                    stage.GetFabricId(), stage.GetStageIdAsStageId()
+                )
+                fabric_hierarchy.update_world_xforms()
+            except Exception:
+                pass
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:

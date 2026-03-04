@@ -17,6 +17,7 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
+from isaaclab.app import AppLauncher
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 
@@ -66,9 +67,25 @@ if args_cli.video:
     args_cli.enable_cameras = True
 
 sys.argv = [sys.argv[0]] + hydra_args
+# launch omniverse app
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
 
 
-def main():
+from isaaclab.envs import (
+    DirectRLEnvCfg,
+    ManagerBasedRLEnvCfg,
+)
+
+from isaaclab_tasks.utils import hydra_task_config
+
+# PLACEHOLDER: Extension template (do not remove this comment)
+
+
+@hydra_task_config(args_cli.task, args_cli.agent)
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Play with stable-baselines agent."""
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     with launch_simulation(env_cfg, args_cli):
