@@ -6,6 +6,8 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -319,7 +321,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         )
-        self.sim.physx.gpu_max_rigid_patch_count = 2**21
+        self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=2**21)
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.contact_forces is not None:
