@@ -138,7 +138,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_size = 1
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv("LOCAL_RANK", "0"))}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         world_size = int(os.getenv("WORLD_SIZE", 1))
         world_rank = int(os.getenv("RANK", "0"))
 
