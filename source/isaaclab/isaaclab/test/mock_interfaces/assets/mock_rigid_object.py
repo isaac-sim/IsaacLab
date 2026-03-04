@@ -102,9 +102,9 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def default_root_vel(self) -> wp.array:
-        """Default root velocity. Shape: (N, 6)."""
+        """Default root velocity. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._default_root_vel is None:
-            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._default_root_vel
 
     @property
@@ -127,9 +127,9 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_vel_w(self) -> wp.array:
-        """Root link velocity in world frame. Shape: (N, 6)."""
+        """Root link velocity in world frame. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._root_link_vel_w is None:
-            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._root_link_vel_w
 
     @property
@@ -155,13 +155,15 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_lin_vel_w(self) -> wp.array:
-        """Root link linear velocity. Shape: (N, 3)."""
-        return self.root_link_vel_w[:, :3]
+        """Root link linear velocity. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_link_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def root_link_ang_vel_w(self) -> wp.array:
-        """Root link angular velocity. Shape: (N, 3)."""
-        return self.root_link_vel_w[:, 3:6]
+        """Root link angular velocity. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_link_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Root state properties (CoM frame) --
 
@@ -174,7 +176,7 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_vel_w(self) -> wp.array:
-        """Root CoM velocity in world frame. Shape: (N, 6)."""
+        """Root CoM velocity in world frame. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._root_com_vel_w is None:
             return wp.clone(self.root_link_vel_w, self.device)
         return self._root_com_vel_w
@@ -209,13 +211,15 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_lin_vel_w(self) -> wp.array:
-        """Root CoM linear velocity. Shape: (N, 3)."""
-        return self.root_com_vel_w[:, :3]
+        """Root CoM linear velocity. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_com_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def root_com_ang_vel_w(self) -> wp.array:
-        """Root CoM angular velocity. Shape: (N, 3)."""
-        return self.root_com_vel_w[:, 3:6]
+        """Root CoM angular velocity. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_com_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Body state properties (link frame) --
 
@@ -230,9 +234,9 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_link_vel_w(self) -> wp.array:
-        """Body link velocity in world frame. Shape: (N, 1, 6)."""
+        """Body link velocity in world frame. dtype=wp.spatial_vectorf, shape: (N, 1)."""
         if self._body_link_vel_w is None:
-            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._body_link_vel_w
 
     @property
@@ -258,15 +262,15 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
-        """Body link linear velocity. Shape: (N, 1, 3)."""
-        vel_torch = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(vel_torch[..., :3].contiguous())
+        """Body link linear velocity. Shape: (N, 1), dtype=wp.vec3f."""
+        v = self.body_link_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
-        """Body link angular velocity. Shape: (N, 1, 3)."""
-        vel_torch = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(vel_torch[..., 3:6].contiguous())
+        """Body link angular velocity. Shape: (N, 1), dtype=wp.vec3f."""
+        v = self.body_link_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Body state properties (CoM frame) --
 
@@ -279,7 +283,7 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_vel_w(self) -> wp.array:
-        """Body CoM velocity in world frame. Shape: (N, 1, 6)."""
+        """Body CoM velocity in world frame. dtype=wp.spatial_vectorf, shape: (N, 1)."""
         if self._body_com_vel_w is None:
             return wp.clone(self.body_link_vel_w, self.device)
         return self._body_com_vel_w
@@ -300,9 +304,9 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_acc_w(self) -> wp.array:
-        """Body CoM acceleration in world frame. Shape: (N, 1, 6)."""
+        """Body CoM acceleration in world frame. dtype=wp.spatial_vectorf, shape: (N, 1)."""
         if self._body_com_acc_w is None:
-            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._body_com_acc_w
 
     @property
@@ -329,27 +333,27 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
-        """Body CoM linear velocity. Shape: (N, 1, 3)."""
-        vel_torch = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(vel_torch[..., :3].contiguous())
+        """Body CoM linear velocity. Shape: (N, 1), dtype=wp.vec3f."""
+        v = self.body_com_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
-        """Body CoM angular velocity. Shape: (N, 1, 3)."""
-        vel_torch = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(vel_torch[..., 3:6].contiguous())
+        """Body CoM angular velocity. Shape: (N, 1), dtype=wp.vec3f."""
+        v = self.body_com_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
-        """Body CoM linear acceleration. Shape: (N, 1, 3)."""
-        acc_torch = wp.to_torch(self.body_com_acc_w)
-        return wp.from_torch(acc_torch[..., :3].contiguous())
+        """Body CoM linear acceleration. Shape: (N, 1), dtype=wp.vec3f."""
+        a = self.body_com_acc_w
+        return wp.array(ptr=a.ptr, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
-        """Body CoM angular acceleration. Shape: (N, 1, 3)."""
-        acc_torch = wp.to_torch(self.body_com_acc_w)
-        return wp.from_torch(acc_torch[..., 3:6].contiguous())
+        """Body CoM angular acceleration. Shape: (N, 1), dtype=wp.vec3f."""
+        a = self.body_com_acc_w
+        return wp.array(ptr=a.ptr + 3 * 4, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
 
     @property
     def body_com_pos_b(self) -> wp.array:
@@ -387,10 +391,10 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def projected_gravity_b(self) -> wp.array:
-        """Gravity projection on body. Shape: (N, 3)."""
+        """Gravity projection on body. Shape: (N,), dtype=wp.vec3f."""
         gravity_np = np.zeros((self._num_instances, 3), dtype=np.float32)
         gravity_np[:, 2] = -1.0
-        return wp.array(gravity_np, dtype=wp.float32, device=self.device)
+        return wp.array(gravity_np, dtype=wp.float32, device=self.device).view(wp.vec3f)
 
     @property
     def heading_w(self) -> wp.array:
@@ -399,22 +403,22 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_lin_vel_b(self) -> wp.array:
-        """Root link linear velocity in body frame. Shape: (N, 3)."""
+        """Root link linear velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_link_lin_vel_w, self.device)
 
     @property
     def root_link_ang_vel_b(self) -> wp.array:
-        """Root link angular velocity in body frame. Shape: (N, 3)."""
+        """Root link angular velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_link_ang_vel_w, self.device)
 
     @property
     def root_com_lin_vel_b(self) -> wp.array:
-        """Root CoM linear velocity in body frame. Shape: (N, 3)."""
+        """Root CoM linear velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_com_lin_vel_w, self.device)
 
     @property
     def root_com_ang_vel_b(self) -> wp.array:
-        """Root CoM angular velocity in body frame. Shape: (N, 3)."""
+        """Root CoM angular velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_com_ang_vel_w, self.device)
 
     # -- Shorthand properties (root_pose_w, body_pos_w, com_pos_b, etc.) --
@@ -721,7 +725,54 @@ class MockRigidObject:
         """Set external forces and torques."""
         pass
 
-    # -- Index/Mask methods (no-op for mock) --
+    # -- Shape validation helpers --
+
+    _DTYPE_TO_TORCH_TRAILING_DIMS: dict[type, tuple[int, ...]] = {
+        wp.float32: (),
+        wp.int32: (),
+        wp.vec2f: (2,),
+        wp.vec3f: (3,),
+        wp.vec4f: (4,),
+        wp.transformf: (7,),
+        wp.spatial_vectorf: (6,),
+    }
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+    ) -> None:
+        if __debug__:
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, (int, float)):
+                return
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                offset = self._DTYPE_TO_TORCH_TRAILING_DIMS.get(dtype)
+                if offset is None:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), (
+                    f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                )
+
+    def _resolve_n_envs(self, env_ids):
+        if env_ids is None:
+            return self._num_instances
+        if isinstance(env_ids, (torch.Tensor, wp.array)):
+            return env_ids.shape[0]
+        return len(env_ids)
+
+    def _resolve_n_items(self, item_ids, total):
+        if item_ids is None or item_ids == slice(None):
+            return total
+        if isinstance(item_ids, (torch.Tensor, wp.array)):
+            return item_ids.shape[0]
+        return len(item_ids)
+
+    # -- Index/Mask methods --
+
+    # Root pose writers
 
     def write_root_pose_to_sim_index(
         self,
@@ -729,7 +780,8 @@ class MockRigidObject:
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
 
     def write_root_pose_to_sim_mask(
         self,
@@ -737,7 +789,7 @@ class MockRigidObject:
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
 
     def write_root_link_pose_to_sim_index(
         self,
@@ -745,7 +797,8 @@ class MockRigidObject:
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -753,7 +806,7 @@ class MockRigidObject:
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -761,7 +814,8 @@ class MockRigidObject:
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -769,7 +823,9 @@ class MockRigidObject:
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
+
+    # Root velocity writers
 
     def write_root_velocity_to_sim_index(
         self,
@@ -777,7 +833,8 @@ class MockRigidObject:
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_velocity_to_sim_mask(
         self,
@@ -785,7 +842,7 @@ class MockRigidObject:
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -793,7 +850,8 @@ class MockRigidObject:
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -801,7 +859,7 @@ class MockRigidObject:
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -809,7 +867,8 @@ class MockRigidObject:
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -817,7 +876,9 @@ class MockRigidObject:
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
+
+    # Body property setters
 
     def set_masses_index(
         self,
@@ -826,7 +887,9 @@ class MockRigidObject:
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(masses, (n_e, n_b), wp.float32, "masses")
 
     def set_masses_mask(
         self,
@@ -835,7 +898,7 @@ class MockRigidObject:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
 
     def set_coms_index(
         self,
@@ -844,7 +907,9 @@ class MockRigidObject:
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(coms, (n_e, n_b), wp.transformf, "coms")
 
     def set_coms_mask(
         self,
@@ -853,7 +918,7 @@ class MockRigidObject:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
 
     def set_inertias_index(
         self,
@@ -862,7 +927,9 @@ class MockRigidObject:
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(inertias, (n_e, n_b, 9), wp.float32, "inertias")
 
     def set_inertias_mask(
         self,
@@ -871,4 +938,4 @@ class MockRigidObject:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")

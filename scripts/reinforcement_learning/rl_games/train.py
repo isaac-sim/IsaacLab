@@ -20,14 +20,15 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
 
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import resolve_task_config, add_launcher_args, launch_simulation
+from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,9 @@ def main():
 
         agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
         agent_cfg["params"]["config"]["max_epochs"] = (
-            args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg["params"]["config"]["max_epochs"]
+            args_cli.max_iterations
+            if args_cli.max_iterations is not None
+            else agent_cfg["params"]["config"]["max_epochs"]
         )
         if args_cli.checkpoint is not None:
             resume_path = retrieve_file_path(args_cli.checkpoint)
@@ -123,7 +126,9 @@ def main():
             log_root_path = os.path.abspath(log_root_path)
 
         print(f"[INFO] Logging experiment in directory: {log_root_path}")
-        log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        log_dir = agent_cfg["params"]["config"].get(
+            "full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        )
         agent_cfg["params"]["config"]["train_dir"] = log_root_path
         agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
         wandb_project = config_name if args_cli.wandb_project_name is None else args_cli.wandb_project_name
@@ -146,7 +151,8 @@ def main():
             env_cfg.export_io_descriptors = args_cli.export_io_descriptors
         else:
             logger.warning(
-                "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
+                "IO descriptors are only supported for manager based RL environments."
+                " No IO descriptors will be exported."
             )
 
         # set the log directory for the environment
@@ -158,6 +164,7 @@ def main():
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             from isaaclab.envs import multi_agent_to_single_agent
+
             env = multi_agent_to_single_agent(env)
 
         # wrap for video recording
@@ -179,7 +186,8 @@ def main():
 
         # register the environment to rl-games registry
         vecenv.register(
-            "IsaacRlgWrapper", lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs)
+            "IsaacRlgWrapper",
+            lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
         )
         env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 

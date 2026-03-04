@@ -24,10 +24,10 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.hydra import (
     PresetCfg,
-    _resolve_preset_defaults,
     apply_overrides,
     collect_presets,
     parse_overrides,
+    resolve_preset_defaults,
 )
 
 # =============================================================================
@@ -596,14 +596,17 @@ def test_nested_presetcfg_path_selection():
 class RendererACfg:
     backend: str = "rtx"
 
+
 @configclass
 class RendererBCfg:
     backend: str = "warp"
+
 
 @configclass
 class RendererPresetCfg(PresetCfg):
     default: RendererACfg = RendererACfg()
     newton: RendererBCfg = RendererBCfg()
+
 
 @configclass
 class SensorBaseCfg:
@@ -612,16 +615,19 @@ class SensorBaseCfg:
     height: int = 100
     renderer: RendererPresetCfg = RendererPresetCfg()
 
+
 @configclass
 class SensorPresetCfg(PresetCfg):
     default: SensorBaseCfg = SensorBaseCfg(data_types=["rgb"])
     depth: SensorBaseCfg = SensorBaseCfg(data_types=["depth"])
+
 
 @configclass
 class RootEnvBaseCfg:
     decimation: int = 2
     sensor: SensorPresetCfg = SensorPresetCfg()
     obs_shape: list[int] = [100, 100, 3]
+
 
 @configclass
 class RootPresetEnvCfg(PresetCfg):
@@ -641,8 +647,8 @@ def test_root_presetcfg_with_nested_preset_collect():
 
 
 def test_root_presetcfg_resolve_defaults():
-    """_resolve_preset_defaults resolves nested PresetCfg inside root."""
-    resolved = _resolve_preset_defaults(RootPresetEnvCfg())
+    """resolve_preset_defaults resolves nested PresetCfg inside root."""
+    resolved = resolve_preset_defaults(RootPresetEnvCfg())
     assert isinstance(resolved, RootEnvBaseCfg)
     assert isinstance(resolved.sensor, SensorBaseCfg)
     assert resolved.sensor.data_types == ["rgb"]
@@ -656,14 +662,12 @@ def test_root_presetcfg_global_depth_resolves_nested():
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
 
-    env_cfg = _resolve_preset_defaults(env_cfg)
-    agent_cfg_resolved = _resolve_preset_defaults(agent_cfg)
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg_resolved = resolve_preset_defaults(agent_cfg)
 
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg_resolved.to_dict()}
 
-    env_cfg, agent_cfg = apply_overrides(
-        env_cfg, agent_cfg_resolved, hydra_cfg, ["depth"], [], [], presets
-    )
+    env_cfg, agent_cfg = apply_overrides(env_cfg, agent_cfg_resolved, hydra_cfg, ["depth"], [], [], presets)
 
     assert isinstance(env_cfg, RootEnvBaseCfg)
     assert env_cfg.obs_shape == [100, 100, 1]

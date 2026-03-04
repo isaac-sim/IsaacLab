@@ -27,6 +27,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel(enable_backward=False)
+def _set_fabric_transforms(
+    fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
+    newton_indices: wp.fabricarray(dtype=wp.uint32),
+    newton_body_q: wp.array(ndim=1, dtype=wp.transformf),
+):
+    """Write Newton body transforms to Fabric world matrices.
+
+    For each Fabric prim at thread ``i``, reads the Newton body transform at
+    ``newton_body_q[newton_indices[i]]`` and stores it as a column-major
+    ``mat44d`` in ``fabric_transforms[i]``.
+    """
+    i = int(wp.tid())
+    idx = int(newton_indices[i])
+    transform = newton_body_q[idx]
+    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+
+
 class NewtonManager(PhysicsManager):
     """Newton physics manager for Isaac Lab.
 
@@ -91,10 +109,12 @@ class NewtonManager(PhysicsManager):
         if sim is not None:
             cls._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
 
-            # USD fabric sync only needed for OV rendering
+            # USD/Fabric sync only needed when Kit viewport is active.
+            # Parse mirrors SimulationContext._get_cli_visualizer_types (comma-and-space separated).
             viz_str = sim.get_setting("/isaaclab/visualizer") or ""
-            requested = [v.strip() for v in viz_str.split(",") if v.strip()]
-            cls._clone_physics_only = "omniverse" not in requested
+            parts = [p.strip() for p in viz_str.split(",") if p.strip()]
+            requested = {v for part in parts for v in part.split() if v}
+            cls._clone_physics_only = "kit" not in requested
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -111,6 +131,44 @@ class NewtonManager(PhysicsManager):
     def forward(cls) -> None:
         """Update articulation kinematics without stepping physics."""
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+
+    @classmethod
+    def sync_transforms_to_usd(cls) -> None:
+        """Write Newton body_q to USD Fabric world matrices for Kit viewport rendering.
+
+        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active).
+        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider`
+        at render cadence, after forward kinematics have been evaluated.
+
+        Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
+        The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
+        corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
+        """
+        if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
+            return
+        try:
+            import usdrt
+
+            selection = cls._usdrt_stage.SelectPrims(
+                require_attrs=[
+                    (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
+                ],
+                device=str(PhysicsManager._device),
+            )
+            if selection.GetCount() == 0:
+                return
+            fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
+            newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
+            wp.launch(
+                _set_fabric_transforms,
+                dim=newton_indices.shape[0],
+                inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
+                device=PhysicsManager._device,
+            )
+            wp.synchronize_device(PhysicsManager._device)
+        except Exception as exc:
+            logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
 
     @classmethod
     def step(cls) -> None:
@@ -230,18 +288,20 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
-        # Setup USD/Fabric sync for Omniverse rendering
+        # Setup USD/Fabric sync for Kit viewport rendering
         if not cls._clone_physics_only:
             import usdrt
 
             cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(cls._model.body_key):
+            for i, prim_path in enumerate(cls._model.body_label):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 if not xformable_prim.HasWorldXform():
                     xformable_prim.SetWorldXformFromUsd()
+
+            cls.sync_transforms_to_usd()
 
     @classmethod
     def instantiate_builder_from_stage(cls):

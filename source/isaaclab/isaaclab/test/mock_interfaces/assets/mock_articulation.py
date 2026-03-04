@@ -168,9 +168,9 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def default_root_vel(self) -> wp.array:
-        """Default root velocity [lin_vel(3), ang_vel(3)]. Shape: (N, 6)."""
+        """Default root velocity. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._default_root_vel is None:
-            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._default_root_vel
 
     @property
@@ -277,12 +277,12 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def joint_pos_limits(self) -> wp.array:
-        """Joint position limits [lower, upper]. Shape: (N, num_joints, 2)."""
+        """Joint position limits [lower, upper]. dtype=wp.vec2f, shape: (N, num_joints)."""
         if self._joint_pos_limits is None:
-            np_limits = np.full((self._num_instances, self._num_joints, 2), 0.0, dtype=np.float32)
+            np_limits = np.zeros((self._num_instances, self._num_joints, 2), dtype=np.float32)
             np_limits[..., 0] = -float("inf")
             np_limits[..., 1] = float("inf")
-            return wp.array(np_limits, dtype=wp.float32, device=self.device)
+            return wp.array(np_limits, dtype=wp.float32, device=self.device).view(wp.vec2f)
         return self._joint_pos_limits
 
     @property
@@ -360,9 +360,9 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def root_link_vel_w(self) -> wp.array:
-        """Root link velocity in world frame. Shape: (N, 6)."""
+        """Root link velocity in world frame. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._root_link_vel_w is None:
-            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
         return self._root_link_vel_w
 
     @property
@@ -387,13 +387,15 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def root_link_lin_vel_w(self) -> wp.array:
-        """Root link linear velocity in world frame. Shape: (N, 3)."""
-        return self.root_link_vel_w[:, :3]
+        """Root link linear velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_link_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def root_link_ang_vel_w(self) -> wp.array:
-        """Root link angular velocity in world frame. Shape: (N, 3)."""
-        return self.root_link_vel_w[:, 3:6]
+        """Root link angular velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_link_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Root state properties (CoM frame) --
 
@@ -406,7 +408,7 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def root_com_vel_w(self) -> wp.array:
-        """Root CoM velocity in world frame. Shape: (N, 6)."""
+        """Root CoM velocity in world frame. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._root_com_vel_w is None:
             return wp.clone(self.root_link_vel_w, self.device)
         return self._root_com_vel_w
@@ -440,13 +442,15 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def root_com_lin_vel_w(self) -> wp.array:
-        """Root CoM linear velocity in world frame. Shape: (N, 3)."""
-        return self.root_com_vel_w[:, :3]
+        """Root CoM linear velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_com_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def root_com_ang_vel_w(self) -> wp.array:
-        """Root CoM angular velocity in world frame. Shape: (N, 3)."""
-        return self.root_com_vel_w[:, 3:6]
+        """Root CoM angular velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
+        v = self.root_com_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Body state properties (link frame) --
 
@@ -461,9 +465,11 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_link_vel_w(self) -> wp.array:
-        """Body link velocities in world frame. Shape: (N, num_bodies, 6)."""
+        """Body link velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_link_vel_w is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_link_vel_w
 
     @property
@@ -488,15 +494,15 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
-        """Body link linear velocities in world frame. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(vel_torch[..., :3].contiguous())
+        """Body link linear velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_link_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
-        """Body link angular velocities in world frame. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(vel_torch[..., 3:6].contiguous())
+        """Body link angular velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_link_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     # -- Body state properties (CoM frame) --
 
@@ -509,7 +515,7 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_com_vel_w(self) -> wp.array:
-        """Body CoM velocities in world frame. Shape: (N, num_bodies, 6)."""
+        """Body CoM velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_vel_w is None:
             return wp.clone(self.body_link_vel_w, self.device)
         return self._body_com_vel_w
@@ -530,9 +536,11 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_com_acc_w(self) -> wp.array:
-        """Body CoM accelerations in world frame. Shape: (N, num_bodies, 6)."""
+        """Body CoM accelerations in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_acc_w is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_com_acc_w
 
     @property
@@ -559,27 +567,27 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
-        """Body CoM linear velocities in world frame. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(vel_torch[..., :3].contiguous())
+        """Body CoM linear velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_com_vel_w
+        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
-        """Body CoM angular velocities in world frame. Shape: (N, num_bodies, 3)."""
-        vel_torch = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(vel_torch[..., 3:6].contiguous())
+        """Body CoM angular velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        v = self.body_com_vel_w
+        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
-        """Body CoM linear accelerations in world frame. Shape: (N, num_bodies, 3)."""
-        acc_torch = wp.to_torch(self.body_com_acc_w)
-        return wp.from_torch(acc_torch[..., :3].contiguous())
+        """Body CoM linear accelerations in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        a = self.body_com_acc_w
+        return wp.array(ptr=a.ptr, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
-        """Body CoM angular accelerations in world frame. Shape: (N, num_bodies, 3)."""
-        acc_torch = wp.to_torch(self.body_com_acc_w)
-        return wp.from_torch(acc_torch[..., 3:6].contiguous())
+        """Body CoM angular accelerations in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
+        a = self.body_com_acc_w
+        return wp.array(ptr=a.ptr + 3 * 4, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
 
     @property
     def body_com_pos_b(self) -> wp.array:
@@ -615,20 +623,21 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def body_incoming_joint_wrench_b(self) -> wp.array:
-        """Body incoming joint wrenches. Shape: (N, num_bodies, 6)."""
+        """Body incoming joint wrenches. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_incoming_joint_wrench_b is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device)
+            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._body_incoming_joint_wrench_b
 
     # -- Derived properties --
 
     @property
     def projected_gravity_b(self) -> wp.array:
-        """Gravity projection on base. Shape: (N, 3)."""
-        # Default gravity pointing down
+        """Gravity projection on base. Shape: (N,), dtype=wp.vec3f."""
         np_gravity = np.zeros((self._num_instances, 3), dtype=np.float32)
         np_gravity[:, 2] = -1.0
-        return wp.array(np_gravity, dtype=wp.float32, device=self.device)
+        return wp.array(np_gravity, dtype=wp.float32, device=self.device).view(wp.vec3f)
 
     @property
     def heading_w(self) -> wp.array:
@@ -637,22 +646,22 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def root_link_lin_vel_b(self) -> wp.array:
-        """Root link linear velocity in body frame. Shape: (N, 3)."""
+        """Root link linear velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_link_lin_vel_w, self.device)
 
     @property
     def root_link_ang_vel_b(self) -> wp.array:
-        """Root link angular velocity in body frame. Shape: (N, 3)."""
+        """Root link angular velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_link_ang_vel_w, self.device)
 
     @property
     def root_com_lin_vel_b(self) -> wp.array:
-        """Root CoM linear velocity in body frame. Shape: (N, 3)."""
+        """Root CoM linear velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_com_lin_vel_w, self.device)
 
     @property
     def root_com_ang_vel_b(self) -> wp.array:
-        """Root CoM angular velocity in body frame. Shape: (N, 3)."""
+        """Root CoM angular velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
         return wp.clone(self.root_com_ang_vel_w, self.device)
 
     # com_pos_b and com_quat_b are inherited from BaseArticulationData
@@ -707,14 +716,14 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def fixed_tendon_pos_limits(self) -> wp.array:
-        """Fixed tendon position limits. Shape: (N, num_fixed_tendons, 2)."""
+        """Fixed tendon position limits. dtype=wp.vec2f, shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
             return wp.zeros((self._num_instances, 0, 2), dtype=wp.float32, device=self.device)
         if self._fixed_tendon_pos_limits is None:
-            np_limits = np.full((self._num_instances, self._num_fixed_tendons, 2), 0.0, dtype=np.float32)
+            np_limits = np.zeros((self._num_instances, self._num_fixed_tendons, 2), dtype=np.float32)
             np_limits[..., 0] = -float("inf")
             np_limits[..., 1] = float("inf")
-            return wp.array(np_limits, dtype=wp.float32, device=self.device)
+            return wp.array(np_limits, dtype=wp.float32, device=self.device).view(wp.vec2f)
         return self._fixed_tendon_pos_limits
 
     # -- Spatial tendon properties --
@@ -1560,7 +1569,52 @@ class MockArticulation:
         """Write spatial tendon properties to simulation."""
         pass
 
-    # -- Index/Mask methods (no-op for mock) --
+    # -- Shape validation helpers --
+
+    _DTYPE_TO_TORCH_TRAILING_DIMS: dict[type, tuple[int, ...]] = {
+        wp.float32: (),
+        wp.int32: (),
+        wp.vec2f: (2,),
+        wp.vec3f: (3,),
+        wp.vec4f: (4,),
+        wp.transformf: (7,),
+        wp.spatial_vectorf: (6,),
+    }
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+    ) -> None:
+        if __debug__:
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, (int, float)):
+                return
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                offset = self._DTYPE_TO_TORCH_TRAILING_DIMS.get(dtype)
+                if offset is None:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), (
+                    f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                )
+
+    def _resolve_n_envs(self, env_ids):
+        if env_ids is None:
+            return self._num_instances
+        if isinstance(env_ids, (torch.Tensor, wp.array)):
+            return env_ids.shape[0]
+        return len(env_ids)
+
+    def _resolve_n_items(self, item_ids, total):
+        if item_ids is None or item_ids == slice(None):
+            return total
+        if isinstance(item_ids, (torch.Tensor, wp.array)):
+            return item_ids.shape[0]
+        return len(item_ids)
+
+    # -- Index/Mask methods --
 
     # Root pose/velocity
 
@@ -1570,7 +1624,8 @@ class MockArticulation:
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
 
     def write_root_pose_to_sim_mask(
         self,
@@ -1578,7 +1633,7 @@ class MockArticulation:
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
 
     def write_root_link_pose_to_sim_index(
         self,
@@ -1586,7 +1641,8 @@ class MockArticulation:
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -1594,7 +1650,7 @@ class MockArticulation:
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -1602,7 +1658,8 @@ class MockArticulation:
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -1610,7 +1667,7 @@ class MockArticulation:
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
 
     def write_root_velocity_to_sim_index(
         self,
@@ -1618,7 +1675,8 @@ class MockArticulation:
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_velocity_to_sim_mask(
         self,
@@ -1626,7 +1684,7 @@ class MockArticulation:
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -1634,7 +1692,8 @@ class MockArticulation:
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -1642,7 +1701,7 @@ class MockArticulation:
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -1650,7 +1709,8 @@ class MockArticulation:
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n = self._resolve_n_envs(env_ids)
+        self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1658,7 +1718,7 @@ class MockArticulation:
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
 
     # Joint write methods
 
@@ -1669,7 +1729,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(position, (n_e, n_j), wp.float32, "position")
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1678,7 +1740,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1687,7 +1749,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(velocity, (n_e, n_j), wp.float32, "velocity")
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1696,7 +1760,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1705,7 +1769,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(stiffness, (n_e, n_j), wp.float32, "stiffness")
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1714,7 +1780,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(stiffness, (self._num_instances, self._num_joints), wp.float32, "stiffness")
 
     def write_joint_damping_to_sim_index(
         self,
@@ -1723,7 +1789,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(damping, (n_e, n_j), wp.float32, "damping")
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1732,7 +1800,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(damping, (self._num_instances, self._num_joints), wp.float32, "damping")
 
     def write_joint_position_limit_to_sim_index(
         self,
@@ -1742,7 +1810,11 @@ class MockArticulation:
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
-        pass
+        if isinstance(limits, (int, float)):
+            raise ValueError("Float scalars are not supported for position limits (vec2f dtype)")
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(limits, (n_e, n_j), wp.vec2f, "limits")
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1752,7 +1824,9 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        if isinstance(limits, (int, float)):
+            raise ValueError("Float scalars are not supported for position limits (vec2f dtype)")
+        self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.vec2f, "limits")
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -1761,7 +1835,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(limits, (n_e, n_j), wp.float32, "limits")
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1770,7 +1846,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.float32, "limits")
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1779,7 +1855,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(limits, (n_e, n_j), wp.float32, "limits")
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1788,7 +1866,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.float32, "limits")
 
     def write_joint_armature_to_sim_index(
         self,
@@ -1797,7 +1875,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(armature, (n_e, n_j), wp.float32, "armature")
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1806,7 +1886,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(armature, (self._num_instances, self._num_joints), wp.float32, "armature")
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
@@ -1815,7 +1895,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(joint_friction_coeff, (n_e, n_j), wp.float32, "joint_friction_coeff")
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1824,7 +1906,9 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            joint_friction_coeff, (self._num_instances, self._num_joints), wp.float32, "joint_friction_coeff"
+        )
 
     # Body setter methods
 
@@ -1835,7 +1919,9 @@ class MockArticulation:
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(masses, (n_e, n_b), wp.float32, "masses")
 
     def set_masses_mask(
         self,
@@ -1844,7 +1930,7 @@ class MockArticulation:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
 
     def set_coms_index(
         self,
@@ -1853,7 +1939,9 @@ class MockArticulation:
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(coms, (n_e, n_b), wp.transformf, "coms")
 
     def set_coms_mask(
         self,
@@ -1862,7 +1950,7 @@ class MockArticulation:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
 
     def set_inertias_index(
         self,
@@ -1871,7 +1959,9 @@ class MockArticulation:
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_b = self._resolve_n_items(body_ids, self._num_bodies)
+        self.assert_shape_and_dtype(inertias, (n_e, n_b, 9), wp.float32, "inertias")
 
     def set_inertias_mask(
         self,
@@ -1880,7 +1970,7 @@ class MockArticulation:
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
 
     # Joint target methods
 
@@ -1891,7 +1981,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(target, (n_e, n_j), wp.float32, "target")
 
     def set_joint_position_target_mask(
         self,
@@ -1900,7 +1992,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
 
     def set_joint_velocity_target_index(
         self,
@@ -1909,7 +2001,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(target, (n_e, n_j), wp.float32, "target")
 
     def set_joint_velocity_target_mask(
         self,
@@ -1918,7 +2012,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
 
     def set_joint_effort_target_index(
         self,
@@ -1927,7 +2021,9 @@ class MockArticulation:
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_j = self._resolve_n_items(joint_ids, self._num_joints)
+        self.assert_shape_and_dtype(target, (n_e, n_j), wp.float32, "target")
 
     def set_joint_effort_target_mask(
         self,
@@ -1936,7 +2032,7 @@ class MockArticulation:
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
 
     # Fixed tendon methods
 
@@ -1947,7 +2043,9 @@ class MockArticulation:
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(fixed_tendon_ids, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(stiffness, (n_e, n_t), wp.float32, "stiffness")
 
     def set_fixed_tendon_stiffness_mask(
         self,
@@ -1956,7 +2054,7 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(stiffness, (self._num_instances, self._num_fixed_tendons), wp.float32, "stiffness")
 
     def set_fixed_tendon_damping_index(
         self,
@@ -1965,7 +2063,9 @@ class MockArticulation:
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(fixed_tendon_ids, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(damping, (n_e, n_t), wp.float32, "damping")
 
     def set_fixed_tendon_damping_mask(
         self,
@@ -1974,7 +2074,7 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(damping, (self._num_instances, self._num_fixed_tendons), wp.float32, "damping")
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -1983,7 +2083,9 @@ class MockArticulation:
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(fixed_tendon_ids, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(limit_stiffness, (n_e, n_t), wp.float32, "limit_stiffness")
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
@@ -1992,7 +2094,9 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            limit_stiffness, (self._num_instances, self._num_fixed_tendons), wp.float32, "limit_stiffness"
+        )
 
     def set_fixed_tendon_position_limit_index(
         self,
@@ -2001,7 +2105,9 @@ class MockArticulation:
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(fixed_tendon_ids, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(limit, (n_e, n_t), wp.float32, "limit")
 
     def set_fixed_tendon_position_limit_mask(
         self,
@@ -2010,7 +2116,7 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons), wp.float32, "limit")
 
     def set_fixed_tendon_rest_length_index(
         self,
@@ -2019,7 +2125,9 @@ class MockArticulation:
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(fixed_tendon_ids, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(rest_length, (n_e, n_t), wp.float32, "rest_length")
 
     def set_fixed_tendon_rest_length_mask(
         self,
@@ -2028,7 +2136,9 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            rest_length, (self._num_instances, self._num_fixed_tendons), wp.float32, "rest_length"
+        )
 
     def set_fixed_tendon_offset_index(
         self,
@@ -2037,7 +2147,9 @@ class MockArticulation:
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(fixed_tendon_ids, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(offset, (n_e, n_t), wp.float32, "offset")
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -2046,7 +2158,7 @@ class MockArticulation:
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(offset, (self._num_instances, self._num_fixed_tendons), wp.float32, "offset")
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
@@ -2073,7 +2185,9 @@ class MockArticulation:
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(spatial_tendon_ids, self._num_spatial_tendons)
+        self.assert_shape_and_dtype(stiffness, (n_e, n_t), wp.float32, "stiffness")
 
     def set_spatial_tendon_stiffness_mask(
         self,
@@ -2082,7 +2196,9 @@ class MockArticulation:
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            stiffness, (self._num_instances, self._num_spatial_tendons), wp.float32, "stiffness"
+        )
 
     def set_spatial_tendon_damping_index(
         self,
@@ -2091,7 +2207,9 @@ class MockArticulation:
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(spatial_tendon_ids, self._num_spatial_tendons)
+        self.assert_shape_and_dtype(damping, (n_e, n_t), wp.float32, "damping")
 
     def set_spatial_tendon_damping_mask(
         self,
@@ -2100,7 +2218,7 @@ class MockArticulation:
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(damping, (self._num_instances, self._num_spatial_tendons), wp.float32, "damping")
 
     def set_spatial_tendon_limit_stiffness_index(
         self,
@@ -2109,7 +2227,9 @@ class MockArticulation:
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(spatial_tendon_ids, self._num_spatial_tendons)
+        self.assert_shape_and_dtype(limit_stiffness, (n_e, n_t), wp.float32, "limit_stiffness")
 
     def set_spatial_tendon_limit_stiffness_mask(
         self,
@@ -2118,7 +2238,9 @@ class MockArticulation:
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(
+            limit_stiffness, (self._num_instances, self._num_spatial_tendons), wp.float32, "limit_stiffness"
+        )
 
     def set_spatial_tendon_offset_index(
         self,
@@ -2127,7 +2249,9 @@ class MockArticulation:
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        pass
+        n_e = self._resolve_n_envs(env_ids)
+        n_t = self._resolve_n_items(spatial_tendon_ids, self._num_spatial_tendons)
+        self.assert_shape_and_dtype(offset, (n_e, n_t), wp.float32, "offset")
 
     def set_spatial_tendon_offset_mask(
         self,
@@ -2136,7 +2260,7 @@ class MockArticulation:
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        pass
+        self.assert_shape_and_dtype(offset, (self._num_instances, self._num_spatial_tendons), wp.float32, "offset")
 
     def write_spatial_tendon_properties_to_sim_index(
         self,

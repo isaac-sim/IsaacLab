@@ -3,16 +3,56 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg, TiledCameraCfg
 from isaaclab.utils import configclass
+
+from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
+from .camera_cfg import (
+    BaseTiledCameraCfg,
+    DuoCameraObservationsCfg,
+    SingleCameraObservationsCfg,
+    StateObservationCfg,
+    WristTiledCameraCfg,
+)
+
+FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
+
+
+@configclass
+class KukaAllegroSceneCfg(PresetCfg):
+    @configclass
+    class KukaAllegroSceneCfg(dexsuite.SceneCfg):
+        """Kuka Allegro participant scene for Dexsuite Lifting/Reorientation"""
+
+        robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+        base_camera: TiledCameraCfg | None = None
+
+        wrist_camera: TiledCameraCfg | None = None
+
+        def __post_init__(self: dexsuite.SceneCfg):
+            super().__post_init__()
+            for link_name in FINGERTIP_LIST:
+                setattr(
+                    self,
+                    f"{link_name}_object_s",
+                    ContactSensorCfg(
+                        prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
+                        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+                    ),
+                )
+
+    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    single_camera = default.replace(base_camera=BaseTiledCameraCfg())
+    duo_camera = default.replace(base_camera=BaseTiledCameraCfg(), wrist_camera=WristTiledCameraCfg())
 
 
 @configclass
@@ -26,36 +66,30 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
     good_finger_contact = RewTerm(
         func=mdp.contacts,
         weight=0.5,
-        params={"threshold": 1.0},
+        params={"threshold": 0.1},
     )
+
+    def __post_init__(self: dexsuite.RewardsCfg):
+        super().__post_init__()
+        self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=["palm_link", ".*_tip"])
+
+
+@configclass
+class KukaAllegroObservationCfg(PresetCfg):
+    default = StateObservationCfg()
+    single_camera = SingleCameraObservationsCfg()
+    duo_camera = DuoCameraObservationsCfg()
 
 
 @configclass
 class KukaAllegroMixinCfg:
+    scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg()
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
+    observations: KukaAllegroObservationCfg = KukaAllegroObservationCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
 
-    def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
+    def __post_init__(self):
         super().__post_init__()
-        self.commands.object_pose.body_name = "palm_link"
-        self.scene.robot = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        finger_tip_body_list = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
-        for link_name in finger_tip_body_list:
-            setattr(
-                self.scene,
-                f"{link_name}_object_s",
-                ContactSensorCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
-                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
-                ),
-            )
-        self.observations.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [f"{link}_object_s" for link in finger_tip_body_list]},
-            clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
-        )
-        self.observations.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
-        self.rewards.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=["palm_link", ".*_tip"])
 
 
 @configclass

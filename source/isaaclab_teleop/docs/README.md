@@ -1,6 +1,6 @@
 # Isaac Lab Teleop
 
-`isaaclab_teleop` integrates the [IsaacTeleop](https://github.com/isaac-sim/IsaacTeleop) retargeting
+`isaaclab_teleop` integrates the [IsaacTeleop](https://github.com/NVIDIA/IsaacTeleop) retargeting
 framework with Isaac Lab, providing a single teleoperation device class that manages OpenXR sessions,
 XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 

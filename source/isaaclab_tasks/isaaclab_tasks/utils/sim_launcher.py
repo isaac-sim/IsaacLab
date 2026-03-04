@@ -71,6 +71,19 @@ def _is_newton_physics(node) -> bool:
     return isinstance(node, PhysicsCfg) and type(node).__name__ == "NewtonCfg"
 
 
+def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
+    """Extract requested visualizer type names from launcher args."""
+    if isinstance(launcher_args, argparse.Namespace):
+        visualizers = getattr(launcher_args, "visualizer", None)
+    elif isinstance(launcher_args, dict):
+        visualizers = launcher_args.get("visualizer")
+    else:
+        return set()
+    if not visualizers:
+        return set()
+    return {str(v).strip().lower() for v in visualizers if str(v).strip()}
+
+
 def _is_kit_camera(node) -> bool:
     """True for a CameraCfg whose renderer requires Kit (not Newton)."""
     if not isinstance(node, CameraCfg):
@@ -104,6 +117,11 @@ def launch_simulation(
     is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
     needs_kit = not is_newton
 
+    # If the Kit visualizer is explicitly requested, Kit must launch even for Newton physics.
+    visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in visualizer_types:
+        needs_kit = True
+
     if needs_kit and has_kit_cameras:
         if isinstance(launcher_args, argparse.Namespace):
             if not getattr(launcher_args, "enable_cameras", False):
@@ -121,6 +139,13 @@ def launch_simulation(
 
         app_launcher = AppLauncher(launcher_args)
         close_fn = app_launcher.app.close
+    elif visualizer_types:
+        # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
+        # selection in SettingsManager (works in standalone mode via plain dict) so that
+        # SimulationContext._get_cli_visualizer_types() can find it.
+        from isaaclab.app.settings_manager import get_settings_manager
+
+        get_settings_manager().set_string("/isaaclab/visualizer", " ".join(sorted(visualizer_types)))
 
     try:
         yield

@@ -149,6 +149,11 @@ def parse_env_cfg(
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
+    # resolve PresetCfg fields (e.g. physics) to their default values
+    from isaaclab_tasks.utils.hydra import resolve_preset_defaults
+
+    cfg = resolve_preset_defaults(cfg)
+
     # simulation device
     cfg.sim.device = device
     # disable fabric to read/write through USD

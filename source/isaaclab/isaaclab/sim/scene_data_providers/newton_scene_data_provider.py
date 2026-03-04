@@ -68,12 +68,19 @@ class NewtonSceneDataProvider:
     # ---- Core provider API -------------------------------------------------------------------
 
     def update(self, env_ids: list[int] | None = None) -> None:
-        """Refresh any cached scene data.
+        """Sync Newton body transforms to USD Fabric for Kit viewport rendering.
 
-        For the Newton backend the model and state are owned by NewtonManager and
-        updated during physics stepping, so this is intentionally a no-op.
+        Called at render cadence by :meth:`~isaaclab.sim.SimulationContext.update_scene_data_provider`,
+        after forward kinematics have been evaluated.  Delegates to
+        :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd`, which is a
+        no-op when no Kit visualizer is active (``_fabric_manager is None``).
         """
-        pass
+        try:
+            from isaaclab_newton.physics import NewtonManager
+
+            NewtonManager.sync_transforms_to_usd()
+        except Exception:
+            pass
 
     def get_newton_model(self) -> Any | None:
         """Return Newton model from NewtonManager."""
@@ -122,7 +129,6 @@ class NewtonSceneDataProvider:
         """
         try:
             import warp as wp
-
             from isaaclab_newton.physics import NewtonManager
 
             state = NewtonManager.get_state_0()
@@ -145,7 +151,6 @@ class NewtonSceneDataProvider:
         """Return body velocities from Newton state."""
         try:
             import warp as wp
-
             from isaaclab_newton.physics import NewtonManager
 
             state = NewtonManager.get_state_0()

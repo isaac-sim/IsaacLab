@@ -7,6 +7,9 @@ __all__ = [
     "ContactSensor",
     "ContactSensorData",
     "ContactSensorCfg",
+    "FrameTransformer",
+    "FrameTransformerData",
 ]
 
 from .contact_sensor import ContactSensor, ContactSensorData, ContactSensorCfg
+from .frame_transformer import FrameTransformer, FrameTransformerData

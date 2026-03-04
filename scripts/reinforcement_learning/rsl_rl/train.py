@@ -22,10 +22,11 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import resolve_task_config, add_launcher_args, launch_simulation, get_checkpoint_path
+from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
 
 # local imports
 import cli_args  # isort: skip
@@ -148,6 +149,7 @@ def main():
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             from isaaclab.envs import multi_agent_to_single_agent
+
             env = multi_agent_to_single_agent(env)
 
         # save resume path before creating a new log_dir
