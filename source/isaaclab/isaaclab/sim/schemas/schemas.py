@@ -146,8 +146,6 @@ def modify_articulation_root_properties(
     cfg = cfg.to_dict()
     # extract non-USD properties
     fix_root_link = cfg.pop("fix_root_link", None)
-    print("fix_root_link", fix_root_link)
-    print("cfg", cfg)
 
     # set into physx api
     for attr_name, value in cfg.items():

@@ -72,9 +72,11 @@ class NewtonSceneDataProvider:
         """TODO: implement when the newton physics backend is added."""
         pass
 
-    def get_contacts(self) -> dict[str, Any] | None:
-        """TODO: implement when the newton physics backend is added."""
-        pass
+    def get_contacts(self) -> Any | None:
+        """Return contacts from NewtonManager."""
+        from isaaclab_newton.physics import NewtonManager
+
+        return NewtonManager._contacts
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
         """TODO: implement when the newton physics backend is added."""

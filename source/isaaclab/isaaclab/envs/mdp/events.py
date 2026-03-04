@@ -29,6 +29,8 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, RigidObject  # , DeformableObject
+from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
@@ -196,7 +198,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (RigidObject, Articulation)):
+        if not isinstance(self.asset, (RigidObject, Articulation, BaseRigidObject, BaseArticulation)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
                 f" with type: '{type(self.asset)}'."
@@ -204,7 +206,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         # compute prefix scan for efficient indexing (shape counts come from Articulation)
         self.shape_start_indices = None
 
-        if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
+        if isinstance(self.asset, (Articulation, BaseArticulation)) and self.asset_cfg.body_ids != slice(None):
             # get shapes per body from Articulation class
             num_shapes_per_body = self.asset.num_shapes_per_body
 
@@ -240,9 +242,14 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         # cache default material properties on first call for consistent randomization baseline
         if self.default_material_mu is None:
-            self.default_material_mu = wp.to_torch(
+            raw = wp.to_torch(
                 self.asset.root_view.get_attribute("shape_material_mu", self.asset.root_newton_model)
             ).clone()
+            # Newton may return 3D [envs, bodies, shapes_per_body]; flatten to 2D [envs, shapes]
+            self._material_mu_orig_shape = raw.shape
+            if raw.ndim > 2:
+                raw = raw.reshape(raw.shape[0], -1)
+            self.default_material_mu = raw
 
         # start with default values and clone for safe modification
         material_mu = self.default_material_mu.clone()
@@ -286,8 +293,10 @@ class randomize_rigid_body_material(ManagerTermBase):
         # apply to simulation using cached mask
         self.env_mask.fill_(False)  # reset all to False
         self.env_mask[env_ids] = True
+        # reshape back to original shape expected by Newton (may be 3D)
+        material_mu_out = material_mu.reshape(self._material_mu_orig_shape)
         self.asset.root_view.set_attribute(
-            "shape_material_mu", self.asset.root_newton_model, wp.from_torch(material_mu), mask=self.env_mask
+            "shape_material_mu", self.asset.root_newton_model, wp.from_torch(material_mu_out), mask=self.env_mask
         )
         NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
 
@@ -802,7 +811,11 @@ class randomize_joint_parameters(ManagerTermBase):
             static_friction_coeff = friction_coeff[env_ids[:, None], joint_ids]
 
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
-            major_version = int(env.sim.get_version()[0])
+            try:
+                major_version = int(env.sim.get_version()[0])
+            except AttributeError:
+                # Newton backend does not expose get_version; assume latest behavior
+                major_version = 5
             if major_version >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(

@@ -6,12 +6,19 @@
 """Implementation backends for simulation interfaces."""
 
 from .newton_manager import NewtonManager
-from .newton_manager_cfg import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg, XPBDSolverCfg
+from .newton_manager_cfg import (
+    FeatherstoneSolverCfg,
+    HydroelasticCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonSolverCfg,
+    XPBDSolverCfg,
+)
 
 __all__ = [
     "NewtonManager",
     "NewtonCfg",
-    "NewtonCfg",
+    "HydroelasticCfg",
     "NewtonSolverCfg",
     "MJWarpSolverCfg",
     "XPBDSolverCfg",

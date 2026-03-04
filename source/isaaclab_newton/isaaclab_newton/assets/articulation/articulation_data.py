@@ -34,11 +34,11 @@ from isaaclab_newton.kernels import (
     split_transform_batched_array_to_quaternion_batched_array,
     vec13f,
 )
-from isaaclab_newton.physics import NewtonManager
 from newton.selection import ArticulationView as NewtonArticulationView
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab_newton.physics import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
 from isaaclab.utils.warp.utils import capture_unsafe, resolve_1d_mask
@@ -518,32 +518,40 @@ class ArticulationData(BaseArticulationData):
     @property
     def fixed_tendon_stiffness(self) -> wp.array(dtype=wp.float32):
         """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
-        raise NotImplementedError("Fixed tendon stiffness is not supported in Newton.")
+        if self._sim_bind_tendon_stiffness is None:
+            raise RuntimeError("No fixed tendons in this articulation.")
+        return self._sim_bind_tendon_stiffness
 
     @property
     def fixed_tendon_damping(self) -> wp.array(dtype=wp.float32):
         """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
-        raise NotImplementedError("Fixed tendon damping is not supported in Newton.")
+        if self._sim_bind_tendon_damping is None:
+            raise RuntimeError("No fixed tendons in this articulation.")
+        return self._sim_bind_tendon_damping
 
     @property
     def fixed_tendon_limit_stiffness(self) -> wp.array(dtype=wp.float32):
         """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
-        raise NotImplementedError("Fixed tendon limit stiffness is not supported in Newton.")
+        raise NotImplementedError("Fixed tendon limit stiffness is not directly stored in Newton.")
 
     @property
     def fixed_tendon_rest_length(self) -> wp.array(dtype=wp.float32):
         """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
-        raise NotImplementedError("Fixed tendon rest length is not supported in Newton.")
+        if self._sim_bind_tendon_springlength is None:
+            raise RuntimeError("No fixed tendons in this articulation.")
+        return self._sim_bind_tendon_springlength
 
     @property
     def fixed_tendon_offset(self) -> wp.array(dtype=wp.float32):
         """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
-        raise NotImplementedError("Fixed tendon offset is not supported in Newton.")
+        raise NotImplementedError("Fixed tendon offset is not directly stored in Newton.")
 
     @property
     def fixed_tendon_pos_limits(self) -> wp.array(dtype=wp.float32):
         """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
-        raise NotImplementedError("Fixed tendon position limits is not supported in Newton.")
+        if self._sim_bind_tendon_range is None:
+            raise RuntimeError("No fixed tendons in this articulation.")
+        return self._sim_bind_tendon_range
 
     ##
     # Spatial tendon properties.
@@ -2241,13 +2249,14 @@ class ArticulationData(BaseArticulationData):
 
         # -- root properties
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0, 0]
+            _rt = self._root_view.get_root_transforms(NewtonManager.get_state_0())
+            self._sim_bind_root_link_pose_w = _rt[:, 0, 0] if _rt.ndim >= 3 else _rt[:, 0]
         else:
             self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0]
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
         if self._sim_bind_root_com_vel_w is not None:
             if self._root_view.is_fixed_base:
-                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
+                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0] if self._sim_bind_root_com_vel_w.ndim >= 3 else self._sim_bind_root_com_vel_w[:, 0]
             else:
                 self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
         # -- body properties
@@ -2286,12 +2295,8 @@ class ArticulationData(BaseArticulationData):
                 "joint_effort_limit", NewtonManager.get_model()
             )[:, 0]
             # -- joint states
-            print("joint pos shape:", self._root_view.get_dof_positions(NewtonManager.get_state_0()).shape)
-            print("joint vel shape:", self._root_view.get_dof_velocities(NewtonManager.get_state_0()).shape)
             self._sim_bind_joint_pos = self._root_view.get_dof_positions(NewtonManager.get_state_0())[:, 0]
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(NewtonManager.get_state_0())[:, 0]
-            print("joint pos shape:", self._sim_bind_joint_pos.shape)
-            print("joint vel shape:", self._sim_bind_joint_vel.shape)
             # -- joint commands (sent to the simulation)
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", NewtonManager.get_control())[:, 0]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
@@ -2315,6 +2320,29 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_effort = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_position_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_velocity_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+
+        # -- fixed tendon properties (via Newton's mujoco namespace)
+        n_tendons = self._root_view.tendon_count
+        if n_tendons > 0:
+            self._sim_bind_tendon_stiffness = self._root_view.get_attribute(
+                "mujoco.tendon_stiffness", NewtonManager.get_model()
+            )
+            self._sim_bind_tendon_damping = self._root_view.get_attribute(
+                "mujoco.tendon_damping", NewtonManager.get_model()
+            )
+            self._sim_bind_tendon_springlength = self._root_view.get_attribute(
+                "mujoco.tendon_springlength", NewtonManager.get_model()
+            )
+            self._sim_bind_tendon_range = self._root_view.get_attribute(
+                "mujoco.tendon_range", NewtonManager.get_model()
+            )
+            self.fixed_tendon_names = list(self._root_view.tendon_names)
+        else:
+            self._sim_bind_tendon_stiffness = None
+            self._sim_bind_tendon_damping = None
+            self._sim_bind_tendon_springlength = None
+            self._sim_bind_tendon_range = None
+            self.fixed_tendon_names = []
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""

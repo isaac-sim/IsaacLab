@@ -184,7 +184,10 @@ class TiledCamera(Camera):
         # Create internal buffers
         self._create_buffers()
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_ids):
+        # Convert warp bool array to torch indices if needed
+        if isinstance(env_ids, wp.array):
+            env_ids = wp.to_torch(env_ids).nonzero().squeeze(-1)
         # Increment frame count
         self._frame[env_ids] += 1
 

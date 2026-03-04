@@ -297,7 +297,6 @@ class ActionManager(ManagerBase):
         for item in data:
             name = item.pop("name")
             formatted_item = {"name": name, "extras": item.pop("extras")}
-            print(item["export"])
             if not item.pop("export"):
                 continue
             for k, v in item.items():
