@@ -324,6 +324,14 @@ class NewtonCfg(PhysicsCfg):
     Example: ``[".*Gear.*", ".*gear.*"]``
     """
 
+    sdf_pattern_resolutions: dict[str, int] | None = None
+    """Per-pattern SDF resolution overrides.
+
+    Maps regex pattern to max_resolution for matching shapes. Shapes not matching any
+    pattern here use the global ``sdf_max_resolution``. First matching pattern wins.
+    Example: ``{".*elbow.*": 128, ".*power_supply.*": 512}``
+    """
+
     hydroelastic_cfg: HydroelasticCfg | None = None
     """Hydroelastic contact configuration.
 

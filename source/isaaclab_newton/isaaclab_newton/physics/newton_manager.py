@@ -242,8 +242,6 @@ class NewtonManager(PhysicsManager):
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
-        # --- end diagnostic ---
-
         cls._state_0 = cls._model.state()
         cls._state_1 = cls._model.state()
         cls._control = cls._model.control()
@@ -304,6 +302,11 @@ class NewtonManager(PhysicsManager):
         if hydro_cfg is not None and hydro_cfg.shape_patterns is not None:
             hydro_patterns = [re.compile(p) for p in hydro_cfg.shape_patterns]
 
+        # Per-pattern resolution overrides
+        res_overrides = None
+        if getattr(cfg, "sdf_pattern_resolutions", None) is not None:
+            res_overrides = [(re.compile(p), r) for p, r in cfg.sdf_pattern_resolutions.items()]
+
         body_info: dict[int, dict] = {}
         for i in range(builder.shape_count):
             body_idx = builder.shape_body[i]
@@ -338,8 +341,19 @@ class NewtonManager(PhysicsManager):
 
         for body_idx, info in body_info.items():
             body_key = builder.body_key[body_idx]
+
+            # Collect all keys for this body (body key + shape keys) for pattern matching
+            all_shape_keys = []
+            for si in info["collision"] + info["visual"]:
+                sk = builder.shape_key[si]
+                if sk:
+                    all_shape_keys.append(sk)
+
             if patterns is not None:
-                if not any(p.search(body_key) for p in patterns):
+                # Match if body key OR any shape key under this body matches
+                body_matches = any(p.search(body_key) for p in patterns)
+                shape_matches = any(p.search(sk) for p in patterns for sk in all_shape_keys)
+                if not body_matches and not shape_matches:
                     continue
 
             body_gets_hydro = False
@@ -347,19 +361,36 @@ class NewtonManager(PhysicsManager):
                 if hydro_patterns is None:
                     body_gets_hydro = True
                 else:
-                    body_gets_hydro = any(p.search(body_key) for p in hydro_patterns)
+                    body_gets_hydro = any(
+                        p.search(body_key) or any(p.search(sk) for sk in all_shape_keys)
+                        for p in hydro_patterns
+                    )
 
             if info["collision"]:
                 for si in info["collision"]:
                     if builder.shape_type[si] == GeoType.MESH:
+                        # Skip shapes that don't match any pattern (shape-level filtering)
+                        if patterns is not None:
+                            shape_key = builder.shape_key[si] or ""
+                            shape_match = any(p.search(body_key) or p.search(shape_key) for p in patterns)
+                            if not shape_match:
+                                continue
                         # Build SDF on the mesh (new Newton API requires mesh.sdf)
                         mesh = builder.shape_source[si]
                         if mesh is not None:
                             if mesh.sdf is not None:
                                 mesh.clear_sdf()
+                            # Resolve per-pattern resolution override (check shape key then body key)
+                            shape_resolution = cfg.sdf_max_resolution
+                            if res_overrides is not None:
+                                shape_key = builder.shape_key[si] or body_key
+                                for pat, res in res_overrides:
+                                    if pat.search(shape_key) or pat.search(body_key):
+                                        shape_resolution = res
+                                        break
                             sdf_kwargs = dict(narrow_band_range=cfg.sdf_narrow_band_range)
-                            if cfg.sdf_max_resolution is not None:
-                                sdf_kwargs["max_resolution"] = cfg.sdf_max_resolution
+                            if shape_resolution is not None:
+                                sdf_kwargs["max_resolution"] = shape_resolution
                             if cfg.sdf_target_voxel_size is not None:
                                 sdf_kwargs["target_voxel_size"] = cfg.sdf_target_voxel_size
                             mesh.build_sdf(**sdf_kwargs)
@@ -403,9 +434,17 @@ class NewtonManager(PhysicsManager):
             # Build SDF on the mesh before adding the shape
             if mesh.sdf is not None:
                 mesh.clear_sdf()
+            # Resolve per-pattern resolution override (check shape key then body key)
+            shape_resolution = cfg.sdf_max_resolution
+            if res_overrides is not None:
+                shape_key = builder.shape_key[visual_mesh_idx] or body_key
+                for pat, res in res_overrides:
+                    if pat.search(shape_key) or pat.search(body_key):
+                        shape_resolution = res
+                        break
             sdf_kwargs = dict(narrow_band_range=cfg.sdf_narrow_band_range)
-            if cfg.sdf_max_resolution is not None:
-                sdf_kwargs["max_resolution"] = cfg.sdf_max_resolution
+            if shape_resolution is not None:
+                sdf_kwargs["max_resolution"] = shape_resolution
             if cfg.sdf_target_voxel_size is not None:
                 sdf_kwargs["target_voxel_size"] = cfg.sdf_target_voxel_size
             mesh.build_sdf(**sdf_kwargs)
@@ -606,8 +645,6 @@ class NewtonManager(PhysicsManager):
                     cls._simulate()
                 cls._graph = capture.graph
 
-    _debug_step_count: int = 0
-
     @classmethod
     def _simulate(cls) -> None:
         """Run one simulation step with substeps."""
@@ -616,12 +653,6 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls._state_0, cls._contacts)
             contacts = cls._contacts
-            if cls._debug_step_count < 5:
-                import warp as wp
-                wp.synchronize()
-                n = contacts.rigid_contact_count.numpy() if hasattr(contacts, 'rigid_contact_count') and contacts.rigid_contact_count is not None else "N/A"
-                print(f"[DEBUG step {cls._debug_step_count}] collision pipeline: contact_count={n}")
-                print(f"[DEBUG] state_0 joint_q[:5] = {cls._state_0.joint_q.numpy()[:5]}")
         else:
             contacts = None
 
@@ -632,10 +663,6 @@ class NewtonManager(PhysicsManager):
             for i in range(cls._num_substeps):
                 step_fn(cls._state_0, cls._state_0)
                 cls._state_0.clear_forces()
-                if cls._debug_step_count < 5:
-                    import warp as wp
-                    wp.synchronize()
-                    print(f"[DEBUG step {cls._debug_step_count}] after solver: joint_q[:5] = {cls._state_0.joint_q.numpy()[:5]}")
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last_substep = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
@@ -657,7 +684,6 @@ class NewtonManager(PhysicsManager):
             for sensor in cls._newton_contact_sensors.values():
                 sensor.eval(eval_contacts)
 
-        cls._debug_step_count += 1
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
