@@ -295,7 +295,9 @@ class NewtonManager(PhysicsManager):
 
             body_paths = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
             if body_paths is None:
-                logger.warning("NewtonManager: model has no body_label/body_key, skipping USD/Fabric sync for RTX.")
+                raise RuntimeError(
+                    "NewtonManager: model has no body_label/body_key, skipping USD/Fabric sync for RTX."
+                )
             else:
                 cls._usdrt_stage = get_current_stage(fabric=True)
                 for i, prim_path in enumerate(body_paths):
