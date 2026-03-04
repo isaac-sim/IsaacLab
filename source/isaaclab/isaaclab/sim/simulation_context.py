@@ -24,7 +24,7 @@ from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
-from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
+from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
@@ -33,7 +33,7 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 logger = logging.getLogger(__name__)
 
 # Visualizer type names (CLI and config). App launcher stores --visualizer a b c as space-separated.
-_VISUALIZER_TYPES = ("newton", "rerun", "kit")
+_VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
 
 
 class SettingsHelper:
@@ -339,6 +339,8 @@ class SimulationContext:
                     default_configs.append(NewtonVisualizerCfg())
                 elif viz_type == "rerun":
                     default_configs.append(RerunVisualizerCfg())
+                elif viz_type == "viser":
+                    default_configs.append(ViserVisualizerCfg())
                 elif viz_type == "kit":
                     default_configs.append(KitVisualizerCfg())
                 else:

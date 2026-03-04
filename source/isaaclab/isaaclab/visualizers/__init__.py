@@ -31,6 +31,11 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
 
             _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
             return NewtonVisualizer
+        if name == "viser":
+            from .viser_visualizer import ViserVisualizer
+
+            _VISUALIZER_REGISTRY["viser"] = ViserVisualizer
+            return ViserVisualizer
         if name == "kit":
             from .kit_visualizer import KitVisualizer
 
