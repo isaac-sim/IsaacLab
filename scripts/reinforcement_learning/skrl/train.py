@@ -98,9 +98,6 @@ if args_cli.ml_framework.startswith("torch") or args_cli.ml_framework.startswith
     pass
 
 
-# import logger
-logger = logging.getLogger(__name__)
-
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 # config shortcuts
