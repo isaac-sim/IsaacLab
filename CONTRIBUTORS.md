@@ -131,6 +131,7 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Paul Reeves
 * Peter Du
 * Philipp Reist
 * Pulkit Goyal

@@ -82,14 +82,13 @@ class AssetBase(ABC):
                 translation=self.cfg.init_state.pos,
                 orientation=self.cfg.init_state.rot,
             )
+            # check that prims exist
+            matching_prims = sim_utils.find_matching_prims(check_path)
+            if len(matching_prims) == 0:
+                raise RuntimeError(f"Could not find prim with path {check_path}.")
         else:
-            # asset should already exist at prim_path
+            # asset should exist at run time
             check_path = self.cfg.prim_path
-
-        # check that prims exist
-        matching_prims = sim_utils.find_matching_prims(check_path)
-        if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {check_path}.")
 
         # register various callback functions
         self._register_callbacks()
