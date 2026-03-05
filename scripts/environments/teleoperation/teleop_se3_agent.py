@@ -39,6 +39,11 @@ parser.add_argument(
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
+parser.add_argument(
+    "--enable_visualization",
+    action="store_true",
+    help="Enable extra debugging visualizations for environment that support them.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -104,6 +109,10 @@ def main() -> None:
 
     # Check if IsaacTeleop is configured in the environment
     use_isaac_teleop = hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
+
+    # Enable hand joint markers when requested (pipeline_builder reads enable_visualization at session start)
+    if args_cli.enable_visualization and hasattr(env_cfg, "enable_visualization"):
+        env_cfg.enable_visualization = True
 
     if use_isaac_teleop or args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
@@ -243,6 +252,8 @@ def main() -> None:
         simulation_app.close()
         return
 
+    teleop_visualizers = getattr(env.cfg, "get_teleop_visualizers", lambda _: [])(teleop_interface)
+
     print(f"Using teleop device: {teleop_interface}")
 
     def run_loop():
@@ -263,6 +274,9 @@ def main() -> None:
                 with torch.inference_mode():
                     # get device command
                     action = teleop_interface.advance()
+
+                    for v in teleop_visualizers:
+                        v.update()
 
                     # action is None when IsaacTeleop session hasn't started yet
                     # (e.g. waiting for user to click "Start AR")

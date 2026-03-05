@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.5.3 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``enable_visualization`` and :meth:`get_teleop_visualizers` to GR1T2 and G1 Inspire Hand
+  pick-place environment configs (e.g. :class:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.PickPlaceGR1T2EnvCfg`,
+  ExhaustPipe, NutPour, waist-enabled, Unitree G1 Inspire Hand) so hand joint markers can be
+  shown when running with ``--enable_visualization``.
+
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 

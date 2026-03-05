@@ -1,8 +1,30 @@
 Changelog
 ---------
 
+0.3.2 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_teleop.visualizers.HandJointVisualizer` to draw red sphere markers at
+  each OpenXR hand joint for teleop debugging; supports single-hand or both hands when
+  ``enable_visualization`` is enabled.
+
+* Added :attr:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle.last_step_result` to
+  expose the full pipeline output (e.g. ``hand_left``, ``hand_right``) for visualizers and
+  other consumers.
+
+* Session lifecycle now passes through additional pipeline outputs (e.g. ``hand_left``,
+  ``hand_right``) when the pipeline exposes them via ``output_types``, so environments can
+  enable hand visualization without changing core teleop code.
+
+* Added ``--enable_visualization`` CLI flag to ``teleop_se3_agent.py`` and ``record_demos.py``
+  to enable optional debugging visualizations (e.g. hand joint markers) for environments that
+  support them.
+
 0.3.1 (2026-02-26)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

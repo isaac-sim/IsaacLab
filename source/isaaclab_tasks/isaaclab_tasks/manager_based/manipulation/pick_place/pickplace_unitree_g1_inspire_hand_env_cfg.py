@@ -2,12 +2,14 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import logging
 import os
 import tempfile
 
 import torch
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.visualizers import HandJointVisualizer
 from isaaclab_teleop.xr_cfg import XrCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -31,14 +33,20 @@ from . import mdp
 
 from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
 
+logger = logging.getLogger(__name__)
 
-def _build_g1_inspire_pickplace_pipeline():
+
+def _build_g1_inspire_pickplace_pipeline(enable_visualization: bool = False):
     """Build an IsaacTeleop retargeting pipeline for Unitree G1 Inspire Hand pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
     two DexHandRetargeters for left and right dexterous hand finger control
     from hand tracking data. All outputs are flattened into a single action
     tensor via TensorReorderer.
+
+    Args:
+        enable_visualization: If True, the pipeline also exposes ``hand_left`` and
+            ``hand_right`` (HandInput TensorGroups) so callers can draw hand joint markers.
     """
     from isaacteleop.retargeters import (
         DexHandRetargeter,
@@ -254,7 +262,11 @@ def _build_g1_inspire_pickplace_pipeline():
         }
     )
 
-    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
+    output_mapping = {"action": connected_reorderer.output("output")}
+    if enable_visualization:
+        output_mapping["hand_left"] = transformed_hands.output(HandsSource.LEFT)
+        output_mapping["hand_right"] = transformed_hands.output(HandsSource.RIGHT)
+    pipeline = OutputCombiner(output_mapping)
     return pipeline
 
 
@@ -514,6 +526,9 @@ class EventCfg:
 class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
+    # When True, enable debugging visualizations (e.g. hand joint markers when pipeline exposes hand data).
+    enable_visualization: bool = False
+
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
@@ -602,7 +617,30 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_inspire_pickplace_pipeline,
+            pipeline_builder=lambda _s=self: _build_g1_inspire_pickplace_pipeline(
+                enable_visualization=_s.enable_visualization,
+            ),
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
+
+    def get_teleop_visualizers(self, teleop_interface):
+        """Return teleop visualizers to update each frame (e.g. hand joint markers).
+
+        Call :meth:`update` after each advance(), then call visualizer.update() for each returned object.
+
+        Returns:
+            List of visualizer objects with an update() method. Empty if
+            enable_visualization is False.
+        """
+        if not self.enable_visualization:
+            return []
+        visualizers = []
+        if HandJointVisualizer.supports(teleop_interface):
+            visualizers.append(HandJointVisualizer(teleop_interface))
+        else:
+            logger.error(
+                "Hand joint visualization enabled but teleop interface is not supported by HandJointVisualizer "
+                "(expected IsaacTeleopDevice with session lifecycle)"
+            )
+        return visualizers

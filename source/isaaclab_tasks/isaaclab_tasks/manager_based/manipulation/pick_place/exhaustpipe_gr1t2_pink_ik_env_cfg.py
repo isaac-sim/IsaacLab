@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
+
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.visualizers import HandJointVisualizer
 
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
@@ -16,9 +19,14 @@ from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cf
     _build_gr1t2_pickplace_pipeline,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @configclass
 class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
+    # When True, the teleop pipeline exposes hand_left/hand_right for debugging visualization.
+    enable_visualization: bool = False
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -129,7 +137,30 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
 
         # IsaacTeleop-based teleoperation pipeline.
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda _s=self: _build_gr1t2_pickplace_pipeline(
+                enable_visualization=_s.enable_visualization,
+            )[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
+
+    def get_teleop_visualizers(self, teleop_interface):
+        """Return teleop visualizers to update each frame (e.g. hand joint markers).
+
+        Call :meth:`update` after each advance(), then call visualizer.update() for each returned object.
+
+        Returns:
+            List of visualizer objects with an update() method. Empty if
+            enable_visualization is False.
+        """
+        if not self.enable_visualization:
+            return []
+        visualizers = []
+        if HandJointVisualizer.supports(teleop_interface):
+            visualizers.append(HandJointVisualizer(teleop_interface))
+        else:
+            logger.error(
+                "Hand joint visualization enabled but teleop interface is not supported by HandJointVisualizer "
+                "(expected IsaacTeleopDevice with session lifecycle)"
+            )
+        return visualizers

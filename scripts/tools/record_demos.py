@@ -64,6 +64,11 @@ parser.add_argument(
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
+parser.add_argument(
+    "--enable_visualization",
+    action="store_true",
+    help="Enable extra debugging visualizations for environment that support them.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -203,6 +208,10 @@ def create_environment_config(
 
     # Check if IsaacTeleop is configured
     use_isaac_teleop = hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
+
+    # Enable hand joint markers when requested (pipeline_builder reads enable_visualization at session start)
+    if args_cli.enable_visualization and hasattr(env_cfg, "enable_visualization"):
+        env_cfg.enable_visualization = True
 
     # extract success checking function to invoke in the main loop
     success_term = None
@@ -453,6 +462,7 @@ def run_simulation_loop(
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
     teleop_interface.add_callback("R", reset_recording_instance)
+    teleop_visualizers = getattr(env.cfg, "get_teleop_visualizers", lambda _: [])(teleop_interface)
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
@@ -475,6 +485,10 @@ def run_simulation_loop(
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
+
+                for v in teleop_visualizers:
+                    v.update()
+                    
                 if action is None:
                     env.sim.render()
                     continue
