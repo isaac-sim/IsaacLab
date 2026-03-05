@@ -70,6 +70,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+            if cfg.visualizer_clone_fn is not None:
+                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 # parse env_origins directly from clone_path
                 usd_replicate(stage, *replicate_args, positions=positions)
@@ -79,6 +81,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             replicate_args = selected_src, dest_paths, world_indices, clone_masking
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+            if cfg.visualizer_clone_fn is not None:
+                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
 
