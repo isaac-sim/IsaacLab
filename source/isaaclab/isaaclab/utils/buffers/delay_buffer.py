@@ -175,4 +175,4 @@ class DelayBuffer:
         self._circular_buffer.append(data)
         # return output
         delayed_data = self._circular_buffer[self._time_lags]
-        return delayed_data.clone()
+        return delayed_data
