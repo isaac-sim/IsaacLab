@@ -56,7 +56,7 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         src_paths, dest_paths, clone_masking = make_clone_plan(src, dest, num_clones, cfg.clone_strategy, cfg.device)
 
         # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
-        # will be served as sources for usd and physx replication.
+        # will be served as sources for usd and physics replication.
         proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
         proto_mask = torch.zeros_like(clone_masking)
         proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))

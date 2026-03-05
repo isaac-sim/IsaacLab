@@ -27,6 +27,11 @@ class BaseVisualizer(ABC):
 
     Lifecycle: __init__() -> initialize() -> step() (repeated) -> close()
     """
+    requires_newton_model: bool = False
+    """Whether this visualizer requires Newton model/state from SceneDataProvider."""
+
+    requires_usd_stage: bool = False
+    """Whether this visualizer requires direct USD stage access."""
 
     def __init__(self, cfg: VisualizerCfg):
         """Initialize visualizer with config."""
