@@ -109,12 +109,13 @@ class NewtonManager(PhysicsManager):
         if sim is not None:
             cls._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
 
-            # USD/Fabric sync only needed when Kit viewport is active.
-            # Parse mirrors SimulationContext._get_cli_visualizer_types (comma-and-space separated).
+            # USD/Fabric sync for Omniverse rendering (visualizer) or Newton+RTX (Kit cameras)
             viz_str = sim.get_setting("/isaaclab/visualizer") or ""
-            parts = [p.strip() for p in viz_str.split(",") if p.strip()]
-            requested = {v for part in parts for v in part.split() if v}
-            cls._clone_physics_only = "kit" not in requested
+            requested = [v.strip() for v in viz_str.split(",") if v.strip()]
+            from isaaclab.app.settings_manager import get_settings_manager
+
+            cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
+            cls._clone_physics_only = "kit" not in requested and not cameras_enabled
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -134,11 +135,12 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
-        """Write Newton body_q to USD Fabric world matrices for Kit viewport rendering.
+        """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
 
         No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active).
-        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider`
-        at render cadence, after forward kinematics have been evaluated.
+        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider` at render
+        cadence (Kit), and after each physics step when using Newton+RTX so the renderer sees
+        updated poses.
 
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
         The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
@@ -167,6 +169,11 @@ class NewtonManager(PhysicsManager):
                 device=PhysicsManager._device,
             )
             wp.synchronize_device(PhysicsManager._device)
+            if hasattr(usdrt, "hierarchy"):
+                fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                    cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
+                )
+                fabric_hierarchy.update_world_xforms()
         except Exception as exc:
             logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
 
@@ -183,9 +190,9 @@ class NewtonManager(PhysicsManager):
                 cls._solver.notify_model_changed(change)
             cls._model_changes = set()
 
-        # Step simulation (graphed or not)
+        # Step simulation (graphed or not; _graph is None when RTX/Fabric sync is active)
         cfg = PhysicsManager._cfg
-        if cfg is not None and cfg.use_cuda_graph:  # type: ignore[union-attr]
+        if cls._graph is not None:
             wp.capture_launch(cls._graph)  # type: ignore[arg-type]
         else:
             cls._simulate()
@@ -292,8 +299,11 @@ class NewtonManager(PhysicsManager):
         if not cls._clone_physics_only:
             import usdrt
 
+            body_paths = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
+            if body_paths is None:
+                raise RuntimeError("NewtonManager: model has no body_label/body_key, skipping USD/Fabric sync for RTX.")
             cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(cls._model.body_label):
+            for i, prim_path in enumerate(body_paths):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
@@ -407,11 +417,17 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         assert device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
 
+        # Skip CUDA graph when syncing to USD/Fabric for RTX: capture conflicts with RTX/Replicator
+        # using the legacy stream (cudaErrorStreamCaptureImplicit).
+        use_cuda_graph = cfg.use_cuda_graph and (cls._usdrt_stage is None)  # type: ignore[union-attr]
+
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-            if cfg.use_cuda_graph:  # type: ignore[union-attr]
+            if use_cuda_graph:
                 with wp.ScopedCapture() as capture:
                     cls._simulate()
                 cls._graph = capture.graph
+            else:
+                cls._graph = None
 
     @classmethod
     def _simulate(cls) -> None:
@@ -451,6 +467,10 @@ class NewtonManager(PhysicsManager):
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls._state_0, eval_contacts)
+
+        # Sync Newton state to USD/Fabric for RTX rendering (e.g., Newton Physics + RTX Renderer preset)
+        if cls._usdrt_stage is not None:
+            cls.sync_transforms_to_usd()
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:

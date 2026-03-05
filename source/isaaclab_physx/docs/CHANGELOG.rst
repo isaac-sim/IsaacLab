@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.6 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix asset writer methods in :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` to use public data
+  properties instead of internal timestamped buffer ``.data`` fields, removing
+  redundant manual timestamp updates.
+
+
 0.5.5 (2026-03-02)
 ~~~~~~~~~~~~~~~~~~
 

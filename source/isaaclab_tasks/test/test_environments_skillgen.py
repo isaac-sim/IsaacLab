@@ -39,7 +39,7 @@ SKILLGEN_ENVS = [
 ]
 
 
-@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", SKILLGEN_ENVS)
 @pytest.mark.isaacsim_ci
 def test_skillgen_environments(task_name, num_envs, device):

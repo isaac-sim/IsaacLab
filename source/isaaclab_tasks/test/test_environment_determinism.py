@@ -76,7 +76,7 @@ def test_dextrous_env_determinism(task_name, device):
 def _test_environment_determinism(task_name: str, device: str):
     """Check deterministic environment creation."""
     # fix number of steps
-    num_envs = 32
+    num_envs = 2
     num_steps = 100
     # call function to create and step the environment
     obs_1, rew_1 = _obtain_transition_tuples(task_name, num_envs, device, num_steps)

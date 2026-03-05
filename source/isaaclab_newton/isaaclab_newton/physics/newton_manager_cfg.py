@@ -93,6 +93,13 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     cone: str = "pyramidal"
     """The type of contact friction cone. Can be "pyramidal" or "elliptic"."""
 
+    ccd_iterations: int = 35
+    """Maximum iterations for convex collision detection (GJK/EPA).
+
+    Increase this if you see warnings about ``opt.ccd_iterations`` needing to be increased,
+    which typically occurs with complex collision geometries (e.g. multi-finger hands).
+    """
+
     ls_parallel: bool = False
     """Whether to use parallel line search."""
 

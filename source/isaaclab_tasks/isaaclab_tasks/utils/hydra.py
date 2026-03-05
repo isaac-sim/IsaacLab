@@ -206,7 +206,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
         agent_cfg_entry_point: Agent config entry point key
 
     Returns:
-        Decorated function receiving (env_cfg, agent_cfg, *args, **kwargs)
+        Decorated function receiving ``(env_cfg, agent_cfg, *args, **kwargs)``
     """
 
     def decorator(func):
@@ -248,7 +248,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     return decorator
 
 
-def _resolve_preset_defaults(cfg):
+def resolve_preset_defaults(cfg):
     """Replace PresetCfg fields with their 'default' value before serialization.
 
     This must be called before to_dict() so the hydra dict contains only the
@@ -258,7 +258,7 @@ def _resolve_preset_defaults(cfg):
     if isinstance(cfg, PresetCfg) and hasattr(cfg, "__dataclass_fields__"):
         default = getattr(cfg, "default", None)
         if default is not None:
-            return _resolve_preset_defaults(default)
+            return resolve_preset_defaults(default)
         return cfg
 
     for name in list(getattr(cfg, "__dataclass_fields__", {}).keys()):
@@ -270,9 +270,9 @@ def _resolve_preset_defaults(cfg):
             default = getattr(value, "default", None)
             if default is not None:
                 setattr(cfg, name, default)
-                _resolve_preset_defaults(default)
+                resolve_preset_defaults(default)
         elif hasattr(value, "__dataclass_fields__"):
-            _resolve_preset_defaults(value)
+            resolve_preset_defaults(value)
     return cfg
 
 
@@ -299,9 +299,9 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
 
     # Resolve PresetCfg defaults before serialization so to_dict() doesn't
     # include all preset alternatives in the hydra dict.
-    env_cfg = _resolve_preset_defaults(env_cfg)
+    env_cfg = resolve_preset_defaults(env_cfg)
     if agent_cfg is not None:
-        agent_cfg = _resolve_preset_defaults(agent_cfg)
+        agent_cfg = resolve_preset_defaults(agent_cfg)
 
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
