@@ -144,6 +144,11 @@ class SimulationContext:
 
             self.cfg.physics = PhysxCfg()
         self._physics = self.cfg.physics
+        # If physics is a PresetCfg wrapper (has a 'default' field but no 'class_type'),
+        # resolve to the default preset so downstream code always sees a concrete PhysicsCfg.
+        if not hasattr(self._physics, "class_type") and hasattr(self._physics, "default"):
+            self._physics = self._physics.default
+            self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
         self._apply_render_cfg_settings()
@@ -425,13 +430,14 @@ class SimulationContext:
 
     def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
         if self._scene_data_provider is None:
-            from .scene_data_providers import PhysxSceneDataProvider
+            if "newton" in self.physics_manager.__name__.lower():
+                from .scene_data_providers import NewtonSceneDataProvider
 
-            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-            # switch provider selection to route by physics backend:
-            # - Omni/PhysX -> PhysxSceneDataProvider
-            # - Newton/Warp -> NewtonSceneDataProvider
-            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage, self)
+            else:
+                from .scene_data_providers import PhysxSceneDataProvider
+
+                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property

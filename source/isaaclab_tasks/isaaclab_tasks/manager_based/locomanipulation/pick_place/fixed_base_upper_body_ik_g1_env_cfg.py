@@ -42,15 +42,15 @@ def _build_g1_upper_body_pipeline():
         OutputCombiner with a single "action" output containing the flattened
         28D action tensor: [left_wrist(7), right_wrist(7), hand_joints(14)].
     """
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-    from isaacteleop.retargeting_engine.retargeters import (
+    from isaacteleop.retargeters import (
         Se3AbsRetargeter,
         Se3RetargeterConfig,
         TensorReorderer,
         TriHandMotionControllerConfig,
         TriHandMotionControllerRetargeter,
     )
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
     # Create input sources (trackers are auto-discovered from pipeline)
@@ -379,8 +379,6 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
-        # scene settings
-        self.scene.replicate_physics = False
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501

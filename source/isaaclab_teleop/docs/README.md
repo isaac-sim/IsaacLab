@@ -1,6 +1,6 @@
 # Isaac Lab Teleop
 
-`isaaclab_teleop` integrates the [IsaacTeleop](https://github.com/isaac-sim/IsaacTeleop) retargeting
+`isaaclab_teleop` integrates the [IsaacTeleop](https://github.com/NVIDIA/IsaacTeleop) retargeting
 framework with Isaac Lab, providing a single teleoperation device class that manages OpenXR sessions,
 XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 
@@ -67,7 +67,7 @@ Create a function that builds your IsaacTeleop retargeting pipeline. The builder
 
 ```python
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.retargeters import (
+from isaacteleop.retargeters import (
     GripperRetargeter, Se3AbsRetargeter, TensorReorderer,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner

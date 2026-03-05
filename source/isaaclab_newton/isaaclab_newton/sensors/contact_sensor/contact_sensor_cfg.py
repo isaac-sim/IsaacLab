@@ -4,15 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
+from typing import TYPE_CHECKING
 
-from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
+from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
 from isaaclab.utils import configclass
 
-from .contact_sensor import ContactSensor
+if TYPE_CHECKING:
+    from .contact_sensor import ContactSensor
 
 
 @configclass
-class NewtonContactSensorCfg(ContactSensorCfg):
+class ContactSensorCfg(BaseContactSensorCfg):
     """Configuration for the Newton contact sensor with shape-level support.
 
     Extends :class:`ContactSensorCfg` with shape-level fields for finer-grained
@@ -34,7 +36,7 @@ class NewtonContactSensorCfg(ContactSensorCfg):
     :meth:`from_base_cfg`.
     """
 
-    class_type: type = ContactSensor
+    class_type: type["ContactSensor"] | str = "{DIR}.contact_sensor:ContactSensor"
 
     @property
     def sensor_body_prim_expr(self) -> str:
@@ -76,36 +78,35 @@ class NewtonContactSensorCfg(ContactSensorCfg):
     def __post_init__(self):
         if self.track_contact_points:
             warnings.warn(
-                "NewtonContactSensorCfg: 'track_contact_points' is not supported by the Newton backend. Ignoring.",
+                "ContactSensorCfg: 'track_contact_points' is not supported by the Newton backend. Ignoring.",
                 stacklevel=2,
             )
             self.track_contact_points = False
 
         if self.max_contact_data_count_per_prim is not None:
             warnings.warn(
-                "NewtonContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton"
-                " backend. Ignoring.",
+                "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend. Ignoring.",
                 stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
 
         if self.track_friction_forces:
             warnings.warn(
-                "NewtonContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring.",
+                "ContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring.",
                 stacklevel=2,
             )
             self.track_friction_forces = False
 
     @classmethod
-    def from_base_cfg(cls, base_cfg: ContactSensorCfg, **kwargs) -> "NewtonContactSensorCfg":
-        """Creates a :class:`NewtonContactSensorCfg` from an existing :class:`ContactSensorCfg`.
+    def from_base_cfg(cls, base_cfg: BaseContactSensorCfg, **kwargs) -> "ContactSensorCfg":
+        """Creates a :class:`ContactSensorCfg` from an existing :class:`ContactSensorCfg`.
 
         Args:
             base_cfg: The base contact sensor configuration to copy from.
             **kwargs: Newton-specific fields, e.g. ``filter_shape_prim_expr=["fingertip_.*"]``.
 
         Returns:
-            A new :class:`NewtonContactSensorCfg` instance.
+            A new :class:`ContactSensorCfg` instance.
 
         Raises:
             ValueError: If ``class_type`` is passed in keyword arguments.

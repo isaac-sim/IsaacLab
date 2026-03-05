@@ -5,10 +5,10 @@
 
 __all__ = [
     "ContactSensor",
-    "NewtonContactSensorCfg",
+    "ContactSensorCfg",
     "ContactSensorData",
 ]
 
 from .contact_sensor import ContactSensor
-from .contact_sensor_cfg import NewtonContactSensorCfg
+from .contact_sensor_cfg import ContactSensorCfg
 from .contact_sensor_data import ContactSensorData

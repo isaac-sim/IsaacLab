@@ -137,13 +137,12 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        # physics backend and clone fn (PhysX uses PhysxSchema/physx_replicate; Newton uses its own worlds)
-        self.physics_backend = self.sim.physics_manager.__name__
-        if "Physx" in self.physics_backend:
+        self.physics_backend = self.sim.physics_manager.__name__.lower()
+        if "physx" in self.physics_backend:
             from isaaclab_physx.cloner import physx_replicate
 
             physics_clone_fn = physx_replicate
-        elif "Newton" in self.physics_backend:
+        elif "newton" in self.physics_backend:
             from isaaclab_newton.cloner import newton_replicate
 
             physics_clone_fn = newton_replicate
@@ -178,7 +177,7 @@ class InteractiveScene:
             self._add_entities_from_cfg()
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
-            if self.cfg.filter_collisions and "Physx" in self.physics_backend:
+            if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -190,7 +189,7 @@ class InteractiveScene:
             may increase). Defaults to False.
         """
         # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
-        if self.cfg.replicate_physics and "Physx" in self.physics_backend:
+        if self.cfg.replicate_physics and "physx" in self.physics_backend:
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
@@ -673,6 +672,12 @@ class InteractiveScene:
         ]
 
         for asset_name, asset_cfg in ordered_items:
+            # Resolve old-style preset wrappers: configclass with a ``presets`` dict and a ``'default'`` key.
+            # These are multi-backend selector objects (e.g. VelocityEnvContactSensorCfg) that hold several
+            # alternative asset configs in a dict and are not themselves asset configs.
+            if hasattr(asset_cfg, "presets") and isinstance(asset_cfg.presets, dict) and "default" in asset_cfg.presets:
+                asset_cfg = asset_cfg.presets["default"]
+                setattr(self.cfg, asset_name, asset_cfg)
             # resolve prim_path with env regex
             if hasattr(asset_cfg, "prim_path"):
                 asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)

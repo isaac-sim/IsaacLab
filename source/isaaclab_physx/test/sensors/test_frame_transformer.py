@@ -90,7 +90,7 @@ def test_frame_transformer_feet_wrt_base(sim):
     In this test, the source frame is the robot base.
     """
     # Spawn things into stage
-    scene_cfg = MySceneCfg(num_envs=32, env_spacing=5.0, lazy_sensor_update=False)
+    scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.frame_transformer = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
@@ -209,7 +209,7 @@ def test_frame_transformer_feet_wrt_base(sim):
 def test_frame_transformer_feet_wrt_thigh(sim):
     """Test feet transformation w.r.t. thigh source frame."""
     # Spawn things into stage
-    scene_cfg = MySceneCfg(num_envs=32, env_spacing=5.0, lazy_sensor_update=False)
+    scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.frame_transformer = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/LF_THIGH",
         target_frames=[

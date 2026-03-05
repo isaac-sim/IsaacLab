@@ -30,7 +30,16 @@ parser.add_argument(
     "--benchmark_backend",
     type=str,
     default="omniperf",
-    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    choices=[
+        "json",
+        "osmo",
+        "omniperf",
+        "summary",
+        "LocalLogMetrics",
+        "JSONFileMetrics",
+        "OsmoKPIFile",
+        "OmniPerfKPIFile",
+    ],
     help="Benchmarking backend options, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
@@ -46,11 +55,18 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
+from scripts.benchmarks.utils import needs_kit
+
+_needs_kit = needs_kit(hydra_args)
+
 app_start_time_begin = time.perf_counter_ns()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+if _needs_kit:
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+else:
+    app_launcher = None
+    simulation_app = None
 
 app_start_time_end = time.perf_counter_ns()
 
@@ -63,6 +79,7 @@ from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
     get_backend_type,
+    get_preset_string,
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -85,17 +102,19 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils import hydra_task_config
 
 imports_time_end = time.perf_counter_ns()
 
 
 # Create the benchmark
+backend_type = get_backend_type(args_cli.benchmark_backend)
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_non_rl",
-    backend_type=get_backend_type(args_cli.benchmark_backend),
+    backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
+    frametime_recorders=backend_type in ("summary", "omniperf"),
     output_prefix=f"benchmark_non_rl_{args_cli.task}",
     workflow_metadata={
         "metadata": [
@@ -103,9 +122,9 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "num_frames", "data": args_cli.num_frames},
+            {"name": "presets", "data": get_preset_string(hydra_args)},
         ]
     },
-    frametime_recorders=True,
 )
 
 
@@ -129,9 +148,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_size = 1
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         world_size = int(os.getenv("WORLD_SIZE", 1))
-        world_rank = app_launcher.global_rank
+        world_rank = int(os.getenv("RANK", "0"))
 
     task_startup_time_begin = time.perf_counter_ns()
 
@@ -162,7 +181,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Run with continuous benchmark monitoring
     with BenchmarkMonitor(benchmark, interval=1.0):
-        while simulation_app.is_running():
+        while simulation_app is None or simulation_app.is_running():
             while num_frames < args_cli.num_frames:
                 # get upper and lower bounds of action space, sample actions randomly on this interval
                 action_high = 1
@@ -216,4 +235,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()

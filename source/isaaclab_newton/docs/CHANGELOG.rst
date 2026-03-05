@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+0.4.1 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix asset writer methods in :class:`~isaaclab_newton.assets.Articulation` and
+  :class:`~isaaclab_newton.assets.RigidObject` to use public data properties
+  instead of internal timestamped buffer ``.data`` fields, removing redundant
+  manual timestamp updates.
+
+
+0.4.0 (2026-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonManager` physics backend with
+  MuJoCo-Warp, XPBD, and Featherstone solvers, CUDA-graph support, and
+  backend-agnostic callback dispatch via :class:`~isaaclab.physics.PhysicsEvent`.
+
+Changed
+^^^^^^^
+
+* Implemented ``newton_replicate`` to build per-environment worlds from USD
+  prototypes using Newton's ``ModelBuilder``.
+
+* Renamed ``NewtonContactSensorCfg`` to ``ContactSensorCfg`` and made it
+  backend-agnostic with lazy ``class_type`` resolution.
+
+* Pinned ``mujoco-warp==3.5.0`` and ``warp-lang==1.12.0rc2`` in ``setup.py``.
+
+
 0.3.0 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
 

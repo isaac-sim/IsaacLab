@@ -16,7 +16,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
 
@@ -82,14 +82,13 @@ class AssetBase(ABC):
                 translation=self.cfg.init_state.pos,
                 orientation=self.cfg.init_state.rot,
             )
+            # check that prims exist
+            matching_prims = sim_utils.find_matching_prims(check_path)
+            if len(matching_prims) == 0:
+                raise RuntimeError(f"Could not find prim with path {check_path}.")
         else:
-            # asset should already exist at prim_path
+            # asset should exist at run time
             check_path = self.cfg.prim_path
-
-        # check that prims exist
-        matching_prims = sim_utils.find_matching_prims(check_path)
-        if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {check_path}.")
 
         # register various callback functions
         self._register_callbacks()
@@ -196,7 +195,7 @@ class AssetBase(ABC):
         if debug_vis:
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
-                if sim_ctx and "Physx" in sim_ctx.physics_manager.__name__:
+                if "physx" in sim_ctx.physics_manager.__name__.lower():
                     import omni.kit.app
 
                     app_interface = omni.kit.app.get_app_interface()
@@ -339,37 +338,37 @@ class AssetBase(ABC):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
         physics_mgr_cls = SimulationContext.instance().physics_manager
 
-        def safe_callback(callback_name, event, obj_ref):
-            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
-            try:
-                obj = obj_ref
-                getattr(obj, callback_name)(event)
-            except ReferenceError:
-                # Object has been deleted; ignore.
-                pass
-
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
 
+        def _invoke(callback_name, event):
+            getattr(obj_ref, callback_name)(event)
+
         # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
         self._initialize_handle = physics_mgr_cls.register_callback(
-            lambda payload, obj_ref=obj_ref: safe_callback("_initialize_callback", payload, obj_ref),
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
-            lambda payload, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", payload, obj_ref),
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
             PhysicsEvent.STOP,
             order=10,
         )
         # Optional: prim deletion (only supported by PhysX backend)
         self._prim_deletion_handle = None
-        physics_backend = physics_mgr_cls.__name__
-        if "Physx" in physics_backend:
+        physics_backend = physics_mgr_cls.__name__.lower()
+        if "physx" in physics_backend:
             from isaaclab_physx.physics import IsaacEvents
 
             self._prim_deletion_handle = physics_mgr_cls.register_callback(
-                lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+                lambda event: PhysicsManager.safe_callback_invoke(
+                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                ),
                 IsaacEvents.PRIM_DELETION,
             )
 
@@ -383,18 +382,7 @@ class AssetBase(ABC):
         if not self._is_initialized:
             self._backend = SimulationContext.instance().physics_manager.get_backend()
             self._device = SimulationContext.instance().physics_manager.get_device()
-            try:
-                self._initialize_impl()
-            except Exception as e:
-                store_fn = getattr(
-                    SimulationContext.instance().physics_manager,
-                    "store_callback_exception",
-                    None,
-                )
-                if callable(store_fn):
-                    store_fn(e)
-                else:
-                    raise
+            self._initialize_impl()
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):

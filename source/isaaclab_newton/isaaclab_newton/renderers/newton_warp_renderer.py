@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import newton
 import torch
@@ -149,6 +149,11 @@ class NewtonWarpRenderer(BaseRenderer):
     def __init__(self, cfg: NewtonWarpRendererCfg):
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
 
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """No-op for Newton Warp - uses Newton scene directly without stage export.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+        pass
+
     def create_render_data(self, sensor: SensorBase) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
@@ -172,7 +177,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        self.newton_sensor.render(
+        self.newton_sensor.update(
             self.get_scene_data_provider().get_newton_state(),
             render_data.camera_transforms,
             render_data.camera_rays,

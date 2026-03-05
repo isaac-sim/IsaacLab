@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.1 (2026-03-01)
+4.5.3 (2026-03-01)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -11,6 +11,65 @@ Changed
   (``s``/``ms``/``us``/``ns``), global enable/disable toggle, display output
   control, and ``wp.synchronize()`` before stopping to ensure accurate
   GPU timing.
+
+
+4.5.2 (2026-03-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.test.benchmark.backends.SummaryMetrics` backend for benchmarks:
+  prints a human-readable boxed summary to the console while still writing full JSON output.
+  Use ``--benchmark_backend summary`` in benchmark scripts.
+
+Fixed
+^^^^^
+
+* Fixed runtime stats in benchmark scripts so FPS metrics (e.g. Collection FPS, Total FPS)
+  are labeled with unit "FPS" instead of "ms". Unit is now inferred from the me
+  name in ``log_min_max_mean_stats`` (benchmark utils).
+
+* Enabled frametime recorders for the ``omniperf`` backend in benchmark scripts to
+  preserve Grafana metrics ingestion.
+
+
+4.5.1 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added interface-conformance test suites that verify data property shapes/dtypes, writer
+  methods, setters, and alias consistency across Mock and PhysX backends:
+
+  - ``test/assets/test_articulation_iface.py`` for
+    :class:`~isaaclab.assets.BaseArticulation`.
+  - ``test/assets/test_rigid_object_iface.py`` for
+    :class:`~isaaclab.assets.BaseRigidObject`.
+  - ``test/assets/test_rigid_object_collection_iface.py`` for
+    :class:`~isaaclab.assets.BaseRigidObjectCollection`.
+
+Fixed
+^^^^^
+
+* Fixed structured warp types in ``MockArticulationData``, ``MockRigidObjectData``, and
+  ``MockRigidObjectCollectionData``: velocity, acceleration, and limit properties now
+  return the correct structured dtypes (``wp.spatial_vectorf``, ``wp.vec2f``, etc.) and
+  sliced velocity properties use zero-copy pointer arithmetic instead of torch-based
+  slicing, matching the PhysX backend contract.
+
+* Added shape and dtype validation to all ``_index`` / ``_mask`` writer methods in
+  ``MockArticulation``, ``MockRigidObject``, and ``MockRigidObjectCollection``, replacing
+  bare ``pass`` stubs.
+
+* Fixed ``set_coms_index`` / ``set_coms_mask`` docstrings in
+  :class:`~isaaclab.assets.BaseArticulation` to document the correct dtype
+  (``wp.transformf``) and frame of reference (body link frame).
+
+* Fixed XR instruction widget for Fabric and switch to current scene view APIs.
+
+* Fixed session lifecycle pre-shutdown by removing invalid unsubscribe() call.
 
 
 4.5.0 (2026-02-27)
@@ -35,6 +94,7 @@ Changed
   :class:`~isaaclab.utils.string.ResolvableString`, and updated MDP
   exports/import boundaries so ``test_env_cfg_no_forbidden_imports.py`` passes
   without importing runtime modules.
+
 
 4.3.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
@@ -346,7 +406,6 @@ Added
 * Added shared warp math kernels in :mod:`isaaclab.utils.warp.kernels` for quaternion
   operations, coordinate transforms, and velocity computations.
 
-
 3.2.0 (2026-02-06)
 ~~~~~~~~~~~~~~~~~~
 
@@ -393,6 +452,7 @@ Added
   * ``json``: Full JSON output with all phases, measurements, and metadata.
   * ``osmo``: Osmo KPI format for CI/CD integration.
   * ``omniperf``: OmniPerf format for database upload.
+  * ``summary``: Human-readable console summary plus JSON output.
 
 * Added system recorders in :mod:`isaaclab.test.benchmark.recorders`:
 
@@ -409,11 +469,20 @@ Added
   * ``scripts/benchmarks/run_physx_benchmarks.sh``: PhysX micro-benchmarks.
   * ``scripts/benchmarks/run_training_benchmarks.sh``: RL training benchmarks.
 
+* Added fallback in :mod:`isaaclab.test.benchmark.benchmark_core` for Isaac Sim packaging that
+  bundles frametime recorders in a single module, so frametime collection works across variants.
+
 Changed
 ^^^^^^^
 
 * Refactored benchmark scripts to use new :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`
   class instead of ``isaacsim.benchmark.services``.
+
+Fixed
+^^^^^
+
+* Fixed runtime stats in ``log_min_max_mean_stats`` (``scripts/benchmarks/utils.py``) so FPS
+  metrics are labeled with unit ``FPS`` and time metrics with ``ms`` instead of all being ``ms``.
 
 Removed
 ^^^^^^^

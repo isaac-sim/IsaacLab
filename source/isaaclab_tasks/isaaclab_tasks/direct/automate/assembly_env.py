@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
-import os
 
 import numpy as np
 import torch
@@ -198,13 +197,13 @@ class AssemblyEnv(DirectRLEnv):
     def _load_assembly_info(self):
         """Load grasp pose and disassembly distance for plugs in each environment."""
 
-        retrieve_file_path(self.cfg_task.plug_grasp_json, download_dir="./")
-        with open(os.path.basename(self.cfg_task.plug_grasp_json)) as f:
+        plug_grasp_path = retrieve_file_path(self.cfg_task.plug_grasp_json)
+        with open(plug_grasp_path) as f:
             plug_grasp_dict = json.load(f)
         plug_grasps = [plug_grasp_dict[f"asset_{self.cfg_task.assembly_id}"] for i in range(self.num_envs)]
 
-        retrieve_file_path(self.cfg_task.disassembly_dist_json, download_dir="./")
-        with open(os.path.basename(self.cfg_task.disassembly_dist_json)) as f:
+        disassembly_dist_path = retrieve_file_path(self.cfg_task.disassembly_dist_json)
+        with open(disassembly_dist_path) as f:
             disassembly_dist_dict = json.load(f)
         disassembly_dists = [disassembly_dist_dict[f"asset_{self.cfg_task.assembly_id}"] for i in range(self.num_envs)]
 
@@ -226,8 +225,8 @@ class AssemblyEnv(DirectRLEnv):
     def _load_disassembly_data(self):
         """Load pre-collected disassembly trajectories (end-effector position only)."""
 
-        retrieve_file_path(self.cfg_task.disassembly_path_json, download_dir="./")
-        with open(os.path.basename(self.cfg_task.disassembly_path_json)) as f:
+        local_path = retrieve_file_path(self.cfg_task.disassembly_path_json, download_dir="./")
+        with open(local_path) as f:
             disassembly_traj = json.load(f)
 
         eef_pos_traj = []

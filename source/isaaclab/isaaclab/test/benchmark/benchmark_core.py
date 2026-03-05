@@ -111,7 +111,11 @@ class BaseIsaacLabBenchmark:
                 "VersionInfo": VersionInfoRecorder(),
             }
 
-            # If we're using Kit, then we can use IsaacSim's benchmark services to peak into the frametimes.
+            # "Kit-full" means Isaac Sim (Kit) runtime is available, so benchmark services can
+            # provide frametime recorders. "Kit-less" means those services are absent; we should
+            # gracefully skip or fall back while still allowing mixed modes (e.g., kit-full physics
+            # with kit-less rendering).
+            # If we're using Kit, then we can use IsaacSim's benchmark services to peek into the frametimes.
             if self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
@@ -119,15 +123,56 @@ class BaseIsaacLabBenchmark:
 
                     enable_extension("isaacsim.benchmark.services")
 
-                    from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
+                    added_any = False
 
-                    self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
-                    self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
-                    self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
-                    self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
+                    # Try individual recorders first so we can collect partial metrics when only some are available.
+                    try:
+                        from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
+
+                        self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
+                        added_any = True
+                    except (ImportError, Exception) as e:
+                        logger.debug(f"Physics frametime recorder unavailable: {e}")
+
+                    try:
+                        from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
+
+                        self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
+                        added_any = True
+                    except (ImportError, Exception) as e:
+                        logger.debug(f"Render frametime recorder unavailable: {e}")
+
+                    try:
+                        from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
+
+                        self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
+                        added_any = True
+                    except (ImportError, Exception) as e:
+                        logger.debug(f"App frametime recorder unavailable: {e}")
+
+                    try:
+                        from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
+
+                        self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
+                        added_any = True
+                    except (ImportError, Exception) as e:
+                        logger.debug(f"GPU frametime recorder unavailable: {e}")
+
+                    if not added_any:
+                        # Fallback for Isaac Sim packaging that bundles frametime recorders in a single module.
+                        try:
+                            from isaacsim.benchmark.services.datarecorders.interface import InputContext
+                            from isaacsim.benchmark.services.recorders import IsaacFrameTimeRecorder
+
+                            context = InputContext(phase="frametime")
+                            self._frametime_recorders["IsaacFrameTime"] = IsaacFrameTimeRecorder(
+                                context=context, gpu_frametime=False
+                            )
+                        except ImportError as e:
+                            logger.warning(
+                                "Could not import bundled frametime recorder: "
+                                f"{e}. Frametime measurements will not be available."
+                            )
                 except ImportError as e:
                     logger.warning(
                         f"Could not import kit recorders: {e}. Kit related measurements will not be available."

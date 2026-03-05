@@ -39,15 +39,15 @@ def _build_gr1t2_pickplace_pipeline():
     from hand tracking data. All outputs are flattened into a single action
     tensor via TensorReorderer.
     """
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-    from isaacteleop.retargeting_engine.retargeters import (
+    from isaacteleop.retargeters import (
         DexHandRetargeter,
         DexHandRetargeterConfig,
         Se3AbsRetargeter,
         Se3RetargeterConfig,
         TensorReorderer,
     )
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
     # Create input sources (trackers are auto-discovered from pipeline)
@@ -596,8 +596,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
-        # scene settings
-        self.scene.replicate_physics = False
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path

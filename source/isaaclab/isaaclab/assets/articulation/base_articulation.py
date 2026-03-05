@@ -1174,7 +1174,7 @@ class BaseArticulation(AssetBase):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set center of mass positions of all bodies in the simulation world frame.
+        """Set center of mass pose of all bodies in their respective body link frames.
 
         .. note::
             This method expects partial data.
@@ -1184,10 +1184,10 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3)
-                or (len(env_ids), len(body_ids)) with dtype wp.vec3f.
-            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7)
+                or (len(env_ids), len(body_ids)) with dtype wp.transformf.
+            body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass pose for. Defaults to None
                 (all instances).
         """
         raise NotImplementedError()
@@ -1200,7 +1200,7 @@ class BaseArticulation(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set center of mass positions of all bodies in the simulation world frame.
+        """Set center of mass pose of all bodies in their respective body link frames.
 
         .. note::
             This method expects full data.
@@ -1210,8 +1210,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
-                or (num_instances, num_bodies) with dtype wp.vec3f.
+            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all the bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """

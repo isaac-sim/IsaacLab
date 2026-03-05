@@ -9,15 +9,17 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
+import torch
 import warp as wp
 from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
-from isaaclab.utils.helpers import deprecated
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -30,9 +32,9 @@ from .contact_sensor_kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
+    from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
 
-    from .contact_sensor_cfg import NewtonContactSensorCfg
+    from .contact_sensor_cfg import ContactSensorCfg
 
 logger = logging.getLogger(__name__)
 
@@ -50,23 +52,23 @@ class ContactSensor(BaseContactSensor):
     .. _Newton SensorContact: https://newton-physics.github.io/newton/api/_generated/newton.sensors.SensorContact.html
     """
 
-    cfg: NewtonContactSensorCfg
+    cfg: ContactSensorCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: ContactSensorCfg | NewtonContactSensorCfg):
+    def __init__(self, cfg: BaseContactSensorCfg | ContactSensorCfg):
         """Initializes the contact sensor object.
 
         Args:
             cfg: The configuration parameters.
         """
-        from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
+        from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
 
-        from .contact_sensor_cfg import NewtonContactSensorCfg
+        from .contact_sensor_cfg import ContactSensorCfg
 
-        if isinstance(cfg, NewtonContactSensorCfg):
+        if isinstance(cfg, ContactSensorCfg):
             pass
-        elif isinstance(cfg, ContactSensorCfg):
-            cfg = NewtonContactSensorCfg.from_base_cfg(cfg)
+        elif isinstance(cfg, BaseContactSensorCfg):
+            cfg = ContactSensorCfg.from_base_cfg(cfg)
         else:
             raise TypeError(f"Invalid config: {cfg}")
 
@@ -74,6 +76,12 @@ class ContactSensor(BaseContactSensor):
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
+        # Defaults used before full initialization completes.
+        self._num_sensors: int = 0
+        self._sensor_names: list[str] = []
+        self._filter_object_names: list[str] = []
+        self._num_filter_objects: int = 0
+        self._init_error: str | None = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -136,9 +144,24 @@ class ContactSensor(BaseContactSensor):
         if env_ids is None and env_mask is None:
             env_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
         elif env_mask is None:
-            from isaaclab.utils.warp.utils import make_mask_from_torch_ids
-
-            env_mask = make_mask_from_torch_ids(self._num_envs, env_ids, device=self._device)
+            if isinstance(env_ids, torch.Tensor):
+                env_ids_torch = env_ids.to(device=self._device, dtype=torch.long).reshape(-1)
+                mask_torch = torch.zeros(self._num_envs, dtype=torch.bool, device=self._device)
+                if env_ids_torch.numel() > 0:
+                    mask_torch[env_ids_torch] = True
+                env_mask = wp.from_torch(mask_torch, dtype=wp.bool)
+            elif isinstance(env_ids, wp.array):
+                env_ids_np = np.asarray(env_ids.numpy(), dtype=np.int64).reshape(-1)
+                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
+                if env_ids_np.size > 0:
+                    mask_np[env_ids_np] = True
+                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
+            else:
+                env_ids_np = np.asarray(env_ids, dtype=np.int64).reshape(-1)
+                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
+                if env_ids_np.size > 0:
+                    mask_np[env_ids_np] = True
+                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
 
         # Compute num_filter_objects
         num_filter_objects = self._num_filter_objects
@@ -164,9 +187,7 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def find_sensors(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[wp.array, list[str], list[int]]:
+    def find_sensors(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find sensors based on the name keys.
 
         Args:
@@ -174,11 +195,17 @@ class ContactSensor(BaseContactSensor):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple containing the sensor mask (wp.array), names (list[str]), and indices (list[int]).
+            A tuple containing the sensor indices and names.
         """
-        indices, names = string_utils.resolve_matching_names(name_keys, self.sensor_names, preserve_order)
-        mask = wp.array([name in names for name in self.sensor_names], dtype=wp.bool, device=self._device)
-        return mask, names, indices
+        sensor_names = self.sensor_names
+        if not sensor_names:
+            if self._init_error is not None:
+                raise ValueError(f"ContactSensor initialization failed: {self._init_error}")
+            raise ValueError(
+                "ContactSensor metadata is unavailable. Expected sensor names to be populated during"
+                " PHYSICS_READY initialization."
+            )
+        return string_utils.resolve_matching_names(name_keys, sensor_names, preserve_order)
 
     def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
         """Checks if sensors that have established contact within the last :attr:`dt` seconds.
@@ -276,15 +303,23 @@ class ContactSensor(BaseContactSensor):
 
         self._generate_force_matrix = bool(self.cfg.filter_prim_paths_expr or self.cfg.filter_shape_prim_expr)
 
-        self._sensor_key = NewtonManager.add_contact_sensor(
-            body_names_expr=self.cfg.prim_path if not self.cfg.sensor_shape_prim_expr else None,
-            shape_names_expr=self.cfg.sensor_shape_prim_expr or None,
-            contact_partners_body_expr=self.cfg.filter_prim_paths_expr or None,
-            contact_partners_shape_expr=self.cfg.filter_shape_prim_expr or None,
-            prune_noncolliding=True,
-        )
+        try:
+            self._sensor_key = NewtonManager.add_contact_sensor(
+                body_names_expr=self.cfg.prim_path if not self.cfg.sensor_shape_prim_expr else None,
+                shape_names_expr=self.cfg.sensor_shape_prim_expr or None,
+                contact_partners_body_expr=self.cfg.filter_prim_paths_expr or None,
+                contact_partners_shape_expr=self.cfg.filter_shape_prim_expr or None,
+                prune_noncolliding=True,
+            )
 
-        self._create_buffers()
+            self._create_buffers()
+            self._init_error = None
+        except Exception as err:
+            self._init_error = (
+                f"failed to initialize contact sensor for prim path '{self.cfg.prim_path}'"
+                f" with sensor shape expr '{self.cfg.sensor_shape_prim_expr}': {err}"
+            )
+            raise RuntimeError(self._init_error) from err
 
     def _create_buffers(self):
         # Get Newton sensor shape: (n_sensors * n_envs, n_counterparts)
@@ -299,15 +334,25 @@ class ContactSensor(BaseContactSensor):
                 "Number of sensors is not an integer multiple of the number of environments. Received:"
                 f" {newton_shape[0]} sensors across {self._num_envs} environments."
             )
+        if self._num_sensors == 0:
+            raise RuntimeError(
+                "Contact sensor matched zero sensing objects. This usually indicates a prim-path pattern mismatch"
+                f" for expression '{self.cfg.prim_path}'."
+            )
         logger.info(f"Contact sensor initialized with {self._num_sensors} sensors.")
 
         # Assume homogeneous envs, i.e. all envs have the same number of sensors
         # Only get the names for the first env. Expected structure: /World/envs/env_.*/...
-        def get_name(idx, match_kind):
-            if match_kind == NewtonContactSensor.MatchKind.BODY:
-                return NewtonManager._model.body_label[idx].split("/")[-1]
-            if match_kind == NewtonContactSensor.MatchKind.SHAPE:
-                return NewtonManager._model.shape_label[idx].split("/")[-1]
+        body_labels = self._get_model_labels("body")
+        shape_labels = self._get_model_labels("shape")
+
+        def get_name(idx, kind):
+            kind_name = getattr(kind, "name", None)
+            kind_value = getattr(kind, "value", kind)
+            if kind_name == "BODY" or kind_value == 2:
+                return body_labels[idx].split("/")[-1]
+            if kind_name == "SHAPE" or kind_value == 1:
+                return shape_labels[idx].split("/")[-1]
             return "MATCH_ANY"
 
         self._sensor_names = [get_name(idx, kind) for idx, kind in self.contact_view.sensing_objs]
@@ -340,6 +385,18 @@ class ContactSensor(BaseContactSensor):
             self.cfg.track_pose,
             self._device,
         )
+
+    def _get_model_labels(self, kind: str) -> list[str]:
+        """Return Newton model labels in a version-compatible way."""
+        model = NewtonManager._model
+        primary = f"{kind}_label"
+        fallback = f"{kind}_key"
+        labels = getattr(model, primary, None)
+        if labels is None:
+            labels = getattr(model, fallback, None)
+        if labels is None:
+            raise RuntimeError(f"Newton model does not expose '{primary}' or '{fallback}'.")
+        return list(labels)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data.
@@ -411,6 +468,10 @@ class ContactSensor(BaseContactSensor):
     """
 
     @property
-    @deprecated("use sensor_names")
     def body_names(self) -> list[str] | None:
+        warnings.warn(
+            "ContactSensor.body_names is deprecated; use ContactSensor.sensor_names instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.sensor_names

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -19,11 +20,31 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.classic.humanoid.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
+
+
+@configclass
+class AntPhysicsCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=38,
+            nconmax=15,
+            ls_iterations=20,
+            cone="pyramidal",
+            ls_parallel=True,
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
 
 
 @configclass
@@ -104,6 +125,40 @@ class ObservationsCfg:
 
 
 @configclass
+class _AntNewtonObservationsCfg:
+    """Newton-compatible observations: excludes feet_body_forces (not implemented in Newton)."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for the policy."""
+
+        base_height = ObsTerm(func=mdp.base_pos_z)
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        base_yaw_roll = ObsTerm(func=mdp.base_yaw_roll)
+        base_angle_to_target = ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
+        base_up_proj = ObsTerm(func=mdp.base_up_proj)
+        base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
+        joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2)
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class AntObservationsCfg(PresetCfg):
+    default: ObservationsCfg = ObservationsCfg()
+    physx: ObservationsCfg = ObservationsCfg()
+    newton: _AntNewtonObservationsCfg = _AntNewtonObservationsCfg()
+
+
+@configclass
 class EventCfg:
     """Configuration for events."""
 
@@ -164,7 +219,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
+    observations: AntObservationsCfg = AntObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
@@ -179,7 +234,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
+        self.sim.physics = AntPhysicsCfg()
         # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0

@@ -5,6 +5,9 @@
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -18,11 +21,37 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
+
+
+##
+# Physics backend presets
+##
+
+
+@configclass
+class CartpolePhysicsCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg()
+    physx: PhysxCfg = PhysxCfg()
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            ls_iterations=10,
+            cone="pyramidal",
+            impratio=1,
+            ls_parallel=True,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
 
 
 ##
@@ -179,3 +208,4 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
+        self.sim.physics = CartpolePhysicsCfg()

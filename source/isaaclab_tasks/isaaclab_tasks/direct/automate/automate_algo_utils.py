@@ -24,9 +24,8 @@ Util Functions
 
 
 def get_gripper_open_width(obj_filepath):
-    retrieve_file_path(obj_filepath, download_dir="./")
-    obj_mesh = trimesh.load_mesh(os.path.basename(obj_filepath))
-    # obj_mesh = trimesh.load_mesh(obj_filepath)
+    local_path = retrieve_file_path(obj_filepath, download_dir="./")
+    obj_mesh = trimesh.load_mesh(local_path)
     aabb = obj_mesh.bounds
 
     return min(0.04, (aabb[1][1] - aabb[0][1]) / 1.25)

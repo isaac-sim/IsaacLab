@@ -152,7 +152,9 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
+        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
+        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -160,6 +162,14 @@ class TiledCamera(Camera):
 
         # Initialize parent class
         SensorBase._initialize_impl(self)
+
+        self.renderer = Renderer(self.cfg.renderer_cfg)
+        logger.info("Using renderer: %s", type(self.renderer).__name__)
+
+        # Stage preprocessing needs to happen before creating the view because
+        # the view keeps references to the prims located in the stage
+        self.renderer.prepare_stage(self.stage, self._num_envs)
+
         # Create a view for the sensor
         self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
@@ -184,10 +194,7 @@ class TiledCamera(Camera):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        # Create renderer after scene is ready (post-cloning) so world_count is correct
-        self.renderer = Renderer(self.cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self.renderer).__name__)
-
+        # View needs to exist before creating render data
         self.render_data = self.renderer.create_render_data(self)
 
         # Create internal buffers
