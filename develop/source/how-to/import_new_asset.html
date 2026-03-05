@@ -736,13 +736,21 @@ For more details on instanceable assets, please check the Isaac Sim <a class="re
 <h2>Using URDF Importer<a class="headerlink" href="#using-urdf-importer" title="Permalink to this heading">#</a></h2>
 <p>For using the URDF importer in the GUI, please check the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html">URDF importer</a>. For using the URDF importer from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>. This script creates an instance of <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> which
 is then passed to the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter" title="isaaclab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> class.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The URDF importer was upgraded to version 3.0 in Isaac Sim 6, replacing the previous C++
+binding-based API with a Python pipeline (<code class="docutils literal notranslate"><span class="pre">urdf-usd-converter</span></code>). Assets are now made
+instanceable by default — <code class="docutils literal notranslate"><span class="pre">make_instanceable</span></code> is no longer a configuration option.
+See the <a class="reference internal" href="../migration/migrating_to_isaaclab_3-0.html"><span class="doc">Migrating to Isaac Lab 3.0</span></a> for a full list of breaking changes.</p>
+</div>
 <p>The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
 The default values for the importer’s configuration parameters are specified are in the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html">URDF importer</a>.</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.fix_base" title="isaaclab.sim.converters.UrdfConverterCfg.fix_base"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base</span></code></a> * - Whether to fix the base of the robot.
 This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
 <code class="docutils literal notranslate"><span class="pre">--fix-base</span></code> where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.</p></li>
-<li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.root_link_name" title="isaaclab.sim.converters.UrdfConverterCfg.root_link_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_link_name</span></code></a> - The link on which the PhysX articulation root is placed.</p></li>
+<li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.root_link_name" title="isaaclab.sim.converters.UrdfConverterCfg.root_link_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_link_name</span></code></a> - The link on which the PhysX articulation root is placed.
+<strong>Deprecated in URDF importer 3.0</strong> — this option is ignored.</p></li>
 <li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="isaaclab.sim.converters.UrdfConverterCfg.merge_fixed_joints"><code class="xref py py-attr docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code></a> * - Whether to merge the fixed joints.
 Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to reduce the asset complexity. The command-line flag is
 <code class="docutils literal notranslate"><span class="pre">--merge-joints</span></code> where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.</p></li>
@@ -758,7 +766,8 @@ We support two ways to set the gains:</p>
 <ul>
 <li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">PDGainsCfg</span></code></a> - To directly set the stiffness and damping.</p></li>
 <li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg" title="isaaclab.sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code></a> - To set the gains using the
-desired natural frequency response of the system.</p></li>
+desired natural frequency response of the system. <strong>Deprecated in URDF importer 3.0</strong> — use
+<code class="docutils literal notranslate"><span class="pre">PDGainsCfg</span></code> instead.</p></li>
 </ul>
 </li>
 </ul>
@@ -776,8 +785,11 @@ pre-processed URDF and the original URDF are:</p>
 <li><p>We removed various collision bodies from the URDF to reduce the complexity of the asset.</p></li>
 <li><p>We changed all the joint’s damping and friction parameters to <code class="docutils literal notranslate"><span class="pre">0.0</span></code>. This ensures that we can perform
 effort-control on the joints without PhysX adding additional damping.</p></li>
-<li><p>We added the <code class="docutils literal notranslate"><span class="pre">&lt;dont_collapse&gt;</span></code> tag to fixed joints. This ensures that the importer does
-not merge these fixed joints.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">&lt;dont_collapse&gt;</span></code> URDF tag is <strong>no longer supported</strong> in URDF importer 3.0. Fixed joint
+merging is now a Python pre-processing step that merges all fixed joints when
+<code class="docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code> is enabled. If you need to preserve a specific fixed joint, disable
+<code class="docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code> entirely or restructure the URDF to use a non-fixed joint type
+(e.g. revolute with zero-range limits).</p></li>
 </ul>
 <p>The following shows the steps to clone the repository and run the converter:</p>
 <div class="sd-tab-set docutils">
@@ -792,7 +804,7 @@ git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-orb
 <span class="c1"># run the converter</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/convert_urdf.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>../anymal_d_simple_description/urdf/anymal.urdf<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>source/isaaclab_assets/data/Robots/ANYbotics/<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--merge-joints<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--joint-stiffness<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--joint-damping<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span><span class="se">\</span>
@@ -811,7 +823,7 @@ git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
 <span class="p">:</span><span class="c1">: run the converter</span>
 isaaclab.bat -p scripts\tools\convert_urdf.py <span class="se">^</span>
 <span class="se"> </span> ..\anymal_d_simple_description\urdf\anymal.urdf <span class="se">^</span>
-<span class="se"> </span> source\isaaclab_assets\data\Robots\ANYbotics\anymal_d.usd <span class="se">^</span>
+<span class="se"> </span> source\isaaclab_assets\data\Robots\ANYbotics\ <span class="se">^</span>
 <span class="se"> </span> --merge-joints <span class="se">^</span>
 <span class="se"> </span> --joint-stiffness 0.0 <span class="se">^</span>
 <span class="se"> </span> --joint-damping 0.0 <span class="se">^</span>
@@ -821,9 +833,10 @@ isaaclab.bat -p scripts\tools\convert_urdf.py <span class="se">^</span>
 </div>
 </div>
 <p>Executing the above script will create a USD file inside the
-<code class="docutils literal notranslate"><span class="pre">source/isaaclab_assets/data/Robots/ANYbotics/</span></code> directory:</p>
+<code class="docutils literal notranslate"><span class="pre">source/isaaclab_assets/data/Robots/ANYbotics/anymal/</span></code> directory (the subdirectory name
+is derived automatically from the robot name in the URDF):</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">anymal_d.usd</span></code> - This is the main asset file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">anymal.usda</span></code> - This is the main asset file.</p></li>
 </ul>
 <p>To run the script headless, you can add the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> flag. This will not open the GUI and
 exit the script after the conversion is complete.</p>
