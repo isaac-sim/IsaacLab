@@ -4,7 +4,7 @@ Renderers
 =========
 
 Isaac Lab uses a pluggable renderer architecture to support different rendering backends for camera sensors.
-The :class:`~isaaclab.renderers.BaseRenderer` abstract base class defines the interface that all renderer 
+The :class:`~isaaclab.renderers.BaseRenderer` abstract base class defines the interface that all renderer
 implementations must follow.
 
 Architecture Overview
