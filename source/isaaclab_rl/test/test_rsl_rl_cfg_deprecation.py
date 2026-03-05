@@ -14,17 +14,9 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import sys
 from dataclasses import MISSING
-from pathlib import Path
 
 import pytest
-
-# Add scripts dir so we can import cli_args
-_SCRIPTS_DIR = str(Path(__file__).resolve().parents[3] / "scripts" / "reinforcement_learning" / "rsl_rl")
-sys.path.insert(0, _SCRIPTS_DIR)
-
-from cli_args import _is_missing, handle_deprecated_rsl_rl_cfg
 
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
@@ -38,6 +30,7 @@ from isaaclab_rl.rsl_rl import (
     RslRlPpoAlgorithmCfg,
     RslRlRNNModelCfg,
 )
+from isaaclab_rl.rsl_rl.utils import _is_missing, handle_deprecated_rsl_rl_cfg
 
 
 def _ppo_algo():
