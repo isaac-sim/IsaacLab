@@ -202,6 +202,7 @@ class NewtonViewerGL(ViewerGL):
 
 class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
+    requires_newton_model = True
 
     def __init__(self, cfg: NewtonVisualizerCfg):
         super().__init__(cfg)

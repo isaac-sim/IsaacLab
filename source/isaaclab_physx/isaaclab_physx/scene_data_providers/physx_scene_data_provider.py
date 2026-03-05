@@ -108,10 +108,15 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
+        from isaaclab.visualizers.visualizer import Visualizer
+
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
-        # TODO: Include renderer capability checks (not just visualizer types)
-        # when computing sync requirements in SimulationContext and pass them into the provider.
-        self._needs_newton_sync = bool({"newton", "rerun", "viser"} & viz_types)
+        self._needs_newton_sync = False
+        self._needs_usd_stage = False
+        for viz_type in sorted(v for v in viz_types if v):
+            needs_newton, needs_usd = Visualizer.get_requirements_for_type(viz_type)
+            self._needs_newton_sync |= needs_newton
+            self._needs_usd_stage |= needs_usd
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.

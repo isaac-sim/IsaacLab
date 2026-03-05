@@ -88,7 +88,7 @@ def _rename_builder_labels(
                     labels[k] = swap(labels[k], world_roots[world_id])
 
 
-def newton_replicate(
+def newton_physics_replicate(
     stage: Usd.Stage,
     sources: list[str],
     destinations: list[str],
@@ -119,7 +119,7 @@ def newton_replicate(
     return builder, stage_info
 
 
-def newton_visualizer_replicate(
+def newton_visualizer_prebuild(
     stage: Usd.Stage,
     sources: list[str],
     destinations: list[str],
@@ -133,7 +133,7 @@ def newton_visualizer_replicate(
 ):
     """Replicate a clone plan into a finalized Newton model/state for visualization.
 
-    Unlike :func:`newton_replicate`, this path does not mutate ``NewtonManager`` and is intended
+    Unlike :func:`newton_physics_replicate`, this path does not mutate ``NewtonManager`` and is intended
     for prebuilding visualizer-only artifacts that can be consumed by scene data providers.
     """
     builder, _ = _build_builder_from_mapping(

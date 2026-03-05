@@ -140,61 +140,15 @@ class InteractiveScene:
         self.sim.clear_newton_visualizer_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         visualizer_clone_fn = None
+        requested_viz_types = set(self.sim.resolve_visualizer_types())
         if "physx" in self.physics_backend:
             from isaaclab_physx.cloner import physx_replicate
 
             physics_clone_fn = physx_replicate
-            requested_viz_types = set(self.sim.resolve_visualizer_types())
-            if {"newton", "rerun"} & requested_viz_types:
-                try:
-                    from isaaclab_newton.cloner import newton_visualizer_replicate
-
-                    up_axis = UsdGeom.GetStageUpAxis(self.stage)
-
-                    def _visualizer_clone_fn(
-                        stage,
-                        sources,
-                        destinations,
-                        env_ids,
-                        mapping,
-                        positions=None,
-                        quaternions=None,
-                        device="cpu",
-                    ):
-                        model, state = newton_visualizer_replicate(
-                            stage,
-                            sources,
-                            destinations,
-                            env_ids,
-                            mapping,
-                            positions=positions,
-                            quaternions=quaternions,
-                            device=device,
-                            up_axis=up_axis,
-                        )
-                        rigid_body_paths = list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
-                        articulation_paths = list(
-                            getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
-                        )
-                        self.sim.set_newton_visualizer_artifact(
-                            model=model,
-                            state=state,
-                            rigid_body_paths=rigid_body_paths,
-                            articulation_paths=articulation_paths,
-                            num_envs=int(mapping.size(1)),
-                        )
-
-                    visualizer_clone_fn = _visualizer_clone_fn
-                except (ImportError, ModuleNotFoundError) as e:
-                    print(e)
-                    import ipdb; ipdb.set_trace()
-                    logger.warning(
-                        "Newton visualizer artifact prebuild is unavailable because isaaclab_newton is not installed."
-                    )
         elif "newton" in self.physics_backend:
-            from isaaclab_newton.cloner import newton_replicate
+            from isaaclab_newton.cloner import newton_physics_replicate
 
-            physics_clone_fn = newton_replicate
+            physics_clone_fn = newton_physics_replicate
         else:
             raise ValueError(f"Unsupported physics backend: {self.physics_backend}")
         # physics scene path
@@ -207,7 +161,7 @@ class InteractiveScene:
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
             physics_clone_fn=physics_clone_fn,
-            visualizer_clone_fn=visualizer_clone_fn,
+            visualizer_clone_fn=None,
         )
 
         # create source prim
@@ -223,8 +177,28 @@ class InteractiveScene:
         )
 
         self._global_prim_paths = list()
-        if self._is_scene_setup_from_cfg():
+        has_scene_cfg_entities = self._is_scene_setup_from_cfg()
+        if has_scene_cfg_entities:
             self._add_entities_from_cfg()
+
+        requires_newton_model, requires_usd_stage, requirement_reasons = self._resolve_scene_data_requirements(
+            requested_viz_types
+        )
+        if "physx" in self.physics_backend and requires_newton_model:
+            visualizer_clone_fn = self._create_newton_visualizer_clone_fn()
+            if visualizer_clone_fn is None:
+                logger.warning(
+                    "Newton visualizer artifact prebuild is unavailable because isaaclab_newton is not installed."
+                )
+            else:
+                logger.debug(
+                    "Enabling Newton artifact prebuild for PhysX clone path (reasons=%s, requires_usd_stage=%s).",
+                    ", ".join(requirement_reasons),
+                    requires_usd_stage,
+                )
+                self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
+
+        if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
@@ -260,6 +234,82 @@ class InteractiveScene:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
                 self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
             cloner.usd_replicate(self.stage, *replicate_args)
+
+    def _create_newton_visualizer_clone_fn(self):
+        """Create clone callback that prebuilds Newton visualizer artifacts."""
+        try:
+            from isaaclab_newton.cloner import newton_visualizer_prebuild
+        except (ImportError, ModuleNotFoundError):
+            return None
+
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
+
+        def _visualizer_clone_fn(
+            stage,
+            sources,
+            destinations,
+            env_ids,
+            mapping,
+            positions=None,
+            quaternions=None,
+            device="cpu",
+        ):
+            model, state = newton_visualizer_prebuild(
+                stage,
+                sources,
+                destinations,
+                env_ids,
+                mapping,
+                positions=positions,
+                quaternions=quaternions,
+                device=device,
+                up_axis=up_axis,
+            )
+            rigid_body_paths = list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
+            articulation_paths = list(getattr(model, "articulation_label", None) or getattr(model, "articulation_key", []))
+            self.sim.set_newton_visualizer_artifact(
+                model=model,
+                state=state,
+                rigid_body_paths=rigid_body_paths,
+                articulation_paths=articulation_paths,
+                num_envs=int(mapping.size(1)),
+            )
+
+        return _visualizer_clone_fn
+
+    def _resolve_scene_data_requirements(self, requested_viz_types: set[str]) -> tuple[bool, bool, list[str]]:
+        """Resolve data requirements from visualizers and sensor renderers."""
+        from isaaclab.renderers.renderer import Renderer
+        from isaaclab.visualizers.visualizer import Visualizer
+
+        requires_newton_model = False
+        requires_usd_stage = False
+        reasons: list[str] = []
+
+        for visualizer_type in sorted(requested_viz_types):
+            needs_newton, needs_usd = Visualizer.get_requirements_for_type(visualizer_type)
+            requires_newton_model |= needs_newton
+            requires_usd_stage |= needs_usd
+            if needs_newton or needs_usd:
+                reasons.append(
+                    f"visualizer:{visualizer_type}(newton={needs_newton},usd={needs_usd})"
+                )
+
+        for sensor in self._sensors.values():
+            sensor_cfg = getattr(sensor, "cfg", None)
+            renderer_cfg = getattr(sensor_cfg, "renderer_cfg", None)
+            if renderer_cfg is None:
+                continue
+            renderer_type = getattr(renderer_cfg, "renderer_type", "default")
+            needs_newton, needs_usd = Renderer.get_requirements_for_type(renderer_type)
+            requires_newton_model |= needs_newton
+            requires_usd_stage |= needs_usd
+            if needs_newton or needs_usd:
+                reasons.append(
+                    f"renderer:{renderer_type}(newton={needs_newton},usd={needs_usd})"
+                )
+
+        return requires_newton_model, requires_usd_stage, reasons
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
