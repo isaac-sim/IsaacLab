@@ -625,5 +625,6 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         )
 
     def get_teleop_visualizers(self, teleop_interface):
-        """Return teleop visualizers to update each frame; see :func:`~isaaclab_teleop.visualizers.get_hand_joint_visualizers`."""
+        """Return teleop visualizers to update each frame; see
+        :func:`~isaaclab_teleop.visualizers.get_hand_joint_visualizers`."""
         return get_hand_joint_visualizers(self.enable_visualization, teleop_interface)
