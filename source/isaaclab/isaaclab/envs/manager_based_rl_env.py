@@ -271,7 +271,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if not self.sim.has_gui and not self.sim.has_offscreen_render:
+            # Use is_rendering which checks GUI, offscreen rendering, RTX sensors, or visualizers
+            if not self.sim.is_rendering:
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
                     " If running headless, make sure --enable_cameras is set."
