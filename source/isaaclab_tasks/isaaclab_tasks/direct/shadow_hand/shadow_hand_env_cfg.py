@@ -194,7 +194,7 @@ class ShadowHandRobotCfg(PresetCfg):
                     "robot0_THJ0": 0.1,
                 },
                 friction=1e-2,
-                armature=1e-3,
+                armature=2e-3,
             ),
         },
         soft_joint_pos_limit_factor=1.0,
