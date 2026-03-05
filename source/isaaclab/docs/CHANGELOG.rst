@@ -4,6 +4,14 @@ Changelog
 4.5.3 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 
+Added
+^^^^^
+
+* Added recursive resolution of nested :class:`~isaaclab.managers.ManagerTermBaseCfg` inside
+  :meth:`~isaaclab.managers.ManagerBase._resolve_param_value` so that ``params`` containing
+  manager term configs in dicts or lists have their ``func`` references and class-based
+  managers resolved automatically.
+
 Changed
 ^^^^^^^
 
