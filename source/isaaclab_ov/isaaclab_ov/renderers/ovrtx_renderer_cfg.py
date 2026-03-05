@@ -5,6 +5,9 @@
 
 """Configuration for OVRTX Renderer."""
 
+import tempfile
+from pathlib import Path
+
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 
@@ -29,7 +32,7 @@ class OVRTXRendererCfg(RendererCfg):
     Set to False to use full RTX path-traced rendering with LdrColor.
     """
 
-    temp_usd_dir: str = "/tmp/ovrtx_test"
+    temp_usd_dir: str = str(Path(tempfile.gettempdir()) / "ovrtx")
     """Directory for temporary combined USD files (scene + injected cameras).
     Used by the OVRTX renderer when building the render scope; must be writable.
     """
