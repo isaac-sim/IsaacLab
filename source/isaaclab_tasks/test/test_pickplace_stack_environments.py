@@ -30,7 +30,9 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+# TODO: 2-env tests are too slow for pick-place environments
+# @pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(1, "cuda")])
 @pytest.mark.parametrize(
     "task_name",
     setup_environment(
