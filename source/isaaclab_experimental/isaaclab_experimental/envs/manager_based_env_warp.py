@@ -37,6 +37,8 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
+from isaaclab_experimental.utils.warp import resolve_1d_mask
+
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -50,15 +52,6 @@ def initialize_rng_state(
 ):
     env_id = wp.tid()
     state[env_id] = wp.rand_init(seed, wp.int32(env_id))
-
-
-@wp.kernel
-def _generate_env_mask_from_ids_int32(
-    mask: wp.array(dtype=wp.bool),
-    env_ids: wp.array(dtype=wp.int32),
-):
-    i = wp.tid()
-    mask[env_ids[i]] = True
 
 
 class ManagerCallMode(IntEnum):
@@ -84,6 +77,10 @@ class ManagerCallSwitch:
         "RewardManager",
         "CurriculumManager",
     )
+    # FIXME: Scene_write_data_to_sim calls articulation._apply_actuator_model which
+    #  uses wp.to_torch + torch indexing — not capture-safe on this branch.
+    #  Cap Scene stages to WARP_NOT_CAPTURED until the articulation layer is capture-ready.
+    MAX_MODE_OVERRIDES: dict[str, int] = {"Scene": ManagerCallMode.WARP_NOT_CAPTURED}
 
     def __init__(self, cfg_source: str | None = None):
         self._wp_graphs: dict[str, Any] = {}
@@ -184,6 +181,15 @@ class ManagerCallSwitch:
                 raise ValueError(
                     f"Invalid manager_call_config value for '{manager_name}': {mode_value}. Expected 0/1/2."
                 ) from exc
+
+        # Apply MAX_MODE_OVERRIDES: bake caps into the resolved config so
+        # get_mode_for_manager never needs per-call branching.
+        default_mode = cfg[self.DEFAULT_KEY]
+        for name, max_mode in self.MAX_MODE_OVERRIDES.items():
+            resolved = cfg.get(name, default_mode)
+            if resolved > max_mode:
+                cfg[name] = max_mode
+
         return cfg
 
 
@@ -415,88 +421,14 @@ class ManagerBasedEnvWarp:
         env_ids: Sequence[int] | slice | wp.array | torch.Tensor | None = None,
         env_mask: wp.array | torch.Tensor | None = None,
     ) -> wp.array:
-        """Resolve environment ids/mask into a Warp boolean mask of shape ``(num_envs,)``.
-
-        Notes:
-        - Uses pre-allocated masks (`ALL_ENV_MASK`, `ENV_MASK`) to avoid allocations.
-        - Not thread-safe / re-entrant (intended for the manager-based execution model).
-        """
-        # --- Normalize mask (direct mask inputs) ---
-        # If an explicit mask is provided, normalize and return it.
-        if env_mask is not None:
-            if isinstance(env_mask, wp.array):
-                return env_mask
-            if isinstance(env_mask, torch.Tensor):
-                if env_mask.dtype != torch.bool:
-                    env_mask = env_mask.to(dtype=torch.bool)
-                if str(env_mask.device) != self.device:
-                    env_mask = env_mask.to(self.device)
-                return wp.from_torch(env_mask, dtype=wp.bool)
-            raise TypeError(f"Unsupported env_mask type: {type(env_mask)}")
-
-        # Fast path: all envs.
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self.ALL_ENV_MASK
-
-        # --- Prepare id list (normalize env_ids into indices) ---
-        # Normalize slice ids into explicit indices.
-        if isinstance(env_ids, slice):
-            start, stop, step = env_ids.indices(self.num_envs)
-            env_ids = list(range(start, stop, step))
-        # Normalize python sequences into a concrete list early (keeps control-flow linear).
-        elif not isinstance(env_ids, (torch.Tensor, wp.array)):
-            env_ids = list(env_ids)
-
-        # --- Resolve mask (ids -> ENV_MASK) ---
-        # Populate scratch mask.
-        self.ENV_MASK.fill_(False)
-
-        # ids provided as torch tensor
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.numel() == 0:
-                return self.ENV_MASK
-            if str(env_ids.device) != self.device:
-                env_ids = env_ids.to(self.device)
-            if env_ids.dtype != torch.int32:
-                env_ids = env_ids.to(dtype=torch.int32)
-            if not env_ids.is_contiguous():
-                env_ids = env_ids.contiguous()
-            ids_wp = wp.from_torch(env_ids, dtype=wp.int32)
-            wp.launch(
-                kernel=_generate_env_mask_from_ids_int32,
-                dim=ids_wp.shape[0],
-                inputs=[self.ENV_MASK, ids_wp],
-                device=self.device,
-            )
-            return self.ENV_MASK
-
-        # ids provided as Warp array
-        if isinstance(env_ids, wp.array):
-            if env_ids.dtype == wp.int32:
-                if env_ids.shape[0] == 0:
-                    return self.ENV_MASK
-                wp.launch(
-                    kernel=_generate_env_mask_from_ids_int32,
-                    dim=env_ids.shape[0],
-                    inputs=[self.ENV_MASK, env_ids],
-                    device=self.device,
-                )
-                return self.ENV_MASK
-            raise TypeError(
-                f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32 indices or wp.bool mask."
-            )
-
-        # ids provided as python sequence (already normalized to list above)
-        if len(env_ids) == 0:
-            return self.ENV_MASK
-        ids_wp = wp.array(env_ids, dtype=wp.int32, device=self.device)
-        wp.launch(
-            kernel=_generate_env_mask_from_ids_int32,
-            dim=ids_wp.shape[0],
-            inputs=[self.ENV_MASK, ids_wp],
+        """Resolve environment ids/mask into a Warp boolean mask of shape ``(num_envs,)``."""
+        return resolve_1d_mask(
+            ids=env_ids,
+            mask=env_mask,
+            all_mask=self.ALL_ENV_MASK,
+            scratch_mask=self.ENV_MASK,
             device=self.device,
         )
-        return self.ENV_MASK
 
     @property
     def get_IO_descriptors(self):

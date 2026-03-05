@@ -14,6 +14,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 
 from isaaclab_experimental.managers.action_manager import ActionTerm
+from isaaclab_experimental.utils.warp import resolve_1d_mask
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -111,7 +112,7 @@ class JointAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        _, self._joint_names, self._joint_ids = self._asset.find_joints(
+        self._joint_ids, self._joint_names = self._asset.find_joints(
             self.cfg.joint_names, preserve_order=self.cfg.preserve_order
         )
         self._num_joints = len(self._joint_ids)
@@ -125,14 +126,30 @@ class JointAction(ActionTerm):
         if self._num_joints == self._asset.num_joints and not self.cfg.preserve_order:
             self._joint_ids = slice(None)
 
-        # Pre-compute a per-term (non-shared) joint mask.
-        # NOTE: ArticulationData uses a shared scratch mask for ids->mask resolution, so we must clone the
-        # resolved mask to keep it stable when multiple action terms control different joint subsets.
-        self._joint_mask = wp.clone(self._asset.data.resolve_joint_mask(joint_ids=self._joint_ids))
+        # FIXME: ArticulationData.resolve_joint_mask is not available on this branch.
+        #  Port resolve_*_mask methods from dev/newton when articulation_data is aligned.
+        _all_joint_mask = wp.ones((self._asset.num_joints,), dtype=wp.bool, device=self.device)
+        _scratch_joint_mask = wp.zeros((self._asset.num_joints,), dtype=wp.bool, device=self.device)
+        self._joint_mask = wp.clone(
+            resolve_1d_mask(
+                ids=self._joint_ids,
+                mask=None,
+                all_mask=_all_joint_mask,
+                scratch_mask=_scratch_joint_mask,
+                device=self.device,
+            )
+        )
 
         # create tensors for raw and processed actions (Warp)
         self._raw_actions = wp.zeros((self.num_envs, self.action_dim), dtype=wp.float32, device=self.device)
         self._processed_actions = wp.zeros_like(self.raw_actions)
+        # FIXME: dev/newton set_joint_effort_target accepts partial data + joint_mask. Our branch
+        #  has separate _index (partial data) and _mask (full data) variants. Pre-compute joint_ids
+        #  as warp array for the _index variant.
+        if self._joint_ids == slice(None):
+            self._joint_ids_wp = None  # None means all joints
+        else:
+            self._joint_ids_wp = wp.array(list(self._joint_ids), dtype=wp.int32, device=self.device)
 
         # parse scale
         if isinstance(cfg.scale, (float, int)):
@@ -278,4 +295,6 @@ class JointEffortAction(JointAction):
 
     def apply_actions(self):
         # set joint effort targets
-        self._asset.set_joint_effort_target(self.processed_actions, joint_mask=self._joint_mask)
+        # FIXME: dev/newton uses set_joint_effort_target(data, joint_mask=) which accepts
+        #  partial data. Our branch uses the separate _index variant for partial data.
+        self._asset.set_joint_effort_target_index(target=self.processed_actions, joint_ids=self._joint_ids_wp)
