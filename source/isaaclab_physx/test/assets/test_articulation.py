@@ -1680,18 +1680,22 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     # Check that fixed base
     assert articulation.is_fixed_base, "Articulation is not a fixed base"
 
+    # Resolve body indices by name (ordering may differ across physics backends)
+    root_idx = articulation.body_names.index("CenterPivot")
+    arm_idx = articulation.body_names.index("Arm")
+
     # change center of mass offset from link frame
     if with_offset:
         offset = [0.5, 0.0, 0.0]
     else:
         offset = [0.0, 0.0, 0.0]
 
-    # create com offsets
+    # create com offsets — apply offset to the Arm body
     num_bodies = articulation.num_bodies
     com = wp.to_torch(articulation.root_view.get_coms())
     link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
-    com[:, 1, :3] = new_com.squeeze(-2)
+    com[:, arm_idx, :3] = new_com.squeeze(-2)
     articulation.root_view.set_coms(
         wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32)
     )
@@ -1730,10 +1734,10 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             vx = -(link_offset[0]) * joint_vel * torch.sin(joint_pos)
             vy = torch.zeros(num_articulations, 1, 1, device=device)
             vz = (link_offset[0]) * joint_vel * torch.cos(joint_pos)
-            lin_vel_gt[:, 1, :] = torch.cat([vx, vy, vz], dim=-1).squeeze(-2)
+            lin_vel_gt[:, arm_idx, :] = torch.cat([vx, vy, vz], dim=-1).squeeze(-2)
 
             # linear velocity of root link should be zero
-            torch.testing.assert_close(lin_vel_gt[:, 0, :], root_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
+            torch.testing.assert_close(lin_vel_gt[:, root_idx, :], root_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
             # linear velocity of pendulum link should be
             torch.testing.assert_close(lin_vel_gt, body_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
 
@@ -1747,16 +1751,16 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             px = (link_offset[0] + offset[0]) * torch.cos(joint_pos)
             py = torch.zeros(num_articulations, 1, 1, device=device)
             pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
-            pos_gt[:, 1, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
+            pos_gt[:, arm_idx, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
             pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
-            torch.testing.assert_close(pos_gt[:, 0, :], root_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
+            torch.testing.assert_close(pos_gt[:, root_idx, :], root_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
             torch.testing.assert_close(pos_gt, body_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
 
             # orientation
             com_quat_b = wp.to_torch(articulation.data.body_com_quat_b)
             com_quat_w = math_utils.quat_mul(body_link_pose_w[..., 3:], com_quat_b)
             torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
-            torch.testing.assert_close(com_quat_w[:, 0, :], root_com_pose_w[..., 3:])
+            torch.testing.assert_close(com_quat_w[:, root_idx, :], root_com_pose_w[..., 3:])
 
             # angular velocity should be the same for both COM and link frames
             torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
