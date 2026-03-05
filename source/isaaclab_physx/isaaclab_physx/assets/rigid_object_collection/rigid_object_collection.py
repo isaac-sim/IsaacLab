@@ -433,14 +433,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_link_pose_w.data,
+                self.data.body_link_pose_w,
                 None,  # self.data._body_link_state_w.data,
                 None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_link_pose_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
@@ -530,17 +528,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_com_pose_w.data,
-                self.data._body_link_pose_w.data,
+                self.data.body_com_pose_w,
+                self.data.body_link_pose_w,
                 None,  # self.data._body_com_state_w.data,
                 None,  # self.data._body_link_state_w.data,
                 None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_pose_w.timestamp = self.data._sim_timestamp
-        self.data._body_link_pose_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
@@ -633,16 +628,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_com_vel_w.data,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._body_state_w.data,
                 None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_link_vel_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
@@ -744,19 +736,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_link_vel_w.data,
-                self.data._body_com_vel_w.data,
-                self.data._body_com_acc_w.data,
+                self.data.body_link_vel_w,
+                self.data.body_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._body_link_state_w.data,
                 None,  # self.data._body_state_w.data,
                 None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Invalidate dependent timestamps
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0

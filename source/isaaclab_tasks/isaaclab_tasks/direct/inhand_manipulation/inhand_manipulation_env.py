@@ -52,7 +52,7 @@ class InHandManipulationEnv(DirectRLEnv):
         self.num_fingertips = len(self.finger_bodies)
 
         # joint limits
-        joint_pos_limits = wp.to_torch(self.hand.root_view.get_dof_limits()).to(self.device)
+        joint_pos_limits = wp.to_torch(self.hand.data.joint_limits).to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
@@ -78,10 +78,25 @@ class InHandManipulationEnv(DirectRLEnv):
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
+        # bind backend-optimal write methods (Newton prefers mask-based, PhysX prefers indexed)
+        use_mask = "newton" in self.sim.physics_manager.__name__.lower()
+        if use_mask:
+            self._set_joint_pos_target = self.hand.set_joint_position_target
+            self._write_obj_root_pose = self.object.write_root_pose_to_sim
+            self._write_obj_root_vel = self.object.write_root_velocity_to_sim
+            self._write_hand_joint_pos = self.hand.write_joint_position_to_sim
+            self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim
+        else:
+            self._set_joint_pos_target = self.hand.set_joint_position_target_index
+            self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
+            self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
+            self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
+            self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
+
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
         self.hand = Articulation(self.cfg.robot_cfg)
-        self.object = RigidObject(self.cfg.object_cfg)
+        self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate (no need to filter for this environment)
@@ -114,13 +129,13 @@ class InHandManipulationEnv(DirectRLEnv):
 
         self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
 
-        self.hand.set_joint_position_target_index(
+        self._set_joint_pos_target(
             target=self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices
         )
 
     def _get_observations(self) -> dict:
         if self.cfg.asymmetric_obs:
-            self.fingertip_force_sensors = wp.to_torch(self.hand.root_view.get_link_incoming_joint_force())[
+            self.fingertip_force_sensors = wp.to_torch(self.hand.data.body_incoming_joint_wrench_b)[
                 :, self.finger_bodies
             ]
 
@@ -200,10 +215,7 @@ class InHandManipulationEnv(DirectRLEnv):
             time_out = time_out | max_success_reached
         return out_of_reach, time_out
 
-    def _reset_idx(self, env_ids: Sequence[int] | None):
-        if env_ids is None:
-            env_ids = wp.to_torch(self.hand._ALL_INDICES)
-        # resets articulation and rigid body attributes
+    def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
 
         # reset goals
@@ -224,8 +236,8 @@ class InHandManipulationEnv(DirectRLEnv):
         )
 
         object_default_vel[:] = 0.0
-        self.object.write_root_pose_to_sim_index(root_pose=object_default_pose, env_ids=env_ids)
-        self.object.write_root_velocity_to_sim_index(root_velocity=object_default_vel, env_ids=env_ids)
+        self._write_obj_root_pose(root_pose=object_default_pose, env_ids=env_ids)
+        self._write_obj_root_vel(root_velocity=object_default_vel, env_ids=env_ids)
 
         # reset hand
         delta_max = self.hand_dof_upper_limits[env_ids] - wp.to_torch(self.hand.data.default_joint_pos)[env_ids]
@@ -242,9 +254,9 @@ class InHandManipulationEnv(DirectRLEnv):
         self.cur_targets[env_ids] = dof_pos
         self.hand_dof_targets[env_ids] = dof_pos
 
-        self.hand.set_joint_position_target_index(target=dof_pos, env_ids=env_ids)
-        self.hand.write_joint_position_to_sim_index(position=dof_pos, env_ids=env_ids)
-        self.hand.write_joint_velocity_to_sim_index(velocity=dof_vel, env_ids=env_ids)
+        self._set_joint_pos_target(target=dof_pos, env_ids=env_ids)
+        self._write_hand_joint_pos(position=dof_pos, env_ids=env_ids)
+        self._write_hand_joint_vel(velocity=dof_vel, env_ids=env_ids)
 
         self.successes[env_ids] = 0
         self._compute_intermediate_values()

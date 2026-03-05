@@ -323,7 +323,7 @@ def test_no_contact_reporting(setup_simulation):
     with build_simulation_context(device="cpu", dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
-        scene_cfg = ContactSensorSceneCfg(num_envs=32, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg = ContactSensorSceneCfg(num_envs=2, env_spacing=1.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         # -- cube 1
         scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")

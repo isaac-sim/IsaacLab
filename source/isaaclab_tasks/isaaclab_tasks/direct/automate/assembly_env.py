@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
-import os
 
 import numpy as np
 import torch
@@ -226,8 +225,8 @@ class AssemblyEnv(DirectRLEnv):
     def _load_disassembly_data(self):
         """Load pre-collected disassembly trajectories (end-effector position only)."""
 
-        retrieve_file_path(self.cfg_task.disassembly_path_json, download_dir="./")
-        with open(os.path.basename(self.cfg_task.disassembly_path_json)) as f:
+        local_path = retrieve_file_path(self.cfg_task.disassembly_path_json, download_dir="./")
+        with open(local_path) as f:
             disassembly_traj = json.load(f)
 
         eef_pos_traj = []

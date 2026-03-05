@@ -21,8 +21,7 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     # newton
     "mujoco==3.5.0",
-    "mujoco-warp==3.5.0",
-    "warp-lang==1.12.0rc2",
+    "mujoco-warp==3.5.0.2",
     "newton==1.0.0rc1",
     "PyOpenGL-accelerate==3.1.10",
     "imgui-bundle>=1.92.5",

@@ -84,7 +84,7 @@ class increment_dummy2_by_one_class(ManagerTermBase):
 
 @pytest.fixture
 def env():
-    num_envs = 32
+    num_envs = 2
     device = "cpu"
     # create dummy tensors
     dummy1 = torch.zeros((num_envs, 2), device=device)

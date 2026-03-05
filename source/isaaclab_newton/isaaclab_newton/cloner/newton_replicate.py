@@ -9,7 +9,7 @@ import torch
 import warp as wp
 from newton import ModelBuilder, solvers
 
-from pxr import Usd, UsdGeom
+from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -38,18 +38,18 @@ def newton_replicate(
     builder = ModelBuilder(up_axis=up_axis)
     stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
-    # build a prototype for each source
+    # The prototype is built from env_0 in absolute world coordinates.
+    # add_builder xforms are deltas from env_0 so positions don't get double-counted.
+    env0_pos = positions[0]
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
-        inverse_env_xform = get_inverse_env_xform(stage, src_path)
         p.add_usd(
             stage,
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
-            xform=inverse_env_xform,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
@@ -64,10 +64,11 @@ def newton_replicate(
         newton_world_to_env_id[col] = env_id
 
         # add all active sources for this world
+        delta_pos = (positions[col] - env0_pos).tolist()
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             builder.add_builder(
                 protos[sources[row]],
-                xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
+                xform=wp.transform(delta_pos, quaternions[col].tolist()),
             )
 
         # end the world context
@@ -94,26 +95,3 @@ def newton_replicate(
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
     return builder, stage_info
-
-
-def get_inverse_env_xform(stage, src_path: str):
-    """Get the inverse transform of src_path to convert world→local."""
-    xform_cache = UsdGeom.XformCache()
-    world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(src_path))
-
-    # Get the inverse of the world transform
-    inv_xform = world_xform.GetInverse()
-
-    # Extract translation and rotation from inverse
-    inv_translation = inv_xform.ExtractTranslation()
-    inv_rotation = inv_xform.ExtractRotationQuat()
-
-    inv_pos = (inv_translation[0], inv_translation[1], inv_translation[2])
-    inv_quat = (
-        inv_rotation.GetImaginary()[0],
-        inv_rotation.GetImaginary()[1],
-        inv_rotation.GetImaginary()[2],
-        inv_rotation.GetReal(),
-    )
-
-    return wp.transform(inv_pos, inv_quat)

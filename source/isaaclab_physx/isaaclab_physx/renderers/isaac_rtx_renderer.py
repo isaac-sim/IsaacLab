@@ -57,6 +57,11 @@ class IsaacRtxRenderer(BaseRenderer):
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
 
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """No-op for Isaac RTX - uses USD scene directly without export.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+        pass
+
     def create_render_data(self, sensor: SensorBase) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""

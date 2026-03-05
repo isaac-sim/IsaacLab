@@ -48,15 +48,15 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
     a GripperRetargeter for pinch-based gripper control from hand tracking data.
     All outputs are flattened into a single 8D action tensor via TensorReorderer.
     """
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-    from isaacteleop.retargeting_engine.retargeters import (
+    from isaacteleop.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
         Se3AbsRetargeter,
         Se3RetargeterConfig,
         TensorReorderer,
     )
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
     controllers = ControllersSource(name="controllers")

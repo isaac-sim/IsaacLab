@@ -23,6 +23,7 @@ from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -86,6 +87,9 @@ class DirectRLEnv(gym.Env):
         """
         # check that the config is valid
         cfg.validate()
+        # Resolve any preset-wrapper fields to their default variant so that downstream
+        # scene/physics setup receives concrete cfg objects rather than multi-backend selectors.
+        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
