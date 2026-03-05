@@ -805,22 +805,7 @@ class ArticulationData(BaseArticulationData):
         .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
         .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
         """
-        if self._sim_bind_body_parent_f is None:
-            raise NotImplementedError("body_parent_f not available — was the extended state attribute requested?")
-        if self._body_incoming_joint_wrench_b is None:
-            self._body_incoming_joint_wrench_b = TimestampedBuffer(
-                shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
-            )
-        if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
-            wp.launch(
-                articulation_kernels.transform_body_wrench_to_body_frame,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self._sim_bind_body_parent_f, self.body_link_pose_w],
-                outputs=[self._body_incoming_joint_wrench_b.data],
-                device=self.device,
-            )
-            self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
-        return self._body_incoming_joint_wrench_b.data
+        raise NotImplementedError("body_incoming_joint_wrench_b not implemented for Newton")
 
     """
     Joint state properties.
