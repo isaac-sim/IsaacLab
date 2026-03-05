@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 @configclass
 class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
     # When True, the teleop pipeline exposes hand_left/hand_right for debugging visualization.
-    enable_visualization: bool = False
+    enable_visualization: bool = True
 
     def __post_init__(self):
         # post init of parent

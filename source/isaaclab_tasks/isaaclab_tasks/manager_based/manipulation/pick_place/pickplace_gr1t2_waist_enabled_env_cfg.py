@@ -30,7 +30,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # When True, the teleop pipeline exposes hand_left/hand_right for debugging visualization.
-    enable_visualization: bool = False
+    enable_visualization: bool = True
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)

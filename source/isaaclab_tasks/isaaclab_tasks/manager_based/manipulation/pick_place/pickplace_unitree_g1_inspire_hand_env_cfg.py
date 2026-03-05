@@ -527,7 +527,7 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # When True, enable debugging visualizations (e.g. hand joint markers when pipeline exposes hand data).
-    enable_visualization: bool = False
+    enable_visualization: bool = True
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
