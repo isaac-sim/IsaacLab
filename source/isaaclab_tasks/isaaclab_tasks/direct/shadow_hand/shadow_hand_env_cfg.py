@@ -247,7 +247,7 @@ class PhysicsCfg(PresetCfg):
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
-        ),
+        )
     )
     newton = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
