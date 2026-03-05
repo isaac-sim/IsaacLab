@@ -283,7 +283,9 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         finally:
             elapsed_ms = (time.perf_counter() - start_t) * 1000.0
             msg = (
-                f"[PhysxSceneDataProvider] Newton model build source={build_source} num_envs={self.get_num_envs()} elapsed_ms={elapsed_ms:.2f}"
+                "[PhysxSceneDataProvider] Newton model build "
+                f"source={build_source} num_envs={self.get_num_envs()} "
+                f"elapsed_ms={elapsed_ms:.2f}"
             )
             print(msg, file=sys.stderr, flush=True)
 

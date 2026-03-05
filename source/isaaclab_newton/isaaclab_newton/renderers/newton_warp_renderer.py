@@ -143,6 +143,7 @@ class RenderData:
 
 class NewtonWarpRenderer(BaseRenderer):
     """Newton Warp backend for tiled camera rendering."""
+
     requires_newton_model = True
 
     RenderData = RenderData

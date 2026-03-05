@@ -9,8 +9,10 @@ To compare Newton visualizer load time (cloner prebuild vs USD fallback), use:
   --benchmark_newton_vis              enable Newton visualizer + PhysX, print Newton model build line
   --newton_use_cloner_prebuild         use prebuilt artifact (omit for baseline: SDP builds from USD)
 Example:
-  ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 16 --num_frames 10 --benchmark_newton_vis
-  ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 16 --num_frames 10 --benchmark_newton_vis --newton_use_cloner_prebuild
+  ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Velocity-Flat-Anymal-D-v0 \
+    --num_envs 16 --num_frames 10 --benchmark_newton_vis
+  ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Velocity-Flat-Anymal-D-v0 \
+    --num_envs 16 --num_frames 10 --benchmark_newton_vis --newton_use_cloner_prebuild
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -54,12 +56,18 @@ parser.add_argument("--output_path", type=str, default=".", help="Path to output
 parser.add_argument(
     "--benchmark_newton_vis",
     action="store_true",
-    help="Enable Newton visualizer with PhysX backend and print Newton model build time (for cloner vs USD-fallback comparison).",
+    help=(
+        "Enable Newton visualizer with PhysX backend and print Newton model build time "
+        "(for cloner vs USD-fallback comparison)."
+    ),
 )
 parser.add_argument(
     "--newton_use_cloner_prebuild",
     action="store_true",
-    help="When used with --benchmark_newton_vis: use prebuilt Newton artifact from cloner (default: False = SDP builds from USD).",
+    help=(
+        "When used with --benchmark_newton_vis: use prebuilt Newton artifact from cloner "
+        "(default: False = SDP builds from USD)."
+    ),
 )
 
 # append AppLauncher cli args
@@ -73,7 +81,9 @@ if args_cli.video:
 # Newton viz benchmark mode: force visualizer=newton and set cloner prebuild toggle (must run before AppLauncher)
 if getattr(args_cli, "benchmark_newton_vis", False):
     args_cli.visualizer = ["newton"]
-    os.environ["ISAACLAB_NEWTON_VIS_USE_PREBUILT"] = "1" if getattr(args_cli, "newton_use_cloner_prebuild", False) else "0"
+    os.environ["ISAACLAB_NEWTON_VIS_USE_PREBUILT"] = (
+        "1" if getattr(args_cli, "newton_use_cloner_prebuild", False) else "0"
+    )
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args

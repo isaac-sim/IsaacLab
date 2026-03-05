@@ -266,7 +266,9 @@ class InteractiveScene:
                 up_axis=up_axis,
             )
             rigid_body_paths = list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
-            articulation_paths = list(getattr(model, "articulation_label", None) or getattr(model, "articulation_key", []))
+            articulation_paths = list(
+                getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
+            )
             self.sim.set_newton_visualizer_artifact(
                 model=model,
                 state=state,
@@ -291,9 +293,7 @@ class InteractiveScene:
             requires_newton_model |= needs_newton
             requires_usd_stage |= needs_usd
             if needs_newton or needs_usd:
-                reasons.append(
-                    f"visualizer:{visualizer_type}(newton={needs_newton},usd={needs_usd})"
-                )
+                reasons.append(f"visualizer:{visualizer_type}(newton={needs_newton},usd={needs_usd})")
 
         for sensor in self._sensors.values():
             sensor_cfg = getattr(sensor, "cfg", None)
@@ -305,9 +305,7 @@ class InteractiveScene:
             requires_newton_model |= needs_newton
             requires_usd_stage |= needs_usd
             if needs_newton or needs_usd:
-                reasons.append(
-                    f"renderer:{renderer_type}(newton={needs_newton},usd={needs_usd})"
-                )
+                reasons.append(f"renderer:{renderer_type}(newton={needs_newton},usd={needs_usd})")
 
         return requires_newton_model, requires_usd_stage, reasons
 
