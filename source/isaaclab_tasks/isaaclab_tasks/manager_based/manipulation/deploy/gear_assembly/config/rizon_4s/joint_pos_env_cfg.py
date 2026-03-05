@@ -179,12 +179,11 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": [-0.1, 0.1],
+                "x": [-0.2, 0.2],
                 "y": [-0.25, 0.25],
-                # "y": [-0.1, 0.1],
-                "z": [-0.1, 0.1],
-                "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
-                "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
+                "z": [-0.2, 0.2],
+                "roll": [-math.pi / 60, math.pi / 60],  # 2 degree
+                "pitch": [-math.pi / 60, math.pi / 60],  # 2 degree
                 "yaw": [-math.pi / 6, math.pi / 6],  # 30 degree
             },
             "gear_pos_range": {

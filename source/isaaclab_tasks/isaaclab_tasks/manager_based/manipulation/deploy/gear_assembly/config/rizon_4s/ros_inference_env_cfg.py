@@ -53,26 +53,26 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
         # Override gear base initial pose (fixed pose for ROS inference)
         # Position configured for Rizon 4s workspace
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.5, 0.0, -0.1),
+            pos=(0.481, -0.073, -0.005),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Override gear initial poses (fixed poses for ROS inference)
         # Small gear
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.5, 0.0, -0.1),
+            pos=(0.481, -0.073, -0.005),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Medium gear
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.5, 0.0, -0.1),
+            pos=(0.481, -0.073, -0.005),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Large gear
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.5, 0.0, -0.1),
+            pos=(0.481, -0.073, -0.005),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
