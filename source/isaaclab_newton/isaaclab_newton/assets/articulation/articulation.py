@@ -25,6 +25,7 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -3228,6 +3229,13 @@ class Articulation(BaseArticulation):
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
+
+        # Register callback to rebind simulation data after a full reset (model/state recreation).
+        self._physics_ready_handle = SimulationManager.register_callback(
+            lambda _: self._data._create_simulation_bindings(),
+            PhysicsEvent.PHYSICS_READY,
+            name=f"articulation_rebind_{self.cfg.prim_path}",
+        )
 
         # create buffers
         self._create_buffers()
