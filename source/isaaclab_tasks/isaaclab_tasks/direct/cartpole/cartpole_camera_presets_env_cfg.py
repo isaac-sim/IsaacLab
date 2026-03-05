@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -34,6 +35,7 @@ class PhysicsCfg(PresetCfg):
 class MultiBackendRendererCfg(PresetCfg):
     default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
+    ovrtx_renderer: OVRTXRendererCfg = OVRTXRendererCfg()
     isaacsim_rtx_renderer: IsaacRtxRendererCfg = default
 
 
