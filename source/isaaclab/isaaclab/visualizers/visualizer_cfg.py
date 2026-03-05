@@ -90,7 +90,7 @@ class VisualizerCfg:
 
         try:
             return Visualizer(self)
-        except ValueError as exc:
+        except (ValueError, ImportError, ModuleNotFoundError) as exc:
             if self.visualizer_type in ("newton", "rerun", "kit"):
                 raise ImportError(
                     f"Visualizer '{self.visualizer_type}' requires the isaaclab_visualizers package. "

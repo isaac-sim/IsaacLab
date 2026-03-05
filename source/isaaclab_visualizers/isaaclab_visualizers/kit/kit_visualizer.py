@@ -87,6 +87,8 @@ class KitVisualizer(BaseVisualizer):
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
+                # Keep app pumping for viewport/UI updates only.
+                # Simulation stepping is owned by SimulationContext.
                 app.update()
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)

@@ -7,35 +7,16 @@
 
 from setuptools import setup
 
-# Base: visualizers depend on isaaclab for BaseVisualizer, VisualizerCfg, and scene provider interface.
-INSTALL_REQUIRES = ["isaaclab"]
-
-EXTRAS_REQUIRE = {
-    "kit": [
-        # Kit visualizer requires Isaac Sim runtime (typically installed separately).
-        # No additional pip deps here; document Isaac Sim requirement for Kit backend.
-    ],
-    "newton": [
-        "numpy",
-        "warp-lang",
-        "newton",
-        "PyOpenGL-accelerate",
-        "imgui-bundle>=1.92.5",
-    ],
-    "rerun": [
-        "rerun-sdk>=0.29.0",
-        "newton",
-    ],
-    # Convenience: all visualizer backends
-    "all": [
-        "numpy",
-        "warp-lang",
-        "newton",
-        "PyOpenGL-accelerate",
-        "imgui-bundle>=1.92.5",
-        "rerun-sdk>=0.29.0",
-    ],
-}
+# Install all visualizer backend dependencies by default.
+INSTALL_REQUIRES = [
+    "isaaclab",
+    "numpy",
+    "warp-lang",
+    "newton",
+    "PyOpenGL-accelerate",
+    "imgui-bundle>=1.92.5",
+    "rerun-sdk>=0.29.0",
+]
 
 setup(
     name="isaaclab_visualizers",
@@ -50,7 +31,6 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
-    extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_visualizers"],
     classifiers=[
         "Natural Language :: English",
