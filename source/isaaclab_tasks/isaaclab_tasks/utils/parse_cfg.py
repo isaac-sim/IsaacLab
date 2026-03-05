@@ -21,6 +21,50 @@ if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
+def _is_preset_cfg(obj: object) -> bool:
+    """Return True if *obj* is an instance of a PresetCfg subclass (new typed-field style).
+
+    Uses MRO class-name matching so that this module has no dependency on the
+    hydra-gated ``isaaclab_tasks.utils.hydra`` import path.
+    """
+    return any(cls.__name__ == "PresetCfg" for cls in type(obj).__mro__)
+
+
+def _is_old_style_preset(obj: object) -> bool:
+    """Return True if *obj* is an old-style preset wrapper (has ``presets`` dict with a ``'default'`` key)."""
+    presets = getattr(obj, "presets", None)
+    return hasattr(obj, "__dataclass_fields__") and isinstance(presets, dict) and "default" in presets
+
+
+def _resolve_presets_to_default(cfg: object) -> object:
+    """Recursively replace preset wrapper fields with their *default* preset.
+
+    Handles two preset patterns used in IsaacLab task configs:
+
+    * **New style** (``PresetCfg`` subclass): typed fields where ``default`` is a class attribute.
+    * **Old style** (``presets`` dict): configclass with ``presets: dict[str, Cfg]`` and a ``'default'`` key.
+
+    Both are resolved in-place so the config can be used without a Hydra CLI override (e.g. in tests).
+    """
+    if not hasattr(cfg, "__dataclass_fields__"):
+        return cfg
+    for field_name in list(cfg.__dataclass_fields__):
+        value = getattr(cfg, field_name, None)
+        if value is None or not hasattr(value, "__dataclass_fields__"):
+            continue
+        if _is_preset_cfg(value):
+            resolved = value.default
+            setattr(cfg, field_name, resolved)
+            _resolve_presets_to_default(resolved)
+        elif _is_old_style_preset(value):
+            resolved = value.presets["default"]
+            setattr(cfg, field_name, resolved)
+            _resolve_presets_to_default(resolved)
+        else:
+            _resolve_presets_to_default(value)
+    return cfg
+
+
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
@@ -149,10 +193,17 @@ def parse_env_cfg(
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
-    # resolve PresetCfg fields (e.g. physics) to their default values
-    from isaaclab_tasks.utils.hydra import resolve_preset_defaults
+    # If the top-level cfg is itself a PresetCfg wrapper, resolve to the default preset before
+    # attempting any attribute access (e.g. cfg.sim, cfg.scene).
+    if _is_preset_cfg(cfg):
+        cfg = cfg.default
 
-    cfg = resolve_preset_defaults(cfg)
+    # Resolve any PresetCfg wrappers to their default preset so the config
+    # is usable without a Hydra CLI override (e.g. in tests).
+    # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
+    # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
+    # is replaced by its .default.
+    _resolve_presets_to_default(cfg)
 
     # simulation device
     cfg.sim.device = device

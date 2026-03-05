@@ -672,6 +672,12 @@ class InteractiveScene:
         ]
 
         for asset_name, asset_cfg in ordered_items:
+            # Resolve old-style preset wrappers: configclass with a ``presets`` dict and a ``'default'`` key.
+            # These are multi-backend selector objects (e.g. VelocityEnvContactSensorCfg) that hold several
+            # alternative asset configs in a dict and are not themselves asset configs.
+            if hasattr(asset_cfg, "presets") and isinstance(asset_cfg.presets, dict) and "default" in asset_cfg.presets:
+                asset_cfg = asset_cfg.presets["default"]
+                setattr(self.cfg, asset_name, asset_cfg)
             # resolve prim_path with env regex
             if hasattr(asset_cfg, "prim_path"):
                 asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)

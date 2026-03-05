@@ -44,6 +44,7 @@ EXTRAS_REQUIRE = {
     "rl-games": [
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
+        "standard-distutils",
     ],  # rl-games still needs gym :(
     "rsl-rl": ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
 }
