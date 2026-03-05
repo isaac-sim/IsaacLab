@@ -5,10 +5,6 @@
 
 __all__ = [
     "NewtonSceneDataProvider",
-    "PhysxSceneDataProvider",
-    "SceneDataProvider",
 ]
 
 from .newton_scene_data_provider import NewtonSceneDataProvider
-from .physx_scene_data_provider import PhysxSceneDataProvider
-from .scene_data_provider import SceneDataProvider

@@ -6,8 +6,7 @@
 """Configuration for Kit-based visualizer."""
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 
 @configclass
@@ -20,8 +19,11 @@ class KitVisualizerCfg(VisualizerCfg):
     viewport_name: str | None = "Visualizer Viewport"
     """Viewport name to use. If None, uses active viewport."""
 
-    create_viewport: bool = True
+    create_viewport: bool = False
     """Create new viewport with specified name and camera pose."""
+
+    headless: bool = False
+    """Run without creating viewport windows when supported by the app."""
 
     dock_position: str = "SAME"
     """Dock position for new viewport. Options: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'."""

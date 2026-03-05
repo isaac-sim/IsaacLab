@@ -12,7 +12,11 @@ import re
 from collections import deque
 from typing import Any
 
+import warp as wp
+
 from pxr import UsdGeom
+
+from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +24,29 @@ logger = logging.getLogger(__name__)
 _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
 
 
-class PhysxSceneDataProvider:
+@wp.kernel(enable_backward=False)
+def _set_body_q_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    body_q: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    body_q[i] = wp.transformf(positions[i], orientations[i])
+
+
+@wp.kernel(enable_backward=False)
+def _set_body_q_subset_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    body_indices: wp.array(dtype=wp.int32),
+    body_q: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    bi = body_indices[i]
+    body_q[bi] = wp.transformf(positions[i], orientations[i])
+
+
+class PhysxSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Omni PhysX backend.
 
     Supports:
@@ -28,7 +54,6 @@ class PhysxSceneDataProvider:
     - camera poses & intrinsics
     - USD stage handles
     - Newton model/state handles
-    - TODO: mesh data access
     """
 
     # ---- Environment discovery / metadata -------------------------------------------------
@@ -81,6 +106,8 @@ class PhysxSceneDataProvider:
         self._num_envs: int | None = None
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
+        # TODO: Include renderer capability checks (not just visualizer types)
+        # when computing sync requirements in SimulationContext and pass them into the provider.
         self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
@@ -103,9 +130,17 @@ class PhysxSceneDataProvider:
         self._filtered_body_indices: list[int] = []
         self._rigid_body_paths: list[str] = []
         self._articulation_paths: list[str] = []
-        self._set_body_q_kernel = None
         # env_id -> list of body indices (in Newton body_key order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
+
+        # Reused pose buffers (MR perf): avoid per-call allocations in _read_poses_from_best_source.
+        self._pose_buf_num_bodies = 0
+        self._positions_buf = None
+        self._orientations_buf = None
+        self._covered_buf = None
+        self._xform_mask_buf = None
+        # View index order as device tensors for vectorized scatter in _apply_view_poses.
+        self._view_order_tensors: dict[str, Any] = {}
 
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
@@ -157,6 +192,12 @@ class PhysxSceneDataProvider:
 
             self._xform_views.clear()
             self._view_body_index_map = {}
+            self._view_order_tensors.clear()
+            self._pose_buf_num_bodies = 0
+            self._positions_buf = None
+            self._orientations_buf = None
+            self._covered_buf = None
+            self._xform_mask_buf = None
             self._env_id_to_body_indices = {}
             self._num_envs_at_last_newton_build = self.get_num_envs()
             # Invalidate any filtered model when full model changes.
@@ -167,7 +208,7 @@ class PhysxSceneDataProvider:
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun visualizers."
+                "Install the Newton physics backend (isaaclab_newton) to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
@@ -210,7 +251,7 @@ class PhysxSceneDataProvider:
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun visualizers."
+                "Install the Newton physics backend (isaaclab_newton) to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None
@@ -267,12 +308,12 @@ class PhysxSceneDataProvider:
 
     # ---- Pose/velocity read pipeline ------------------------------------------------------
 
-    def _warn_once(self, key: str, message: str, *args) -> None:
+    def _warn_once(self, key: str, message: str, *args, level=logging.WARNING) -> None:
         """Log a warning only once for a given key."""
         if key in self._warned_once:
             return
         self._warned_once.add(key)
-        logger.warning(message, *args)
+        logger.log(level, message, *args)
 
     def _get_view_world_poses(self, view: Any):
         """Read world poses from a PhysX view.
@@ -318,6 +359,10 @@ class PhysxSceneDataProvider:
 
         if all(idx is not None for idx in order):
             self._view_body_index_map[key] = order  # type: ignore[arg-type]
+            # Cache as device tensor for vectorized scatter in _apply_view_poses.
+            import torch
+
+            self._view_order_tensors[key] = torch.tensor(order, dtype=torch.long, device=self._device)
 
     def _split_env_relative_path(self, path: str) -> tuple[int | None, str]:
         """Extract (env_id, relative_path) from a prim path."""
@@ -354,11 +399,6 @@ class PhysxSceneDataProvider:
 
         order = self._view_body_index_map.get(view_key)
         if not order:
-            self._warn_once(
-                f"missing-index-map-{view_key}",
-                "[PhysxSceneDataProvider] Missing index map for %s; cannot scatter transforms.",
-                view_key,
-            )
             return 0
 
         # Normalize returned arrays to torch tensors across backends (torch/warp/other).
@@ -376,7 +416,20 @@ class PhysxSceneDataProvider:
         pos = pos.to(device=self._device, dtype=torch.float32)
         quat = quat.to(device=self._device, dtype=torch.float32)
 
-        # Scatter view outputs into the canonical Newton body order.
+        # Vectorized scatter when we have a cached order tensor (view fully covers bodies).
+        order_t = self._view_order_tensors.get(view_key)
+        if order_t is not None:
+            uncovered_mask = ~covered
+            if uncovered_mask.any():
+                newton_indices = uncovered_mask.nonzero(as_tuple=True)[0]
+                view_indices = order_t[newton_indices]
+                positions[newton_indices] = pos[view_indices]
+                orientations[newton_indices] = quat[view_indices]
+                covered[newton_indices] = True
+                return newton_indices.numel()
+            return 0
+
+        # Fallback: Python loop when view does not fully cover or cache missing.
         count = 0
         for newton_idx, view_idx in enumerate(order):
             if view_idx is not None and not covered[newton_idx]:
@@ -426,6 +479,7 @@ class PhysxSceneDataProvider:
                 "xform-fallback-failures",
                 "[PhysxSceneDataProvider] Xform fallback failed for %d body paths.",
                 len(self._xform_view_failures),
+                level=logging.DEBUG,
             )
         return count
 
@@ -450,11 +504,21 @@ class PhysxSceneDataProvider:
             logger.warning(f"Body count mismatch: body_key={num_bodies}, state={self._newton_state.body_q.shape[0]}")
             return None
 
-        # Allocate outputs in Newton body order.
-        positions = torch.zeros((num_bodies, 3), dtype=torch.float32, device=self._device)
-        orientations = torch.zeros((num_bodies, 4), dtype=torch.float32, device=self._device)
-        covered = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
-        xform_mask = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+        # Reuse buffers when size unchanged to avoid per-call allocations (MR perf).
+        if num_bodies != self._pose_buf_num_bodies or self._positions_buf is None:
+            self._pose_buf_num_bodies = num_bodies
+            self._positions_buf = torch.zeros((num_bodies, 3), dtype=torch.float32, device=self._device)
+            self._orientations_buf = torch.zeros((num_bodies, 4), dtype=torch.float32, device=self._device)
+            self._covered_buf = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+            self._xform_mask_buf = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+        else:
+            self._covered_buf.zero_()
+            self._xform_mask_buf.zero_()
+
+        positions = self._positions_buf
+        orientations = self._orientations_buf
+        covered = self._covered_buf
+        xform_mask = self._xform_mask_buf
 
         # Apply sources in preferred order: articulation, rigid bodies, then USD fallback.
         articulation_count = self._apply_view_poses(
@@ -466,6 +530,7 @@ class PhysxSceneDataProvider:
             self._warn_once(
                 "rigid-source-unused",
                 "[PhysxSceneDataProvider] RigidBodyView did not provide any body transforms; using fallback sources.",
+                level=logging.DEBUG,
             )
 
         if not covered.all():
@@ -490,51 +555,12 @@ class PhysxSceneDataProvider:
         return positions, orientations, source, xform_mask
 
     def _get_set_body_q_kernel(self):
-        """Get or create the Warp kernel for writing transforms to Newton state."""
-        if self._set_body_q_kernel is not None:
-            return self._set_body_q_kernel
-        try:
-            import warp as wp
-
-            @wp.kernel(enable_backward=False)
-            def _set_body_q(
-                positions: wp.array(dtype=wp.vec3),
-                orientations: wp.array(dtype=wp.quatf),
-                body_q: wp.array(dtype=wp.transformf),
-            ):
-                i = wp.tid()
-                body_q[i] = wp.transformf(positions[i], orientations[i])
-
-            self._set_body_q_kernel = _set_body_q
-            return self._set_body_q_kernel
-        except Exception as exc:
-            logger.warning(f"[PhysxSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
-            return None
+        """Return module-level Warp kernel for writing transforms to Newton state."""
+        return _set_body_q_kernel
 
     def _get_set_body_q_subset_kernel(self):
-        """Kernel that writes only body_q at given indices."""
-        kernel = getattr(self, "_set_body_q_subset_kernel", None)
-        if kernel is not None:
-            return kernel
-        try:
-            import warp as wp
-
-            @wp.kernel(enable_backward=False)
-            def _set_body_q_subset(
-                positions: wp.array(dtype=wp.vec3),
-                orientations: wp.array(dtype=wp.quatf),
-                body_indices: wp.array(dtype=wp.int32),
-                body_q: wp.array(dtype=wp.transformf),
-            ):
-                i = wp.tid()
-                bi = body_indices[i]
-                body_q[bi] = wp.transformf(positions[i], orientations[i])
-
-            self._set_body_q_subset_kernel = _set_body_q_subset
-            return self._set_body_q_subset_kernel
-        except Exception as exc:
-            logger.debug(f"Warp subset kernel: {exc}")
-            return None
+        """Return module-level Warp kernel for subset writes."""
+        return _set_body_q_subset_kernel
 
     # ---- Newton state sync ----------------------------------------------------------------
 
@@ -548,8 +574,6 @@ class PhysxSceneDataProvider:
             return
 
         try:
-            import warp as wp
-
             # Re-check env count in case stage population completed after provider construction.
             self._refresh_newton_model_if_needed()
 

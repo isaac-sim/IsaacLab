@@ -60,7 +60,7 @@ Launch visualizers from the command line with ``--visualizer``:
 .. code-block:: bash
 
     # Launch all visualizers
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer omniverse newton rerun
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit newton rerun
 
     # Launch just newton visualizer
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
@@ -77,18 +77,20 @@ If ``--headless`` is given, no visualizers will be launched.
 Configuration
 ~~~~~~~~~~~~~
 
-Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and edited in ``source/isaaclab/isaaclab/visualizers``.
+Launching visualizers with the command line will use default visualizer configurations. Visualizer backends live in the ``isaaclab_visualizers`` package (e.g. ``source/isaaclab_visualizers/isaaclab_visualizers/kit``, ``newton``, ``rerun``).
 
-You can also configure custom visualizers in the code by defining new ``VisualizerCfg`` instances for the ``SimulationCfg``, for example:
+You can also configure custom visualizers in the code by defining ``VisualizerCfg`` instances for the ``SimulationCfg``, for example:
 
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.rerun import RerunVisualizerCfg
 
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
-            OVVisualizerCfg(
+            KitVisualizerCfg(
                 viewport_name="Visualizer Viewport",
                 create_viewport=True,
                 dock_position="SAME",
@@ -128,9 +130,9 @@ Omniverse Visualizer
 
 .. code-block:: python
 
-    from isaaclab.visualizers import OVVisualizerCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    visualizer_cfg = OVVisualizerCfg(
+    visualizer_cfg = KitVisualizerCfg(
         # Viewport settings
         viewport_name="Visualizer Viewport",      # Viewport window name
         create_viewport=True,                     # Create new viewport vs. use existing
@@ -176,8 +178,6 @@ Newton Visualizer
      - Look around
    * - **Mouse Scroll**
      - Zoom in/out
-   * - **Space**
-     - Pause/resume rendering (physics continues)
    * - **H**
      - Toggle UI sidebar
    * - **ESC**
@@ -187,7 +187,7 @@ Newton Visualizer
 
 .. code-block:: python
 
-    from isaaclab.visualizers import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
     visualizer_cfg = NewtonVisualizerCfg(
         # Window settings
@@ -233,7 +233,7 @@ Rerun Visualizer
 
 .. code-block:: python
 
-    from isaaclab.visualizers import RerunVisualizerCfg
+    from isaaclab_visualizers.rerun import RerunVisualizerCfg
 
     visualizer_cfg = RerunVisualizerCfg(
         # Server settings

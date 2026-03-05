@@ -21,12 +21,11 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
-from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -154,8 +153,8 @@ class SimulationContext:
         self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
-        self._scene_data_provider: SceneDataProvider | None = None
-        self._visualizers: list[Visualizer] = []
+        self._scene_data_provider: BaseSceneDataProvider | None = None
+        self._visualizers: list[BaseVisualizer] = []
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -336,20 +335,40 @@ class SimulationContext:
         return self.physics_manager.get_physics_dt()
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
-        """Create default visualizer configs for requested types."""
+        """Create default visualizer configs for requested types.
+
+        Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
+        so dependencies for other backends are not imported.
+        """
+        import importlib
+
         default_configs = []
+        cfg_class_names = {"kit": "KitVisualizerCfg", "newton": "NewtonVisualizerCfg", "rerun": "RerunVisualizerCfg"}
         for viz_type in requested_visualizers:
             try:
-                if viz_type == "newton":
-                    default_configs.append(NewtonVisualizerCfg())
-                elif viz_type == "rerun":
-                    default_configs.append(RerunVisualizerCfg())
-                elif viz_type == "kit":
-                    default_configs.append(KitVisualizerCfg())
-                else:
+                if viz_type not in _VISUALIZER_TYPES:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
+                    )
+                    continue
+                mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
+                cfg_cls = getattr(mod, cfg_class_names[viz_type])
+                default_configs.append(cfg_cls())
+            except (ImportError, ModuleNotFoundError) as exc:
+                # isaaclab_visualizers is optional; log once at warning level
+                if "isaaclab_visualizers" in str(exc):
+                    logger.warning(
+                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
+                        "Install with: pip install isaaclab_visualizers[%s]",
+                        viz_type,
+                        viz_type,
+                    )
+                else:
+                    logger.error(
+                        "[SimulationContext] Failed to create default config for visualizer '%s': %s",
+                        viz_type,
+                        exc,
                     )
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
@@ -418,9 +437,13 @@ class SimulationContext:
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
-                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
-                logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
+                logger.exception(
+                    "Failed to initialize visualizer '%s' (%s): %s",
+                    cfg.visualizer_type,
+                    type(cfg).__name__,
+                    exc,
+                )
 
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
@@ -428,20 +451,13 @@ class SimulationContext:
                 close_provider()
             self._scene_data_provider = None
 
-    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
+    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> BaseSceneDataProvider:
         if self._scene_data_provider is None:
-            if "newton" in self.physics_manager.__name__.lower():
-                from .scene_data_providers import NewtonSceneDataProvider
-
-                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage, self)
-            else:
-                from .scene_data_providers import PhysxSceneDataProvider
-
-                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+            self._scene_data_provider = SceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property
-    def visualizers(self) -> list[Visualizer]:
+    def visualizers(self) -> list[BaseVisualizer]:
         """Returns the list of active visualizers."""
         return self._visualizers
 
@@ -514,15 +530,14 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                if viz.is_closed or not viz.is_running():
+                    if viz.is_closed:
+                        logger.info("Visualizer closed: %s", type(viz).__name__)
+                    else:
+                        logger.info("Visualizer not running: %s", type(viz).__name__)
+                    visualizers_to_remove.append(viz)
+                    continue
                 if viz.is_rendering_paused():
-                    continue
-                if viz.is_closed:
-                    logger.info("Visualizer closed: %s", type(viz).__name__)
-                    visualizers_to_remove.append(viz)
-                    continue
-                if not viz.is_running():
-                    logger.info("Visualizer not running: %s", type(viz).__name__)
-                    visualizers_to_remove.append(viz)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)

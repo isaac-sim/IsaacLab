@@ -14,12 +14,14 @@ from typing import Any
 
 from pxr import UsdGeom
 
+from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+
 logger = logging.getLogger(__name__)
 
 _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
 
 
-class NewtonSceneDataProvider:
+class NewtonSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Newton physics backend.
 
     Provides access to Newton model, state, and USD stage for visualizers and renderers.
@@ -34,6 +36,22 @@ class NewtonSceneDataProvider:
         self._metadata = {"physics_backend": "newton"}
         self._num_envs: int | None = None
         self._warned_once: set[str] = set()
+        # Only sync Newton -> USD when a Kit (or other USD-based) visualizer is active.
+        # When both sim and rendering are Newton (or Rerun), they use Newton state directly.
+        # TODO: Include renderer capability checks (not just visualizer types)
+        # when computing sync requirements in SimulationContext and pass them into the provider.
+        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
+        self._needs_usd_sync = "kit" in viz_types
+        self._update_calls = 0
+        self._sync_calls = 0
+        self._sync_failures = 0
+        self._sync_log_period = 300
+        self._last_sync_exception: str | None = None
+        logger.info(
+            "[NewtonSceneDataProvider] initialized | needs_usd_sync=%s visualizers=%s",
+            self._needs_usd_sync,
+            sorted(v for v in viz_types if v),
+        )
 
     def _warn_once(self, key: str, message: str, *args) -> None:
         if key in self._warned_once:
@@ -68,19 +86,42 @@ class NewtonSceneDataProvider:
     # ---- Core provider API -------------------------------------------------------------------
 
     def update(self, env_ids: list[int] | None = None) -> None:
-        """Sync Newton body transforms to USD Fabric for Kit viewport rendering.
+        """Sync Newton body transforms to USD Fabric when a Kit viewport is active.
 
         Called at render cadence by :meth:`~isaaclab.sim.SimulationContext.update_scene_data_provider`,
-        after forward kinematics have been evaluated.  Delegates to
-        :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd`, which is a
-        no-op when no Kit visualizer is active (``_fabric_manager is None``).
+        after forward kinematics have been evaluated.  Only calls
+        :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd` when a Kit
+        (or other USD-based) visualizer is in use. When both sim and rendering backend
+        are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
         """
+        self._update_calls += 1
+        if not self._needs_usd_sync:
+            return
         try:
             from isaaclab_newton.physics import NewtonManager
 
             NewtonManager.sync_transforms_to_usd()
+            self._sync_calls += 1
+            if self._sync_calls == 1 or self._sync_calls % self._sync_log_period == 0:
+                logger.info(
+                    "[NewtonSceneDataProvider] sync_transforms_to_usd ok | update_calls=%d sync_calls=%d "
+                    "sync_failures=%d env_ids=%s",
+                    self._update_calls,
+                    self._sync_calls,
+                    self._sync_failures,
+                    env_ids,
+                )
         except Exception:
-            pass
+            self._sync_failures += 1
+            self._last_sync_exception = "sync_transforms_to_usd failed"
+            logger.exception(
+                "[NewtonSceneDataProvider] sync_transforms_to_usd failed | update_calls=%d sync_calls=%d "
+                "sync_failures=%d env_ids=%s",
+                self._update_calls,
+                self._sync_calls,
+                self._sync_failures,
+                env_ids,
+            )
 
     def get_newton_model(self) -> Any | None:
         """Return Newton model from NewtonManager."""
@@ -119,6 +160,11 @@ class NewtonSceneDataProvider:
     def get_metadata(self) -> dict[str, Any]:
         out = dict(self._metadata)
         out["num_envs"] = self.get_num_envs()
+        out["needs_usd_sync"] = self._needs_usd_sync
+        out["provider_update_calls"] = self._update_calls
+        out["provider_sync_calls"] = self._sync_calls
+        out["provider_sync_failures"] = self._sync_failures
+        out["provider_last_sync_exception"] = self._last_sync_exception
         return out
 
     def get_transforms(self) -> dict[str, Any] | None:
@@ -129,6 +175,7 @@ class NewtonSceneDataProvider:
         """
         try:
             import warp as wp
+
             from isaaclab_newton.physics import NewtonManager
 
             state = NewtonManager.get_state_0()
@@ -151,6 +198,7 @@ class NewtonSceneDataProvider:
         """Return body velocities from Newton state."""
         try:
             import warp as wp
+
             from isaaclab_newton.physics import NewtonManager
 
             state = NewtonManager.get_state_0()

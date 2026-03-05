@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .visualizer import Visualizer
+    from .base_visualizer import BaseVisualizer
 
 
 @configclass
@@ -21,7 +21,8 @@ class VisualizerCfg:
 
     Note:
         This is an abstract base class and should not be instantiated directly.
-        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg.
+        Use specific configs from isaaclab_visualizers: KitVisualizerCfg, NewtonVisualizerCfg,
+        or RerunVisualizerCfg (from isaaclab_visualizers.kit, .newton, .rerun).
     """
 
     visualizer_type: str | None = None
@@ -69,29 +70,30 @@ class VisualizerCfg:
         """
         return self.visualizer_type
 
-    def create_visualizer(self) -> Visualizer:
+    def create_visualizer(self) -> BaseVisualizer:
         """Create visualizer instance from this config using factory pattern.
+
+        Loads the matching backend from isaaclab_visualizers (e.g. isaaclab_visualizers.rerun).
 
         Raises:
             ValueError: If visualizer_type is None (base class used directly) or not registered.
+            ImportError: If isaaclab_visualizers or the requested backend extra is not installed.
         """
-        from . import get_visualizer_class
+        from .visualizer import Visualizer
 
         if self.visualizer_type is None:
             raise ValueError(
                 "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg."
+                "Use a specific config from isaaclab_visualizers "
+                "(e.g. KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg)."
             )
 
-        visualizer_class = get_visualizer_class(self.visualizer_type)
-        if visualizer_class is None:
-            if self.visualizer_type in ("newton", "rerun"):
+        try:
+            return Visualizer(self)
+        except (ValueError, ImportError, ModuleNotFoundError) as exc:
+            if self.visualizer_type in ("newton", "rerun", "kit"):
                 raise ImportError(
-                    f"Visualizer '{self.visualizer_type}' requires the Newton Python module and its dependencies. "
-                    "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
-                )
-            raise ValueError(
-                f"Visualizer type '{self.visualizer_type}' is not registered. Valid types: 'newton', 'rerun', 'kit'."
-            )
-
-        return visualizer_class(self)
+                    f"Visualizer '{self.visualizer_type}' requires the isaaclab_visualizers package. "
+                    f"Install with: pip install isaaclab_visualizers[{self.visualizer_type}]"
+                ) from exc
+            raise

@@ -14,13 +14,14 @@ import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
 from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -81,17 +82,6 @@ class NewtonViewerGL(ViewerGL):
     def on_key_press(self, symbol, modifiers):
         if self.ui.is_capturing():
             return
-
-        try:
-            import pyglet  # noqa: PLC0415
-        except Exception:
-            return
-
-        if symbol == pyglet.window.key.SPACE:
-            self._paused_rendering = not self._paused_rendering
-            self._paused = self._paused_rendering
-            return
-
         super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
@@ -116,7 +106,6 @@ class NewtonViewerGL(ViewerGL):
         import newton as nt
 
         imgui = self.ui.imgui
-        nav_highlight_color = self.ui.get_theme_color(imgui.Col_.nav_cursor, (1.0, 1.0, 1.0, 1.0))
 
         io = self.ui.io
         imgui.set_next_window_pos(imgui.ImVec2(10, 10))
@@ -186,14 +175,10 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text(f"Pitch: {self.camera.pitch:.1f}°")
 
                 imgui.separator()
-                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
-                imgui.text("Controls:")
-                imgui.pop_style_color()
                 imgui.text("WASD - Forward/Left/Back/Right")
                 imgui.text("QE - Down/Up")
                 imgui.text("Left Click - Look around")
                 imgui.text("Scroll - Zoom")
-                imgui.text("Space - Pause/Resume Rendering")
                 imgui.text("H - Toggle UI")
                 imgui.text("ESC - Exit")
 
@@ -201,7 +186,7 @@ class NewtonViewerGL(ViewerGL):
         return
 
 
-class NewtonVisualizer(Visualizer):
+class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
 
     def __init__(self, cfg: NewtonVisualizerCfg):
@@ -215,8 +200,9 @@ class NewtonVisualizer(Visualizer):
         self._update_frequency = cfg.update_frequency
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._headless_no_viewer = False
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
@@ -236,46 +222,76 @@ class NewtonVisualizer(Visualizer):
             self._model = scene_data_provider.get_newton_model()
         self._state = scene_data_provider.get_newton_state(self._env_ids)
 
-        self._viewer = NewtonViewerGL(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
-            metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
-        )
+        try:
+            self._viewer = NewtonViewerGL(
+                width=self.cfg.window_width,
+                height=self.cfg.window_height,
+                headless=self.cfg.headless,
+                metadata=metadata,
+                update_frequency=self.cfg.update_frequency,
+            )
+        except Exception as exc:
+            if not self.cfg.headless:
+                raise
+            self._viewer = None
+            self._headless_no_viewer = True
+            logger.info(
+                "[NewtonVisualizer] Headless fallback enabled (ViewerGL unavailable in this environment): %s",
+                exc,
+            )
 
-        self._viewer.set_model(self._model)
-        self._apply_camera_pose(self._resolve_initial_camera_pose())
-        self._viewer.up_axis = 2  # Z-up
+        if self._viewer is not None:
+            self._viewer.set_model(self._model)
+            self._apply_camera_pose(self._resolve_initial_camera_pose())
+            self._viewer.up_axis = 2  # Z-up
 
-        self._viewer.scaling = 1.0
-        self._viewer._paused = False
+            self._viewer.scaling = 1.0
+            self._viewer._paused = False
 
-        self._viewer.show_joints = self.cfg.show_joints
-        self._viewer.show_contacts = self.cfg.show_contacts
-        self._viewer.show_springs = self.cfg.show_springs
-        self._viewer.show_com = self.cfg.show_com
+            self._viewer.show_joints = self.cfg.show_joints
+            self._viewer.show_contacts = self.cfg.show_contacts
+            self._viewer.show_springs = self.cfg.show_springs
+            self._viewer.show_com = self.cfg.show_com
 
-        self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
-        self._viewer.renderer.draw_sky = self.cfg.enable_sky
-        self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
+            self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
+            self._viewer.renderer.draw_sky = self.cfg.enable_sky
+            self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
 
-        self._viewer.renderer.sky_upper = self.cfg.sky_upper_color
-        self._viewer.renderer.sky_lower = self.cfg.sky_lower_color
-        self._viewer.renderer._light_color = self.cfg.light_color
+            self._viewer.renderer.sky_upper = self.cfg.sky_upper_color
+            self._viewer.renderer.sky_lower = self.cfg.sky_lower_color
+            self._viewer.renderer._light_color = self.cfg.light_color
 
-        logger.info(
-            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s",
-            self._viewer.camera.pos,
-            self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target,
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._log_initialization_table(
+            logger=logger,
+            title="NewtonVisualizer Configuration",
+            rows=[
+                (
+                    "camera_position",
+                    tuple(float(x) for x in self._viewer.camera.pos)
+                    if self._viewer is not None
+                    else self.cfg.camera_position,
+                ),
+                ("camera_target", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target),
+                ("camera_source", self.cfg.camera_source),
+                ("num_visualized_envs", num_visualized_envs),
+                ("headless", self.cfg.headless),
+                ("headless_fallback_no_viewer", self._headless_no_viewer),
+            ],
         )
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
-        if not self._is_initialized or self._is_closed or self._viewer is None:
+        if not self._is_initialized or self._is_closed:
             return
 
         self._sim_time += dt
         self._step_counter += 1
+
+        if self._viewer is None:
+            if self._scene_data_provider is not None:
+                self._state = self._scene_data_provider.get_newton_state(self._env_ids)
+            return
 
         if self.cfg.camera_source == "usd_path":
             self._update_camera_from_usd_path()
@@ -322,7 +338,11 @@ class NewtonVisualizer(Visualizer):
         self._is_closed = True
 
     def is_running(self) -> bool:
-        if not self._is_initialized or self._is_closed or self._viewer is None:
+        if not self._is_initialized or self._is_closed:
+            return False
+        if self._headless_no_viewer and self._viewer is None:
+            return True
+        if self._viewer is None:
             return False
         return self._viewer.is_running()
 
