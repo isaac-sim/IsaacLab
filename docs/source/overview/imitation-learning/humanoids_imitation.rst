@@ -533,13 +533,13 @@ To create a comprehensive locomanipulation dataset that combines both manipulati
    :widths: 50 50
    :header-rows: 0
 
-   * - .. figure:: ../../_static/mimic/g1_locomanip_no_obstacles.gif
+   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/g1_locomanip_no_obstacles.gif
          :height: 260px
          :align: center
          :alt: G1 locomanipulation data generation without obstacles
 
          Default: no obstacles (open scene).
-     - .. figure:: ../../_static/mimic/g1_locomanip_with_obstacles.gif
+     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/g1_locomanip_with_obstacles.gif
          :height: 260px
          :align: center
          :alt: G1 locomanipulation data generation with forklift obstacles
