@@ -330,7 +330,7 @@ class AppLauncher:
             type=str,
             nargs="+",
             default=None,
-            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
+            help="Visualizer backends to enable (e.g., kit, newton, rerun, viser).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -968,9 +968,14 @@ class AppLauncher:
         settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
-        """Store visualizer selection in settings."""
+        """Store visualizer selection and max-worlds override in settings."""
         visualizers = launcher_args.get("visualizer")
         visualizer_max_worlds = launcher_args.get("visualizer_max_worlds")
+
+        if visualizer_max_worlds is not None and visualizer_max_worlds < 0:
+            raise ValueError(
+                f"Invalid value for --visualizer_max_worlds: {visualizer_max_worlds}. Expected non-negative int."
+            )
 
         with contextlib.suppress(Exception):
             visualizer_str = " ".join(visualizers) if visualizers else ""
@@ -979,10 +984,6 @@ class AppLauncher:
             if visualizer_max_worlds is None:
                 get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", -1)
             else:
-                if visualizer_max_worlds < 0:
-                    raise ValueError(
-                        f"Invalid value for --visualizer_max_worlds: {visualizer_max_worlds}. Expected non-negative int."
-                    )
                 get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
 
     def _interrupt_signal_handle_callback(self, signal, frame):

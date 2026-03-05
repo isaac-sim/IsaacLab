@@ -72,6 +72,7 @@ class ViserVisualizer(Visualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
 
     def __init__(self, cfg: ViserVisualizerCfg):
+        """Initialize the visualizer state from the resolved config."""
         super().__init__(cfg)
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
@@ -85,6 +86,7 @@ class ViserVisualizer(Visualizer):
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+        """Create the viewer and bind it to the active scene data provider."""
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
@@ -117,7 +119,8 @@ class ViserVisualizer(Visualizer):
             logger.error(f"[ViserVisualizer] Failed to initialize viewer: {exc}")
             raise
 
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
+        """Fetch the latest state and stream one frame to Viser."""
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
@@ -133,6 +136,7 @@ class ViserVisualizer(Visualizer):
         self._viewer.end_frame()
 
     def close(self) -> None:
+        """Close the viewer and finalize any active recording."""
         if not self._is_initialized:
             return
 
@@ -148,20 +152,25 @@ class ViserVisualizer(Visualizer):
         self._pending_camera_pose = None
 
     def is_running(self) -> bool:
+        """Return whether the underlying Viser server is still running."""
         if self._viewer is None:
             return False
         return self._viewer.is_running()
 
     def is_training_paused(self) -> bool:
+        """Viser does not currently expose training pause controls."""
         return False
 
     def supports_markers(self) -> bool:
+        """Viser marker support is not implemented yet."""
         return False
 
     def supports_live_plots(self) -> bool:
+        """Viser live plot support is not implemented yet."""
         return False
 
     def _create_viewer(self, record_to_viser: str | None, metadata: dict | None = None) -> None:
+        """Create the Viser viewer and load the Newton model."""
         if self._model is None:
             raise RuntimeError("Viser visualizer requires a Newton model.")
 
@@ -179,6 +188,7 @@ class ViserVisualizer(Visualizer):
         self._sim_time = 0.0
 
     def _close_viewer(self, finalize_viser: bool = False) -> None:
+        """Close the viewer and log the finalized recording, if any."""
         if self._viewer is None:
             return
         self._viewer.close()
@@ -195,6 +205,7 @@ class ViserVisualizer(Visualizer):
         self._viewer = None
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """Resolve the startup camera pose from config or a USD camera path."""
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
             if pose is not None:
@@ -206,6 +217,7 @@ class ViserVisualizer(Visualizer):
         return self.cfg.camera_position, self.cfg.camera_target
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
+        """Best-effort apply a camera pose to any connected Viser clients."""
         if self._viewer is None:
             return False
 
@@ -242,6 +254,7 @@ class ViserVisualizer(Visualizer):
         return applied
 
     def _set_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
+        """Apply the pose immediately or queue it until a client connects."""
         if self._try_apply_viser_camera_view(pose):
             self._last_camera_pose = pose
             self._pending_camera_pose = None
@@ -249,6 +262,7 @@ class ViserVisualizer(Visualizer):
             self._pending_camera_pose = pose
 
     def _apply_pending_camera_pose(self) -> None:
+        """Retry applying any queued camera pose once clients are available."""
         if self._pending_camera_pose is None:
             return
         if self._try_apply_viser_camera_view(self._pending_camera_pose):
@@ -256,6 +270,7 @@ class ViserVisualizer(Visualizer):
             self._pending_camera_pose = None
 
     def _update_camera_from_usd_path(self) -> None:
+        """Mirror the configured USD camera path into the active Viser camera."""
         pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
         if pose is None:
             return

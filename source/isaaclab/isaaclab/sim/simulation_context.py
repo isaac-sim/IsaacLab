@@ -389,7 +389,11 @@ class SimulationContext:
         return True, max_worlds
 
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
-        """Apply CLI visualizer overrides (e.g., max worlds) to resolved configs."""
+        """Apply CLI visualizer overrides (e.g., max worlds) to resolved configs.
+
+        Args:
+            visualizer_cfgs: Resolved visualizer configs to update in-place.
+        """
         has_max_worlds_override, max_worlds_override = self._get_cli_visualizer_max_worlds_override()
         if not has_max_worlds_override:
             return
