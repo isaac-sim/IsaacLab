@@ -17,6 +17,8 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.external_functions import call_externally_defined_function
+from isaaclab.utils.string import list_intersection
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -48,14 +50,23 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, remaining_args = parser.parse_known_args()
 
 if args_cli.video:
     args_cli.enable_cameras = True
 
-sys.argv = [sys.argv[0]] + hydra_args
+
+# Call an external callback if requested. This gives opportunity to external code to register the environments
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    remaining_args_env_registration = call_externally_defined_function(args_cli.external_callback)
+
+# clear out sys.argv for Hydra
+remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + remaining_args
 
 
 def main():
