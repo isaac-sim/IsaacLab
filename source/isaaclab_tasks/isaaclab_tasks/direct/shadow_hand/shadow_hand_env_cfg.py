@@ -241,6 +241,7 @@ class ObjectCfg(PresetCfg):
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
     physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
         gpu_max_rigid_contact_count=2**23,
