@@ -64,6 +64,7 @@ class ArticulationData(BaseArticulationData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
+        self._fk_timestamp = 0.0
 
         # Convert to direction vector
         gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
@@ -109,6 +110,9 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
@@ -644,6 +648,9 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._fk_timestamp < self._sim_timestamp:
+            SimulationManager.forward()
+            self._fk_timestamp = self._sim_timestamp
         return self._sim_bind_body_link_pose_w
 
     @property
@@ -798,7 +805,22 @@ class ArticulationData(BaseArticulationData):
         .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
         .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
         """
-        raise NotImplementedError
+        if self._sim_bind_body_parent_f is None:
+            raise NotImplementedError("body_parent_f not available — was the extended state attribute requested?")
+        if self._body_incoming_joint_wrench_b is None:
+            self._body_incoming_joint_wrench_b = TimestampedBuffer(
+                shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+        if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                articulation_kernels.transform_body_wrench_to_body_frame,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[self._sim_bind_body_parent_f, self.body_link_pose_w],
+                outputs=[self._body_incoming_joint_wrench_b.data],
+                device=self.device,
+            )
+            self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
+        return self._body_incoming_joint_wrench_b.data
 
     """
     Joint state properties.
@@ -1232,6 +1254,10 @@ class ArticulationData(BaseArticulationData):
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
+        try:
+            self._sim_bind_body_parent_f = self._root_view.get_attribute("body_parent_f", SimulationManager.get_state_0())[:, 0]
+        except:
+            self._sim_bind_body_parent_f = None
         # -- joint properties
         if n_dof > 0:
             self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
@@ -1398,10 +1424,8 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(
-        #     shape=(self._num_instances, self._num_joints), dtype=wp.spatial_vectorf, device=self.device
-        # )
         # Empty memory pre-allocations
+        self._body_incoming_joint_wrench_b = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None
         self._root_com_lin_vel_b = None

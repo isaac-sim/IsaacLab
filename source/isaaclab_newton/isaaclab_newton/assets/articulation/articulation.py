@@ -1014,6 +1014,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1068,6 +1070,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
