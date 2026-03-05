@@ -179,11 +179,11 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": [-0.2, 0.2],
+                "x": [-0.1, 0.1],
                 "y": [-0.25, 0.25],
-                "z": [-0.2, 0.2],
-                "roll": [-math.pi / 60, math.pi / 60],  # 2 degree
-                "pitch": [-math.pi / 60, math.pi / 60],  # 2 degree
+                "z": [-0.1, 0.1],
+                "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
+                "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
                 "yaw": [-math.pi / 6, math.pi / 6],  # 30 degree
             },
             "gear_pos_range": {
@@ -203,8 +203,8 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
+            "pos_randomization_range": {"x": [-0.005, 0.005], "y": [-0.005, 0.005], "z": [-0.005, 0.005]},
+            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
         },
     )
 
