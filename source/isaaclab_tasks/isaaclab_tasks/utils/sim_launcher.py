@@ -135,10 +135,18 @@ def launch_simulation(
     close_fn: Any = None
 
     if needs_kit:
-        from isaaclab.app import AppLauncher
+        # Check if the simulation app is already launched.
+        import omni.kit.app
 
-        app_launcher = AppLauncher(launcher_args)
-        close_fn = app_launcher.app.close
+        app = omni.kit.app.get_app()
+        is_running = app is not None and app.is_running()
+
+        # If the simulation app is not launched, we launch it.
+        if not is_running:
+            from isaaclab.app import AppLauncher
+
+            app_launcher = AppLauncher(launcher_args)
+            close_fn = app_launcher.app.close
     elif visualizer_types:
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that
