@@ -243,7 +243,9 @@ class NewtonVisualizer(Visualizer):
             update_frequency=self.cfg.update_frequency,
         )
 
-        self._viewer.set_model(self._model)
+        max_worlds = self.cfg.max_worlds
+        self._viewer.set_model(self._model, max_worlds=None if max_worlds in (None, 0) else max_worlds)
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         self._apply_camera_pose(self._resolve_initial_camera_pose())
         self._viewer.up_axis = 2  # Z-up
 

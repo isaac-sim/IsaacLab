@@ -21,11 +21,12 @@ class VisualizerCfg:
 
     Note:
         This is an abstract base class and should not be instantiated directly.
-        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg.
+        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg,
+        or KitVisualizerCfg.
     """
 
     visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'kit'). Must be overridden by subclasses."""
+    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
@@ -80,18 +81,20 @@ class VisualizerCfg:
         if self.visualizer_type is None:
             raise ValueError(
                 "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg."
+                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, "
+                "ViserVisualizerCfg, or KitVisualizerCfg."
             )
 
         visualizer_class = get_visualizer_class(self.visualizer_type)
         if visualizer_class is None:
-            if self.visualizer_type in ("newton", "rerun"):
+            if self.visualizer_type in ("newton", "rerun", "viser"):
                 raise ImportError(
                     f"Visualizer '{self.visualizer_type}' requires the Newton Python module and its dependencies. "
                     "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
                 )
             raise ValueError(
-                f"Visualizer type '{self.visualizer_type}' is not registered. Valid types: 'newton', 'rerun', 'kit'."
+                f"Visualizer type '{self.visualizer_type}' is not registered. "
+                "Valid types: 'newton', 'rerun', 'viser', 'kit'."
             )
 
         return visualizer_class(self)
