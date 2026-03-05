@@ -67,7 +67,7 @@ Create a function that builds your IsaacTeleop retargeting pipeline. The builder
 
 ```python
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.retargeters import (
+from isaacteleop.retargeters import (
     GripperRetargeter, Se3AbsRetargeter, TensorReorderer,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
