@@ -74,13 +74,7 @@ if args_cli.video:
 
 # Call an external callback if requested. This gives opportunity to external code to register the environments
 remaining_args_env_registration = None
-sim_app = None
 if args_cli.external_callback:
-    # Workaround: pre-start the simulation app so we can use kit in the external callback.
-    from isaaclab.app import AppLauncher
-
-    app_launcher = AppLauncher(args_cli)
-    sim_app = app_launcher.app
     remaining_args_env_registration = call_externally_defined_function(args_cli.external_callback)
 
 # clear out sys.argv for Hydra
@@ -216,8 +210,6 @@ def main():
 
         # close the simulator
         env.close()
-        if sim_app is not None:
-            sim_app.close()
 
 
 if __name__ == "__main__":
