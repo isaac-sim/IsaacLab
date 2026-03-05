@@ -652,8 +652,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">constant_fn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.vec_env.base_vec_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecEnv</span><span class="p">,</span> <span class="n">VecEnvObs</span><span class="p">,</span> <span class="n">VecEnvStepReturn</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnvCfg</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvCfg</span>
-
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
 
@@ -772,7 +770,10 @@
 <span class="sd">            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check that input is valid</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">,</span> <span class="n">DirectRLEnvCfg</span><span class="p">)):</span>
+        <span class="c1"># NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="p">(</span><span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">DirectRLEnv</span><span class="p">)):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="s2">&quot;The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>

@@ -641,6 +641,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">use_stage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.ui.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerLiveVisualizer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.configclass</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_cfg_presets</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.seed</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_seed</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.timer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span>
 
@@ -707,6 +708,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check that the config is valid</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+        <span class="c1"># Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)</span>
+        <span class="c1"># to their default variant so that managers and scene builders see concrete cfg objects.</span>
+        <span class="n">resolve_cfg_presets</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="c1"># store inputs to class</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
         <span class="c1"># initialize internal variables</span>

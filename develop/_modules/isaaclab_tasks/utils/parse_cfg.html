@@ -644,6 +644,50 @@
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnvCfg</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvCfg</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_preset_cfg</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return True if *obj* is an instance of a PresetCfg subclass (new typed-field style).</span>
+
+<span class="sd">    Uses MRO class-name matching so that this module has no dependency on the</span>
+<span class="sd">    hydra-gated ``isaaclab_tasks.utils.hydra`` import path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;PresetCfg&quot;</span> <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="vm">__mro__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_old_style_preset</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return True if *obj* is an old-style preset wrapper (has ``presets`` dict with a ``&#39;default&#39;`` key).&quot;&quot;&quot;</span>
+    <span class="n">presets</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s2">&quot;presets&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s2">&quot;__dataclass_fields__&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">presets</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;default&quot;</span> <span class="ow">in</span> <span class="n">presets</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_presets_to_default</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively replace preset wrapper fields with their *default* preset.</span>
+
+<span class="sd">    Handles two preset patterns used in IsaacLab task configs:</span>
+
+<span class="sd">    * **New style** (``PresetCfg`` subclass): typed fields where ``default`` is a class attribute.</span>
+<span class="sd">    * **Old style** (``presets`` dict): configclass with ``presets: dict[str, Cfg]`` and a ``&#39;default&#39;`` key.</span>
+
+<span class="sd">    Both are resolved in-place so the config can be used without a Hydra CLI override (e.g. in tests).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;__dataclass_fields__&quot;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cfg</span>
+    <span class="k">for</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">__dataclass_fields__</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">field_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">&quot;__dataclass_fields__&quot;</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">_is_preset_cfg</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">default</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
+            <span class="n">_resolve_presets_to_default</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">_is_old_style_preset</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">presets</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">]</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
+            <span class="n">_resolve_presets_to_default</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_resolve_presets_to_default</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cfg</span>
+
+
 <div class="viewcode-block" id="load_cfg_from_registry"><a class="viewcode-back" href="../../../source/api/lab_tasks/isaaclab_tasks.utils.html#isaaclab_tasks.utils.load_cfg_from_registry">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">load_cfg_from_registry</span><span class="p">(</span><span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entry_point_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">object</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Load default configuration given its entry point from the gym registry.</span>
 
@@ -772,10 +816,17 @@
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Configuration for the task: &#39;</span><span class="si">{</span><span class="n">task_name</span><span class="si">}</span><span class="s2">&#39; is not a class. Please provide a class.&quot;</span><span class="p">)</span>
 
-    <span class="c1"># resolve PresetCfg fields (e.g. physics) to their default values</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils.hydra</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_preset_defaults</span>
+    <span class="c1"># If the top-level cfg is itself a PresetCfg wrapper, resolve to the default preset before</span>
+    <span class="c1"># attempting any attribute access (e.g. cfg.sim, cfg.scene).</span>
+    <span class="k">if</span> <span class="n">_is_preset_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">default</span>
 
-    <span class="n">cfg</span> <span class="o">=</span> <span class="n">resolve_preset_defaults</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="c1"># Resolve any PresetCfg wrappers to their default preset so the config</span>
+    <span class="c1"># is usable without a Hydra CLI override (e.g. in tests).</span>
+    <span class="c1"># Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper</span>
+    <span class="c1"># fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper</span>
+    <span class="c1"># is replaced by its .default.</span>
+    <span class="n">_resolve_presets_to_default</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
     <span class="c1"># simulation device</span>
     <span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>

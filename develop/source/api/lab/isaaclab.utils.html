@@ -688,6 +688,7 @@
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.configclass">Configuration class</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.configclass.configclass"><code class="docutils literal notranslate"><span class="pre">configclass()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.configclass.resolve_cfg_presets"><code class="docutils literal notranslate"><span class="pre">resolve_cfg_presets()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.io">IO operations</a><ul class="nav section-nav flex-column">
@@ -1146,6 +1147,9 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.configclass.configclass" title="isaaclab.utils.configclass.configclass"><code class="xref py py-obj docutils literal notranslate"><span class="pre">configclass</span></code></a>(cls, **kwargs)</p></td>
 <td><p>Wrapper around <cite>dataclass</cite> functionality to add extra checks and utilities.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.configclass.resolve_cfg_presets" title="isaaclab.utils.configclass.resolve_cfg_presets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_cfg_presets</span></code></a>(cfg)</p></td>
+<td><p>Recursively replace preset-wrapper fields with their <em>default</em> preset.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1203,6 +1207,32 @@ conversion and easily copying class instances.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The wrapped class.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.configclass.resolve_cfg_presets">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.configclass.</span></span><span class="sig-name descname"><span class="pre">resolve_cfg_presets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/configclass.html#resolve_cfg_presets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.configclass.resolve_cfg_presets" title="Permalink to this definition">#</a></dt>
+<dd><p>Recursively replace preset-wrapper fields with their <em>default</em> preset.</p>
+<p>Task configs may use two preset-selector patterns to support multiple physics backends
+(PhysX / Newton) or observation modes. Both patterns produce wrapper objects that are
+<strong>not</strong> valid as the concrete cfg that downstream managers / scene builders expect.
+This function resolves them in-place so the config can be used without a Hydra CLI
+override (e.g. in unit tests or when creating environments directly).</p>
+<p>Supported patterns:</p>
+<ul class="simple">
+<li><p><strong>New style</strong> (<code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> subclass): a configclass whose MRO contains a class named
+<code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code>. The active variant is stored in the <code class="docutils literal notranslate"><span class="pre">default</span></code> attribute.</p></li>
+<li><p><strong>Old style</strong> (<code class="docutils literal notranslate"><span class="pre">presets</span></code> dict): a configclass that has a <code class="docutils literal notranslate"><span class="pre">presets:</span> <span class="pre">dict[str,</span> <span class="pre">Cfg]</span></code>
+attribute with a <code class="docutils literal notranslate"><span class="pre">&quot;default&quot;</span></code> key.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cfg</strong> – Any configclass instance (or any object; non-configclasses are returned as-is).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The same <code class="docutils literal notranslate"><span class="pre">cfg</span></code> object, modified in-place with preset wrappers replaced.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -6161,6 +6191,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.configclass">Configuration class</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.configclass.configclass"><code class="docutils literal notranslate"><span class="pre">configclass()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.configclass.resolve_cfg_presets"><code class="docutils literal notranslate"><span class="pre">resolve_cfg_presets()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.io">IO operations</a><ul class="nav section-nav flex-column">
