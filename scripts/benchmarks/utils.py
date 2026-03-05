@@ -114,8 +114,8 @@ def log_runtime_step_times(benchmark: BaseIsaacLabBenchmark, value: dict, comput
 # Preset names that indicate kitless physics (no Kit/AppLauncher required).
 # The renderer must also be kitless for the full pipeline to skip Kit.
 KITLESS_PHYSICS_PRESETS = {"newton"}
-KITLESS_RENDERER_PRESETS = {"newton_renderer"}
-KIT_RENDERER_PRESETS = {"ovrtx_renderer"}
+KITLESS_RENDERER_PRESETS = {"newton_renderer", "ovrtx_renderer"}
+KIT_RENDERER_PRESETS = {"isaacsim_rtx_renderer"}
 
 
 def needs_kit(hydra_args: list[str]) -> bool:
