@@ -94,16 +94,16 @@ class EventCfg:
     #     },
     # )
 
-    # joint_friction = EventTerm(
-    #     func=mdp.randomize_joint_parameters,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
-    #         "friction_distribution_params": (0.3, 0.7),
-    #         "operation": "add",
-    #         "distribution": "uniform",
-    #     },
-    # )
+    joint_friction = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
+            "friction_distribution_params": (0.3, 0.7),
+            "operation": "add",
+            "distribution": "uniform",
+        },
+    )
 
     small_gear_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -203,8 +203,8 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "pos_randomization_range": {"x": [-0.005, 0.005], "y": [-0.005, 0.005], "z": [-0.005, 0.005]},
-            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
+            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
+            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
         },
     )
 
