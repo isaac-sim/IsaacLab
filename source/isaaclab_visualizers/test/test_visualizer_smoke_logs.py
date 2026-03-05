@@ -71,7 +71,7 @@ def _get_visualizer_cfg(visualizer_kind: str):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
     if visualizer_kind == "newton":
         pytest.importorskip("newton")
-        return NewtonVisualizerCfg(), NewtonVisualizer
+        return NewtonVisualizerCfg(headless=True), NewtonVisualizer
     if visualizer_kind == "rerun":
         pytest.importorskip("newton")
         pytest.importorskip("rerun")

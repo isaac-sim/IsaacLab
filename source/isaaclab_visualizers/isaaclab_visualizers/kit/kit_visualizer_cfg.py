@@ -22,6 +22,9 @@ class KitVisualizerCfg(VisualizerCfg):
     create_viewport: bool = False
     """Create new viewport with specified name and camera pose."""
 
+    headless: bool = False
+    """Run without creating viewport windows when supported by the app."""
+
     dock_position: str = "SAME"
     """Dock position for new viewport. Options: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'."""
 

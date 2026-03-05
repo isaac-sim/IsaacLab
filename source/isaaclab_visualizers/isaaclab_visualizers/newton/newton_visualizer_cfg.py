@@ -22,6 +22,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     window_height: int = 1080
     """Window height in pixels."""
 
+    headless: bool = False
+    """Run the Newton viewer without requiring a display server."""
+
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames)."""
 

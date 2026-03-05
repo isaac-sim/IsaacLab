@@ -37,6 +37,7 @@ class KitVisualizer(BaseVisualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
+        self._runtime_headless = bool(cfg.headless)
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -72,6 +73,7 @@ class KitVisualizer(BaseVisualizer):
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
+                ("headless", self._runtime_headless),
             ],
         )
 
@@ -168,7 +170,8 @@ class KitVisualizer(BaseVisualizer):
 
             if sim_app is not None:
                 self._simulation_app = sim_app
-                if self._simulation_app.config.get("headless", False):
+                self._runtime_headless = bool(self.cfg.headless or self._simulation_app.config.get("headless", False))
+                if self._runtime_headless:
                     logger.warning("[KitVisualizer] Running in headless mode. Viewport may not display.")
         except ImportError:
             pass
@@ -176,6 +179,12 @@ class KitVisualizer(BaseVisualizer):
     def _setup_viewport(self, usd_stage) -> None:
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
+
+        if self._runtime_headless:
+            # In headless mode we keep the visualizer active but skip viewport/window setup.
+            self._viewport_window = None
+            self._viewport_api = None
+            return
 
         if self.cfg.create_viewport and self.cfg.viewport_name:
             dock_position_name = self.cfg.dock_position.upper()
@@ -201,6 +210,10 @@ class KitVisualizer(BaseVisualizer):
         else:
             self._viewport_window = vp_utils.get_active_viewport_window()
 
+        if self._viewport_window is None:
+            logger.warning("[KitVisualizer] No active viewport window found.")
+            self._viewport_api = None
+            return
         self._viewport_api = self._viewport_window.viewport_api
         if self.cfg.camera_source == "usd_path":
             if not self._set_active_camera_path(self.cfg.camera_usd_path):
@@ -255,6 +268,8 @@ class KitVisualizer(BaseVisualizer):
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
+        if self._viewport_api is None:
+            return
         camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
