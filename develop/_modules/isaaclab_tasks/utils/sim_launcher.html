@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 04, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 05, 2026"/>
   </head>
   
   
@@ -730,7 +730,9 @@
 <span class="sd">    * Auto-enables ``enable_cameras`` when the scene contains camera sensors</span>
 <span class="sd">      that use a Kit renderer (not Newton).</span>
 <span class="sd">    * For Kit-based backends, launches ``AppLauncher`` and calls ``app.close()`` on exit.</span>
-<span class="sd">    * For kitless backends (e.g. Newton), this is a no-op.</span>
+<span class="sd">    * For kitless backends (e.g. Newton with Newton Warp renderer only), this is a no-op.</span>
+<span class="sd">    * For Newton Physics + RTX Renderer (with Kit cameras): Kit is launched</span>
+<span class="sd">      so that RTX can run; Newton syncs its state to the USD stage each step for rendering.</span>
 
 <span class="sd">    Example::</span>
 
@@ -738,7 +740,9 @@
 <span class="sd">            main()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">is_newton</span><span class="p">,</span> <span class="n">has_kit_cameras</span> <span class="o">=</span> <span class="n">_scan_config</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="p">[</span><span class="n">_is_newton_physics</span><span class="p">,</span> <span class="n">_is_kit_camera</span><span class="p">])</span>
-    <span class="n">needs_kit</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">is_newton</span>
+    <span class="c1"># For Newton Physics + RTX Renderer (with Kit cameras): start Kit so RTX can run;</span>
+    <span class="c1"># Newton will sync state to USD each step.</span>
+    <span class="n">needs_kit</span> <span class="o">=</span> <span class="n">has_kit_cameras</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">is_newton</span>
 
     <span class="c1"># If the Kit visualizer is explicitly requested, Kit must launch even for Newton physics.</span>
     <span class="n">visualizer_types</span> <span class="o">=</span> <span class="n">_get_visualizer_types</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
@@ -827,7 +831,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 04, 2026.
+  Last updated on Mar 05, 2026.
   <br/>
 </p>
   </div>

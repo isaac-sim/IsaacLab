@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 04, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 05, 2026"/>
   </head>
   
   
@@ -785,6 +785,14 @@
 
         <span class="c1"># Initialize parent class</span>
         <span class="n">SensorBase</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">renderer_cfg</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Using renderer: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">renderer</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+        <span class="c1"># Stage preprocessing needs to happen before creating the view because</span>
+        <span class="c1"># the view keeps references to the prims located in the stage</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">renderer</span><span class="o">.</span><span class="n">prepare_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">)</span>
+
         <span class="c1"># Create a view for the sensor</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="n">XformPrimView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">)</span>
         <span class="c1"># Check that sizes are correct</span>
@@ -809,10 +817,7 @@
             <span class="c1"># Add to list</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="n">cam_prim</span><span class="p">))</span>
 
-        <span class="c1"># Create renderer after scene is ready (post-cloning) so world_count is correct</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">renderer_cfg</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Using renderer: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">renderer</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
-
+        <span class="c1"># View needs to exist before creating render data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">render_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">renderer</span><span class="o">.</span><span class="n">create_render_data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
         <span class="c1"># Create internal buffers</span>
@@ -1024,7 +1029,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 04, 2026.
+  Last updated on Mar 05, 2026.
   <br/>
 </p>
   </div>

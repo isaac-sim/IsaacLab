@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 04, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 05, 2026"/>
   </head>
   
   
@@ -799,7 +799,9 @@ which means no packages are blacklisted.</p></li>
 <li><p>Auto-enables <code class="docutils literal notranslate"><span class="pre">enable_cameras</span></code> when the scene contains camera sensors
 that use a Kit renderer (not Newton).</p></li>
 <li><p>For Kit-based backends, launches <code class="docutils literal notranslate"><span class="pre">AppLauncher</span></code> and calls <code class="docutils literal notranslate"><span class="pre">app.close()</span></code> on exit.</p></li>
-<li><p>For kitless backends (e.g. Newton), this is a no-op.</p></li>
+<li><p>For kitless backends (e.g. Newton with Newton Warp renderer only), this is a no-op.</p></li>
+<li><p>For Newton Physics + RTX Renderer (with Kit cameras): Kit is launched
+so that RTX can run; Newton syncs its state to the USD stage each step for rendering.</p></li>
 </ul>
 <p>Example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">launch_simulation</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">args_cli</span><span class="p">):</span>
@@ -957,7 +959,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 04, 2026.
+  Last updated on Mar 05, 2026.
   <br/>
 </p>
   </div>
