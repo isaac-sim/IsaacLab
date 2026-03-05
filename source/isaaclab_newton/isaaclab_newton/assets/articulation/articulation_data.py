@@ -563,7 +563,7 @@ class ArticulationData(BaseArticulationData):
                 dim=self._num_instances,
                 inputs=[
                     self.root_com_vel_w,
-                    self.root_link_quat_w,
+                    self.root_link_pose_w,
                     self.body_com_pos_b,
                 ],
                 outputs=[
