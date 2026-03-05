@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+1.5.2 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton backend support to the Allegro Hand and Shadow Hand in-hand manipulation environments.
+
 1.5.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 
