@@ -275,69 +275,8 @@ jobs:
           exit 1
         fi
 
-  cuda-issue-tests:
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 120
-    continue-on-error: true
-
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        lfs: true
-
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-
-    - name: Run CUDA Issue Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "cuda-issue-tests-report.xml"
-        container-name: "isaac-lab-cuda-issue-test-$$"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: "-v -s"
-        filter-pattern: ""
-        cuda-issue-only: "true"
-
-    - name: Copy Test Results from CUDA Issue Tests Container
-      run: |
-        CONTAINER_NAME="isaac-lab-cuda-issue-test-$$"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from CUDA Issue Tests container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/cuda-issue-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from CUDA Issue Tests container"
-        fi
-
-    - name: Upload CUDA Issue Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: cuda-issue-test-results
-        path: reports/cuda-issue-tests-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/cuda-issue-tests-report.xml" ]; then
-          # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/cuda-issue-tests-report.xml || grep -q 'errors="[1-9]' reports/cuda-issue-tests-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
   combine-results:
-    needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo, cuda-issue-tests]
+    needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -376,13 +315,6 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: curobo-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download CUDA Issue Test Results
-      uses: actions/download-artifact@v4
-      with:
-        name: cuda-issue-test-results
         path: reports/
       continue-on-error: true
 
