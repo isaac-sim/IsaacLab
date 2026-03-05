@@ -7,7 +7,12 @@ Changelog
 Added
 ^^^^^
 
-* Added Newton backend support to the Allegro Hand and Shadow Hand in-hand manipulation environments.
+* Added :func:`~isaaclab_tasks.utils.sim_launcher.needs_kit_for_config` to expose the Kit
+  decision logic for testing (e.g. preset resolution: ``presets=newton,ovrtx_renderer`` →
+  ``False``).
+
+* Added :file:`test_preset_kit_decision.py` — beginner-friendly unit tests that verify
+  preset resolution and Kit decision.
 
 1.5.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~

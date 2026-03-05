@@ -111,30 +111,6 @@ def log_runtime_step_times(benchmark: BaseIsaacLabBenchmark, value: dict, comput
         log_min_max_mean_stats(benchmark, value)
 
 
-# Preset names that indicate kitless physics (no Kit/AppLauncher required).
-# The renderer must also be kitless for the full pipeline to skip Kit.
-KITLESS_PHYSICS_PRESETS = {"newton"}
-KITLESS_RENDERER_PRESETS = {"newton_renderer", "ovrtx_renderer"}
-KIT_RENDERER_PRESETS = {"isaacsim_rtx_renderer"}
-
-
-def needs_kit(hydra_args: list[str]) -> bool:
-    """Return True if the active presets require Kit (AppLauncher).
-
-    Kit is skipped only when BOTH the physics backend AND renderer (if
-    specified) are kitless.  When no renderer preset is given the default
-    renderer is assumed, which requires Kit.
-    """
-    active = set(get_preset_string(hydra_args).split(","))
-    has_kitless_physics = bool(active & KITLESS_PHYSICS_PRESETS)
-    has_kit_renderer = bool(active & KIT_RENDERER_PRESETS)
-    if not has_kitless_physics:
-        return True
-    if has_kit_renderer:
-        return True
-    return False
-
-
 def get_preset_string(hydra_args: list[str]) -> str:
     """Extract the active preset string from CLI hydra args or an environment variable.
 

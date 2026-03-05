@@ -61,21 +61,6 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-from scripts.benchmarks.utils import needs_kit
-
-_needs_kit = needs_kit(hydra_args)
-
-app_start_time_begin = time.perf_counter_ns()
-
-if _needs_kit:
-    app_launcher = AppLauncher(args_cli)
-    simulation_app = app_launcher.app
-else:
-    app_launcher = None
-    simulation_app = None
-
-app_start_time_end = time.perf_counter_ns()
-
 imports_time_begin = time.perf_counter_ns()
 
 from datetime import datetime
@@ -92,7 +77,7 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path, hydra_task_config
+from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 
@@ -140,8 +125,12 @@ benchmark = BaseIsaacLabBenchmark(
 )
 
 
-@hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlOnPolicyRunnerCfg):
+def main(
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+    agent_cfg: RslRlOnPolicyRunnerCfg,
+    app_start_time_begin: int,
+    app_start_time_end: int,
+):
     """Train with RSL-RL agent."""
     # parse configuration
     # override configurations with non-hydra CLI arguments
@@ -273,8 +262,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    if simulation_app is not None:
-        simulation_app.close()
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
+
+    app_start_time_begin = time.perf_counter_ns()
+    with launch_simulation(env_cfg, args_cli):
+        app_start_time_end = time.perf_counter_ns()
+        main(env_cfg, agent_cfg, app_start_time_begin, app_start_time_end)

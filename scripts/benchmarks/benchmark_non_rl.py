@@ -55,23 +55,6 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-from scripts.benchmarks.utils import needs_kit
-
-_needs_kit = needs_kit(hydra_args)
-
-app_start_time_begin = time.perf_counter_ns()
-
-if _needs_kit:
-    app_launcher = AppLauncher(args_cli)
-    simulation_app = app_launcher.app
-else:
-    app_launcher = None
-    simulation_app = None
-
-app_start_time_end = time.perf_counter_ns()
-
-"""Rest everything follows."""
-
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
@@ -102,7 +85,7 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import hydra_task_config
+from isaaclab_tasks.utils import launch_simulation, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 
@@ -128,8 +111,11 @@ benchmark = BaseIsaacLabBenchmark(
 )
 
 
-@hydra_task_config(args_cli.task, None)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def main(
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+    app_start_time_begin: int,
+    app_start_time_end: int,
+):
     """Benchmark without RL in the loop."""
 
     # override configurations with non-hydra CLI arguments
@@ -181,25 +167,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Run with continuous benchmark monitoring
     with BenchmarkMonitor(benchmark, interval=1.0):
-        while simulation_app is None or simulation_app.is_running():
-            while num_frames < args_cli.num_frames:
-                # get upper and lower bounds of action space, sample actions randomly on this interval
-                action_high = 1
-                action_low = -1
-                actions = (action_high - action_low) * torch.rand(
-                    env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
-                ) - action_high
+        while num_frames < args_cli.num_frames:
+            # get upper and lower bounds of action space, sample actions randomly on this interval
+            action_high = 1
+            action_low = -1
+            actions = (action_high - action_low) * torch.rand(
+                env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
+            ) - action_high
 
-                # env stepping
-                env_step_time_begin = time.perf_counter_ns()
-                _ = env.step(actions)
-                end_step_time_end = time.perf_counter_ns()
-                step_times.append(end_step_time_end - env_step_time_begin)
+            # env stepping
+            env_step_time_begin = time.perf_counter_ns()
+            _ = env.step(actions)
+            end_step_time_end = time.perf_counter_ns()
+            step_times.append(end_step_time_end - env_step_time_begin)
 
-                num_frames += 1
-
-            # terminate
-            break
+            num_frames += 1
 
     if world_rank == 0:
         # Final update after loop completes
@@ -232,8 +214,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    if simulation_app is not None:
-        simulation_app.close()
+    env_cfg, _agent_cfg = resolve_task_config(args_cli.task, None)
+
+    app_start_time_begin = time.perf_counter_ns()
+    with launch_simulation(env_cfg, args_cli):
+        app_start_time_end = time.perf_counter_ns()
+        main(env_cfg, app_start_time_begin, app_start_time_end)

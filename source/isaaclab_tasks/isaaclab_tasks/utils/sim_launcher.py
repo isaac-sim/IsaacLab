@@ -96,6 +96,30 @@ def _is_kit_camera(node) -> bool:
     return True
 
 
+def needs_kit_for_config(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None = None,
+) -> bool:
+    """Return True if *env_cfg* requires Kit (AppLauncher).
+
+    Uses the same logic as :func:`launch_simulation` to decide whether Isaac Sim
+    Kit must be launched.
+
+    Args:
+        env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
+        launcher_args: Optional CLI args; if ``visualizer=kit`` is set, returns True.
+
+    Returns:
+        True if Kit is required, False for kitless backends (Newton + OVRTX/Newton Warp).
+    """
+    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
+    needs_kit = has_kit_cameras or not is_newton
+    visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in visualizer_types:
+        needs_kit = True
+    return needs_kit
+
+
 @contextmanager
 def launch_simulation(
     env_cfg,
