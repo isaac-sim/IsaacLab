@@ -12,6 +12,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -63,6 +64,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 200,
         render_interval=decimation,
+        physics=PhysxCfg(gpu_max_rigid_patch_count=2**20),
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
