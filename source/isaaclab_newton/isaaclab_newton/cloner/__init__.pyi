@@ -5,6 +5,7 @@
 
 __all__ = [
     "newton_replicate",
+    "newton_visualizer_replicate",
 ]
 
-from .newton_replicate import newton_replicate
+from .newton_replicate import newton_replicate, newton_visualizer_replicate

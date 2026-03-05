@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
-from pxr import Sdf
+from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -137,11 +137,60 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
+        self.sim.clear_newton_visualizer_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
+        visualizer_clone_fn = None
         if "physx" in self.physics_backend:
             from isaaclab_physx.cloner import physx_replicate
 
             physics_clone_fn = physx_replicate
+            requested_viz_types = set(self.sim.resolve_visualizer_types())
+            if {"newton", "rerun"} & requested_viz_types:
+                try:
+                    from isaaclab_newton.cloner import newton_visualizer_replicate
+
+                    up_axis = UsdGeom.GetStageUpAxis(self.stage)
+
+                    def _visualizer_clone_fn(
+                        stage,
+                        sources,
+                        destinations,
+                        env_ids,
+                        mapping,
+                        positions=None,
+                        quaternions=None,
+                        device="cpu",
+                    ):
+                        model, state = newton_visualizer_replicate(
+                            stage,
+                            sources,
+                            destinations,
+                            env_ids,
+                            mapping,
+                            positions=positions,
+                            quaternions=quaternions,
+                            device=device,
+                            up_axis=up_axis,
+                        )
+                        rigid_body_paths = list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
+                        articulation_paths = list(
+                            getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
+                        )
+                        self.sim.set_newton_visualizer_artifact(
+                            model=model,
+                            state=state,
+                            rigid_body_paths=rigid_body_paths,
+                            articulation_paths=articulation_paths,
+                            num_envs=int(mapping.size(1)),
+                        )
+
+                    visualizer_clone_fn = _visualizer_clone_fn
+                except (ImportError, ModuleNotFoundError) as e:
+                    print(e)
+                    import ipdb; ipdb.set_trace()
+                    logger.warning(
+                        "Newton visualizer artifact prebuild is unavailable because isaaclab_newton is not installed."
+                    )
         elif "newton" in self.physics_backend:
             from isaaclab_newton.cloner import newton_replicate
 
@@ -158,6 +207,7 @@ class InteractiveScene:
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
             physics_clone_fn=physics_clone_fn,
+            visualizer_clone_fn=visualizer_clone_fn,
         )
 
         # create source prim

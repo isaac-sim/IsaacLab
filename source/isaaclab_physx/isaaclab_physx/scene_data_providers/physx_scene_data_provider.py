@@ -8,7 +8,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+import sys
+import time
 from collections import deque
 from typing import Any
 
@@ -172,9 +175,63 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._setup_rigid_body_view()
             self._setup_articulation_view()
 
+    def _model_body_paths(self, model) -> list[str]:
+        """Return body paths/keys from a Newton model."""
+        if model is None:
+            return []
+        return list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
+
+    def _model_articulation_paths(self, model) -> list[str]:
+        """Return articulation paths/keys from a Newton model."""
+        if model is None:
+            return []
+        return list(getattr(model, "articulation_label", None) or getattr(model, "articulation_key", []))
+
+    def _try_use_prebuilt_newton_artifact(self) -> bool:
+        """Use scene-time prebuilt Newton visualizer artifact when available."""
+        if os.getenv("ISAACLAB_NEWTON_VIS_USE_PREBUILT", "1") == "0":
+            return False
+        getter = getattr(self._simulation_context, "get_newton_visualizer_artifact", None)
+        if not callable(getter):
+            return False
+        artifact = getter()
+        if not artifact:
+            return False
+
+        model = artifact.get("model")
+        state = artifact.get("state")
+        if model is None or state is None:
+            return False
+
+        self._newton_model = model
+        self._newton_state = state
+        self._rigid_body_paths = list(artifact.get("rigid_body_paths", [])) or self._model_body_paths(model)
+        self._articulation_paths = list(artifact.get("articulation_paths", [])) or self._model_articulation_paths(model)
+
+        self._xform_views.clear()
+        self._view_body_index_map = {}
+        self._view_order_tensors.clear()
+        self._pose_buf_num_bodies = 0
+        self._positions_buf = None
+        self._orientations_buf = None
+        self._covered_buf = None
+        self._xform_mask_buf = None
+        self._env_id_to_body_indices = {}
+        self._num_envs_at_last_newton_build = int(artifact.get("num_envs", self.get_num_envs()))
+        self._filtered_newton_model = None
+        self._filtered_newton_state = None
+        self._filtered_env_ids_key = None
+        self._filtered_body_indices = []
+        return True
+
     def _build_newton_model_from_usd(self) -> None:
         """Build Newton model from USD and cache body/articulation paths."""
+        start_t = time.perf_counter()
+        build_source = "usd_fallback"
         try:
+            if self._try_use_prebuilt_newton_artifact():
+                build_source = "prebuilt_cloner_artifact"
+                return
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
@@ -187,8 +244,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._newton_state = self._newton_model.state()
 
             # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_label)
-            self._articulation_paths = list(self._newton_model.articulation_label)
+            self._rigid_body_paths = self._model_body_paths(self._newton_model)
+            self._articulation_paths = self._model_articulation_paths(self._newton_model)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -218,6 +275,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._rigid_body_paths = []
             self._articulation_paths = []
             self._num_envs_at_last_newton_build = None
+        finally:
+            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+            msg = (
+                f"[PhysxSceneDataProvider] Newton model build source={build_source} num_envs={self.get_num_envs()} elapsed_ms={elapsed_ms:.2f}"
+            )
+            print(msg, file=sys.stderr, flush=True)
 
     def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
         """Build Newton model/state for a subset of envs."""
@@ -234,7 +297,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_newton_state = self._filtered_newton_model.state()
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            filtered_paths = list(self._filtered_newton_model.body_key)
+            filtered_paths = self._model_body_paths(self._filtered_newton_model)
             self._filtered_body_indices = []
             missing = []
             for path in filtered_paths:

@@ -155,6 +155,7 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
+        self._newton_visualizer_artifact: dict[str, Any] | None = None
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -498,6 +499,31 @@ class SimulationContext:
         if self._scene_data_provider is None:
             self._scene_data_provider = SceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
+
+    def set_newton_visualizer_artifact(
+        self,
+        model: Any,
+        state: Any,
+        rigid_body_paths: list[str],
+        articulation_paths: list[str],
+        num_envs: int,
+    ) -> None:
+        """Store a prebuilt Newton model/state for debug visualizers."""
+        self._newton_visualizer_artifact = {
+            "model": model,
+            "state": state,
+            "rigid_body_paths": rigid_body_paths,
+            "articulation_paths": articulation_paths,
+            "num_envs": num_envs,
+        }
+
+    def get_newton_visualizer_artifact(self) -> dict[str, Any] | None:
+        """Return prebuilt Newton visualizer artifact, if available."""
+        return self._newton_visualizer_artifact
+
+    def clear_newton_visualizer_artifact(self) -> None:
+        """Clear prebuilt Newton visualizer artifact cache."""
+        self._newton_visualizer_artifact = None
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:
