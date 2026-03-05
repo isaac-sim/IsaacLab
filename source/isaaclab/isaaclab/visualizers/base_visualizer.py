@@ -27,6 +27,7 @@ class BaseVisualizer(ABC):
 
     Lifecycle: __init__() -> initialize() -> step() (repeated) -> close()
     """
+
     requires_newton_model: bool = False
     """Whether this visualizer requires Newton model/state from SceneDataProvider."""
 

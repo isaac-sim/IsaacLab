@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
     requires_newton_model: bool = False
     """Whether this renderer requires Newton model/state from SceneDataProvider."""
 
