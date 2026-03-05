@@ -29,7 +29,7 @@ from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
-from isaaclab_teleop.visualizers import HandJointVisualizer  # isort: skip
+from isaaclab_teleop.visualizers import get_hand_joint_visualizers  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 
 logger = logging.getLogger(__name__)
@@ -545,7 +545,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 
     # When True, the teleop pipeline exposes hand_left/hand_right (26 joints each)
     # in last_step_result so callers can query raw finger joints.
-    enable_visualization: bool = False
+    enable_visualization: bool = True
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
@@ -635,22 +635,5 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         )
 
     def get_teleop_visualizers(self, teleop_interface):
-        """Return teleop visualizers to update each frame (e.g. hand joint markers).
-
-        Call :meth:`update` after each advance(), then call visualizer.update() for each returned object.
-
-        Returns:
-            List of visualizer objects with an update() method. Empty if
-            enable_visualization is False.
-        """
-        if not self.enable_visualization:
-            return []
-        visualizers = []
-        if HandJointVisualizer.supports(teleop_interface):
-            visualizers.append(HandJointVisualizer(teleop_interface))
-        else:
-            logger.error(
-                "Hand joint visualization enabled but teleop interface is not supported by HandJointVisualizer "
-                "(expected IsaacTeleopDevice with session lifecycle)"
-            )
-        return visualizers
+        """Return teleop visualizers to update each frame; see :func:`~isaaclab_teleop.visualizers.get_hand_joint_visualizers`."""
+        return get_hand_joint_visualizers(self.enable_visualization, teleop_interface)

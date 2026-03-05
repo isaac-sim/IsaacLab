@@ -7,7 +7,7 @@ import logging
 import tempfile
 
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
-from isaaclab_teleop.visualizers import HandJointVisualizer
+from isaaclab_teleop.visualizers import get_hand_joint_visualizers
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -81,22 +81,5 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         )
 
     def get_teleop_visualizers(self, teleop_interface):
-        """Return teleop visualizers to update each frame (e.g. hand joint markers).
-
-        Call :meth:`update` after each advance(), then call visualizer.update() for each returned object.
-
-        Returns:
-            List of visualizer objects with an update() method. Empty if
-            enable_visualization is False.
-        """
-        if not self.enable_visualization:
-            return []
-        visualizers = []
-        if HandJointVisualizer.supports(teleop_interface):
-            visualizers.append(HandJointVisualizer(teleop_interface))
-        else:
-            logger.error(
-                "Hand joint visualization enabled but teleop interface is not supported by HandJointVisualizer "
-                "(expected IsaacTeleopDevice with session lifecycle)"
-            )
-        return visualizers
+        """Return teleop visualizers to update each frame; see :func:`~isaaclab_teleop.visualizers.get_hand_joint_visualizers`."""
+        return get_hand_joint_visualizers(self.enable_visualization, teleop_interface)
