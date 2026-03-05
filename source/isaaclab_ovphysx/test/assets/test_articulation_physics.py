@@ -39,9 +39,7 @@ def gpu_write(binding, np_data: np.ndarray):
     wp_buf = wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=DEVICE)
     binding.write(wp_buf)
 
-TWO_ART_USD = os.path.join(
-    os.path.expanduser("~"), "physics_backup", "omni", "ovphysx", "tests", "data", "two_articulations.usda"
-)
+TWO_ART_USD = os.path.join(os.path.dirname(__file__), "..", "data", "two_articulations.usda")
 
 DT = 1.0 / 60.0
 

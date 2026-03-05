@@ -47,9 +47,7 @@ import ovphysx  # noqa: E402,F401
 _sys.modules.update(_hidden_pxr)
 del _hidden_pxr
 
-TWO_ART_USD = os.path.join(
-    os.path.expanduser("~"), "physics_backup", "omni", "ovphysx", "tests", "data", "two_articulations.usda"
-)
+TWO_ART_USD = os.path.join(os.path.dirname(__file__), "..", "data", "two_articulations.usda")
 
 
 def _create_stage_with_usd_content(usd_path: str) -> Usd.Stage:
