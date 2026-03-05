@@ -35,12 +35,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _get_ovphysx():
-    """Lazy import to avoid USD version conflicts at module load time."""
-    import ovphysx
-    return ovphysx
-
-
 @wp.kernel
 def _body_wrench_to_world(
     force_b: wp.array(dtype=wp.vec3f, ndim=2),
@@ -63,6 +57,17 @@ def _body_wrench_to_world(
     wrench_out[i, j, 6] = p_w[0]
     wrench_out[i, j, 7] = p_w[1]
     wrench_out[i, j, 8] = p_w[2]
+
+
+@wp.kernel
+def _scatter_rows_partial(
+    dst: wp.array2d(dtype=wp.float32),
+    src: wp.array2d(dtype=wp.float32),
+    ids: wp.array(dtype=wp.int32),
+):
+    """dst[ids[i], j] = src[i, j] -- scatter partial [K,C] into full [N,C] on GPU."""
+    i, j = wp.tid()
+    dst[ids[i], j] = src[i, j]
 
 
 class Articulation(BaseArticulation):
@@ -150,21 +155,26 @@ class Articulation(BaseArticulation):
         velocities back into the simulation for the specified env_ids (or all
         environments if env_ids is None).
         """
+        # Default state buffers are always full [N,...], so we call the
+        # internal write methods directly (bypassing shape assertions that
+        # would reject full-size data when env_ids selects a subset).
+        # The binding API accepts full buffers and uses indices/mask to
+        # select which rows to write.
         if env_ids is not None:
-            self.write_root_pose_to_sim_index(root_pose=self._data.default_root_pose, env_ids=env_ids)
-            self.write_root_velocity_to_sim_index(root_velocity=self._data.default_root_vel, env_ids=env_ids)
-            self.write_joint_position_to_sim_index(position=self._data.default_joint_pos, env_ids=env_ids)
-            self.write_joint_velocity_to_sim_index(velocity=self._data.default_joint_vel, env_ids=env_ids)
+            self._write_root_state(TT.ROOT_POSE, self._data.default_root_pose, env_ids=env_ids)
+            self._write_root_state(TT.ROOT_VELOCITY, self._data.default_root_vel, env_ids=env_ids)
+            self._write_flat_tensor(TT.DOF_POSITION, self._data.default_joint_pos, env_ids=env_ids)
+            self._write_flat_tensor(TT.DOF_VELOCITY, self._data.default_joint_vel, env_ids=env_ids)
         elif env_mask is not None:
-            self.write_root_pose_to_sim_mask(root_pose=self._data.default_root_pose, env_mask=env_mask)
-            self.write_root_velocity_to_sim_mask(root_velocity=self._data.default_root_vel, env_mask=env_mask)
-            self.write_joint_position_to_sim_mask(position=self._data.default_joint_pos, env_mask=env_mask)
-            self.write_joint_velocity_to_sim_mask(velocity=self._data.default_joint_vel, env_mask=env_mask)
+            self._write_root_state(TT.ROOT_POSE, self._data.default_root_pose, mask=env_mask)
+            self._write_root_state(TT.ROOT_VELOCITY, self._data.default_root_vel, mask=env_mask)
+            self._write_flat_tensor_mask(TT.DOF_POSITION, self._data.default_joint_pos, env_mask=env_mask)
+            self._write_flat_tensor_mask(TT.DOF_VELOCITY, self._data.default_joint_vel, env_mask=env_mask)
         else:
-            self.write_root_pose_to_sim_index(root_pose=self._data.default_root_pose)
-            self.write_root_velocity_to_sim_index(root_velocity=self._data.default_root_vel)
-            self.write_joint_position_to_sim_index(position=self._data.default_joint_pos)
-            self.write_joint_velocity_to_sim_index(velocity=self._data.default_joint_vel)
+            self._write_root_state(TT.ROOT_POSE, self._data.default_root_pose)
+            self._write_root_state(TT.ROOT_VELOCITY, self._data.default_root_vel)
+            self._write_flat_tensor(TT.DOF_POSITION, self._data.default_joint_pos)
+            self._write_flat_tensor(TT.DOF_VELOCITY, self._data.default_joint_vel)
 
         # Zero out command buffers.
         self._data._joint_pos_target.zero_()
@@ -178,25 +188,23 @@ class Articulation(BaseArticulation):
         # Apply external wrenches (before actuators, same as PhysX backend).
         self._apply_external_wrenches()
 
-        T = _get_ovphysx()
         self._apply_actuator_model()
         # Write implicit targets
         for act in self.actuators.values():
             if act.computed_effort is None:
                 if act.joint_indices is not None:
                     self._write_joint_subset(
-                        T.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_TARGET_F32,
+                        TT.DOF_POSITION_TARGET,
                         self._data.joint_pos_target, act.joint_indices,
                     )
                     self._write_joint_subset(
-                        T.OVPHYSX_TENSOR_ARTICULATION_DOF_VELOCITY_TARGET_F32,
+                        TT.DOF_VELOCITY_TARGET,
                         self._data.joint_vel_target, act.joint_indices,
                     )
 
-        effort_binding = self._bindings.get(T.OVPHYSX_TENSOR_ARTICULATION_DOF_ACTUATION_FORCE_F32)
+        effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
         if effort_binding is not None:
-            np_buf = self._data.applied_torque.numpy()
-            effort_binding.write(np_buf)
+            effort_binding.write(self._data.applied_torque)
 
     def update(self, dt: float) -> None:
         self._data.update(dt)
@@ -248,56 +256,56 @@ class Articulation(BaseArticulation):
     def write_root_pose_to_sim_index(self, *, root_pose, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
-        self._write_root_transform(10, root_pose, env_ids)
+        self._write_root_state(TT.ROOT_POSE, root_pose, env_ids)
 
     def write_root_pose_to_sim_mask(self, *, root_pose, env_mask=None) -> None:
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
-        self._write_root_transform(10, root_pose, mask=env_mask)
+        self._write_root_state(TT.ROOT_POSE, root_pose, mask=env_mask)
 
     def write_root_link_pose_to_sim_index(self, *, root_pose, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
-        self._write_root_transform(10, root_pose, env_ids)
+        self._write_root_state(TT.ROOT_POSE, root_pose, env_ids)
 
     def write_root_link_pose_to_sim_mask(self, *, root_pose, env_mask=None) -> None:
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
-        self._write_root_transform(10, root_pose, mask=env_mask)
+        self._write_root_state(TT.ROOT_POSE, root_pose, mask=env_mask)
 
     def write_root_com_pose_to_sim_index(self, *, root_pose, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
-        self._write_root_transform(10, root_pose, env_ids)
+        self._write_root_state(TT.ROOT_POSE, root_pose, env_ids)
 
     def write_root_com_pose_to_sim_mask(self, *, root_pose, env_mask=None) -> None:
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
-        self._write_root_transform(10, root_pose, mask=env_mask)
+        self._write_root_state(TT.ROOT_POSE, root_pose, mask=env_mask)
 
     def write_root_velocity_to_sim_index(self, *, root_velocity, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
-        self._write_root_spatial(11, root_velocity, env_ids)
+        self._write_root_state(TT.ROOT_VELOCITY, root_velocity, env_ids)
 
     def write_root_velocity_to_sim_mask(self, *, root_velocity, env_mask=None) -> None:
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
-        self._write_root_spatial(11, root_velocity, mask=env_mask)
+        self._write_root_state(TT.ROOT_VELOCITY, root_velocity, mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(self, *, root_velocity, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
-        self._write_root_spatial(11, root_velocity, env_ids)
+        self._write_root_state(TT.ROOT_VELOCITY, root_velocity, env_ids)
 
     def write_root_com_velocity_to_sim_mask(self, *, root_velocity, env_mask=None) -> None:
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
-        self._write_root_spatial(11, root_velocity, mask=env_mask)
+        self._write_root_state(TT.ROOT_VELOCITY, root_velocity, mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(self, *, root_velocity, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
-        self._write_root_spatial(11, root_velocity, env_ids)
+        self._write_root_state(TT.ROOT_VELOCITY, root_velocity, env_ids)
 
     def write_root_link_velocity_to_sim_mask(self, *, root_velocity, env_mask=None) -> None:
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
-        self._write_root_spatial(11, root_velocity, mask=env_mask)
+        self._write_root_state(TT.ROOT_VELOCITY, root_velocity, mask=env_mask)
 
     # ------------------------------------------------------------------
     # Joint state writers (with shape validation)
@@ -311,21 +319,21 @@ class Articulation(BaseArticulation):
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(position, (n, d), wp.float32, "position")
-        self._write_flat_tensor(30, position, env_ids, joint_ids)
+        self._write_flat_tensor(TT.DOF_POSITION, position, env_ids, joint_ids)
 
     def write_joint_position_to_sim_mask(self, *, position, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
-        self._write_flat_tensor_mask(30, position, env_mask, joint_mask)
+        self._write_flat_tensor_mask(TT.DOF_POSITION, position, env_mask, joint_mask)
 
     def write_joint_velocity_to_sim_index(self, *, velocity, joint_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(velocity, (n, d), wp.float32, "velocity")
-        self._write_flat_tensor(31, velocity, env_ids, joint_ids)
+        self._write_flat_tensor(TT.DOF_VELOCITY, velocity, env_ids, joint_ids)
 
     def write_joint_velocity_to_sim_mask(self, *, velocity, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
-        self._write_flat_tensor_mask(31, velocity, env_mask, joint_mask)
+        self._write_flat_tensor_mask(TT.DOF_VELOCITY, velocity, env_mask, joint_mask)
 
     # ------------------------------------------------------------------
     # Joint property writers (with shape validation)
@@ -335,21 +343,21 @@ class Articulation(BaseArticulation):
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(stiffness, (n, d), wp.float32, "stiffness")
-        self._write_flat_tensor(35, stiffness, env_ids, joint_ids)
+        self._write_flat_tensor(TT.DOF_STIFFNESS, stiffness, env_ids, joint_ids)
 
     def write_joint_stiffness_to_sim_mask(self, *, stiffness, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(stiffness, (self._num_instances, self._num_joints), wp.float32, "stiffness")
-        self._write_flat_tensor_mask(35, stiffness, env_mask, joint_mask)
+        self._write_flat_tensor_mask(TT.DOF_STIFFNESS, stiffness, env_mask, joint_mask)
 
     def write_joint_damping_to_sim_index(self, *, damping, joint_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(damping, (n, d), wp.float32, "damping")
-        self._write_flat_tensor(36, damping, env_ids, joint_ids)
+        self._write_flat_tensor(TT.DOF_DAMPING, damping, env_ids, joint_ids)
 
     def write_joint_damping_to_sim_mask(self, *, damping, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(damping, (self._num_instances, self._num_joints), wp.float32, "damping")
-        self._write_flat_tensor_mask(36, damping, env_mask, joint_mask)
+        self._write_flat_tensor_mask(TT.DOF_DAMPING, damping, env_mask, joint_mask)
 
     def write_joint_position_limit_to_sim_index(
         self, *, limits, joint_ids=None, env_ids=None, warn_limit_violation=True
@@ -393,11 +401,11 @@ class Articulation(BaseArticulation):
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(armature, (n, d), wp.float32, "armature")
-        self._write_flat_tensor(40, armature, env_ids, joint_ids)
+        self._write_flat_tensor(TT.DOF_ARMATURE, armature, env_ids, joint_ids)
 
     def write_joint_armature_to_sim_mask(self, *, armature, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(armature, (self._num_instances, self._num_joints), wp.float32, "armature")
-        self._write_flat_tensor_mask(40, armature, env_mask, joint_mask)
+        self._write_flat_tensor_mask(TT.DOF_ARMATURE, armature, env_mask, joint_mask)
 
     def write_joint_friction_coefficient_to_sim_index(
         self, *, joint_friction_coeff, joint_ids=None, env_ids=None
@@ -664,7 +672,6 @@ class Articulation(BaseArticulation):
     def _initialize_impl(self) -> None:
         from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
 
-        self._ovphysx = _get_ovphysx()
         physx_instance = OvPhysxManager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
@@ -677,27 +684,15 @@ class Articulation(BaseArticulation):
         # handles for tensor types the user never queries.  Only the root-pose
         # binding is created eagerly because we need it to read articulation
         # metadata (joint count, body count, names, fixed-base flag).
-        T = self._ovphysx
         self._bindings: dict[int, Any] = {}
         self._physx_instance = physx_instance
         self._binding_pattern = pattern
 
-        # Eagerly create only the bindings we need for metadata + initial
-        # property reads.  Everything else is created on demand via
-        # _get_binding().
         eager_types = [
-            T.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_STIFFNESS_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_DAMPING_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_LIMIT_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_MAX_VELOCITY_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_MAX_FORCE_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_ARMATURE_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_DOF_FRICTION_PROPERTIES_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_BODY_MASS_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_BODY_COM_POSE_F32,
-            T.OVPHYSX_TENSOR_ARTICULATION_BODY_INERTIA_F32,
+            TT.ROOT_POSE, TT.DOF_POSITION, TT.DOF_STIFFNESS,
+            TT.DOF_DAMPING, TT.DOF_LIMIT, TT.DOF_MAX_VELOCITY,
+            TT.DOF_MAX_FORCE, TT.DOF_ARMATURE, TT.DOF_FRICTION_PROPERTIES,
+            TT.BODY_MASS, TT.BODY_COM_POSE, TT.BODY_INERTIA,
         ]
         for tt in eager_types:
             try:
@@ -741,6 +736,7 @@ class Articulation(BaseArticulation):
 
         # Joint-index arrays for each actuator (filled by _process_actuators_cfg).
         self._joint_ids_per_actuator: dict[str, list[int]] = {}
+        self._write_scratch: dict[int, wp.array] = {}
 
     def _process_cfg(self) -> None:
         """Process the articulation configuration (initial state, soft limits, etc.)."""
@@ -750,10 +746,17 @@ class Articulation(BaseArticulation):
         dev = self._device
 
         # Default root state from config.
+        # Build on CPU then copy to device (warp GPU arrays' .numpy() returns
+        # a throwaway copy, not a writable view).
         pos = cfg.init_state.pos
         rot = cfg.init_state.rot
+        np_pose = np.zeros((N, 7), dtype=np.float32)
         for i in range(N):
-            self._data._default_root_pose.numpy()[i] = [pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3]]
+            np_pose[i] = [pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3]]
+        wp.copy(
+            self._data._default_root_pose,
+            wp.from_numpy(np_pose, dtype=wp.transformf, device=dev),
+        )
 
         # Default joint positions / velocities from config patterns.
         self._resolve_joint_values(cfg.init_state.joint_pos, self._data._default_joint_pos)
@@ -960,14 +963,24 @@ class Articulation(BaseArticulation):
         State tensor bindings (positions, velocities, poses) live on the
         simulation device (GPU in GPU mode).  We always return data on
         self._device so the binding device check passes.
+
+        For structured warp dtypes (transformf, spatial_vectorf, etc.) a
+        zero-copy flat float32 view is created instead of roundtripping
+        through CPU numpy.
         """
         dev = self._device
         if isinstance(data, wp.array):
             if str(data.device) != dev:
                 data = wp.clone(data, device=dev)
-            if data.dtype != wp.float32:
-                data = wp.array(data.numpy(), dtype=wp.float32, device=dev)
-            return data
+            if data.dtype == wp.float32:
+                return data
+            # Structured dtype: zero-copy flat float32 view.
+            # transformf -> [N, 7], spatial_vectorf -> [N, 6], etc.
+            floats_per_elem = data.strides[0] // 4
+            return wp.array(
+                ptr=data.ptr, shape=(data.shape[0], floats_per_elem),
+                dtype=wp.float32, device=dev, copy=False,
+            )
         elif isinstance(data, torch.Tensor):
             np_data = data.detach().cpu().numpy().astype(np.float32)
             return wp.from_numpy(np_data, dtype=wp.float32, device=dev)
@@ -977,31 +990,76 @@ class Articulation(BaseArticulation):
             return wp.from_numpy(np.array(data, dtype=np.float32), dtype=wp.float32, device=dev)
         return wp.from_numpy(np.asarray(data, dtype=np.float32), dtype=wp.float32, device=dev)
 
-    def _write_root_transform(self, tensor_type: int, data, env_ids=None, mask=None) -> None:
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            return
-        flat = self._to_flat_f32(data)
-        if env_ids is not None:
-            idx = self._to_cpu_numpy(env_ids).astype(np.int32)
-            binding.write(flat, indices=idx)
-        elif mask is not None:
-            binding.write(flat, mask=self._to_flat_f32(mask))
-        else:
-            binding.write(flat)
+    def _as_gpu_f32_2d(self, data, cols: int) -> wp.array:
+        """View/convert data as 2D [rows, cols] float32 on self._device.
 
-    def _write_root_spatial(self, tensor_type: int, data, env_ids=None, mask=None) -> None:
+        For warp arrays with structured dtypes (transformf, spatial_vectorf),
+        creates a zero-copy flat float32 view.  For torch/numpy, converts to
+        warp on the simulation device.
+        """
+        dev = self._device
+        if isinstance(data, wp.array):
+            if str(data.device) != dev:
+                data = wp.clone(data, device=dev)
+            if data.dtype == wp.float32 and data.ndim == 2:
+                return data
+            n = data.shape[0]
+            return wp.array(
+                ptr=data.ptr, shape=(n, cols),
+                dtype=wp.float32, device=dev, copy=False,
+            )
+        np_data = self._to_cpu_numpy(data).reshape(-1, cols)
+        return wp.from_numpy(np_data, dtype=wp.float32, device=dev)
+
+    def _get_write_scratch(self, tensor_type: int, binding) -> wp.array:
+        """Return a cached GPU scratch buffer for read-modify-write."""
+        buf = self._write_scratch.get(tensor_type)
+        if buf is None:
+            buf = wp.zeros(binding.shape, dtype=wp.float32, device=self._device)
+            self._write_scratch[tensor_type] = buf
+        return buf
+
+    def _write_root_state(self, tensor_type: int, data, env_ids=None, mask=None) -> None:
+        """GPU-native write for root pose [N,7] or velocity [N,6].
+
+        Three paths, fastest first:
+        - Full write (no env_ids, no mask): zero-copy DLPack.
+        - Indexed write with full-size data: zero-copy view + indices.
+          The binding API only copies the indexed rows from the full buffer,
+          so no read-modify-write is needed when data is already [N,...].
+        - Indexed write with partial data [K,...]: scatter kernel into a GPU
+          scratch buffer, then write with indices.
+        - Masked write: data is always full [N,...], pass directly with mask.
+        """
         binding = self._get_binding(tensor_type)
         if binding is None:
             return
-        flat = self._to_flat_f32(data)
+        N, C = binding.shape
+
+        if env_ids is None and mask is None:
+            binding.write(self._to_flat_f32(data))
+            return
+
+        src = self._as_gpu_f32_2d(data, C)
+
         if env_ids is not None:
-            idx = self._to_cpu_numpy(env_ids).astype(np.int32)
-            binding.write(flat, indices=idx)
-        elif mask is not None:
-            binding.write(flat, mask=self._to_flat_f32(mask))
+            ids_gpu = wp.array(np.asarray(env_ids, dtype=np.int32), device=self._device)
+            K = len(env_ids)
+            if src.shape[0] == N:
+                binding.write(src, indices=ids_gpu)
+            else:
+                scratch = self._get_write_scratch(tensor_type, binding)
+                binding.read(scratch)
+                wp.launch(
+                    _scatter_rows_partial, dim=(K, C),
+                    inputs=[scratch, src, ids_gpu], device=self._device,
+                )
+                binding.write(scratch, indices=ids_gpu)
         else:
-            binding.write(flat)
+            mask_u8 = wp.from_numpy(
+                self._to_cpu_numpy(mask).astype(np.uint8), device=self._device,
+            )
+            binding.write(src, mask=mask_u8)
 
     def _write_flat_tensor(self, tensor_type: int, data, env_ids=None, joint_ids=None) -> None:
         if isinstance(data, (int, float)):
@@ -1009,29 +1067,65 @@ class Articulation(BaseArticulation):
         binding = self._get_binding(tensor_type)
         if binding is None:
             return
-        np_data = self._to_cpu_numpy(data)
-        if joint_ids is not None:
-            # Subset of joints: read-modify-write to scatter into the correct columns.
-            full = np.zeros(binding.shape, dtype=np.float32)
-            binding.read(full)
-            jids = np.asarray(joint_ids, dtype=np.intp)
-            if env_ids is not None:
-                eids = self._to_cpu_numpy(env_ids).astype(np.intp)
-                full[np.ix_(eids, jids)] = np_data.reshape(len(eids), len(jids), *np_data.shape[2:])
+        from isaaclab_ovphysx.tensor_types import _CPU_ONLY_TYPES
+        is_cpu_only = tensor_type in _CPU_ONLY_TYPES
+
+        # CPU-only types or column scatter must go through numpy.
+        if is_cpu_only or joint_ids is not None:
+            target_device = "cpu" if is_cpu_only else self._device
+            np_data = self._to_cpu_numpy(data)
+            if joint_ids is not None:
+                # GPU bindings cannot read into numpy directly.
+                if is_cpu_only:
+                    full = np.zeros(binding.shape, dtype=np.float32)
+                    binding.read(full)
+                else:
+                    scratch = self._get_write_scratch(tensor_type, binding)
+                    binding.read(scratch)
+                    full = scratch.numpy()
+                jids = np.asarray(joint_ids, dtype=np.intp)
+                if env_ids is not None:
+                    eids = np.asarray(env_ids, dtype=np.intp)
+                    full[np.ix_(eids, jids)] = np_data.reshape(len(eids), len(jids), *np_data.shape[2:])
+                else:
+                    full[:, jids] = np_data.reshape(full.shape[0], len(jids), *np_data.shape[2:])
+                binding.write(wp.from_numpy(full, dtype=wp.float32, device=target_device))
+            elif env_ids is not None:
+                if is_cpu_only:
+                    full = np.zeros(binding.shape, dtype=np.float32)
+                    binding.read(full)
+                else:
+                    scratch = self._get_write_scratch(tensor_type, binding)
+                    binding.read(scratch)
+                    full = scratch.numpy()
+                eids = np.asarray(env_ids, dtype=np.intp)
+                full[eids] = np_data if np_data.shape[0] == len(eids) else np_data[eids]
+                flat = wp.from_numpy(full.astype(np.float32), dtype=wp.float32, device=target_device)
+                idx = wp.array(np.asarray(env_ids, dtype=np.int32), device=target_device)
+                binding.write(flat, indices=idx)
             else:
-                full[:, jids] = np_data.reshape(full.shape[0], len(jids), *np_data.shape[2:])
-            binding.write(full)
-        elif env_ids is not None:
-            idx = self._to_cpu_numpy(env_ids).astype(np.int32)
-            # When the caller passes a full-size buffer (e.g., tendon flush)
-            # but only a subset of envs should be written, extract the rows.
-            if np_data.shape[0] != len(idx) and np_data.shape[0] == binding.shape[0]:
-                np_data = np_data[idx.astype(np.intp)]
-            flat = wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=self._device)
-            binding.write(flat, indices=idx)
+                binding.write(wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=target_device))
+            return
+
+        # GPU path: data stays on device.
+        if env_ids is None:
+            binding.write(self._to_flat_f32(data))
+            return
+
+        N, C = binding.shape[0], binding.shape[1]
+        src = self._as_gpu_f32_2d(data, C)
+        ids_gpu = wp.array(np.asarray(env_ids, dtype=np.int32), device=self._device)
+        K = len(env_ids)
+        if src.shape[0] == N:
+            binding.write(src, indices=ids_gpu)
         else:
-            flat = self._to_flat_f32(data)
-            binding.write(flat)
+            scratch = self._get_write_scratch(tensor_type, binding)
+            binding.read(scratch)
+            wp.launch(
+                _scatter_rows_partial, dim=(K, C),
+                inputs=[scratch, src, ids_gpu], device=self._device,
+            )
+            binding.write(scratch, indices=ids_gpu)
 
     def _write_flat_tensor_mask(self, tensor_type: int, data, env_mask=None, joint_mask=None) -> None:
         if isinstance(data, (int, float)):
@@ -1039,11 +1133,52 @@ class Articulation(BaseArticulation):
         binding = self._get_binding(tensor_type)
         if binding is None:
             return
-        flat = self._to_flat_f32(data)
-        if env_mask is not None:
-            binding.write(flat, mask=self._to_flat_f32(env_mask))
-        else:
-            binding.write(flat)
+        from isaaclab_ovphysx.tensor_types import _CPU_ONLY_TYPES
+        is_cpu_only = tensor_type in _CPU_ONLY_TYPES
+
+        # CPU-only types or column-mask scatter must go through numpy.
+        if is_cpu_only or joint_mask is not None:
+            target_device = "cpu" if is_cpu_only else self._device
+            np_data = self._to_cpu_numpy(data)
+            if joint_mask is not None:
+                # GPU bindings cannot read into numpy directly; read into GPU
+                # scratch first, then pull to CPU for column scatter.
+                if is_cpu_only:
+                    full = np.zeros(binding.shape, dtype=np.float32)
+                    binding.read(full)
+                else:
+                    scratch = self._get_write_scratch(tensor_type, binding)
+                    binding.read(scratch)
+                    full = scratch.numpy()
+                jmask = self._to_cpu_numpy(joint_mask).astype(bool)
+                cols = np.where(jmask)[0]
+                if env_mask is not None:
+                    emask = self._to_cpu_numpy(env_mask).astype(bool)
+                    rows = np.where(emask)[0]
+                    full[rows[:, None], cols] = np_data[rows[:, None], cols]
+                else:
+                    full[:, cols] = np_data[:, cols]
+                binding.write(wp.from_numpy(full.astype(np.float32), dtype=wp.float32, device=target_device))
+            elif env_mask is not None:
+                flat = wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=target_device)
+                mask_u8 = wp.from_numpy(
+                    self._to_cpu_numpy(env_mask).astype(np.uint8), device=target_device,
+                )
+                binding.write(flat, mask=mask_u8)
+            else:
+                binding.write(wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=target_device))
+            return
+
+        # GPU path: data stays on device.
+        if env_mask is None:
+            binding.write(self._to_flat_f32(data))
+            return
+
+        # Data is full [N, D], the binding API selects rows via the mask.
+        mask_u8 = wp.from_numpy(
+            self._to_cpu_numpy(env_mask).astype(np.uint8), device=self._device,
+        )
+        binding.write(self._to_flat_f32(data), mask=mask_u8)
 
     def _write_friction_column(self, data, env_ids=None, joint_ids=None) -> None:
         """Write static friction coefficient into column 0 of DOF_FRICTION_PROPERTIES [N,D,3]."""
@@ -1053,7 +1188,6 @@ class Articulation(BaseArticulation):
         full = np.zeros(binding.shape, dtype=np.float32)
         binding.read(full)
         if isinstance(data, (int, float)):
-            # Broadcast scalar to the targeted slice
             if env_ids is not None and joint_ids is not None:
                 eids = self._to_cpu_numpy(env_ids).astype(np.intp)
                 jids = np.asarray(joint_ids, dtype=np.intp)
@@ -1066,7 +1200,7 @@ class Articulation(BaseArticulation):
                 full[:, jids, 0] = data
             else:
                 full[..., 0] = data
-            binding.write(full)
+            binding.write(wp.from_numpy(full.astype(np.float32), dtype=wp.float32, device="cpu"))
             return
         np_data = self._to_cpu_numpy(data)
         if env_ids is not None and joint_ids is not None:
@@ -1081,7 +1215,7 @@ class Articulation(BaseArticulation):
             full[:, jids, 0] = np_data.reshape(full.shape[0], len(jids))
         else:
             full[..., 0] = np_data.reshape(full.shape[0], full.shape[1])
-        binding.write(full)
+        binding.write(wp.from_numpy(full.astype(np.float32), dtype=wp.float32, device="cpu"))
 
     def _write_friction_column_mask(self, data, env_mask=None, joint_mask=None) -> None:
         """Write static friction coefficient via mask into column 0 of DOF_FRICTION_PROPERTIES."""
@@ -1098,7 +1232,9 @@ class Articulation(BaseArticulation):
             emask = self._to_cpu_numpy(env_mask).astype(bool)
             if joint_mask is not None:
                 jmask = self._to_cpu_numpy(joint_mask).astype(bool)
-                full[emask][:, jmask, 0] = new_col[emask][:, jmask]
+                rows = np.where(emask)[0]
+                cols = np.where(jmask)[0]
+                full[rows[:, None], cols, 0] = new_col[rows[:, None], cols]
             else:
                 full[emask, :, 0] = new_col[emask]
         elif joint_mask is not None:
@@ -1106,7 +1242,7 @@ class Articulation(BaseArticulation):
             full[:, jmask, 0] = new_col[:, jmask]
         else:
             full[..., 0] = new_col
-        binding.write(full)
+        binding.write(wp.from_numpy(full.astype(np.float32), dtype=wp.float32, device="cpu"))
 
     def _write_joint_subset(self, tensor_type: int, buffer: wp.array, joint_ids: list[int]) -> None:
         """Write a full-width joint buffer into the simulation for an actuator's joints."""
@@ -1196,9 +1332,17 @@ class Articulation(BaseArticulation):
         return matched_indices, matched_names
 
     def _resolve_joint_values(self, pattern_dict: dict[str, float], buffer: wp.array) -> None:
-        """Resolve a {pattern: value} dict into a per-joint buffer."""
+        """Resolve a {pattern: value} dict into a per-joint buffer.
+
+        Builds values on CPU then copies to buffer's device (GPU arrays'
+        .numpy() returns a read-only copy, not a writable view).
+        """
         buf_np = buffer.numpy()
+        modified = False
         for pattern, value in pattern_dict.items():
             for j, name in enumerate(self._joint_names):
                 if re.fullmatch(pattern, name):
                     buf_np[:, j] = value
+                    modified = True
+        if modified:
+            wp.copy(buffer, wp.from_numpy(buf_np, dtype=buffer.dtype, device=str(buffer.device)))

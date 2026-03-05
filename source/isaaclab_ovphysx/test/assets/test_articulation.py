@@ -62,7 +62,7 @@ class TestTensorBindingsSmoke:
     def test_create_root_pose_binding(self, physx_cpu):
         b = physx_cpu.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_ROOT_POSE,
         )
         assert b.count == 2, "Expected 2 articulations matching the pattern"
         assert b.shape == (2, 7)
@@ -73,7 +73,7 @@ class TestTensorBindingsSmoke:
     def test_create_dof_position_binding(self, physx_cpu):
         b = physx_cpu.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION,
         )
         assert b.dof_count == 2, "Each articulation has 2 revolute joints"
         assert b.shape == (2, 2)
@@ -82,7 +82,7 @@ class TestTensorBindingsSmoke:
     def test_step_and_read(self, physx_cpu):
         pose_b = physx_cpu.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_ROOT_POSE,
         )
         buf_before = gpu_read(pose_b)
 
@@ -99,7 +99,7 @@ class TestTensorBindingsSmoke:
     def test_write_dof_position_target(self, physx_cpu):
         tgt_b = physx_cpu.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_TARGET_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION_TARGET,
         )
         gpu_write(tgt_b, np.full(tgt_b.shape, 0.5, dtype=np.float32))
 
@@ -110,7 +110,7 @@ class TestTensorBindingsSmoke:
 
         pos_b = physx_cpu.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION,
         )
         pos = gpu_read(pos_b)
         assert np.any(np.abs(pos) > 0.01), "Joints should have moved toward the position target"
@@ -120,7 +120,7 @@ class TestTensorBindingsSmoke:
     def test_body_metadata(self, physx_cpu):
         b = physx_cpu.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_LINK_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_LINK_POSE,
         )
         assert b.body_count == 3, "articulation has 3 links"
         assert b.count == 1, "Only one articulation matches this exact pattern"

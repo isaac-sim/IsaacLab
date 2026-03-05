@@ -3,67 +3,73 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""ovphysx tensor type constants mirroring ovphysx_types.h.
+"""IsaacLab re-exports of ovphysx TensorType with short backward-compat aliases.
 
-We avoid ``import ovphysx`` at module level because it triggers USD version
-checks that conflict with IsaacSim's bundled pxr. These integer values are
-stable across ovphysx releases and match the C enum in
-``omni/ovphysx/include/ovphysx/ovphysx_types.h``.
+Import TensorType directly for new code:
+    from ovphysx.types import TensorType
+
+Or use the module-level short aliases (existing code pattern):
+    import isaaclab_ovphysx.tensor_types as TT
+    TT.DOF_STIFFNESS  # resolves to TensorType.ARTICULATION_DOF_STIFFNESS
+
+ovphysx.types is pure Python with zero native dependencies, so this module is
+always safe to import regardless of USD state or native library loading.
 """
 
-# -- Articulation root state (read/write) --
-ROOT_POSE = 10  # [N, 7]
-ROOT_VELOCITY = 11  # [N, 6]
+from ovphysx.types import TensorType  # noqa: F401 — re-exported for new code
 
-# -- Articulation link state (read-only except wrench) --
-LINK_POSE = 20  # [N, L, 7]
-LINK_VELOCITY = 21  # [N, L, 6]
-LINK_ACCELERATION = 22  # [N, L, 6] (read-only)
+_TT = TensorType  # shorter reference for alias block
 
-# -- Articulation DOF state (read/write) --
-DOF_POSITION = 30  # [N, D]
-DOF_VELOCITY = 31  # [N, D]
-DOF_POSITION_TARGET = 32  # [N, D]
-DOF_VELOCITY_TARGET = 33  # [N, D]
-DOF_ACTUATION_FORCE = 34  # [N, D]
+# Short aliases — existing code using `TT.DOF_STIFFNESS` etc. continues to work.
+# All values are IntEnum members (== plain ints) of TensorType.
+ROOT_POSE                    = _TT.ARTICULATION_ROOT_POSE
+ROOT_VELOCITY                = _TT.ARTICULATION_ROOT_VELOCITY
+LINK_POSE                    = _TT.ARTICULATION_LINK_POSE
+LINK_VELOCITY                = _TT.ARTICULATION_LINK_VELOCITY
+LINK_ACCELERATION            = _TT.ARTICULATION_LINK_ACCELERATION
+DOF_POSITION                 = _TT.ARTICULATION_DOF_POSITION
+DOF_VELOCITY                 = _TT.ARTICULATION_DOF_VELOCITY
+DOF_POSITION_TARGET          = _TT.ARTICULATION_DOF_POSITION_TARGET
+DOF_VELOCITY_TARGET          = _TT.ARTICULATION_DOF_VELOCITY_TARGET
+DOF_ACTUATION_FORCE          = _TT.ARTICULATION_DOF_ACTUATION_FORCE
+DOF_STIFFNESS                = _TT.ARTICULATION_DOF_STIFFNESS
+DOF_DAMPING                  = _TT.ARTICULATION_DOF_DAMPING
+DOF_LIMIT                    = _TT.ARTICULATION_DOF_LIMIT
+DOF_MAX_VELOCITY             = _TT.ARTICULATION_DOF_MAX_VELOCITY
+DOF_MAX_FORCE                = _TT.ARTICULATION_DOF_MAX_FORCE
+DOF_ARMATURE                 = _TT.ARTICULATION_DOF_ARMATURE
+DOF_FRICTION_PROPERTIES      = _TT.ARTICULATION_DOF_FRICTION_PROPERTIES
+LINK_WRENCH                  = _TT.ARTICULATION_LINK_WRENCH
+BODY_MASS                    = _TT.ARTICULATION_BODY_MASS
+BODY_COM_POSE                = _TT.ARTICULATION_BODY_COM_POSE
+BODY_INERTIA                 = _TT.ARTICULATION_BODY_INERTIA
+BODY_INV_MASS                = _TT.ARTICULATION_BODY_INV_MASS
+BODY_INV_INERTIA             = _TT.ARTICULATION_BODY_INV_INERTIA
+JACOBIAN                     = _TT.ARTICULATION_JACOBIAN
+MASS_MATRIX                  = _TT.ARTICULATION_MASS_MATRIX
+CORIOLIS                     = _TT.ARTICULATION_CORIOLIS_AND_CENTRIFUGAL_FORCE
+GRAVITY_FORCE                = _TT.ARTICULATION_GRAVITY_FORCE
+LINK_INCOMING_JOINT_FORCE    = _TT.ARTICULATION_LINK_INCOMING_JOINT_FORCE
+DOF_PROJECTED_JOINT_FORCE    = _TT.ARTICULATION_DOF_PROJECTED_JOINT_FORCE
+FIXED_TENDON_STIFFNESS       = _TT.ARTICULATION_FIXED_TENDON_STIFFNESS
+FIXED_TENDON_DAMPING         = _TT.ARTICULATION_FIXED_TENDON_DAMPING
+FIXED_TENDON_LIMIT_STIFFNESS = _TT.ARTICULATION_FIXED_TENDON_LIMIT_STIFFNESS
+FIXED_TENDON_LIMIT           = _TT.ARTICULATION_FIXED_TENDON_LIMIT
+FIXED_TENDON_REST_LENGTH     = _TT.ARTICULATION_FIXED_TENDON_REST_LENGTH
+FIXED_TENDON_OFFSET          = _TT.ARTICULATION_FIXED_TENDON_OFFSET
+SPATIAL_TENDON_STIFFNESS     = _TT.ARTICULATION_SPATIAL_TENDON_STIFFNESS
+SPATIAL_TENDON_DAMPING       = _TT.ARTICULATION_SPATIAL_TENDON_DAMPING
+SPATIAL_TENDON_LIMIT_STIFFNESS = _TT.ARTICULATION_SPATIAL_TENDON_LIMIT_STIFFNESS
+SPATIAL_TENDON_OFFSET        = _TT.ARTICULATION_SPATIAL_TENDON_OFFSET
 
-# -- Articulation DOF properties (read/write, CPU-side in GPU mode) --
-DOF_STIFFNESS = 35  # [N, D]
-DOF_DAMPING = 36  # [N, D]
-DOF_LIMIT = 37  # [N, D, 2]
-DOF_MAX_VELOCITY = 38  # [N, D]
-DOF_MAX_FORCE = 39  # [N, D]
-DOF_ARMATURE = 40  # [N, D]
-DOF_FRICTION_PROPERTIES = 41  # [N, D, 3] (static, dynamic, viscous)
-
-# -- External wrenches (write-only) --
-LINK_WRENCH = 52  # [N, L, 9] layout: [fx, fy, fz, tx, ty, tz, px, py, pz] world frame
-
-# -- Articulation body properties (read/write unless noted) --
-BODY_MASS = 60  # [N, L]
-BODY_COM_POSE = 61  # [N, L, 7]
-BODY_INERTIA = 62  # [N, L, 9]
-BODY_INV_MASS = 63  # [N, L] (read-only)
-BODY_INV_INERTIA = 64  # [N, L, 9] (read-only)
-
-# -- Articulation dynamics queries (read-only) --
-JACOBIAN = 70  # [N, R, C]
-MASS_MATRIX = 71  # [N, M, M]
-CORIOLIS = 72  # [N, M]
-GRAVITY_FORCE = 73  # [N, M]
-LINK_INCOMING_JOINT_FORCE = 74  # [N, L, 6]
-DOF_PROJECTED_JOINT_FORCE = 75  # [N, D] (read-only)
-
-# -- Fixed tendon properties (read/write, CPU-side) --
-FIXED_TENDON_STIFFNESS = 80  # [N, T]
-FIXED_TENDON_DAMPING = 81  # [N, T]
-FIXED_TENDON_LIMIT_STIFFNESS = 82  # [N, T]
-FIXED_TENDON_LIMIT = 83  # [N, T, 2]
-FIXED_TENDON_REST_LENGTH = 84  # [N, T]
-FIXED_TENDON_OFFSET = 85  # [N, T]
-
-# -- Spatial tendon properties (read/write, CPU-side) --
-SPATIAL_TENDON_STIFFNESS = 90  # [N, T]
-SPATIAL_TENDON_DAMPING = 91  # [N, T]
-SPATIAL_TENDON_LIMIT_STIFFNESS = 92  # [N, T]
-SPATIAL_TENDON_OFFSET = 93  # [N, T]
+# DOF/body property tensor types are CPU-resident even in GPU simulations.
+# Write helpers check this set to route data through CPU, not self._device.
+_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset({
+    DOF_STIFFNESS, DOF_DAMPING, DOF_LIMIT, DOF_MAX_VELOCITY, DOF_MAX_FORCE,
+    DOF_ARMATURE, DOF_FRICTION_PROPERTIES,
+    BODY_MASS, BODY_COM_POSE, BODY_INERTIA, BODY_INV_MASS, BODY_INV_INERTIA,
+    FIXED_TENDON_STIFFNESS, FIXED_TENDON_DAMPING, FIXED_TENDON_LIMIT_STIFFNESS,
+    FIXED_TENDON_LIMIT, FIXED_TENDON_REST_LENGTH, FIXED_TENDON_OFFSET,
+    SPATIAL_TENDON_STIFFNESS, SPATIAL_TENDON_DAMPING,
+    SPATIAL_TENDON_LIMIT_STIFFNESS, SPATIAL_TENDON_OFFSET,
+})

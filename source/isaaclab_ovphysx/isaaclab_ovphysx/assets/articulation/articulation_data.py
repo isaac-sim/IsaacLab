@@ -19,12 +19,6 @@ from isaaclab.assets.articulation.base_articulation_data import BaseArticulation
 from isaaclab_ovphysx import tensor_types as TT
 
 
-def _get_ovphysx():
-    """Lazy import to avoid USD version conflicts at module load time."""
-    import ovphysx
-    return ovphysx
-
-
 class TimestampedBuffer:
     """A warp array that tracks when it was last refreshed from the simulation."""
 
@@ -98,7 +92,6 @@ class ArticulationData(BaseArticulationData):
         super().__init__(root_view=None, device=device)
         self._bindings = bindings
         self._binding_getter = binding_getter
-        self._ovphysx_mod = None  # lazy: loaded on first real read
         self._sim_timestamp: float = 0.0
 
         # Metadata from an arbitrary articulation binding.
@@ -352,16 +345,19 @@ class ArticulationData(BaseArticulationData):
     def _get_read_scratch(self, tensor_type: int) -> wp.array | None:
         """Return a pre-allocated flat float32 scratch buffer for a binding.
 
-        Allocated once on first use, then reused every step.  Lives on the
-        same device as the simulation (CPU or GPU) so ovphysx reads directly
-        into it via DLPack with zero copies.
+        Allocated once on first use, then reused every step.  CPU-only
+        bindings (body properties, DOF properties) get CPU scratch; GPU
+        bindings get GPU scratch.  wp.copy handles cross-device transfer
+        when the destination buffer lives on a different device.
         """
         if tensor_type in self._read_scratch:
             return self._read_scratch[tensor_type]
         binding = self._get_binding(tensor_type)
         if binding is None:
             return None
-        buf = wp.zeros(binding.shape, dtype=wp.float32, device=self.device)
+        from isaaclab_ovphysx.tensor_types import _CPU_ONLY_TYPES
+        dev = "cpu" if tensor_type in _CPU_ONLY_TYPES else self.device
+        buf = wp.zeros(binding.shape, dtype=wp.float32, device=dev)
         self._read_scratch[tensor_type] = buf
         return buf
 
@@ -414,11 +410,11 @@ class ArticulationData(BaseArticulationData):
             n_elements *= s
         dst_flat = wp.array(
             ptr=buf.data.ptr, shape=(n_elements * 7,),
-            dtype=wp.float32, device=self.device, copy=False,
+            dtype=wp.float32, device=str(buf.data.device), copy=False,
         )
         src_flat = wp.array(
             ptr=scratch.ptr, shape=(n_elements * 7,),
-            dtype=wp.float32, device=self.device, copy=False,
+            dtype=wp.float32, device=str(scratch.device), copy=False,
         )
         wp.copy(dst_flat, src_flat)
         buf.timestamp = self._sim_timestamp
@@ -426,7 +422,8 @@ class ArticulationData(BaseArticulationData):
     def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
         """Read a velocity binding ([N, 6] or [N, L, 6]) into a spatial_vectorf buffer.
 
-        Same GPU-native byte-copy path as _read_transform_binding.
+        Same byte-copy path as _read_transform_binding. wp.copy handles
+        cross-device transfer when scratch is CPU and buf is GPU.
         """
         if buf.timestamp >= self._sim_timestamp:
             return
@@ -440,11 +437,11 @@ class ArticulationData(BaseArticulationData):
             n_elements *= s
         dst_flat = wp.array(
             ptr=buf.data.ptr, shape=(n_elements * 6,),
-            dtype=wp.float32, device=self.device, copy=False,
+            dtype=wp.float32, device=str(buf.data.device), copy=False,
         )
         src_flat = wp.array(
             ptr=scratch.ptr, shape=(n_elements * 6,),
-            dtype=wp.float32, device=self.device, copy=False,
+            dtype=wp.float32, device=str(scratch.device), copy=False,
         )
         wp.copy(dst_flat, src_flat)
         buf.timestamp = self._sim_timestamp

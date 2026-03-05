@@ -40,8 +40,11 @@ for _k in list(_sys.modules):
     if _k == "pxr" or _k.startswith("pxr."):
         _hidden_pxr[_k] = _sys.modules.pop(_k)
 
-# Force-import ovphysx NOW (with pxr hidden) so the version check passes.
+# Force-import ovphysx and trigger native bootstrap NOW (with pxr hidden)
+# so the USD version check is skipped. The lazy __init__ only bootstraps on
+# first access to a native attribute, so we must touch one here.
 import ovphysx  # noqa: E402,F401
+_ = ovphysx.PhysX  # triggers _bootstrap_native() while pxr is hidden
 
 # Restore pxr modules so the rest of the test (and IsaacLab) can use pxr normally.
 _sys.modules.update(_hidden_pxr)

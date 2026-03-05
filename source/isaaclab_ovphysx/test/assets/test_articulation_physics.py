@@ -63,7 +63,7 @@ class TestArticulationMetadata:
     def test_articulation_count(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_ROOT_POSE,
         )
         assert b.count == 2
         b.destroy()
@@ -71,7 +71,7 @@ class TestArticulationMetadata:
     def test_dof_count(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION,
         )
         assert b.dof_count == 2, "Each articulation has 2 revolute joints"
         assert b.shape == (1, 2)
@@ -80,7 +80,7 @@ class TestArticulationMetadata:
     def test_body_count(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_LINK_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_LINK_POSE,
         )
         assert b.body_count == 3, "Each articulation has 3 links"
         b.destroy()
@@ -88,7 +88,7 @@ class TestArticulationMetadata:
     def test_is_fixed_base(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_ROOT_POSE,
         )
         assert b.is_fixed_base is True, "Articulation has a fixed joint to world"
         b.destroy()
@@ -102,7 +102,7 @@ class TestFixedBaseRootStability:
     def test_root_pose_stable_after_simulation(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_ROOT_POSE,
         )
         before = gpu_read(b)
 
@@ -132,7 +132,7 @@ class TestJointDynamics:
         """With no drive targets, joints should deflect under gravity (damped pendulum)."""
         pos_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION,
         )
         initial = gpu_read(pos_b)
 
@@ -155,7 +155,7 @@ class TestJointDynamics:
         # Set stiffness high enough to drive
         stiff_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_STIFFNESS_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_STIFFNESS,
         )
         stiff_b.write(np.full(stiff_b.shape, 1e6, dtype=np.float32))
         stiff_b.destroy()
@@ -163,7 +163,7 @@ class TestJointDynamics:
         # Set damping
         damp_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_DAMPING_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_DAMPING,
         )
         damp_b.write(np.full(damp_b.shape, 1e4, dtype=np.float32))
         damp_b.destroy()
@@ -171,7 +171,7 @@ class TestJointDynamics:
         # Set position target
         tgt_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_TARGET_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION_TARGET,
         )
         gpu_write(tgt_b, np.full(tgt_b.shape, target_angle, dtype=np.float32))
         tgt_b.destroy()
@@ -184,7 +184,7 @@ class TestJointDynamics:
         # Read actual position
         pos_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_DOF_POSITION_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_DOF_POSITION,
         )
         actual = gpu_read(pos_b)
 
@@ -208,7 +208,7 @@ class TestLinkPoses:
     def test_link_poses_have_unit_quaternions(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation*",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_LINK_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_LINK_POSE,
         )
         poses = gpu_read(b)
 
@@ -224,11 +224,11 @@ class TestLinkPoses:
         """The root pose should match the first link's pose in the link-pose tensor."""
         root_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_ROOT_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_ROOT_POSE,
         )
         link_b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_LINK_POSE_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_LINK_POSE,
         )
 
         root = gpu_read(root_b)
@@ -250,7 +250,7 @@ class TestMassProperties:
     def test_body_masses_positive(self, px):
         b = px.create_tensor_binding(
             pattern="/World/articulation",
-            tensor_type=ovphysx.OVPHYSX_TENSOR_ARTICULATION_BODY_MASS_F32,
+            tensor_type=ovphysx.TensorType.ARTICULATION_BODY_MASS,
         )
         mass_buf = np.zeros(b.shape, dtype=np.float32)
         b.read(mass_buf)
