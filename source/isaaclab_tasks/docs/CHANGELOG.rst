@@ -7,9 +7,9 @@ Changelog
 Added
 ^^^^^
 
-* Added :func:`~isaaclab_tasks.utils.sim_launcher.needs_kit_for_config` to expose the Kit
+* Added :func:`~isaaclab_tasks.utils.sim_launcher.compute_kit_requirements` to expose the Kit
   decision logic for testing (e.g. preset resolution: ``presets=newton,ovrtx_renderer`` →
-  ``False``).
+  ``needs_kit=False``).
 
 * Added :file:`test_preset_kit_decision.py` — beginner-friendly unit tests that verify
   preset resolution and Kit decision.

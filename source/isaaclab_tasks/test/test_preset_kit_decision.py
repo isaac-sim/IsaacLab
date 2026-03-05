@@ -13,7 +13,7 @@ No Kit/GPU required — safe for CI and beginners.
 import sys
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import needs_kit_for_config, resolve_task_config
+from isaaclab_tasks.utils import compute_kit_requirements, resolve_task_config
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Presets-Direct-v0"
 
@@ -32,28 +32,33 @@ def _resolve_with_presets(presets: str):
 def test_preset_newton_ovrtx_does_not_need_kit():
     """Newton + OVRTX renderer is kitless — no AppLauncher required."""
     env_cfg = _resolve_with_presets("newton,ovrtx_renderer")
-    assert needs_kit_for_config(env_cfg) is False
+    needs_kit, _, _ = compute_kit_requirements(env_cfg)
+    assert needs_kit is False
 
 
 def test_preset_newton_newton_renderer_does_not_need_kit():
     """Newton + Newton Warp renderer is kitless."""
     env_cfg = _resolve_with_presets("newton,newton_renderer")
-    assert needs_kit_for_config(env_cfg) is False
+    needs_kit, _, _ = compute_kit_requirements(env_cfg)
+    assert needs_kit is False
 
 
 def test_preset_physx_needs_kit():
     """PhysX physics requires Kit."""
     env_cfg = _resolve_with_presets("physx")
-    assert needs_kit_for_config(env_cfg) is True
+    needs_kit, _, _ = compute_kit_requirements(env_cfg)
+    assert needs_kit is True
 
 
 def test_preset_default_needs_kit():
     """Default (PhysX + Isaac RTX) requires Kit."""
     env_cfg = _resolve_with_presets("default")
-    assert needs_kit_for_config(env_cfg) is True
+    needs_kit, _, _ = compute_kit_requirements(env_cfg)
+    assert needs_kit is True
 
 
 def test_preset_newton_isaac_rtx_needs_kit():
     """Newton + Isaac RTX renderer requires Kit (RTX runs in Kit)."""
     env_cfg = _resolve_with_presets("newton,isaacsim_rtx_renderer")
-    assert needs_kit_for_config(env_cfg) is True
+    needs_kit, _, _ = compute_kit_requirements(env_cfg)
+    assert needs_kit is True
