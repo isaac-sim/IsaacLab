@@ -141,10 +141,8 @@ class CircularBuffer:
         # Only check if we haven't confirmed all batches are reset (avoids unnecessary checks if no reset done)
         if self._need_reset:
             is_first_push = self._num_pushes == 0
-            if is_first_push.any().item():
-                expanded_mask = is_first_push[None, :, None].expand_as(self._buffer)
-                expanded_data = data[None].expand_as(self._buffer)
-                torch.where(expanded_mask, expanded_data, self._buffer, out=self._buffer)
+            if torch.any(is_first_push):
+                self._buffer[:, is_first_push] = data[is_first_push]
             # mark all the batches to be available
             self._need_reset = False
         # increment number of number of pushes for all batches
