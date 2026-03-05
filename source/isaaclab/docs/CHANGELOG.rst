@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.5.16 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Added recursive resolution of nested :class:`~isaaclab.managers.ManagerTermBaseCfg` inside
+  :meth:`~isaaclab.managers.ManagerBase._resolve_param_value` so that ``params`` containing
+  manager term configs in dicts or lists have their ``func`` references and class-based
+  managers resolved automatically.
+
+
 4.5.15 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -20,9 +31,6 @@ Added
 * Added ``validate_config`` hook to :func:`~isaaclab.utils.configclass`. Configclass
   subclasses can now override ``validate_config(self)`` to perform domain-specific
   validation that runs automatically as part of :func:`_validate`.
-
-
-4.5.13 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
