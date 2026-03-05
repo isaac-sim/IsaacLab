@@ -5,6 +5,7 @@
 
 """USD manipulation for OVRTX: Render scope building, camera injection, and stage prim activation."""
 
+import logging
 import math
 import tempfile
 from pathlib import Path
@@ -14,6 +15,8 @@ from pxr import Sdf, Usd
 
 if TYPE_CHECKING:
     from .ovrtx_renderer_cfg import OVRTXRendererCfg
+
+logger = logging.getLogger(__name__)
 
 
 def get_render_var_config(data_types: list[str], simple_shading_mode: bool) -> tuple[str, str, str]:
@@ -42,8 +45,15 @@ def build_render_scope_usd(
     source_name: str,
     tiled_width: int,
     tiled_height: int,
+    simple_shading_mode: bool = False,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars)."""
+    render_mode = "Minimal" if simple_shading_mode else "RealTimePathTracing"
+    logger.info("Rendering mode: %s (omni:rtx:rendermode=%s)", render_var_name, render_mode)
+    if simple_shading_mode:
+        logger.info("Simple shading mode: ENABLED")
+    else:
+        logger.info("Simple shading mode: DISABLED (using full RTX path tracing)")
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
     return f'''
 def Scope "Render"
@@ -53,7 +63,7 @@ def Scope "Render"
     ) {{
         rel camera = [{camera_rel_list}]
         token omni:rtx:background:source:type = "domeLight"
-        token omni:rtx:rendermode = "RealTimePathTracing"
+        token omni:rtx:rendermode = "{render_mode}"
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = <{render_var_path}>
         uniform int2 resolution = ({tiled_width}, {tiled_height})
@@ -109,11 +119,6 @@ def inject_cameras_into_usd(
     render_product_path = f"/Render/{render_product_name}"
 
     render_var_path, render_var_name, source_name = get_render_var_config(data_types, cfg.simple_shading_mode)
-    print(f"  Rendering mode: {render_var_name}")
-    if cfg.simple_shading_mode:
-        print("[OVRTX] Simple shading mode ENABLED")
-    else:
-        print("[OVRTX] Simple shading mode DISABLED (using full RTX path tracing)")
 
     camera_content = build_render_scope_usd(
         camera_paths,
@@ -123,6 +128,7 @@ def inject_cameras_into_usd(
         source_name,
         tiled_width,
         tiled_height,
+        simple_shading_mode=cfg.simple_shading_mode,
     )
     combined_usd = original_usd.rstrip() + "\n\n" + camera_content
 
@@ -130,7 +136,7 @@ def inject_cameras_into_usd(
     with tempfile.NamedTemporaryFile(mode="w", suffix=cfg.temp_usd_suffix, delete=False, dir=cfg.temp_usd_dir) as f:
         f.write(combined_usd)
         temp_path = f.name
-    print(f"   Created combined USD: {temp_path}")
+    logger.info("Created combined USD: %s", temp_path)
     return temp_path, render_product_path
 
 
@@ -189,7 +195,7 @@ def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: 
     """
     deactivated = []
     if use_cloning and num_envs > 1:
-        print(f"[OVRTX OPTIMIZE] Deactivating {num_envs - 1} cloned environments...")
+        logger.info("Deactivating %d cloned environments...", num_envs - 1)
         for env_idx in range(1, num_envs):
             env_path = f"/World/envs/env_{env_idx}"
             prim = stage.GetPrimAtPath(env_path)
@@ -197,16 +203,16 @@ def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: 
                 prim.SetActive(False)
                 deactivated.append(prim)
                 if env_idx <= 3 or env_idx == num_envs - 1:
-                    print(f"  Deactivated: {env_path}")
+                    logger.info("Deactivated: %s", env_path)
         if num_envs > 5:
-            print(f"  ... (deactivated {len(deactivated)} environments total)")
+            logger.info("... (deactivated %d environments total)", len(deactivated))
 
     try:
         stage.Export(export_path)
         return export_path
     finally:
         if deactivated:
-            print(f"[OVRTX OPTIMIZE] Reactivating {len(deactivated)} environments...")
+            logger.info("Reactivating %d environments...", len(deactivated))
             for prim in deactivated:
                 if prim.IsValid():
                     prim.SetActive(True)
