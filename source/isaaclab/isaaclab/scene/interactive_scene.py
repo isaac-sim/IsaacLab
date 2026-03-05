@@ -198,12 +198,18 @@ class InteractiveScene:
             cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
         else:
             mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-            replicate_args = [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, mapping
+            replicate_args = (
+                [self.env_fmt.format(0)],
+                [self.env_fmt],
+                self._ALL_INDICES,
+                mapping,
+                self._default_env_origins,
+            )
 
             if not copy_from_source:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
                 self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
-            cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
+            cloner.usd_replicate(self.stage, *replicate_args)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

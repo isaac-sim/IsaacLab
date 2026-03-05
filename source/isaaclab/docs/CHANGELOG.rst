@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+4.5.3 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Passed ``default_env_origins`` to the Newton replication pipeline so environment offsets to adapt new newton
+cloning logic.
+
 4.5.2 (2026-03-04)
 ~~~~~~~~~~~~~~~~~~
 
