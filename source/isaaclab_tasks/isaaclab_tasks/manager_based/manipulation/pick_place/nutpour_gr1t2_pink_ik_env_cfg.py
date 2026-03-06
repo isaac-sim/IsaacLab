@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.visualizers import get_hand_joint_visualizers
 
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
@@ -17,6 +18,9 @@ from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cf
 
 @configclass
 class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
+    # When True, the teleop pipeline exposes hand_left/hand_right for debugging visualization.
+    enable_visualization: bool = True
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -127,7 +131,14 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
 
         # IsaacTeleop-based teleoperation pipeline.
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda _s=self: _build_gr1t2_pickplace_pipeline(
+                enable_visualization=_s.enable_visualization,
+            )[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
+
+    def get_teleop_visualizers(self, teleop_interface):
+        """Return teleop visualizers to update each frame; see
+        :func:`~isaaclab_teleop.visualizers.get_hand_joint_visualizers`."""
+        return get_hand_joint_visualizers(self.enable_visualization, teleop_interface)

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import os
 import tempfile
 
@@ -28,16 +29,27 @@ from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
+from isaaclab_teleop.visualizers import get_hand_joint_visualizers  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 
+logger = logging.getLogger(__name__)
 
-def _build_gr1t2_pickplace_pipeline():
+
+def _build_gr1t2_pickplace_pipeline(
+    enable_visualization: bool = False,
+):
     """Build an IsaacTeleop retargeting pipeline for GR1T2 pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
     two DexHandRetargeters for left and right dexterous hand finger control
     from hand tracking data. All outputs are flattened into a single action
     tensor via TensorReorderer.
+
+    Args:
+        enable_visualization: If True, the pipeline also exposes ``hand_left``
+            and ``hand_right`` (HandInput TensorGroups, 26 joints each) so the
+            session can draw red sphere markers at each finger joint (same as
+            the deprecated GR1T2Retargeter visualization).
     """
     from isaacteleop.retargeters import (
         DexHandRetargeter,
@@ -258,7 +270,11 @@ def _build_gr1t2_pickplace_pipeline():
         }
     )
 
-    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
+    output_mapping = {"action": connected_reorderer.output("output")}
+    if enable_visualization:
+        output_mapping["hand_left"] = transformed_hands.output(HandsSource.LEFT)
+        output_mapping["hand_right"] = transformed_hands.output(HandsSource.RIGHT)
+    pipeline = OutputCombiner(output_mapping)
     return pipeline, [left_dex, right_dex]
 
 
@@ -527,6 +543,10 @@ class EventCfg:
 class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
+    # When True, the teleop pipeline exposes hand_left/hand_right (26 joints each)
+    # in last_step_result so callers can query raw finger joints.
+    enable_visualization: bool = True
+
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
@@ -607,7 +627,14 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda _s=self: _build_gr1t2_pickplace_pipeline(
+                enable_visualization=_s.enable_visualization,
+            )[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
+
+    def get_teleop_visualizers(self, teleop_interface):
+        """Return teleop visualizers to update each frame; see
+        :func:`~isaaclab_teleop.visualizers.get_hand_joint_visualizers`."""
+        return get_hand_joint_visualizers(self.enable_visualization, teleop_interface)

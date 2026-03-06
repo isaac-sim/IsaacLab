@@ -58,6 +58,7 @@ class TeleopSessionLifecycle:
         self._session: TeleopSession | None = None
         self._pipeline = None
         self._last_right_controller = None
+        self._last_step_result = None
         self._session_start_deferred_logged = False
 
         # Retargeting tuning UI (created in start, closed in stop)
@@ -128,6 +129,17 @@ class TeleopSessionLifecycle:
         """
         return self._last_right_controller
 
+    @property
+    def last_step_result(self) -> dict | None:
+        """Full pipeline output from the most recent :meth:`step`, or ``None``.
+
+        Contains at least ``"action"`` and ``"_controller_right"``. Any additional
+        outputs (e.g. ``"hand_left"``, ``"hand_right"``, ``"head"``) appear only if
+        the environment's pipeline requested them. Use the pipeline's output spec
+        or env docs to see what is available.
+        """
+        return self._last_step_result
+
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
     # ------------------------------------------------------------------
@@ -150,14 +162,20 @@ class TeleopSessionLifecycle:
         user_pipeline = self._cfg.pipeline_builder()
         self._session_start_deferred_logged = False
         self._last_right_controller = None
+        self._last_step_result = None
 
         button_controllers = ControllersSource("_button_controllers")
-        self._pipeline = OutputCombiner(
-            {
-                "action": user_pipeline.output("action"),
-                self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
-            }
-        )
+        output_mapping = {
+            "action": user_pipeline.output("action"),
+            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+        }
+        # Pass through any additional outputs the pipeline requested (e.g. hand_left/hand_right,
+        # head_pose). Session lifecycle is agnostic: some envs have hands, some controllers, etc.
+        user_types = getattr(user_pipeline, "output_types", lambda: {})()
+        for key in user_types:
+            if key not in output_mapping:
+                output_mapping[key] = user_pipeline.output(key)
+        self._pipeline = OutputCombiner(output_mapping)
 
         # Try to start the session now; it may be deferred
         self._try_start_session()
@@ -340,7 +358,10 @@ class TeleopSessionLifecycle:
         except Exception as e:
             logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
+            self._last_step_result = None
             return None
+
+        self._last_step_result = result
 
         # Store the right controller TensorGroup for button polling
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
@@ -374,6 +395,7 @@ class TeleopSessionLifecycle:
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
         self._session_start_deferred_logged = False
+        self._last_step_result = None
         logger.info("IsaacTeleop session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------

@@ -453,6 +453,7 @@ def run_simulation_loop(
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
     teleop_interface.add_callback("R", reset_recording_instance)
+    teleop_visualizers = getattr(env.cfg, "get_teleop_visualizers", lambda _: [])(teleop_interface)
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
@@ -475,6 +476,10 @@ def run_simulation_loop(
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
+
+                for v in teleop_visualizers:
+                    v.update()
+
                 if action is None:
                     env.sim.render()
                     continue

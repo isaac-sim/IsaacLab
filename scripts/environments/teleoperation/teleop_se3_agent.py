@@ -243,6 +243,8 @@ def main() -> None:
         simulation_app.close()
         return
 
+    teleop_visualizers = getattr(env.cfg, "get_teleop_visualizers", lambda _: [])(teleop_interface)
+
     print(f"Using teleop device: {teleop_interface}")
 
     def run_loop():
@@ -263,6 +265,9 @@ def main() -> None:
                 with torch.inference_mode():
                     # get device command
                     action = teleop_interface.advance()
+
+                    for v in teleop_visualizers:
+                        v.update()
 
                     # action is None when IsaacTeleop session hasn't started yet
                     # (e.g. waiting for user to click "Start AR")
