@@ -5,43 +5,16 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.renderer_cfg import RendererPresetCfg
 
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_env_cfg import ShadowHandEnvCfg
-
-
-@configclass
-class ShadowHandVisionRendererCfg(PresetCfg):
-    """Renderer backend presets for the shadow hand vision environment.
-
-    Select a renderer via the ``presets`` CLI argument, e.g.::
-
-        presets = warp  # Newton Warp software renderer
-        presets = ovrtx  # OVRTX high-fidelity renderer
-        presets = isaacsim_rtx  # Isaac Sim RTX (same as default)
-    """
-
-    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
-    """Isaac RTX renderer (default). Used when no renderer preset is specified."""
-
-    warp: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
-    """Newton Warp software renderer."""
-
-    ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()
-    """OVRTX high-fidelity RTX renderer."""
-
-    isaacsim_rtx: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
-    """Isaac Sim RTX renderer (alias for default)."""
 
 
 @configclass
@@ -50,8 +23,8 @@ class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
 
     This is an internal config used by :class:`ShadowHandVisionTiledCameraCfg` presets and
     by derived env configs that hard-code a specific data type. It embeds
-    :class:`ShadowHandVisionRendererCfg` so the renderer backend can still be selected via
-    the ``presets`` CLI argument.
+    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` so the renderer backend can
+    still be selected via the ``presets`` CLI argument.
     """
 
     prim_path: str = "/World/envs/env_.*/Camera"
@@ -64,7 +37,7 @@ class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
     )
     width: int = 120
     height: int = 120
-    renderer_cfg: ShadowHandVisionRendererCfg = ShadowHandVisionRendererCfg()
+    renderer_cfg: RendererPresetCfg = RendererPresetCfg()
 
 
 @configclass

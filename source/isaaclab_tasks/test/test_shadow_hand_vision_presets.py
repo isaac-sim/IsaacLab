@@ -12,8 +12,8 @@ Two test suites are provided:
 
 2. **Preset resolution tests** — verify that each named preset in
    :class:`ShadowHandVisionTiledCameraCfg` and
-   :class:`ShadowHandVisionRendererCfg` resolves to the expected concrete
-   config class and data types, using the real config classes.
+   :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` resolves to the expected
+   concrete config class and data types, using the real config classes.
    These require Isaac Sim to be launched so that the renderer cfg imports
    are available.
 """
@@ -269,7 +269,7 @@ def test_warp_renderer_has_correct_renderer_type(shadow_hand_vision_presets):
 
 
 def test_all_renderer_presets_present(shadow_hand_vision_presets):
-    """Every preset in ShadowHandVisionRendererCfg is discoverable."""
+    """Every preset in RendererPresetCfg is discoverable."""
     renderer_presets = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]
     expected_names = {"default", "isaacsim_rtx", "warp", "ovrtx"}
     missing = expected_names - set(renderer_presets.keys())
