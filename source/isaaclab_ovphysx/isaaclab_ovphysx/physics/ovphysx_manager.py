@@ -46,6 +46,20 @@ class OvPhysxManager(PhysicsManager):
     _stage_path: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
     _tmp_dir: ClassVar[tempfile.TemporaryDirectory | None] = None
+    # Pending (source, targets) pairs registered by ovphysx_replicate() before
+    # the PhysX instance exists.  Replayed via physx.clone() in _warmup_and_load().
+    _pending_clones: ClassVar[list[tuple[str, list[str]]]] = []
+
+    @classmethod
+    def register_clone(cls, source: str, targets: list[str]) -> None:
+        """Register a (source, targets) pair to be replayed via physx.clone().
+
+        Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
+        scene setup, before the PhysX instance exists.  The clone operations
+        are executed in :meth:`_warmup_and_load` immediately after
+        ``physx.add_usd()``.
+        """
+        cls._pending_clones.append((source, targets))
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -60,6 +74,7 @@ class OvPhysxManager(PhysicsManager):
         cls._physx = None
         cls._usd_handle = None
         cls._stage_path = None
+        cls._pending_clones = []
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -160,6 +175,29 @@ class OvPhysxManager(PhysicsManager):
             scene_prim.SetMetadata("apiSchemas", schemas)
             scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
             scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
+            # Apply GPU buffer capacities from cfg.  PhysX defaults (1024 for aggregate
+            # pairs) are far too small for multi-env articulated simulations and produce
+            # "needs to increase ... capacity" errors with missed interactions.
+            cfg = PhysicsManager._cfg
+            if cfg is not None:
+                scene_prim.CreateAttribute(
+                    "physxScene:gpuMaxRigidContactCount", Sdf.ValueTypeNames.UInt
+                ).Set(cfg.gpu_max_rigid_contact_count)
+                scene_prim.CreateAttribute(
+                    "physxScene:gpuMaxRigidPatchCount", Sdf.ValueTypeNames.UInt
+                ).Set(cfg.gpu_max_rigid_patch_count)
+                scene_prim.CreateAttribute(
+                    "physxScene:gpuFoundLostPairsCapacity", Sdf.ValueTypeNames.UInt
+                ).Set(cfg.gpu_found_lost_pairs_capacity)
+                scene_prim.CreateAttribute(
+                    "physxScene:gpuFoundLostAggregatePairsCapacity", Sdf.ValueTypeNames.UInt
+                ).Set(cfg.gpu_found_lost_aggregate_pairs_capacity)
+                scene_prim.CreateAttribute(
+                    "physxScene:gpuTotalAggregatePairsCapacity", Sdf.ValueTypeNames.UInt
+                ).Set(cfg.gpu_total_aggregate_pairs_capacity)
+                scene_prim.CreateAttribute(
+                    "physxScene:gpuCollisionStackSize", Sdf.ValueTypeNames.UInt
+                ).Set(cfg.gpu_collision_stack_size)
 
         # Export the current USD stage to a temporary file so ovphysx can load it.
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
@@ -167,6 +205,20 @@ class OvPhysxManager(PhysicsManager):
         sim.stage.Export(stage_file)
         cls._stage_path = stage_file
         logger.info("OvPhysxManager: exported USD stage to %s", stage_file)
+
+        # HACK (temporary): hide pxr from sys.modules during ovphysx bootstrap.
+        # IsaacSim's pxr reports version 0.25.5 (pip convention) while ovphysx
+        # expects 25.11 (OpenUSD release convention).  Hiding pxr causes
+        # ovphysx.check_usd_compatibility() to skip the Python-side version
+        # check.  This should go away once ovphysx ships a namespaced USD
+        # copy with isolated symbols (same "import pxr" API, no collision).
+        import sys as _sys
+        _hidden_pxr = {k: _sys.modules.pop(k) for k in list(_sys.modules) if k == "pxr" or k.startswith("pxr.")}
+        try:
+            import ovphysx as _ovphysx_bootstrap
+            _ovphysx_bootstrap.bootstrap()
+        finally:
+            _sys.modules.update(_hidden_pxr)
 
         import ovphysx
         cls._physx = ovphysx.PhysX(device=ovphysx_device, gpu_index=gpu_index)
@@ -180,6 +232,20 @@ class OvPhysxManager(PhysicsManager):
         cls._physx.wait_op(op_idx)
         cls._usd_handle = usd_handle
         logger.info("OvPhysxManager: loaded USD into ovphysx (device=%s)", ovphysx_device)
+
+        # Replay pending physics clones registered by ovphysx_replicate().
+        # The USD stage contains only env_0's physics; env_1..N are empty
+        # Xform containers.  physx.clone() creates the remaining environments
+        # in the physics runtime without modifying the USD file.
+        if cls._pending_clones:
+            for source, targets in cls._pending_clones:
+                logger.info(
+                    "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
+                    source, len(targets), targets[0], targets[-1],
+                )
+                op_idx = cls._physx.clone(source, targets)
+                cls._physx.wait_op(op_idx)
+            cls._pending_clones = []
 
         if ovphysx_device == "gpu":
             cls._physx.warmup_gpu()

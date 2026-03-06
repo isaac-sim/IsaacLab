@@ -66,9 +66,9 @@ def _scan_config(cfg, predicates: list[Callable[[Any], bool]]) -> list[bool]:
     return results
 
 
-def _is_newton_physics(node) -> bool:
-    """True when the node is a Newton physics config (Kit is not required)."""
-    return isinstance(node, PhysicsCfg) and type(node).__name__ == "NewtonCfg"
+def _is_kitless_physics(node) -> bool:
+    """True when the node is a kitless physics config (Newton or OvPhysX)."""
+    return isinstance(node, PhysicsCfg) and type(node).__name__ in ("NewtonCfg", "OvPhysxCfg")
 
 
 def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
@@ -112,8 +112,8 @@ def compute_kit_requirements(
     Returns:
         (needs_kit, has_kit_cameras, visualizer_types)
     """
-    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
-    needs_kit = has_kit_cameras or not is_newton
+    is_kitless, has_kit_cameras = _scan_config(env_cfg, [_is_kitless_physics, _is_kit_camera])
+    needs_kit = has_kit_cameras or not is_kitless
     visualizer_types = _get_visualizer_types(launcher_args)
     if "kit" in visualizer_types:
         needs_kit = True

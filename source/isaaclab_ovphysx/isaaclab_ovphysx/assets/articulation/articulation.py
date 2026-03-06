@@ -677,8 +677,52 @@ class Articulation(BaseArticulation):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
         prim_path = self.cfg.prim_path
-        # Replace {ENV_REGEX_NS} with a glob-like wildcard for ovphysx pattern matching.
+        # Convert IsaacLab prim-path notation to the glob patterns ovphysx expects.
+        # IsaacLab uses two conventions:
+        #   /World/envs/env_.*/Robot  -- regex dot-star for "any env index"
+        #   /World/envs/{ENV_REGEX_NS}/Robot -- explicit placeholder
+        # ovphysx create_tensor_binding() uses fnmatch-style globs, so both map to '*'.
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
+        pattern = re.sub(r"\.\*", "*", pattern)  # env_.* -> env_*
+
+        # The pattern above points to the ArticulationCfg prim (e.g. /World/envs/env_*/Robot).
+        # However, PhysicsArticulationRootAPI may be on a CHILD prim (e.g. /Robot/torso)
+        # rather than on the prim itself.  create_tensor_binding() only matches prims that
+        # *have* PhysicsArticulationRootAPI, so we need to extend the pattern to the actual
+        # articulation root.  Mirror the PhysX backend's discovery logic: find the first
+        # matching prim in the USD stage, walk its subtree for the articulation root, and
+        # append the relative suffix to the glob pattern.
+        from pxr import UsdPhysics
+        from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+        from isaaclab.physics import PhysicsManager
+
+        stage = PhysicsManager._sim.stage
+        first_prim = find_first_matching_prim(prim_path, stage=stage)
+        if first_prim is None:
+            raise RuntimeError(f"OvPhysxManager: no prim found for path '{prim_path}'.")
+        first_prim_path = first_prim.GetPath().pathString
+
+        root_prims = get_all_matching_child_prims(
+            first_prim_path,
+            predicate=lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI),
+            traverse_instance_prims=False,
+        )
+        if len(root_prims) == 0:
+            raise RuntimeError(
+                f"No prim with PhysicsArticulationRootAPI found under '{first_prim_path}'."
+                " Check that the articulation has 'PhysicsArticulationRootAPI' applied."
+            )
+        if len(root_prims) > 1:
+            raise RuntimeError(
+                f"Multiple articulation roots found under '{first_prim_path}': {root_prims}."
+                " There must be exactly one articulation root per prim path."
+            )
+        root_relative = root_prims[0].GetPath().pathString[len(first_prim_path):]
+        if root_relative:
+            # e.g. first_prim_path=/World/envs/env_0/Robot, root_relative=/torso
+            # pattern becomes /World/envs/env_*/Robot/torso
+            pattern = pattern + root_relative
+            logger.info("OvPhysxManager: articulation root at '%s' (pattern extended to '%s')", root_relative, pattern)
 
         # Bindings are created lazily (on first access) to avoid allocating
         # handles for tensor types the user never queries.  Only the root-pose
@@ -726,6 +770,8 @@ class Articulation(BaseArticulation):
 
     def _create_buffers(self) -> None:
         self._data._create_buffers()
+
+        self._ALL_INDICES = wp.array(np.arange(self._num_instances, dtype=np.int32), device=self._device)
 
         from isaaclab.utils.wrench_composer import WrenchComposer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1043,7 +1089,7 @@ class Articulation(BaseArticulation):
         src = self._as_gpu_f32_2d(data, C)
 
         if env_ids is not None:
-            ids_gpu = wp.array(np.asarray(env_ids, dtype=np.int32), device=self._device)
+            ids_gpu = wp.array(self._to_cpu_indices(env_ids, np.int32), device=self._device)
             K = len(env_ids)
             if src.shape[0] == N:
                 binding.write(src, indices=ids_gpu)
@@ -1083,9 +1129,9 @@ class Articulation(BaseArticulation):
                     scratch = self._get_write_scratch(tensor_type, binding)
                     binding.read(scratch)
                     full = scratch.numpy()
-                jids = np.asarray(joint_ids, dtype=np.intp)
+                jids = self._to_cpu_indices(joint_ids, np.intp)
                 if env_ids is not None:
-                    eids = np.asarray(env_ids, dtype=np.intp)
+                    eids = self._to_cpu_indices(env_ids, np.intp)
                     full[np.ix_(eids, jids)] = np_data.reshape(len(eids), len(jids), *np_data.shape[2:])
                 else:
                     full[:, jids] = np_data.reshape(full.shape[0], len(jids), *np_data.shape[2:])
@@ -1098,10 +1144,10 @@ class Articulation(BaseArticulation):
                     scratch = self._get_write_scratch(tensor_type, binding)
                     binding.read(scratch)
                     full = scratch.numpy()
-                eids = np.asarray(env_ids, dtype=np.intp)
+                eids = self._to_cpu_indices(env_ids, np.intp)
                 full[eids] = np_data if np_data.shape[0] == len(eids) else np_data[eids]
                 flat = wp.from_numpy(full.astype(np.float32), dtype=wp.float32, device=target_device)
-                idx = wp.array(np.asarray(env_ids, dtype=np.int32), device=target_device)
+                idx = wp.array(self._to_cpu_indices(env_ids, np.int32), device=target_device)
                 binding.write(flat, indices=idx)
             else:
                 binding.write(wp.from_numpy(np_data.astype(np.float32), dtype=wp.float32, device=target_device))
@@ -1114,7 +1160,7 @@ class Articulation(BaseArticulation):
 
         N, C = binding.shape[0], binding.shape[1]
         src = self._as_gpu_f32_2d(data, C)
-        ids_gpu = wp.array(np.asarray(env_ids, dtype=np.int32), device=self._device)
+        ids_gpu = wp.array(self._to_cpu_indices(env_ids, np.int32), device=self._device)
         K = len(env_ids)
         if src.shape[0] == N:
             binding.write(src, indices=ids_gpu)
@@ -1190,13 +1236,13 @@ class Articulation(BaseArticulation):
         if isinstance(data, (int, float)):
             if env_ids is not None and joint_ids is not None:
                 eids = self._to_cpu_numpy(env_ids).astype(np.intp)
-                jids = np.asarray(joint_ids, dtype=np.intp)
+                jids = self._to_cpu_indices(joint_ids, np.intp)
                 full[np.ix_(eids, jids, [0])] = data
             elif env_ids is not None:
                 eids = self._to_cpu_numpy(env_ids).astype(np.intp)
                 full[eids, :, 0] = data
             elif joint_ids is not None:
-                jids = np.asarray(joint_ids, dtype=np.intp)
+                jids = self._to_cpu_indices(joint_ids, np.intp)
                 full[:, jids, 0] = data
             else:
                 full[..., 0] = data
@@ -1205,13 +1251,13 @@ class Articulation(BaseArticulation):
         np_data = self._to_cpu_numpy(data)
         if env_ids is not None and joint_ids is not None:
             eids = self._to_cpu_numpy(env_ids).astype(np.intp)
-            jids = np.asarray(joint_ids, dtype=np.intp)
+            jids = self._to_cpu_indices(joint_ids, np.intp)
             full[np.ix_(eids, jids, [0])] = np_data.reshape(len(eids), len(jids), 1)
         elif env_ids is not None:
             eids = self._to_cpu_numpy(env_ids).astype(np.intp)
             full[eids, :, 0] = np_data.reshape(len(eids), -1)
         elif joint_ids is not None:
-            jids = np.asarray(joint_ids, dtype=np.intp)
+            jids = self._to_cpu_indices(joint_ids, np.intp)
             full[:, jids, 0] = np_data.reshape(full.shape[0], len(jids))
         else:
             full[..., 0] = np_data.reshape(full.shape[0], full.shape[1])
@@ -1259,6 +1305,15 @@ class Articulation(BaseArticulation):
         if isinstance(data, torch.Tensor):
             return data.detach().cpu().numpy().astype(np.float32)
         return np.asarray(data, dtype=np.float32)
+
+    @staticmethod
+    def _to_cpu_indices(data, dtype=np.int32) -> np.ndarray:
+        """Convert index array (warp, torch, list, numpy) to CPU numpy int array."""
+        if isinstance(data, torch.Tensor):
+            return data.detach().cpu().numpy().astype(dtype)
+        if isinstance(data, wp.array):
+            return data.numpy().astype(dtype)
+        return np.asarray(data, dtype=dtype)
 
     def _set_target_into_buffer(self, buffer: wp.array, data, env_ids=None, joint_ids=None) -> None:
         """Set user-provided target data into a warp command buffer.

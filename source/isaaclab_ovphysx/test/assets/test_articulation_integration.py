@@ -30,7 +30,7 @@ for _k in list(_sys.modules):
     if _k == "pxr" or _k.startswith("pxr."):
         _hidden_pxr[_k] = _sys.modules.pop(_k)
 import ovphysx  # noqa: E402,F401
-_ = ovphysx.PhysX  # force native bootstrap while pxr is hidden
+ovphysx.bootstrap()
 _sys.modules.update(_hidden_pxr)
 del _hidden_pxr
 

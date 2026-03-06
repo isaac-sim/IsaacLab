@@ -18,8 +18,12 @@ source "${ISAAC_DIR}/setup_python_env.sh"
 # Both try to tear down at process exit -> segfault.
 export LD_PRELOAD=""
 
-# Add isaaclab source packages to PYTHONPATH so editable installs work
-export PYTHONPATH="${ISAACLAB_PATH}/source/isaaclab:${ISAACLAB_PATH}/source/isaaclab_ovphysx:${PYTHONPATH}"
+# Add all isaaclab source packages to PYTHONPATH so editable installs work
+for pkg in isaaclab isaaclab_ovphysx isaaclab_tasks isaaclab_rl isaaclab_physx isaaclab_newton isaaclab_assets isaaclab_contrib; do
+    if [ -d "${ISAACLAB_PATH}/source/${pkg}" ]; then
+        export PYTHONPATH="${ISAACLAB_PATH}/source/${pkg}:${PYTHONPATH}"
+    fi
+done
 
 # Use the Python binary directly
 PYTHON_EXE="${ISAAC_DIR}/kit/python/bin/python3"
