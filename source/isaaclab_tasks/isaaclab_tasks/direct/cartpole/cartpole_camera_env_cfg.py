@@ -13,6 +13,8 @@ from isaaclab.sensors import TiledCameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 
@@ -31,7 +33,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
-    # camera
+    # camera: default=RTX, newton_renderer=Warp. Override: env.tiled_camera.renderer_cfg=newton_renderer
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
@@ -41,6 +43,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         ),
         width=100,
         height=100,
+        renderer_cfg=MultiBackendRendererCfg(),
     )
     write_image_to_file = False
 
