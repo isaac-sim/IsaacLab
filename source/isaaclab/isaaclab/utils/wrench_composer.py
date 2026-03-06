@@ -21,8 +21,9 @@ class WrenchComposer:
     def __init__(self, asset: Articulation | RigidObject | RigidObjectCollection) -> None:
         """Wrench composer.
 
-        This class is used to compose forces and torques at the body's link frame.
-        It can compose global wrenches and local wrenches. The result is always in the link frame of the body.
+        This class composes forces and torques from multiple sources into a single wrench per body.
+        Forces and torques are stored in "mixed" representation: expressed in frame whose orientation is global,
+        while the origin is at the link origin. This allows for straightforward composition of forces and torques.
 
         Args:
             asset: Asset to use. Defaults to None.
@@ -47,9 +48,9 @@ class WrenchComposer:
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
-        # Create buffers
-        self._composed_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
-        self._composed_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        # Create buffers - all forces and torques are stored in mixed representation: origin at link frame, orientation in global frame.
+        self._composed_force_m = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._composed_torque_m = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._ALL_ENV_INDICES_WP = wp.from_torch(
             torch.arange(self.num_envs, dtype=torch.int32, device=self.device), dtype=wp.int32
         )
@@ -58,14 +59,11 @@ class WrenchComposer:
         )
 
         # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor
-        self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
-        self._composed_torque_b_torch = wp.to_torch(self._composed_torque_b)
+        self._composed_force_m_torch = wp.to_torch(self._composed_force_m)
+        self._composed_torque_m_torch = wp.to_torch(self._composed_torque_m)
         # Pinning the environment and body indices to the torch tensor to allow for slicing.
         self._ALL_ENV_INDICES_TORCH = wp.to_torch(self._ALL_ENV_INDICES_WP)
         self._ALL_BODY_INDICES_TORCH = wp.to_torch(self._ALL_BODY_INDICES_WP)
-
-        # Flag to check if the link poses have been updated.
-        self._link_poses_updated = False
 
     @property
     def active(self) -> bool:
@@ -74,51 +72,50 @@ class WrenchComposer:
 
     @property
     def composed_force(self) -> wp.array:
-        """Composed force at the body's link frame.
+        """Composed force mixed representation: origin at link frame, orientation in global frame.
 
-        .. note:: If some of the forces are applied in the global frame, the composed force will be in the link frame
-        of the body.
+        Forces are stored in "mixed" representation: global frame orientation, applied at link origin.
+        Any position offsets provided when setting forces contribute to torque, not to this force buffer.
 
         Returns:
-            wp.array: Composed force at the body's link frame. (num_envs, num_bodies, 3)
+            wp.array: Composed force in mixed representation. Shape: (num_envs, num_bodies, 3)
         """
-        return self._composed_force_b
+        return self._composed_force_m
 
     @property
     def composed_torque(self) -> wp.array:
-        """Composed torque at the body's link frame.
+        """Composed torque in mixed representation: origin at link frame, orientation in global frame.
 
-        .. note:: If some of the torques are applied in the global frame, the composed torque will be in the link frame
-        of the body.
+        Torques are stored in "mixed" representation.
+        This includes both user-provided torques and torque contributions from forces applied at
+        offset positions (τ = (pos - link_origin) × force).
 
         Returns:
-            wp.array: Composed torque at the body's link frame. (num_envs, num_bodies, 3)
+            wp.array: Composed torque in global frame. Shape: (num_envs, num_bodies, 3)
         """
-        return self._composed_torque_b
+        return self._composed_torque_m
 
     @property
     def composed_force_as_torch(self) -> torch.Tensor:
-        """Composed force at the body's link frame as torch tensor.
+        """Composed force in mixed representation: origin at link frame, orientation in global frame, as torch tensor.
 
-        .. note:: If some of the forces are applied in the global frame, the composed force will be in the link frame
-        of the body.
+        Forces are stored in "mixed" representation.
 
         Returns:
-            torch.Tensor: Composed force at the body's link frame. (num_envs, num_bodies, 3)
+            torch.Tensor: Composed force in mixed representation. Shape: (num_envs, num_bodies, 3)
         """
-        return self._composed_force_b_torch
+        return self._composed_force_m_torch
 
     @property
     def composed_torque_as_torch(self) -> torch.Tensor:
-        """Composed torque at the body's link frame as torch tensor.
+        """Composed torque mixed representation: origin at link frame, orientation in global frame, as torch tensor.
 
-        .. note:: If some of the torques are applied in the global frame, the composed torque will be in the link frame
-        of the body.
+        Torques are stored in "mixed" representation.
 
         Returns:
-            torch.Tensor: Composed torque at the body's link frame. (num_envs, num_bodies, 3)
+            torch.Tensor: Composed torque in mixed representation. Shape: (num_envs, num_bodies, 3)
         """
-        return self._composed_torque_b_torch
+        return self._composed_torque_m_torch
 
     def add_forces_and_torques(
         self,
@@ -131,22 +128,28 @@ class WrenchComposer:
     ):
         """Add forces and torques to the composed force and torque.
 
-        Composed force and torque are the sum of all the forces and torques applied to the body.
-        It can compose global wrenches and local wrenches. The result is always in the link frame of the body.
+        It can compose global wrenches and local wrenches.
+        It first convert them to the mixed representation and then add them to the already composed force and torque.
 
-        The user can provide any combination of forces, torques, and positions.
+        Forces and torques are always stored in mixed representation: global frame orientation and application point at the link frame.
+
+        Positions are NOT stored - they are used to compute torque contributions from forces applied at
+        offset positions (τ = (pos - link_origin) × force).
 
         .. note:: Users may want to call `reset` function after every simulation step to ensure no force is carried
         over to the next step. However, this may not necessary if the user calls `set_forces_and_torques` function
         instead of `add_forces_and_torques`.
 
         Args:
-            forces: Forces. (num_envs, num_bodies, 3). Defaults to None.
-            torques: Torques. (num_envs, num_bodies, 3). Defaults to None.
-            positions: Positions. (num_envs, num_bodies, 3). Defaults to None.
-            body_ids: Body ids. (num_envs, num_bodies). Defaults to None (all bodies).
-            env_ids: Environment ids. (num_envs). Defaults to None (all environments).
-            is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
+            forces: Forces. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
+            torques: Torques. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
+            positions: Positions. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
+                When is_global is False, the user-provided positions are offsetting the application of the force relatively
+                to the link frame of the body. When is_global is True, the user-provided positions are the global positions
+                of the force application.
+            body_ids: Body ids. Defaults to None (all bodies).
+            env_ids: Environment ids. Defaults to None (all environments).
+            is_global: Whether forces and torques are in global frame. Defaults to False.
 
         Raises:
             ValueError: If the type of the input is not supported.
@@ -190,12 +193,10 @@ class WrenchComposer:
             positions = wp.from_torch(positions, dtype=wp.vec3f)
 
         # Get the link positions and quaternions
-        if not self._link_poses_updated:
-            self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
-            self._link_quaternions = wp.from_torch(
-                convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
-            )
-            self._link_poses_updated = True
+        self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
+        self._link_quaternions = wp.from_torch(
+            convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
+        )
 
         # Set the active flag to true
         self._active = True
@@ -211,8 +212,8 @@ class WrenchComposer:
                 positions,
                 self._link_positions,
                 self._link_quaternions,
-                self._composed_force_b,
-                self._composed_torque_b,
+                self._composed_force_m,
+                self._composed_torque_m,
                 is_global,
             ],
             device=self.device,
@@ -227,20 +228,29 @@ class WrenchComposer:
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
-        """Set forces and torques to the composed force and torque.
+        """Set forces and torques to the composed force and torque (replaces existing values).
 
-        Composed force and torque are the sum of all the forces and torques applied to the body.
-        It can compose global wrenches and local wrenches. The result is always in the link frame of the body.
+        It can compose global wrenches and local wrenches.
+        It first convert them to the mixed representation and then add them to the already composed force and torque.
 
-        The user can provide any combination of forces, torques, and positions.
+        Forces and torques are always stored in "mixed" representation: global frame orientation,
+        with application point at the link frame.
+
+        Positions are NOT stored - they are used to compute torque
+        contributions from forces applied at offset positions (τ = (pos - link_origin) × force).
+
+        The total torque set is: user_torque + cross(position - link_origin, force).
 
         Args:
-            forces: Forces. (num_envs, num_bodies, 3). Defaults to None.
-            torques: Torques. (num_envs, num_bodies, 3). Defaults to None.
-            positions: Positions. (num_envs, num_bodies, 3). Defaults to None.
-            body_ids: Body ids. (num_envs, num_bodies). Defaults to None (all bodies).
-            env_ids: Environment ids. (num_envs). Defaults to None (all environments).
-            is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
+            forces: Forces. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
+            torques: Torques. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
+            positions: Positions. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
+                When is_global is False, the user-provided positions are offsetting the application of the force relatively
+                to the link frame of the body. When is_global is True, the user-provided positions are the global positions
+                of the force application.
+            body_ids: Body ids. Defaults to None (all bodies).
+            env_ids: Environment ids. Defaults to None (all environments).
+            is_global: Whether forces and torques are in global frame. Defaults to False.
 
         Raises:
             ValueError: If the type of the input is not supported.
@@ -289,12 +299,10 @@ class WrenchComposer:
             positions = wp.from_torch(positions, dtype=wp.vec3f)
 
         # Get the link positions and quaternions
-        if not self._link_poses_updated:
-            self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
-            self._link_quaternions = wp.from_torch(
-                convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
-            )
-            self._link_poses_updated = True
+        self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
+        self._link_quaternions = wp.from_torch(
+            convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
+        )
 
         # Set the active flag to true
         self._active = True
@@ -310,8 +318,8 @@ class WrenchComposer:
                 positions,
                 self._link_positions,
                 self._link_quaternions,
-                self._composed_force_b,
-                self._composed_torque_b,
+                self._composed_force_m,
+                self._composed_torque_m,
                 is_global,
             ],
             device=self.device,
@@ -328,8 +336,8 @@ class WrenchComposer:
         over to the next step.
         """
         if env_ids is None:
-            self._composed_force_b.zero_()
-            self._composed_torque_b.zero_()
+            self._composed_force_m.zero_()
+            self._composed_torque_m.zero_()
             self._active = False
         else:
             indices = env_ids
@@ -343,7 +351,5 @@ class WrenchComposer:
                 else:
                     indices = env_ids
 
-            self._composed_force_b[indices].zero_()
-            self._composed_torque_b[indices].zero_()
-
-        self._link_poses_updated = False
+            self._composed_force_m[indices].zero_()
+            self._composed_torque_m[indices].zero_()

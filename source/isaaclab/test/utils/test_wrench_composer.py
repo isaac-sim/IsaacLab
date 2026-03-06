@@ -109,6 +109,25 @@ def quat_rotate_inv_np(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
     return vec + w * t + np.cross(-xyz, t, axis=-1)
 
 
+def quat_rotate_np(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
+    """Rotate a vector by a quaternion (numpy).
+
+    Args:
+        quat_wxyz: Quaternion in (w, x, y, z) format. Shape: (..., 4)
+        vec: Vector to rotate. Shape: (..., 3)
+
+    Returns:
+        Rotated vector. Shape: (..., 3)
+    """
+    # Extract components
+    w = quat_wxyz[..., 0:1]
+    xyz = quat_wxyz[..., 1:4]
+
+    # Using the formula: v' = v + 2*w*(xyz x v) + 2*(xyz x (xyz x v))
+    t = 2.0 * np.cross(xyz, vec, axis=-1)
+    return vec + w * t + np.cross(xyz, t, axis=-1)
+
+
 def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndarray:
     """Generate random unit quaternions in (w, x, y, z) format.
 
@@ -416,7 +435,7 @@ def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
 @pytest.mark.parametrize("num_envs", [1, 10, 100])
 @pytest.mark.parametrize("num_bodies", [1, 3, 5])
 def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int):
-    """Test that global forces are correctly rotated to the local frame."""
+    """Test that global forces stay unchanged in mixed representation (global orientation)."""
     rng = np.random.default_rng(seed=10)
 
     for _ in range(5):
@@ -435,13 +454,13 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
         # Apply global forces
         wrench_composer.add_forces_and_torques(forces=forces_global, is_global=True)
 
-        # Compute expected local forces by rotating global forces by inverse quaternion
-        expected_forces_local = quat_rotate_inv_np(link_quat_np, forces_global_np)
+        # In mixed representation, global forces stay unchanged (already in global orientation)
+        expected_forces_mixed = forces_global_np
 
         # Verify
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
-            f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        assert np.allclose(composed_force_np, expected_forces_mixed, atol=1e-4, rtol=1e-5), (
+            f"Global force in mixed repr failed.\nExpected:\n{expected_forces_mixed}\nGot:\n{composed_force_np}"
         )
 
 
@@ -449,7 +468,7 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
 @pytest.mark.parametrize("num_envs", [1, 10, 100])
 @pytest.mark.parametrize("num_bodies", [1, 3, 5])
 def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: int):
-    """Test that global torques are correctly rotated to the local frame."""
+    """Test that global torques stay unchanged in mixed representation (global orientation)."""
     rng = np.random.default_rng(seed=11)
 
     for _ in range(5):
@@ -468,13 +487,13 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
         # Apply global torques
         wrench_composer.add_forces_and_torques(torques=torques_global, is_global=True)
 
-        # Compute expected local torques
-        expected_torques_local = quat_rotate_inv_np(link_quat_np, torques_global_np)
+        # In mixed representation, global torques stay unchanged (already in global orientation)
+        expected_torques_mixed = torques_global_np
 
         # Verify
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
-            f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
+        assert np.allclose(composed_torque_np, expected_torques_mixed, atol=1e-4, rtol=1e-5), (
+            f"Global torque in mixed repr failed.\nExpected:\n{expected_torques_mixed}\nGot:\n{composed_torque_np}"
         )
 
 
@@ -505,32 +524,26 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         # Apply global forces at global positions
         wrench_composer.add_forces_and_torques(forces=forces_global, positions=positions_global, is_global=True)
 
-        # Compute expected results:
-        # 1. Force in local frame = quat_rotate_inv(link_quat, global_force)
-        expected_forces_local = quat_rotate_inv_np(link_quat_np, forces_global_np)
+        # Compute expected results in mixed representation:
+        # 1. Force stays unchanged (already in global orientation)
+        expected_forces_mixed = forces_global_np
 
-        # 2. Position offset in local frame = global_position - link_position (then used for torque)
+        # 2. Position offset in global frame = global_position - link_position
         position_offset_global = positions_global_np - link_pos_np
 
-        # 3. Torque = skew(position_offset_global) @ force_global, then rotate to local
-        expected_torques_local = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        for i in range(num_envs):
-            for j in range(num_bodies):
-                pos_offset = position_offset_global[i, j]  # global frame offset
-                force_local = expected_forces_local[i, j]  # local frame force
-                # skew(pos_offset) @ force_local
-                expected_torques_local[i, j] = np.cross(pos_offset, force_local)
+        # 3. Torque = cross(position_offset, force) in global frame
+        expected_torques_mixed = np.cross(position_offset_global, forces_global_np)
 
         # Verify forces
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        assert np.allclose(composed_force_np, expected_forces_mixed, atol=1e-3, rtol=1e-4), (
+            f"Global force at position failed.\nExpected forces:\n{expected_forces_mixed}\nGot:\n{composed_force_np}"
         )
 
         # Verify torques
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
+        assert np.allclose(composed_torque_np, expected_torques_mixed, atol=1e-3, rtol=1e-4), (
+            f"Global force at position failed.\nExpected torques:\n{expected_torques_mixed}\nGot:\n{composed_torque_np}"
         )
 
 
@@ -592,18 +605,46 @@ def test_90_degree_rotation_global_force(device: str):
 
     wrench_composer.add_forces_and_torques(forces=force_wp, is_global=True)
 
-    # Expected: After inverse rotation (rotate by -90° around Z), X becomes -Y
-    # Actually, inverse rotation of +90° around Z applied to (1,0,0) gives (0,-1,0)
-    expected_force_local = np.array([[[0.0, -1.0, 0.0]]], dtype=np.float32)
+    # In mixed representation, global forces stay unchanged
+    expected_force_mixed = np.array([[[1.0, 0.0, 0.0]]], dtype=np.float32)
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
-        f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
+    assert np.allclose(composed_force_np, expected_force_mixed, atol=1e-5), (
+        f"90-degree rotation test failed.\nExpected:\n{expected_force_mixed}\nGot:\n{composed_force_np}"
     )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_composition_mixed_local_and_global(device: str):
+def test_90_degree_rotation_local_force(device: str):
+    """Test local force with a known 90-degree rotation for easy verification."""
+    num_envs, num_bodies = 1, 1
+
+    # 90-degree rotation around Z-axis: (w, x, y, z) = (cos(45°), 0, 0, sin(45°))
+    # This rotates X -> Y, Y -> -X
+    angle = np.pi / 2
+    link_quat_np = np.array([[[[np.cos(angle / 2), 0, 0, np.sin(angle / 2)]]]], dtype=np.float32).reshape(1, 1, 4)
+    link_quat_torch = torch.from_numpy(link_quat_np)
+
+    mock_asset = MockRigidObject(num_envs, num_bodies, device, link_quat=link_quat_torch)
+    wrench_composer = WrenchComposer(mock_asset)
+
+    # Apply force in local +X direction
+    force_local = np.array([[[1.0, 0.0, 0.0]]], dtype=np.float32)
+    force_wp = wp.from_numpy(force_local, dtype=wp.vec3f, device=device)
+
+    wrench_composer.add_forces_and_torques(forces=force_wp, is_global=False)
+
+    # In mixed representation, local forces get rotated to global: local +X becomes global +Y
+    expected_force_mixed = np.array([[[0.0, 1.0, 0.0]]], dtype=np.float32)
+
+    composed_force_np = wrench_composer.composed_force.numpy()
+    assert np.allclose(composed_force_np, expected_force_mixed, atol=1e-5), (
+        f"90-degree rotation test failed.\nExpected:\n{expected_force_mixed}\nGot:\n{composed_force_np}"
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_composition_local_and_global(device: str):
     """Test that local and global forces can be composed together correctly."""
     rng = np.random.default_rng(seed=14)
     num_envs, num_bodies = 5, 3
@@ -628,9 +669,9 @@ def test_composition_mixed_local_and_global(device: str):
     # Add global forces
     wrench_composer.add_forces_and_torques(forces=forces_global, is_global=True)
 
-    # Expected: local forces stay as-is, global forces get rotated, then sum
-    global_forces_in_local = quat_rotate_inv_np(link_quat_np, forces_global_np)
-    expected_total = forces_local_np + global_forces_in_local
+    # In mixed repr: local forces get rotated to global, global forces stay as-is
+    local_forces_in_global = quat_rotate_np(link_quat_np, forces_local_np)
+    expected_total = local_forces_in_global + forces_global_np
 
     composed_force_np = wrench_composer.composed_force.numpy()
     assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
@@ -641,7 +682,7 @@ def test_composition_mixed_local_and_global(device: str):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 10, 50])
 @pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: int):
+def test_local_forces_and_torques_at_local_position(device: str, num_envs: int, num_bodies: int):
     """Test local forces at local positions (offset from link frame)."""
     rng = np.random.default_rng(seed=15)
 
@@ -657,23 +698,29 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
 
         # Generate random local forces and local positions (offsets)
         forces_local_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        torques_local_np = rng.uniform(-50.0, 50.0, (num_envs, num_bodies, 3)).astype(np.float32)
         positions_local_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
         forces_local = wp.from_numpy(forces_local_np, dtype=wp.vec3f, device=device)
+        torques_local = wp.from_numpy(torques_local_np, dtype=wp.vec3f, device=device)
         positions_local = wp.from_numpy(positions_local_np, dtype=wp.vec3f, device=device)
 
-        # Apply local forces at local positions
-        wrench_composer.add_forces_and_torques(forces=forces_local, positions=positions_local, is_global=False)
+        # Apply local forces and torques at local positions
+        wrench_composer.add_forces_and_torques(
+            forces=forces_local, torques=torques_local, positions=positions_local, is_global=False
+        )
 
-        # Expected: forces stay as-is, torque = cross(position, force)
-        expected_forces = forces_local_np
-        expected_torques = np.cross(positions_local_np, forces_local_np)
+        # In mixed repr: local forces get rotated to global
+        expected_forces = quat_rotate_np(link_quat_np, forces_local_np)
+        # In mixed repr: torque = cross(pos_mixed, force_mixed) + quat_rotate(torques_local)
+        positions_mixed = quat_rotate_np(link_quat_np, positions_local_np)
+        expected_torques = np.cross(positions_mixed, expected_forces) + quat_rotate_np(link_quat_np, torques_local_np)
 
         # Verify
         composed_force_np = wrench_composer.composed_force.numpy()
         composed_torque_np = wrench_composer.composed_torque.numpy()
 
-        assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
-        assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
+        assert np.allclose(composed_force_np, expected_forces, atol=1e-3, rtol=1e-5)
+        assert np.allclose(composed_torque_np, expected_torques, atol=1e-3, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -701,8 +748,8 @@ def test_global_force_at_link_origin_no_torque(device: str):
     # Apply global forces at link origin
     wrench_composer.add_forces_and_torques(forces=forces_global, positions=positions_at_link, is_global=True)
 
-    # Expected: force rotated to local, torque = 0 (since position offset is zero)
-    expected_forces = quat_rotate_inv_np(link_quat_np, forces_global_np)
+    # In mixed repr: global forces stay unchanged, torque = 0 (since position offset is zero)
+    expected_forces = forces_global_np
     expected_torques = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
 
     composed_force_np = wrench_composer.composed_force.numpy()
@@ -710,3 +757,59 @@ def test_global_force_at_link_origin_no_torque(device: str):
 
     assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
     assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_forces_after_asset_pose_change(device: str):
+    """Test that stored forces accumulate correctly as asset pose changes over multiple iterations.
+
+    This verifies that the WrenchComposer correctly stores forces in "mixed" representation
+    (global frame orientation, local frame position) and properly transforms new forces based
+    on the current pose, while previously stored forces remain unchanged.
+    """
+    rng = np.random.default_rng(seed=17)
+    num_envs, num_bodies = 5, 3
+    num_iterations = 10
+
+    # Create mock asset with initial pose
+    link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
+    link_pos_torch = torch.from_numpy(link_pos_np)
+    link_quat_torch = torch.from_numpy(link_quat_np)
+
+    mock_asset = MockRigidObject(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
+    wrench_composer = WrenchComposer(mock_asset)
+
+    # Track expected accumulated force in mixed representation
+    expected_accumulated_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
+
+    for iteration in range(num_iterations):
+        # Randomly choose whether to apply local or global forces
+        use_global = rng.choice([True, False])
+
+        # Generate random forces
+        forces_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        forces_wp = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
+
+        # Apply forces
+        wrench_composer.add_forces_and_torques(forces=forces_wp, is_global=use_global)
+
+        # Update expected accumulated force based on current pose
+        if use_global:
+            # Global forces are stored as-is in mixed representation
+            expected_accumulated_force_np += forces_np
+        else:
+            # Local forces are rotated by current link quaternion to mixed representation
+            forces_in_mixed = quat_rotate_np(link_quat_np, forces_np)
+            expected_accumulated_force_np += forces_in_mixed
+
+        # Verify composed forces match expected accumulation
+        composed_force_np = wrench_composer.composed_force.numpy()
+        assert np.allclose(composed_force_np, expected_accumulated_force_np, atol=1e-3, rtol=1e-5)
+
+        # Change the link position and orientation for the next iteration
+        link_pos_np = rng.uniform(-20.0, 20.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
+
+        mock_asset.data.body_link_pos_w = torch.from_numpy(link_pos_np).to(device=device, dtype=torch.float32)
+        mock_asset.data.body_link_quat_w = torch.from_numpy(link_quat_np).to(device=device, dtype=torch.float32)
