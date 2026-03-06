@@ -273,11 +273,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # check that if any render could have happened
             # Check for GUI, offscreen rendering, or visualizers
             has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-            if not (
-                self.sim.has_gui
-                or self.sim.has_offscreen_render
-                or has_visualizers
-            ):
+            if not (self.sim.has_gui or self.sim.has_offscreen_render or has_visualizers):
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
                     " If running headless, make sure --enable_cameras is set."
