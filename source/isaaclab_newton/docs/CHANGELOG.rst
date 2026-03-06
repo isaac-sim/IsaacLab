@@ -1,6 +1,54 @@
 Changelog
 ---------
 
+0.5.0 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added full Newton articulation test suite (``test_articulation.py``) — 194 passed,
+  8 skipped, 4 xfailed — adapted from PhysX tests with Newton-specific imports, sim
+  config, and solver tolerance adjustments.
+
+* Added full Newton rigid body test suite (``test_rigid_object.py``) — 74 passed,
+  25 skipped — adapted from PhysX tests with Newton-specific mass/COM APIs and
+  ``_newton_sim_context()`` helper for device/gravity/dt configuration.
+
+Fixed
+^^^^^
+
+* Fixed ``ArticulationData`` and ``RigidObjectData`` to rebind simulation pointers
+  on full sim reset via ``PHYSICS_READY`` callback, preventing stale warp array
+  references after ``sim.reset()`` recreates the Newton model.
+
+* Fixed ``ArticulationData`` to force ``eval_fk`` after joint state writes so that
+  link poses are consistent with joint positions before the next ``sim.step()``.
+
+* Fixed lazy initialization of ``TimestampedBuffer`` properties in
+  ``RigidObjectData`` (velocity-in-body-frame and deprecated state properties)
+  that were left as ``None`` and caused ``AttributeError`` on first access.
+
+* Fixed ``None`` guards for timestamp invalidation in ``RigidObject`` write methods
+  (``write_root_pose_to_sim``, ``write_root_velocity_to_sim``) to avoid
+  ``AttributeError`` when optional buffers have not been initialized.
+
+* Fixed ``is_contiguous`` usage in ``RigidObjectData`` — warp 1.12.0rc2 exposes it
+  as a property, not a method.
+
+* Fixed ``body_com_pose_b`` → ``body_com_pos_b`` kernel input naming in
+  ``RigidObjectData`` for ``root_com_pose_w`` and ``root_link_vel_w`` properties.
+
+* Fixed ``wp.from_torch()`` called on warp arrays in ``RigidObjectData`` body
+  inertia binding — replaced with direct ``.view()``/``.reshape()`` on warp arrays.
+
+* Improved CPU support in ``NewtonManager``: added device guards for CUDA graph
+  operations that are not available on CPU.
+
+* Fixed explicit mask resolution in asset write methods to correctly handle both
+  index-based and mask-based sparse writes.
+
+
 0.4.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 
