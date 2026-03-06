@@ -25,7 +25,8 @@ optional arguments:
   --collision-from-visuals  Generate collision geometry from visual geometries. (default: False)
   --collision-type          Type of collision geometry to use. (default: "default")
   --self-collision          Activate self-collisions between links. (default: False)
-  --import-scene            Import the scene from the MJCF file. (default: True)
+  --import-scene / --no-import-scene
+                            Import the scene from the MJCF file. (default: True)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -64,9 +65,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "--import-scene",
-    action="store_true",
+    action=argparse.BooleanOptionalAction,
     default=True,
-    help="Import the scene from the MJCF file.",
+    help="Import the scene from the MJCF file (default: True). Use --no-import-scene to disable.",
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
