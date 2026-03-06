@@ -89,7 +89,7 @@ class FeatureExtractorNetwork(nn.Module):
             channel_idx += n_ch
 
     def forward(self, x):
-        x = x.permute(0, 3, 1, 2)
+        x = x.permute(0, 3, 1, 2).clone()
         for start, end in self._imagenet_norm_ranges:
             x[:, start:end, :, :] = self.data_transforms(x[:, start:end, :, :])
         cnn_x = self.cnn(x)
