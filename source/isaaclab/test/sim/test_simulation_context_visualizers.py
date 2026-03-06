@@ -255,3 +255,10 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+
+
+def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
+    ctx = object.__new__(SimulationContext)
+    ctx.get_setting = lambda name: {"types": "newton,kit"} if name == "/isaaclab/visualizer/types" else None
+
+    assert ctx._get_cli_visualizer_types() == []

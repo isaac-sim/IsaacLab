@@ -214,28 +214,34 @@ def _install_isaaclab_extensions(
         print_warning(f"Source directory not found: {source_dir}")
         return
 
-    # recursively look into directories and install them
-    # this does not check dependencies between extensions
-    # source directory
+    # Collect installable extensions from source/.
+    install_items = []
     for item in source_dir.iterdir():
-        if item.is_dir() and (item / "setup.py").exists():
-            # Skip extensions not in the requested list.
-            if extensions is not None and item.name not in extensions:
-                continue
-            print_info(f"Installing extension: {item.name}")
-            extras_suffix = (extension_extras or {}).get(item.name, "")
-            install_target = f"{item}{extras_suffix}"
-            # If the directory contains setup.py then install the python module.
-            run_command(
-                [
-                    python_exe,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--editable",
-                    install_target,
-                ]
-            )
+        if not (item.is_dir() and (item / "setup.py").exists()):
+            continue
+        # Skip extensions not in the requested list.
+        if extensions is not None and item.name not in extensions:
+            continue
+        install_items.append(item)
+
+    # Install order matters for local editable deps:
+    # packages like isaaclab_visualizers depend on the local isaaclab package.
+    install_items.sort(key=lambda item: (item.name != "isaaclab", item.name))
+
+    for item in install_items:
+        print_info(f"Installing extension: {item.name}")
+        extras_suffix = (extension_extras or {}).get(item.name, "")
+        install_target = f"{item}{extras_suffix}"
+        run_command(
+            [
+                python_exe,
+                "-m",
+                "pip",
+                "install",
+                "--editable",
+                install_target,
+            ]
+        )
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
