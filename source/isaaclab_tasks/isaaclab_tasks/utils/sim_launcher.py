@@ -155,6 +155,21 @@ def launch_simulation(
     close_fn: Any = None
 
     if needs_kit:
+        # check if Isaac Sim is installed
+        import importlib.util
+
+        if importlib.util.find_spec("isaacsim") is None:
+            print(
+                "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
+                "\n"
+                "  This environment requires Isaac Sim and Omniverse Kit.\n"
+                "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
+                "\n"
+                "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
+                "\n"
+                "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+            )
+            raise SystemExit(1)
         from isaaclab.app import AppLauncher
 
         app_launcher = AppLauncher(launcher_args)
