@@ -28,11 +28,14 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     collision_from_visuals: bool = False
     """Generate collision geometry from visual geometries. Defaults to False."""
 
-    collision_type: str = "default"
-    """Type of collision geometry to use. Defaults to ``"default"``.
+    collision_type: str = "Convex Hull"
+    """Type of collision geometry to use. Defaults to ``"Convex Hull"``.
 
-    Supported values are ``"default"``, ``"Convex Hull"``, and ``"Convex Decomposition"``.
+    Supported values are ``"Convex Hull"``, and ``"Convex Decomposition"``.
     """
 
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
+
+    import_scene: bool = True
+    """Import the scene from the MJCF file. Defaults to True."""

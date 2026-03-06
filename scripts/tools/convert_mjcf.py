@@ -24,8 +24,8 @@ optional arguments:
   --merge-mesh              Merge meshes where possible to optimize the model. (default: False)
   --collision-from-visuals  Generate collision geometry from visual geometries. (default: False)
   --collision-type          Type of collision geometry to use. (default: "default")
-  --self-collision           Activate self-collisions between links. (default: False)
-
+  --self-collision          Activate self-collisions between links. (default: False)
+  --import-scene            Import the scene from the MJCF file. (default: True)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -62,7 +62,12 @@ parser.add_argument(
     default=False,
     help="Activate self-collisions between links of the articulation.",
 )
-
+parser.add_argument(
+    "--import-scene",
+    action="store_true",
+    default=True,
+    help="Import the scene from the MJCF file.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -105,6 +110,7 @@ def main():
         collision_from_visuals=args_cli.collision_from_visuals,
         collision_type=args_cli.collision_type,
         self_collision=args_cli.self_collision,
+        import_scene=args_cli.import_scene,
     )
 
     # Print info
