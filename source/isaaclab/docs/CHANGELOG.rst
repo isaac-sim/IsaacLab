@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+4.5.8 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``debugpy`` to :mod:`isaaclab` package dependencies to support debugging out of the box.
+
 4.5.7 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
