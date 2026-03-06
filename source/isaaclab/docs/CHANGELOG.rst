@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.5 (2026-03-06)
+4.5.6 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,8 +9,19 @@ Changed
 
 * Reorganized Visualizers and SDP packages
 * Added Visualizer unit tests
-* Improve PhysX Scene Data Provider perf
-* Tweaks default Visualizer Configs
+* Improved PhysX Scene Data Provider perf
+* Tweaked default Visualizer Configs
+
+
+4.5.5 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added documentation for :class:`~isaaclab.renderers.BaseRenderer` and the renderer
+  extension architecture in ``docs/source/overview/core-concepts/renderers.rst``,
+  including the factory pattern.
 
 
 4.5.4 (2026-03-01)
