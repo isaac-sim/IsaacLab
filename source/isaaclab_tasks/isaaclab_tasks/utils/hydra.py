@@ -166,7 +166,6 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
     """
     task = task_name.split(":")[-1]
     env_cfg, agent_cfg, presets = register_task(task, agent_cfg_entry_point)
-
     global_presets, preset_sel, preset_scalar, global_scalar = parse_overrides(sys.argv[1:], presets)
 
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + global_scalar

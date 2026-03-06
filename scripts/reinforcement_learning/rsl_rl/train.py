@@ -21,7 +21,9 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.external_functions import call_externally_defined_function
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.string import list_intersection
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
@@ -61,14 +63,23 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, remaining_args = parser.parse_known_args()
 
 if args_cli.video:
     args_cli.enable_cameras = True
 
-sys.argv = [sys.argv[0]] + hydra_args
+
+# Call an external callback if requested. This gives opportunity to external code to register the environments
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    remaining_args_env_registration = call_externally_defined_function(args_cli.external_callback)
+
+# clear out sys.argv for Hydra
+remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + remaining_args
 
 # -- check RSL-RL version ----------------------------------------------------
 installed_version = metadata.version("rsl-rl-lib")
