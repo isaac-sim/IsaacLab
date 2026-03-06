@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+4.5.5 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed visualizer CLI type resolution to read from a dedicated settings key
+  (``/isaaclab/visualizer/types``), avoiding runtime failures when nested
+  visualizer settings (for example ``/isaaclab/visualizer/max_worlds``) are
+  present.
+
+4.5.4 (2026-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enhanced :class:`~isaaclab.utils.timer.Timer` with configurable time format
+  (``s``/``ms``/``us``/``ns``), global enable/disable toggle, display output
+  control, and ``wp.synchronize()`` before stopping to ensure accurate
+  GPU timing.
+
+
 4.5.3 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 
