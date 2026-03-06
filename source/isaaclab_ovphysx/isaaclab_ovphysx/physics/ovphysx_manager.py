@@ -223,10 +223,32 @@ class OvPhysxManager(PhysicsManager):
         import ovphysx
         cls._physx = ovphysx.PhysX(device=ovphysx_device, gpu_index=gpu_index)
 
-        # Ensure the C++ PhysX instance is released before the Python
-        # interpreter starts tearing down modules.  Without this, the
-        # destructor runs too late and segfaults.
-        atexit.register(cls._release_physx)
+        # At process exit, two Carbonite instances are in memory:
+        #   1. ovphysx's bundled libcarb.so  (RPATH $ORIGIN/../plugins/)
+        #   2. kit's libcarb.so              (pulled in via LD_LIBRARY_PATH by Fabric/usdrt plugins)
+        #
+        # Why does kit's libcarb end up here even though we skip AppLauncher?
+        # Note: AppLauncher always starts the full Kit runtime — even headless=True
+        # still loads Kit.  "Kitless" in IsaacLab means AppLauncher is not used at all.
+        # But we still import `pxr` from IsaacSim's Kit USD build.  The moment `import pxr` runs, the Kit USD
+        # runtime loads Fabric infrastructure (omni.physx.fabric.plugin, usdrt.population.plugin)
+        # from kit's plugin directories, which are on LD_LIBRARY_PATH via setup_python_env.sh.
+        # Those plugins link against kit's libcarb.so, so kit's Carbonite lands in memory
+        # purely from `import pxr`, regardless of whether the Kit App is launched.
+        #
+        # Both Carbonite instances register C++ static destructors.  At process exit those
+        # destructors race and segfault.  The workaround is to release ovphysx cleanly
+        # (so GPU resources are freed) and then call os._exit() to skip the static destructor
+        # phase entirely.  os._exit() terminates the process without running C++ atexit
+        # handlers or static destructors, sidestepping the conflict.
+        #
+        # Proper long-term fix: ovphysx ships a fully namespace-isolated Carbonite
+        # (different soname / hidden visibility) so its symbols never collide with kit's.
+        def _atexit_release_and_exit():
+            cls._release_physx()
+            os._exit(0)
+
+        atexit.register(_atexit_release_and_exit)
 
         usd_handle, op_idx = cls._physx.add_usd(stage_file)
         cls._physx.wait_op(op_idx)
