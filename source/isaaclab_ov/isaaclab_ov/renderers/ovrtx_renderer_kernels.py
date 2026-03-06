@@ -90,6 +90,47 @@ def extract_depth_tile_from_tiled_buffer_kernel(
 
 
 @wp.kernel
+def compute_crc32_hash_kernel(
+    input_data: wp.array(dtype=wp.uint32, ndim=2),  # type: ignore
+    output_hash: wp.array(dtype=wp.uint32, ndim=2),  # type: ignore
+):
+    """Compute a deterministic CRC32 hash for each uint32 value in the input 2D array.
+
+    Uses same algorithm used by Python's binascii.crc32() to produce deterministic hashes for visual distinguishability.
+
+    Args:
+        input_data: 2D uint32 array of values to hash
+        output_hash: 2D uint32 array of hashes, same shape as input_data
+    """
+    CRC32_INIT = wp.uint32(0xFFFFFFFF)
+    CRC32_POLY = wp.uint32(0xEDB88320)
+    CRC32_FINAL_XOR = wp.uint32(0xFFFFFFFF)
+
+    i, j = wp.tid()
+    value_uint32 = input_data[i, j]
+
+    crc = CRC32_INIT
+
+    # Extract 4 bytes (little-endian: LSB first, same order as standard CRC32)
+    for _ in range(4):
+        current_byte = value_uint32 & wp.uint32(0xFF)
+
+        crc = crc ^ current_byte
+
+        for _ in range(8):
+            if (crc & wp.uint32(1)) != wp.uint32(0):
+                crc = (crc >> wp.uint32(1)) ^ CRC32_POLY
+            else:
+                crc = crc >> wp.uint32(1)
+
+        value_uint32 = value_uint32 >> wp.uint32(8)
+
+    crc = crc ^ CRC32_FINAL_XOR
+
+    output_hash[i, j] = crc
+
+
+@wp.kernel
 def sync_newton_transforms_kernel(
     ovrtx_transforms: wp.array(dtype=wp.mat44d),  # type: ignore
     newton_body_indices: wp.array(dtype=wp.int32),  # type: ignore
