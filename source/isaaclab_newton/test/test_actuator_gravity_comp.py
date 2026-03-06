@@ -165,6 +165,39 @@ def test_gravity_comp_with_regex_pattern(setup_simulation):
 
 
 # -------------------------------------------------------------------
+# Test: _write_actuator_gravity_comp_to_usd is called during __init__
+# -------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_write_actuator_gravity_comp_called_during_init(setup_simulation):
+    """Test that _write_actuator_gravity_comp_to_usd is called during Articulation.__init__."""
+    from unittest.mock import patch
+
+    stage = sim_utils.get_current_stage()
+    _build_articulation_with_joints(stage)
+
+    cfg = ArticulationCfg(
+        prim_path="/World/Robot",
+        spawn=None,
+        actuators={
+            "arm": ImplicitActuatorCfg(
+                joint_names_expr=["shoulder", "elbow"],
+                gravity_compensation=True,
+                effort_limit=100.0,
+                velocity_limit=100.0,
+                stiffness=40.0,
+                damping=10.0,
+            ),
+        },
+    )
+
+    with patch.object(Articulation, "_write_actuator_gravity_comp_to_usd") as mock_method:
+        artic = Articulation(cfg)
+        mock_method.assert_called_once()
+
+
+# -------------------------------------------------------------------
 # End-to-end: IsaacLab config -> USD -> Newton -> MJCF XML
 #
 # This test builds a proper articulation on the USD stage, applies

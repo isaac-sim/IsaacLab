@@ -114,6 +114,7 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        self._write_actuator_gravity_comp_to_usd()
 
     """
     Properties
