@@ -223,6 +223,7 @@ class OvPhysxManager(PhysicsManager):
         import ovphysx
         cls._physx = ovphysx.PhysX(device=ovphysx_device, gpu_index=gpu_index)
 
+        # FIXME(malesiani): re-evaluate this when carbonite ships an isolated copy.
         # At process exit, two Carbonite instances are in memory:
         #   1. ovphysx's bundled libcarb.so  (RPATH $ORIGIN/../plugins/)
         #   2. kit's libcarb.so              (pulled in via LD_LIBRARY_PATH by Fabric/usdrt plugins)
