@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+import warp as wp
 
 import omni.kit.app
 
@@ -160,8 +161,9 @@ class ViewportCameraController:
         self.cfg.asset_name = asset_name
         # set origin type to asset_root
         self.cfg.origin_type = "asset_root"
-        # update the camera origins
-        self.viewer_origin = self._env.scene[self.cfg.asset_name].data.root_pos_w[self.cfg.env_index]
+        # update the camera origins (convert Warp array to torch tensor first, then index)
+        root_pos = wp.to_torch(self._env.scene[self.cfg.asset_name].data.root_pos_w)
+        self.viewer_origin = root_pos[self.cfg.env_index]
         # update the camera view
         self.update_view_location()
 
@@ -193,8 +195,9 @@ class ViewportCameraController:
         self.cfg.asset_name = asset_name
         # set origin type to asset_body
         self.cfg.origin_type = "asset_body"
-        # update the camera origins
-        self.viewer_origin = self._env.scene[self.cfg.asset_name].data.body_pos_w[self.cfg.env_index, body_id].view(3)
+        # update the camera origins (convert Warp array to torch tensor first, then index)
+        body_pos = wp.to_torch(self._env.scene[self.cfg.asset_name].data.body_pos_w)
+        self.viewer_origin = body_pos[self.cfg.env_index, body_id]
         # update the camera view
         self.update_view_location()
 
