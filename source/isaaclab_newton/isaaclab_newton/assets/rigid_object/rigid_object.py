@@ -21,6 +21,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -434,7 +435,7 @@ class RigidObject(BaseRigidObject):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_ids,
             ],
             outputs=[
@@ -485,7 +486,7 @@ class RigidObject(BaseRigidObject):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_mask,
             ],
             outputs=[
@@ -641,7 +642,7 @@ class RigidObject(BaseRigidObject):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 1,
@@ -696,7 +697,7 @@ class RigidObject(BaseRigidObject):
             dim=root_velocity.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_mask,
                 1,
@@ -1049,6 +1050,13 @@ class RigidObject(BaseRigidObject):
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device)
 
+        # Register callback to rebind simulation data after a full reset (model/state recreation).
+        self._physics_ready_handle = SimulationManager.register_callback(
+            lambda _: self._data._create_simulation_bindings(),
+            PhysicsEvent.PHYSICS_READY,
+            name=f"rigid_object_rebind_{self.cfg.prim_path}",
+        )
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -1057,6 +1065,13 @@ class RigidObject(BaseRigidObject):
         self.update(0.0)
         # Let the rigid object data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
+
+    def _clear_callbacks(self) -> None:
+        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        super()._clear_callbacks()
+        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
+            self._physics_ready_handle.deregister()
+            self._physics_ready_handle = None
 
     def _create_buffers(self):
         """Create buffers for storing data."""

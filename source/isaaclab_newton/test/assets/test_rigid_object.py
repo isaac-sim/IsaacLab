@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import copy
 import sys
 from typing import Literal
 
@@ -54,12 +55,13 @@ def _newton_sim_context(device, gravity_enabled=True, dt=None, **kwargs):
     """Helper to create a Newton simulation context with the correct device.
 
     When sim_cfg is provided to build_simulation_context, the device, gravity_enabled, and dt
-    kwargs are ignored. This helper applies them to the shared NEWTON_SIM_CFG before calling.
+    kwargs are ignored. This helper creates a fresh copy and applies them before calling.
     """
-    NEWTON_SIM_CFG.device = device
-    NEWTON_SIM_CFG.gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-    NEWTON_SIM_CFG.dt = dt if dt is not None else 1.0 / 60.0
-    return build_simulation_context(device=device, sim_cfg=NEWTON_SIM_CFG, **kwargs)
+    sim_cfg = copy.deepcopy(NEWTON_SIM_CFG)
+    sim_cfg.device = device
+    sim_cfg.gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
+    sim_cfg.dt = dt if dt is not None else 1.0 / 60.0
+    return build_simulation_context(device=device, sim_cfg=sim_cfg, **kwargs)
 
 
 def generate_cubes_scene(

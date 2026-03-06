@@ -494,7 +494,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -549,7 +549,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -593,7 +593,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_ids,
             ],
             outputs=[
@@ -613,7 +613,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -653,7 +653,7 @@ class Articulation(BaseArticulation):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_mask,
             ],
             outputs=[
@@ -673,7 +673,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -867,7 +867,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,
@@ -921,7 +921,7 @@ class Articulation(BaseArticulation):
             dim=root_velocity.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_mask,
                 self.data._num_bodies,

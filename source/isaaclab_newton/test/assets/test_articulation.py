@@ -17,6 +17,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import copy
 import sys
 
 import pytest
@@ -366,7 +367,7 @@ def sim(request):
     else:
         add_ground_plane = False  # default to no ground plane
     articulation_type = request.getfixturevalue("articulation_type")
-    sim_cfg = SIM_CFGs[articulation_type]
+    sim_cfg = copy.deepcopy(SIM_CFGs[articulation_type])
     sim_cfg.device = device
     with build_simulation_context(
         device=device,
