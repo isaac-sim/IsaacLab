@@ -69,7 +69,7 @@ Install Isaac Teleop
 
    .. code-block:: bash
 
-      echo "NV_CXR_ENABLE_PUSH_DEVICES=0" > deps/cloudxr/cxr.env
+      echo "NV_CXR_ENABLE_PUSH_DEVICES=0" > deps/cloudxr/.env
 
 #. Activate the **same** virtual environment you use for Isaac Lab, then install the
    ``isaacteleop`` package:
