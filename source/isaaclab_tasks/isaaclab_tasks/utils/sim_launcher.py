@@ -159,7 +159,7 @@ def launch_simulation(
         import importlib.util
 
         if importlib.util.find_spec("omni.kit") is None:
-             logger.error(
+            logger.error(
                 "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
                 "\n"
                 "  This environment requires Isaac Sim and Omniverse Kit.\n"
