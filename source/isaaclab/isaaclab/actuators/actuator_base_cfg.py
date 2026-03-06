@@ -165,3 +165,7 @@ class ActuatorBaseCfg:
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
+
+    gravity_compensation: bool | None = None
+    """Whether to perform gravity compensation for this group of actuators. Defaults to None.
+    """
