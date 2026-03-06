@@ -2161,8 +2161,6 @@ class Articulation(BaseArticulation):
         # resolve masks
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
-        # Accept transformf (pos+quat) inputs for compatibility — extract position only.
-        coms = _extract_com_position(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
@@ -3784,7 +3782,6 @@ class Articulation(BaseArticulation):
         if isinstance(mask, torch.Tensor):
             return wp.from_torch(mask, dtype=wp.bool)
         return mask
-    
 
     """
     Deprecated methods.

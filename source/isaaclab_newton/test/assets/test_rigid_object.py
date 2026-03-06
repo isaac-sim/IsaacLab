@@ -950,7 +950,6 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
         sim._app_control_on_stop_handle = None
         # Create a scene with random cubes
         cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
 
         # Play sim
         sim.reset()
@@ -1064,7 +1063,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         sim._app_control_on_stop_handle = None
         # Create a scene with random cubes
         cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
+        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32, device=device)
 
         # Play sim
         sim.reset()
@@ -1093,7 +1092,6 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         # make quaternion a unit vector
         rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
 
-        env_idx = env_idx.to(device)
         for i in range(10):
             # perform step
             sim.step()
@@ -1136,7 +1134,6 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         sim._app_control_on_stop_handle = None
         # Create a scene with random cubes
         cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
 
         # Play sim
         sim.reset()
@@ -1163,8 +1160,6 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         rand_state[..., :3] += env_pos
         # make quaternion a unit vector
         rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
-
-        env_idx = env_idx.to(device)
 
         # perform step
         sim.step()
