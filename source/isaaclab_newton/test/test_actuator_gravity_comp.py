@@ -171,9 +171,7 @@ def test_gravity_comp_with_regex_pattern(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_write_actuator_gravity_comp_called_during_init(setup_simulation):
-    """Test that _write_actuator_gravity_comp_to_usd is called during Articulation.__init__."""
-    from unittest.mock import patch
-
+    """Test that __init__ calls _write_actuator_gravity_comp_to_usd and attributes are written."""
     stage = sim_utils.get_current_stage()
     _build_articulation_with_joints(stage)
 
@@ -192,9 +190,20 @@ def test_write_actuator_gravity_comp_called_during_init(setup_simulation):
         },
     )
 
-    with patch.object(Articulation, "_write_actuator_gravity_comp_to_usd") as mock_method:
-        artic = Articulation(cfg)
-        mock_method.assert_called_once()
+    # Construct the Articulation — this should call _write_actuator_gravity_comp_to_usd
+    artic = Articulation(cfg)
+
+    # Verify the attributes were actually written to USD by __init__
+    for joint_path in ["/World/Robot/link1/shoulder", "/World/Robot/link2/elbow"]:
+        prim = stage.GetPrimAtPath(joint_path)
+        attr = prim.GetAttribute("mjc:actuatorgravcomp")
+        assert attr.IsValid(), f"__init__ did not write mjc:actuatorgravcomp to {joint_path}"
+        assert attr.Get() is True
+
+    # wrist was not in the actuator config, should not have the attribute
+    wrist_prim = stage.GetPrimAtPath("/World/Robot/link3/wrist")
+    wrist_attr = wrist_prim.GetAttribute("mjc:actuatorgravcomp")
+    assert not wrist_attr.IsValid(), "__init__ should not write mjc:actuatorgravcomp to wrist"
 
 
 # -------------------------------------------------------------------
@@ -215,21 +224,21 @@ def test_end_to_end_isaaclab_to_mjcf(setup_simulation):
     # -- 1) Build articulation on the USD stage (simulating what a spawner does)
     UsdPhysics.Scene.Define(stage, "/World/physicsScene")
 
-    artic_prim = sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
     UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath("/World/Robot"))
 
     # Body1: rigid body with collision
-    body1 = sim_utils.create_prim("/World/Robot/Body1", prim_type="Xform")
+    sim_utils.create_prim("/World/Robot/Body1", prim_type="Xform")
     UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath("/World/Robot/Body1"))
     UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath("/World/Robot/Body1"))
-    col1 = sim_utils.create_prim("/World/Robot/Body1/Collision", prim_type="Cube")
+    sim_utils.create_prim("/World/Robot/Body1/Collision", prim_type="Cube")
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath("/World/Robot/Body1/Collision"))
 
     # Body2: rigid body with collision
-    body2 = sim_utils.create_prim("/World/Robot/Body2", prim_type="Xform", translation=(1, 0, 0))
+    sim_utils.create_prim("/World/Robot/Body2", prim_type="Xform", translation=(1, 0, 0))
     UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath("/World/Robot/Body2"))
     UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath("/World/Robot/Body2"))
-    col2 = sim_utils.create_prim("/World/Robot/Body2/Collision", prim_type="Sphere")
+    sim_utils.create_prim("/World/Robot/Body2/Collision", prim_type="Sphere")
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath("/World/Robot/Body2/Collision"))
 
     # Joint1: connects world -> Body1

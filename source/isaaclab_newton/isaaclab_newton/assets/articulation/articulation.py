@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -3796,7 +3797,6 @@ class Articulation(BaseArticulation):
         Must be called after spawning (joint prims exist) but before ``sim.reset()``
         so Newton reads the attribute during ``instantiate_builder_from_stage()``.
         """
-        import re
 
         gc_actuators = {
             name: cfg for name, cfg in self.cfg.actuators.items() if getattr(cfg, "gravity_compensation", None)
