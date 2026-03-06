@@ -328,14 +328,12 @@ def test_end_to_end_isaaclab_to_mjcf(setup_simulation):
     finally:
         os.unlink(mjcf_path)
 
-    # NOTE: Newton's MJCF spec builder does not currently emit gravcomp on <body> elements
-    # in the XML. Uncomment once Newton adds support for writing body gravcomp to the spec.
-    # # Verify body-level gravcomp in MJCF XML
-    # bodies = root.findall(".//body")
-    # body_gravcomp_values = [float(b.get("gravcomp")) for b in bodies if b.get("gravcomp") is not None]
-    # assert any(np.isclose(v, 0.5) for v in body_gravcomp_values), (
-    #     f"MJCF XML missing gravcomp=0.5 on body, got {body_gravcomp_values}"
-    # )
+    # Verify body-level gravcomp in MJCF XML
+    bodies = root.findall(".//body")
+    body_gravcomp_values = [float(b.get("gravcomp")) for b in bodies if b.get("gravcomp") is not None]
+    assert any(np.isclose(v, 0.5) for v in body_gravcomp_values), (
+        f"MJCF XML missing gravcomp=0.5 on body, got {body_gravcomp_values}"
+    )
 
     # Verify joint-level actuatorgravcomp in MJCF XML
     joints = root.findall(".//joint")
