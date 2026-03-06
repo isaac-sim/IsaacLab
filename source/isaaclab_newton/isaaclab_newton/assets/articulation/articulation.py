@@ -597,7 +597,7 @@ class Articulation(BaseArticulation):
                 env_ids,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -605,8 +605,6 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_com_state_w is not None:
@@ -660,7 +658,7 @@ class Articulation(BaseArticulation):
                 env_mask,
             ],
             outputs=[
-                self.data._root_com_pose_w.data,
+                self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
@@ -668,8 +666,6 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_com_state_w is not None:
@@ -778,14 +774,12 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
@@ -829,14 +823,12 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
@@ -883,18 +875,15 @@ class Articulation(BaseArticulation):
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_link_state_w is not None:
             self.data._root_link_state_w.timestamp = -1.0
@@ -941,18 +930,15 @@ class Articulation(BaseArticulation):
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data._root_link_vel_w.data,
+                self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
-                self.data._body_com_acc_w.data,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._root_link_state_w is not None:
             self.data._root_link_state_w.timestamp = -1.0
@@ -1133,12 +1119,10 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data._joint_acc.data,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._joint_acc.timestamp = self.data._sim_timestamp
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1177,12 +1161,10 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data._joint_acc.data,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._joint_acc.timestamp = self.data._sim_timestamp
 
     """
     Operations - Simulation Parameters Writers.

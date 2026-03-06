@@ -23,6 +23,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     window_height: int = 1080
     """Window height in pixels."""
 
+    max_worlds: int | None = 0
+    """Maximum number of worlds/environments rendered by the viewer (0/None = all)."""
+
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames)."""
 

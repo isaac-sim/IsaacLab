@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+1.5.2 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.sim_launcher.compute_kit_requirements` to expose the Kit
+  decision logic for testing (e.g. preset resolution: ``presets=newton,ovrtx_renderer`` →
+  ``needs_kit=False``).
+
+* Added :file:`test_preset_kit_decision.py` — beginner-friendly unit tests that verify
+  preset resolution and Kit decision.
+
+1.5.1 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Resolved :class:`~isaaclab_tasks.utils.PresetCfg` fields (e.g. physics) to their default values
+  in :func:`~isaaclab_tasks.utils.parse_env_cfg` so environments created via ``gym.make()`` outside
+  the Hydra pipeline no longer fail with ``AttributeError: 'XxxPhysicsCfg' object has no attribute 'class_type'``.
+
 1.5.0 (2026-03-02)
 ~~~~~~~~~~~~~~~~~~
 

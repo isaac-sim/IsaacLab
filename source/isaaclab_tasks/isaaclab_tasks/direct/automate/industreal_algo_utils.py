@@ -44,7 +44,6 @@ Not intended to be executed as a standalone script.
 
 # Force garbage collection for large arrays
 import gc
-import os
 
 import numpy as np
 
@@ -65,12 +64,10 @@ Simulation-Aware Policy Update (SAPU)
 
 def load_asset_mesh_in_warp(held_asset_obj, fixed_asset_obj, num_samples, device):
     """Create mesh objects in Warp for all environments."""
-    retrieve_file_path(held_asset_obj, download_dir="./")
-    plug_trimesh = load(os.path.basename(held_asset_obj))
-    # plug_trimesh = load(held_asset_obj)
-    retrieve_file_path(fixed_asset_obj, download_dir="./")
-    socket_trimesh = load(os.path.basename(fixed_asset_obj))
-    # socket_trimesh = load(fixed_asset_obj)
+    held_asset_local = retrieve_file_path(held_asset_obj, download_dir="./")
+    plug_trimesh = load(held_asset_local)
+    fixed_asset_local = retrieve_file_path(fixed_asset_obj, download_dir="./")
+    socket_trimesh = load(fixed_asset_local)
 
     plug_wp_mesh = wp.Mesh(
         points=wp.array(plug_trimesh.vertices, dtype=wp.vec3, device=device),

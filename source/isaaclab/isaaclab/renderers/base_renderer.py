@@ -20,6 +20,20 @@ class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
     @abstractmethod
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """Prepare the stage for rendering before create_render_data is called.
+
+        Some renderers need to export or preprocess the USD stage before
+        creating render data. This method is called after the renderer is
+        instantiated and before create_render_data.
+
+        Args:
+            stage: USD stage to prepare, or None if not applicable.
+            num_envs: Number of environments.
+        """
+        pass
+
+    @abstractmethod
     def create_render_data(self, sensor: SensorBase) -> Any:
         """Create render data for the given sensor.
 

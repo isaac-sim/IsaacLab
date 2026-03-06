@@ -30,7 +30,16 @@ parser.add_argument(
     "--benchmark_backend",
     type=str,
     default="omniperf",
-    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    choices=[
+        "json",
+        "osmo",
+        "omniperf",
+        "summary",
+        "LocalLogMetrics",
+        "JSONFileMetrics",
+        "OsmoKPIFile",
+        "OmniPerfKPIFile",
+    ],
     help="Benchmarking backend options, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
@@ -46,16 +55,6 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-app_start_time_begin = time.perf_counter_ns()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-app_start_time_end = time.perf_counter_ns()
-
-"""Rest everything follows."""
-
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
@@ -63,6 +62,7 @@ from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
     get_backend_type,
+    get_preset_string,
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -85,17 +85,19 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import hydra_task_config
+from isaaclab_tasks.utils import launch_simulation, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 
 
 # Create the benchmark
+backend_type = get_backend_type(args_cli.benchmark_backend)
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_non_rl",
-    backend_type=get_backend_type(args_cli.benchmark_backend),
+    backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
+    frametime_recorders=backend_type in ("summary", "omniperf"),
     output_prefix=f"benchmark_non_rl_{args_cli.task}",
     workflow_metadata={
         "metadata": [
@@ -103,14 +105,17 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "num_frames", "data": args_cli.num_frames},
+            {"name": "presets", "data": get_preset_string(hydra_args)},
         ]
     },
-    frametime_recorders=True,
 )
 
 
-@hydra_task_config(args_cli.task, None)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def main(
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+    app_start_time_begin: int,
+    app_start_time_end: int,
+):
     """Benchmark without RL in the loop."""
 
     # override configurations with non-hydra CLI arguments
@@ -129,9 +134,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_size = 1
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         world_size = int(os.getenv("WORLD_SIZE", 1))
-        world_rank = app_launcher.global_rank
+        world_rank = int(os.getenv("RANK", "0"))
 
     task_startup_time_begin = time.perf_counter_ns()
 
@@ -162,25 +167,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Run with continuous benchmark monitoring
     with BenchmarkMonitor(benchmark, interval=1.0):
-        while simulation_app.is_running():
-            while num_frames < args_cli.num_frames:
-                # get upper and lower bounds of action space, sample actions randomly on this interval
-                action_high = 1
-                action_low = -1
-                actions = (action_high - action_low) * torch.rand(
-                    env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
-                ) - action_high
+        while num_frames < args_cli.num_frames:
+            # get upper and lower bounds of action space, sample actions randomly on this interval
+            action_high = 1
+            action_low = -1
+            actions = (action_high - action_low) * torch.rand(
+                env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
+            ) - action_high
 
-                # env stepping
-                env_step_time_begin = time.perf_counter_ns()
-                _ = env.step(actions)
-                end_step_time_end = time.perf_counter_ns()
-                step_times.append(end_step_time_end - env_step_time_begin)
+            # env stepping
+            env_step_time_begin = time.perf_counter_ns()
+            _ = env.step(actions)
+            end_step_time_end = time.perf_counter_ns()
+            step_times.append(end_step_time_end - env_step_time_begin)
 
-                num_frames += 1
-
-            # terminate
-            break
+            num_frames += 1
 
     if world_rank == 0:
         # Final update after loop completes
@@ -213,7 +214,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    env_cfg, _agent_cfg = resolve_task_config(args_cli.task, None)
+
+    app_start_time_begin = time.perf_counter_ns()
+    with launch_simulation(env_cfg, args_cli):
+        app_start_time_end = time.perf_counter_ns()
+        main(env_cfg, app_start_time_begin, app_start_time_end)

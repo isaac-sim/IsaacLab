@@ -48,8 +48,8 @@ PER_TEST_TIMEOUTS = {
     "test_action_state_recorder_term.py": 500,
     "test_manager_based_rl_env_obs_spaces.py": 500,
     "test_visuotactile_sensor.py": 1000,
-    "test_visuotactile_render.py": 500,
-    "test_rigid_object_collection.py": 5000,
+    "test_visuotactile_render.py": 1000,
+    "test_rigid_object_collection.py": 500,
     "test_outdated_sensor.py": 500,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
@@ -73,15 +73,6 @@ These tests are skipped in the base image CI jobs and run separately in the
 dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
 """
 
-CUDA_ISSUE_TESTS = [
-    "test_rigid_object_collection.py",
-]
-"""A list of tests with known CUDA issues.
-
-These tests are skipped in the general CI jobs and run separately in the
-dedicated ``cuda-issue-tests`` CI job.
-"""
-
 TESTS_TO_SKIP = [
     # lab
     "test_argparser_launch.py",  # app.close issue
@@ -94,8 +85,6 @@ TESTS_TO_SKIP = [
     "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
     *CUROBO_TESTS,
-    # cuda issues - run via the cuda-issue-tests CI job
-    *CUDA_ISSUE_TESTS,
 ]
 """A list of tests to skip by run_tests.py"""
 
