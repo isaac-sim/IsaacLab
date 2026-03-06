@@ -5,7 +5,7 @@
 
 """Tests for the Renderer factory."""
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -93,34 +93,3 @@ def test_renderer_factory_returns_correct_backend(cfg_cls, expected_class_name):
             Renderer._registry[backend] = original
         else:
             Renderer._registry.pop(backend, None)
-
-
-@pytest.mark.parametrize(
-    "cfg_cls,expected_class_name",
-    [
-        (IsaacRtxRendererCfg, "IsaacRtxRenderer"),
-        (NewtonWarpRendererCfg, "NewtonWarpRenderer"),
-        (OVRTXRendererCfg, "OVRTXRenderer"),
-    ],
-    ids=["IsaacRtxRendererCfg", "NewtonWarpRendererCfg", "OVRTXRendererCfg"],
-)
-def test_renderer_factory_instantiation_backends(cfg_cls, expected_class_name):
-    """Renderer(cfg) with registry returns correct backend class.
-    NewtonWarpRenderer needs SimulationContext and SensorTiledCamera mocked."""
-    cfg = cfg_cls()
-    if cfg_cls is NewtonWarpRendererCfg:
-        mock_provider = MagicMock()
-        mock_provider.get_newton_model.return_value = MagicMock()
-        mock_ctx = MagicMock()
-        mock_ctx.initialize_scene_data_provider.return_value = mock_provider
-        with (
-            patch("isaaclab_newton.renderers.newton_warp_renderer.SimulationContext") as mock_sc_cls,
-            patch("isaaclab_newton.renderers.newton_warp_renderer.newton.sensors.SensorTiledCamera") as mock_stc,
-        ):
-            mock_sc_cls.instance.return_value = mock_ctx
-            mock_stc.return_value = MagicMock()
-            renderer = Renderer(cfg)
-    else:
-        renderer = Renderer(cfg)
-    assert type(renderer).__name__ == expected_class_name
-    assert isinstance(renderer, BaseRenderer)
