@@ -17,7 +17,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import copy
 import sys
 
 import pytest
@@ -367,7 +366,7 @@ def sim(request):
     else:
         add_ground_plane = False  # default to no ground plane
     articulation_type = request.getfixturevalue("articulation_type")
-    sim_cfg = copy.deepcopy(SIM_CFGs[articulation_type])
+    sim_cfg = SIM_CFGs[articulation_type]
     sim_cfg.device = device
     with build_simulation_context(
         device=device,
@@ -2278,8 +2277,9 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 @pytest.mark.skip(reason="Spatial tendons are not supported in Newton yet.")
-def test_spatial_tendons(sim, num_articulations, device):
+def test_spatial_tendons(sim, num_articulations, device, articulation_type):
     """Test spatial tendons apis.
     This test verifies that:
     1. The articulation is properly initialized
