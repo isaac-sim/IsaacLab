@@ -4,13 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "KitVisualizerCfg",
-    "NewtonVisualizerCfg",
-    "RerunVisualizerCfg",
+    "BaseVisualizer",
+    "Visualizer",
     "VisualizerCfg",
 ]
 
-from .kit_visualizer_cfg import KitVisualizerCfg
-from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .rerun_visualizer_cfg import RerunVisualizerCfg
+from .base_visualizer import BaseVisualizer
+from .visualizer import Visualizer
 from .visualizer_cfg import VisualizerCfg

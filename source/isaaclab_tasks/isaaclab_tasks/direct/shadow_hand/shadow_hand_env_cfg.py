@@ -241,6 +241,23 @@ class ObjectCfg(PresetCfg):
 
 
 @configclass
+class ShadowHandSceneCfg(PresetCfg):
+    """Scene configuration presets for the shadow hand environment.
+
+    PhysX supports ``clone_in_fabric=True`` for faster scene cloning via the Fabric layer.
+    Newton does not support Fabric cloning, so ``clone_in_fabric`` must be ``False``.
+    """
+
+    physx: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+    )
+    newton: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
+    )
+    default: InteractiveSceneCfg = physx
+
+
+@configclass
 class PhysicsCfg(PresetCfg):
     physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
@@ -328,10 +345,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
             )
         },
     )
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
-    )
+    # scene — use ShadowHandSceneCfg so that presets=newton disables clone_in_fabric automatically
+    scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
 
     # reset
     reset_position_noise = 0.01  # range of position at reset

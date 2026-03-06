@@ -6,8 +6,7 @@
 """Configuration for Newton OpenGL Visualizer."""
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 
 @configclass
@@ -22,6 +21,15 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     window_height: int = 1080
     """Window height in pixels."""
+
+    headless: bool = False
+    """Run the Newton viewer without requiring a display server."""
+
+    max_worlds: int | None = None
+    """Maximum number of worlds/environments rendered by the viewer.
+
+    Set to ``None`` to leave this option disabled.
+    """
 
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames)."""

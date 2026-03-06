@@ -50,10 +50,6 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.0",
     "flaky",
     "packaging",
-    # visualizers
-    "newton==1.0.0rc1",
-    "imgui-bundle>=1.92.5",
-    "rerun-sdk>=0.29.0",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",
@@ -89,6 +85,11 @@ EXTRAS_REQUIRE = {
     "rl": ["isaaclab_rl"],
     "tasks": ["isaaclab_tasks"],
     "teleop": ["isaaclab_teleop"],
+    "visualizers": ["isaaclab_visualizers[all]"],
+    "visualizers-kit": ["isaaclab_visualizers[kit]"],
+    "visualizers-newton": ["isaaclab_visualizers[newton]"],
+    "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
+    "visualizers-viser": ["isaaclab_visualizers[viser]"],
     # Convenience: all sub-packages (does not include isaacsim)
     "all": [
         "isaaclab_assets",
@@ -99,6 +100,7 @@ EXTRAS_REQUIRE = {
         "isaaclab_rl",
         "isaaclab_tasks",
         "isaaclab_teleop",
+        "isaaclab_visualizers[all]",
     ],
 }
 

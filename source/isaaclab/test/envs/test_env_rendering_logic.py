@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
+from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import (
@@ -29,8 +30,6 @@ from isaaclab.envs import (
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
-from isaaclab.visualizers.kit_visualizer import KitVisualizer
-from isaaclab.visualizers.kit_visualizer_cfg import KitVisualizerCfg
 
 
 @configclass
