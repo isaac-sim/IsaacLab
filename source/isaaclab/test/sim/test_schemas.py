@@ -271,6 +271,41 @@ def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
     assert result is False, "Prim without tendon root schema should return False"
 
 
+@pytest.mark.isaacsim_ci
+def test_gravity_compensation_scale_on_rigid_body(setup_simulation):
+    """Test that gravity_compensation_scale is written as mjc:gravcomp on rigid body prims."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # create a cube prim and apply rigid body with gravity_compensation_scale
+    sim_utils.create_prim("/World/cube", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    rigid_cfg = schemas.RigidBodyPropertiesCfg(gravity_compensation_scale=0.5)
+    schemas.define_rigid_body_properties("/World/cube", rigid_cfg)
+
+    # check the mjc:gravcomp attribute is set
+    prim = stage.GetPrimAtPath("/World/cube")
+    attr = prim.GetAttribute("mjc:gravcomp")
+    assert attr.IsValid(), "mjc:gravcomp attribute not found on rigid body prim"
+    assert attr.Get() == pytest.approx(0.5)
+
+
+@pytest.mark.isaacsim_ci
+def test_gravity_compensation_scale_not_set_when_none(setup_simulation):
+    """Test that mjc:gravcomp is not written when gravity_compensation_scale is None."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # create a cube prim with default rigid body (no gravity_compensation_scale)
+    sim_utils.create_prim("/World/cube2", prim_type="Cube", translation=(1.0, 0.0, 0.62))
+    rigid_cfg = schemas.RigidBodyPropertiesCfg()
+    schemas.define_rigid_body_properties("/World/cube2", rigid_cfg)
+
+    # mjc:gravcomp should not exist
+    prim = stage.GetPrimAtPath("/World/cube2")
+    attr = prim.GetAttribute("mjc:gravcomp")
+    assert not attr.IsValid(), "mjc:gravcomp should not be set when gravity_compensation_scale is None"
+
+
 """
 Helper functions.
 """
@@ -335,7 +370,7 @@ def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: 
         if UsdPhysics.RigidBodyAPI(link_prim):
             for attr_name, attr_value in rigid_cfg.__dict__.items():
                 # skip names we know are not present
-                if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled"]:
+                if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled", "gravity_compensation_scale"]:
                     continue
                 # convert attribute name in prim to cfg name
                 prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
