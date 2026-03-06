@@ -22,11 +22,11 @@ class VisualizerCfg:
     Note:
         This is an abstract base class and should not be instantiated directly.
         Use specific configs from isaaclab_visualizers: KitVisualizerCfg, NewtonVisualizerCfg,
-        or RerunVisualizerCfg (from isaaclab_visualizers.kit, .newton, .rerun).
+        RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
     """
 
     visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'kit'). Must be overridden by subclasses."""
+    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
@@ -85,13 +85,13 @@ class VisualizerCfg:
             raise ValueError(
                 "Cannot create visualizer from base VisualizerCfg class. "
                 "Use a specific config from isaaclab_visualizers "
-                "(e.g. KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg)."
+                "(e.g. KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg)."
             )
 
         try:
             return Visualizer(self)
         except (ValueError, ImportError, ModuleNotFoundError) as exc:
-            if self.visualizer_type in ("newton", "rerun", "kit"):
+            if self.visualizer_type in ("newton", "rerun", "viser", "kit"):
                 raise ImportError(
                     f"Visualizer '{self.visualizer_type}' requires the isaaclab_visualizers package. "
                     f"Install with: pip install isaaclab_visualizers[{self.visualizer_type}]"

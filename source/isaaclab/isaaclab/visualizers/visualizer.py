@@ -12,13 +12,18 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_visualizer import BaseVisualizer
 
 # Visualizer types; each loads from isaaclab_visualizers.<type> for minimal deps.
-_VISUALIZER_TYPES = ("kit", "newton", "rerun")
+_VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 
 
 class Visualizer(FactoryBase, BaseVisualizer):
     """Factory for creating visualizer instances."""
 
-    _backend_class_names = {"kit": "KitVisualizer", "newton": "NewtonVisualizer", "rerun": "RerunVisualizer"}
+    _backend_class_names = {
+        "kit": "KitVisualizer",
+        "newton": "NewtonVisualizer",
+        "rerun": "RerunVisualizer",
+        "viser": "ViserVisualizer",
+    }
 
     @classmethod
     def _get_backend(cls, cfg, *args, **kwargs) -> str:

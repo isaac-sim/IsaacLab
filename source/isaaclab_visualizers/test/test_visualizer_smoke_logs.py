@@ -18,6 +18,7 @@ import torch
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
+from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
@@ -37,6 +38,7 @@ _SMOKE_STEPS = 4
 _VIS_LOGGER_PREFIXES = (
     "isaaclab.visualizers",
     "isaaclab_visualizers",
+    "isaaclab.sim.simulation_context",
 )
 
 
@@ -70,13 +72,17 @@ class _SmokeEnv(DirectRLEnv):
 def _get_visualizer_cfg(visualizer_kind: str):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
     if visualizer_kind == "newton":
-        pytest.importorskip("newton")
+        __import__("newton")
         return NewtonVisualizerCfg(headless=True), NewtonVisualizer
+    if visualizer_kind == "viser":
+        __import__("newton")
+        __import__("viser")
+        return ViserVisualizerCfg(open_browser=False), ViserVisualizer
     if visualizer_kind == "rerun":
-        pytest.importorskip("newton")
-        pytest.importorskip("rerun")
+        __import__("newton")
+        __import__("rerun")
         if shutil.which("rerun") is None:
-            pytest.skip("rerun binary not found in PATH")
+            raise RuntimeError("rerun binary not found in PATH")
         return RerunVisualizerCfg(bind_address="127.0.0.1", open_browser=False), RerunVisualizer
     return KitVisualizerCfg(), KitVisualizer
 
@@ -88,7 +94,7 @@ def _get_physics_cfg(backend_kind: str):
     Fallback: build PhysxCfg/NewtonCfg in-test if preset does not expose that backend.
     """
     if backend_kind == "physx":
-        pytest.importorskip("isaaclab_physx")
+        __import__("isaaclab_physx")
         preset = CartpolePhysicsCfg()
         physics_cfg = getattr(preset, "physx", None)
         if physics_cfg is None:
@@ -97,8 +103,8 @@ def _get_physics_cfg(backend_kind: str):
             physics_cfg = PhysxCfg()
         return physics_cfg, "physx"
     if backend_kind == "newton":
-        pytest.importorskip("newton")
-        pytest.importorskip("isaaclab_newton")
+        __import__("newton")
+        __import__("isaaclab_newton")
         preset = CartpolePhysicsCfg()
         physics_cfg = getattr(preset, "newton", None)
         if physics_cfg is None:
@@ -187,7 +193,7 @@ def _run_smoke_test(cfg, expected_visualizer_cls, expected_backend: str, caplog)
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun"])
+@pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun", "viser"])
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_visualizer_backend_smoke(visualizer_kind: str, backend_kind: str, caplog):
     """Smoke test each (visualizer, backend) pair; assert no errors (optionally no warnings)."""

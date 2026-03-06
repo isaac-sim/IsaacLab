@@ -108,7 +108,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
         # TODO: Include renderer capability checks (not just visualizer types)
         # when computing sync requirements in SimulationContext and pass them into the provider.
-        self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
+        self._needs_newton_sync = bool({"newton", "rerun", "viser"} & viz_types)
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -116,7 +116,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         if self._stage is None:
             raise RuntimeError(
                 "[PhysxSceneDataProvider] USD stage is None and not available from simulation_context. "
-                "Ensure the simulation context has a valid stage when using OV/Newton/Rerun visualizers."
+                "Ensure the simulation context has a valid stage when using OV/Newton/Rerun/Viser visualizers."
             )
         self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
         self._num_envs_at_last_newton_build: int | None = None  # for _refresh_newton_model_if_needed
@@ -208,7 +208,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton physics backend (isaaclab_newton) to use newton/rerun visualizers."
+                "Install the Newton backend to use newton/rerun/viser visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
@@ -251,7 +251,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         except ModuleNotFoundError as exc:
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton physics backend (isaaclab_newton) to use newton/rerun visualizers."
+                "Install the Newton backend to use newton/rerun/viser visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None

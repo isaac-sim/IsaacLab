@@ -16,6 +16,7 @@ INSTALL_REQUIRES = [
     "PyOpenGL-accelerate",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
+    "viser>=1.0.16",
 ]
 
 setup(
@@ -24,7 +25,7 @@ setup(
     maintainer="Isaac Lab Project Developers",
     url="https://github.com/isaac-sim/IsaacLab",
     version="0.1.0",
-    description="Visualizer backends for Isaac Lab (Kit, Newton, Rerun).",
+    description="Visualizer backends for Isaac Lab (Kit, Newton, Rerun, Viser).",
     keywords=["robotics", "simulation", "visualization"],
     license="BSD-3-Clause",
     include_package_data=True,
