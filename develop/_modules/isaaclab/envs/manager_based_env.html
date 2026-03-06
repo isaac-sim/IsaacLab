@@ -406,6 +406,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/02_gear_assembly/gear_assembly_policy.html">Training a Gear Insertion Policy and ROS Deployment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/03_compass_with_NuRec/compass_navigation_policy_with_NuRec.html">Training &amp; Deploying COMPASS Navigation Policy with Real2Sim NuRec</a></li>
 </ul>
 </details></li>
 </ul>
@@ -773,7 +774,10 @@
         <span class="c1"># viewport is not available in other rendering modes so the function will throw a warning</span>
         <span class="c1"># FIXME: This needs to be fixed in the future when we unify the UI functionalities even for</span>
         <span class="c1"># non-rendering modes.</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">:</span>
+        <span class="c1"># Initialize when GUI is available OR when visualizers are active (headless rendering)</span>
+        <span class="c1"># Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers</span>
+        <span class="n">has_visualizers</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">get_setting</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span> <span class="ow">or</span> <span class="n">has_visualizers</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">viewport_camera_controller</span> <span class="o">=</span> <span class="n">ViewportCameraController</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">viewer</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">viewport_camera_controller</span> <span class="o">=</span> <span class="kc">None</span>

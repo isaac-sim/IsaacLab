@@ -406,6 +406,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/02_gear_assembly/gear_assembly_policy.html">Training a Gear Insertion Policy and ROS Deployment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/03_compass_with_NuRec/compass_navigation_policy_with_NuRec.html">Training &amp; Deploying COMPASS Navigation Policy with Real2Sim NuRec</a></li>
 </ul>
 </details></li>
 </ul>
@@ -637,6 +638,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 
@@ -785,8 +787,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="o">=</span> <span class="n">asset_name</span>
         <span class="c1"># set origin type to asset_root</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">=</span> <span class="s2">&quot;asset_root&quot;</span>
-        <span class="c1"># update the camera origins</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">viewer_origin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_index</span><span class="p">]</span>
+        <span class="c1"># update the camera origins (convert Warp array to torch tensor first, then index)</span>
+        <span class="n">root_pos</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer_origin</span> <span class="o">=</span> <span class="n">root_pos</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_index</span><span class="p">]</span>
         <span class="c1"># update the camera view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
 
@@ -818,8 +821,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="o">=</span> <span class="n">asset_name</span>
         <span class="c1"># set origin type to asset_body</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">=</span> <span class="s2">&quot;asset_body&quot;</span>
-        <span class="c1"># update the camera origins</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">viewer_origin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pos_w</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_index</span><span class="p">,</span> <span class="n">body_id</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="c1"># update the camera origins (convert Warp array to torch tensor first, then index)</span>
+        <span class="n">body_pos</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pos_w</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer_origin</span> <span class="o">=</span> <span class="n">body_pos</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_index</span><span class="p">,</span> <span class="n">body_id</span><span class="p">]</span>
         <span class="c1"># update the camera view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
 
