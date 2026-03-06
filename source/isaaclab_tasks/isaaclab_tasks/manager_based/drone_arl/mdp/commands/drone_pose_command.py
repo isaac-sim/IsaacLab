@@ -43,7 +43,7 @@ class DroneUniformPoseCommand(UniformPoseCommand):
         )
         # compute the error
         pos_error, rot_error = compute_pose_error(
-            # Sub-terrain shift for correct position error calculation @grzemal
+            # Sub-terrain shift for correct position error calculation
             self.pose_command_b[:, :3] + self._env.scene.env_origins,
             self.pose_command_w[:, 3:],
             wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx],
@@ -59,7 +59,7 @@ class DroneUniformPoseCommand(UniformPoseCommand):
             return
         # update the markers
         # -- goal pose
-        # Sub-terrain shift for visualization purposes @grzemal
+        # Sub-terrain shift for visualization purposes
         self.goal_pose_visualizer.visualize(
             self.pose_command_b[:, :3] + self._env.scene.env_origins, self.pose_command_b[:, 3:]
         )
