@@ -877,7 +877,7 @@
 
 <span class="sd">        * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds</span>
 <span class="sd">          rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its</span>
-<span class="sd">          config default. Use ``0`` to render all worlds.</span>
+<span class="sd">          config default.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            parser: An argument parser instance to be extended with the AppLauncher specific options.</span>
@@ -1028,8 +1028,7 @@
             <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;visualizer_max_worlds&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
             <span class="n">help</span><span class="o">=</span><span class="p">(</span>
                 <span class="s2">&quot;Optional global max worlds override for Newton-based visualizers (newton/rerun/viser). &quot;</span>
-                <span class="s2">&quot;If omitted, visualizer config defaults are used. &quot;</span>
-                <span class="s2">&quot;Set to 0 to render all worlds.&quot;</span>
+                <span class="s2">&quot;If omitted, visualizer config defaults are used.&quot;</span>
             <span class="p">),</span>
         <span class="p">)</span>
         <span class="c1"># special flag for backwards compatibility</span>
@@ -1604,7 +1603,7 @@
 
         <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
             <span class="n">visualizer_str</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">visualizers</span><span class="p">)</span> <span class="k">if</span> <span class="n">visualizers</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
-            <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer&quot;</span><span class="p">,</span> <span class="n">visualizer_str</span><span class="p">)</span>
+            <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/types&quot;</span><span class="p">,</span> <span class="n">visualizer_str</span><span class="p">)</span>
             <span class="c1"># Store as int setting where -1 means &quot;use per-visualizer defaults&quot;.</span>
             <span class="k">if</span> <span class="n">visualizer_max_worlds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/max_worlds&quot;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>

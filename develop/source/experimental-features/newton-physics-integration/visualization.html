@@ -770,7 +770,7 @@
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Permalink to this heading">#</a></h2>
 <p>Launch visualizers from the command line with <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch all visualizers</span>
-python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>omniverse<span class="w"> </span>newton<span class="w"> </span>rerun
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>kit<span class="w"> </span>newton<span class="w"> </span>rerun
 
 <span class="c1"># Launch just newton visualizer</span>
 python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>newton
@@ -784,14 +784,16 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
 </div>
 <section id="configuration">
 <h3>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading">#</a></h3>
-<p>Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and edited in <code class="docutils literal notranslate"><span class="pre">source/isaaclab/isaaclab/visualizers</span></code>.</p>
-<p>You can also configure custom visualizers in the code by defining new <code class="docutils literal notranslate"><span class="pre">VisualizerCfg</span></code> instances for the <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code>, for example:</p>
+<p>Launching visualizers with the command line will use default visualizer configurations. Visualizer backends live in the <code class="docutils literal notranslate"><span class="pre">isaaclab_visualizers</span></code> package (e.g. <code class="docutils literal notranslate"><span class="pre">source/isaaclab_visualizers/isaaclab_visualizers/kit</span></code>, <code class="docutils literal notranslate"><span class="pre">newton</span></code>, <code class="docutils literal notranslate"><span class="pre">rerun</span></code>).</p>
+<p>You can also configure custom visualizers in the code by defining <code class="docutils literal notranslate"><span class="pre">VisualizerCfg</span></code> instances for the <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code>, for example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewtonVisualizerCfg</span><span class="p">,</span> <span class="n">OVVisualizerCfg</span><span class="p">,</span> <span class="n">RerunVisualizerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_visualizers.kit</span><span class="w"> </span><span class="kn">import</span> <span class="n">KitVisualizerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_visualizers.newton</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewtonVisualizerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_visualizers.rerun</span><span class="w"> </span><span class="kn">import</span> <span class="n">RerunVisualizerCfg</span>
 
 <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
     <span class="n">visualizer_cfgs</span><span class="o">=</span><span class="p">[</span>
-        <span class="n">OVVisualizerCfg</span><span class="p">(</span>
+        <span class="n">KitVisualizerCfg</span><span class="p">(</span>
             <span class="n">viewport_name</span><span class="o">=</span><span class="s2">&quot;Visualizer Viewport&quot;</span><span class="p">,</span>
             <span class="n">create_viewport</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
             <span class="n">dock_position</span><span class="o">=</span><span class="s2">&quot;SAME&quot;</span><span class="p">,</span>
@@ -828,9 +830,9 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
 <li><p>Full Isaac Sim rendering capabilities and tooling</p></li>
 </ul>
 <p><strong>Core Configuration:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">OVVisualizerCfg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_visualizers.kit</span><span class="w"> </span><span class="kn">import</span> <span class="n">KitVisualizerCfg</span>
 
-<span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">OVVisualizerCfg</span><span class="p">(</span>
+<span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">KitVisualizerCfg</span><span class="p">(</span>
     <span class="c1"># Viewport settings</span>
     <span class="n">viewport_name</span><span class="o">=</span><span class="s2">&quot;Visualizer Viewport&quot;</span><span class="p">,</span>      <span class="c1"># Viewport window name</span>
     <span class="n">create_viewport</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                     <span class="c1"># Create new viewport vs. use existing</span>
@@ -883,20 +885,17 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
 <tr class="row-odd"><td><p><strong>Mouse Scroll</strong></p></td>
 <td><p>Zoom in/out</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>Space</strong></p></td>
-<td><p>Pause/resume rendering (physics continues)</p></td>
-</tr>
-<tr class="row-odd"><td><p><strong>H</strong></p></td>
+<tr class="row-even"><td><p><strong>H</strong></p></td>
 <td><p>Toggle UI sidebar</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>ESC</strong></p></td>
+<tr class="row-odd"><td><p><strong>ESC</strong></p></td>
 <td><p>Exit viewer</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <p><strong>Core Configuration:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewtonVisualizerCfg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_visualizers.newton</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewtonVisualizerCfg</span>
 
 <span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">NewtonVisualizerCfg</span><span class="p">(</span>
     <span class="c1"># Window settings</span>
@@ -939,7 +938,7 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
 <li><p>Timeline scrubbing and playback controls of recordings</p></li>
 </ul>
 <p><strong>Core Configuration:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">RerunVisualizerCfg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_visualizers.rerun</span><span class="w"> </span><span class="kn">import</span> <span class="n">RerunVisualizerCfg</span>
 
 <span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">RerunVisualizerCfg</span><span class="p">(</span>
     <span class="c1"># Server settings</span>
