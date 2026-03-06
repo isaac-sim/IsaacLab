@@ -1226,8 +1226,6 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
             sim.step()
             # update buffers
             articulation.update(sim.cfg.dt)
-            print(articulation.data.root_pos_w)
-            print(articulation.data.root_ang_vel_w)
         # check condition
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
