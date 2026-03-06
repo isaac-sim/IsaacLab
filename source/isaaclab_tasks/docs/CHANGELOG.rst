@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+1.5.3 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added semantic segmentation to preset data types for the Cartpole Camera environment.
+
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 
