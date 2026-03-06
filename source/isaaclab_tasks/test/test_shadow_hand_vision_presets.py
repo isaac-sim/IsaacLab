@@ -246,9 +246,9 @@ def test_all_camera_presets_present(shadow_hand_vision_presets):
 _RENDERER_PRESETS = [
     # preset_name, expected_class
     ("default", IsaacRtxRendererCfg),
-    ("isaacsim_rtx", IsaacRtxRendererCfg),
-    ("warp", NewtonWarpRendererCfg),
-    pytest.param("ovrtx", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
+    ("isaacsim_rtx_renderer", IsaacRtxRendererCfg),
+    ("newton_renderer", NewtonWarpRendererCfg),
+    pytest.param("ovrtx_renderer", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
 ]
 
 
@@ -264,14 +264,14 @@ def test_renderer_preset_class(shadow_hand_vision_presets, preset_name, expected
 
 def test_warp_renderer_has_correct_renderer_type(shadow_hand_vision_presets):
     """NewtonWarpRendererCfg must expose renderer_type='newton_warp' for validation to work."""
-    warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["warp"]
+    warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     assert warp_cfg.renderer_type == "newton_warp"
 
 
 def test_all_renderer_presets_present(shadow_hand_vision_presets):
-    """Every preset in RendererPresetCfg is discoverable."""
+    """Every preset in MultiBackendRendererCfg is discoverable."""
     renderer_presets = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]
-    expected_names = {"default", "isaacsim_rtx", "warp", "ovrtx"}
+    expected_names = {"default", "isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"}
     missing = expected_names - set(renderer_presets.keys())
     assert not missing, f"Renderer presets missing from collected presets: {missing}"
 
@@ -296,7 +296,7 @@ _WARP_INVALID_CAMERA_PRESETS = [
 def test_warp_with_valid_camera_preset(shadow_hand_vision_presets, camera_preset):
     """Warp + {rgb, depth} camera presets must not raise (depth with CNN disabled)."""
     camera_cfg = shadow_hand_vision_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["warp"]
+    warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     enabled = camera_cfg.data_types != ["depth"]  # disable CNN for depth-only
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
     _validate_cfg(cfg)  # must not raise
@@ -306,7 +306,7 @@ def test_warp_with_valid_camera_preset(shadow_hand_vision_presets, camera_preset
 def test_warp_with_invalid_camera_preset(shadow_hand_vision_presets, camera_preset):
     """Warp + unsupported camera presets must raise ValueError."""
     camera_cfg = shadow_hand_vision_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["warp"]
+    warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, True)
     with pytest.raises(ValueError):
         _validate_cfg(cfg)
@@ -319,58 +319,64 @@ def test_warp_with_invalid_camera_preset(shadow_hand_vision_presets, camera_pres
 _RENDER_CORRECTNESS_CASES = [
     # (renderer_preset, camera_preset, physics) — physics is "physx" or "newton"
     # ── PhysX physics (default) + IsaacRTX: supports all data types ──
-    pytest.param(("isaacsim_rtx", "rgb", "physx"), id="physx-isaacsim_rtx-rgb"),
-    pytest.param(("isaacsim_rtx", "depth", "physx"), id="physx-isaacsim_rtx-depth"),
-    pytest.param(("isaacsim_rtx", "albedo", "physx"), id="physx-isaacsim_rtx-albedo"),
+    pytest.param(("isaacsim_rtx_renderer", "rgb", "physx"), id="physx-isaacsim_rtx-rgb"),
+    pytest.param(("isaacsim_rtx_renderer", "depth", "physx"), id="physx-isaacsim_rtx-depth"),
+    pytest.param(("isaacsim_rtx_renderer", "albedo", "physx"), id="physx-isaacsim_rtx-albedo"),
     pytest.param(
-        ("isaacsim_rtx", "simple_shading_constant_diffuse", "physx"),
+        ("isaacsim_rtx_renderer", "simple_shading_constant_diffuse", "physx"),
         id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
     ),
     pytest.param(
-        ("isaacsim_rtx", "simple_shading_diffuse_mdl", "physx"), id="physx-isaacsim_rtx-simple_shading_diffuse_mdl"
+        ("isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", "physx"),
+        id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
     ),
-    pytest.param(("isaacsim_rtx", "simple_shading_full_mdl", "physx"), id="physx-isaacsim_rtx-simple_shading_full_mdl"),
+    pytest.param(
+        ("isaacsim_rtx_renderer", "simple_shading_full_mdl", "physx"),
+        id="physx-isaacsim_rtx-simple_shading_full_mdl",
+    ),
     # ── PhysX physics + Warp: only rgb and depth are supported ──
-    pytest.param(("warp", "rgb", "physx"), id="physx-warp-rgb"),
-    pytest.param(("warp", "depth", "physx"), id="physx-warp-depth"),
+    pytest.param(("newton_renderer", "rgb", "physx"), id="physx-warp-rgb"),
+    pytest.param(("newton_renderer", "depth", "physx"), id="physx-warp-depth"),
     # ── Newton physics + Warp: Warp renderer is physics-backend agnostic ──
-    pytest.param(("warp", "rgb", "newton"), id="newton-warp-rgb"),
-    pytest.param(("warp", "depth", "newton"), id="newton-warp-depth"),
+    pytest.param(("newton_renderer", "rgb", "newton"), id="newton-warp-rgb"),
+    pytest.param(("newton_renderer", "depth", "newton"), id="newton-warp-depth"),
     # ── Newton physics + IsaacRTX: known incompatibility — produces empty frames ──
     # xfail(strict=True): if these ever pass the mark becomes a hard failure, prompting review.
     pytest.param(
-        ("isaacsim_rtx", "rgb", "newton"),
+        ("isaacsim_rtx_renderer", "rgb", "newton"),
         id="newton-isaacsim_rtx-rgb",
         marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
-        ("isaacsim_rtx", "depth", "newton"),
+        ("isaacsim_rtx_renderer", "depth", "newton"),
         id="newton-isaacsim_rtx-depth",
         marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
-        ("isaacsim_rtx", "albedo", "newton"),
+        ("isaacsim_rtx_renderer", "albedo", "newton"),
         id="newton-isaacsim_rtx-albedo",
         marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
-        ("isaacsim_rtx", "simple_shading_constant_diffuse", "newton"),
+        ("isaacsim_rtx_renderer", "simple_shading_constant_diffuse", "newton"),
         id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
         marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
-        ("isaacsim_rtx", "simple_shading_diffuse_mdl", "newton"),
+        ("isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", "newton"),
         id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
         marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
-        ("isaacsim_rtx", "simple_shading_full_mdl", "newton"),
+        ("isaacsim_rtx_renderer", "simple_shading_full_mdl", "newton"),
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
         marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     # ── OVRTX: disabled ──
     pytest.param(
-        ("ovrtx", "rgb", "physx"), id="physx-ovrtx-rgb", marks=pytest.mark.skip(reason="OVRTX testing disabled")
+        ("ovrtx_renderer", "rgb", "physx"),
+        id="physx-ovrtx-rgb",
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
 ]
 
