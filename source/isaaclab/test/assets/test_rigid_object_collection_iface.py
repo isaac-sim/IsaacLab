@@ -221,12 +221,12 @@ def _make_bad_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.ar
 
 
 def _make_env_mask(num_instances: int, device: str, partial: bool) -> wp.array | None:
-    """Create an env_mask: None for all envs, or a partial int32 mask."""
+    """Create an env_mask: None for all envs, or a partial bool mask."""
     if not partial:
         return None
-    mask_np = np.zeros(num_instances, dtype=np.int32)
-    mask_np[0] = 1
-    return wp.array(mask_np, dtype=wp.int32, device=device)
+    mask_np = np.zeros(num_instances, dtype=bool)
+    mask_np[0] = True
+    return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
 def _make_env_ids(device: str, subset: bool) -> torch.Tensor | None:
@@ -244,11 +244,11 @@ def _make_body_ids(device: str, subset_ids: list[int] | None) -> torch.Tensor | 
 
 
 def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
-    """Create an int32 warp mask with 1s at `selected` indices, 0s elsewhere."""
-    mask_np = np.zeros(total, dtype=np.int32)
+    """Create a bool warp mask with True at `selected` indices, False elsewhere."""
+    mask_np = np.zeros(total, dtype=bool)
     for i in selected:
-        mask_np[i] = 1
-    return wp.array(mask_np, dtype=wp.int32, device=device)
+        mask_np[i] = True
+    return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
 # ---------------------------------------------------------------------------
