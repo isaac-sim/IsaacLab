@@ -27,8 +27,13 @@ from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 
 @configclass
-class EventCfg:
-    """Configuration for randomization."""
+class NewtonEventCfg:
+    """Event randomization config for the Newton physics backend.
+
+    Includes joint-parameter, mass, and gravity randomization.
+    Material and tendon randomization are omitted: Newton does not expose
+    per-body friction-material buckets or fixed-tendon APIs.
+    """
 
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
@@ -127,7 +132,7 @@ class PhysxEventCfg:
 @configclass
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
-    newton = EventCfg()
+    newton = NewtonEventCfg()
     default = physx
 
 
@@ -274,8 +279,6 @@ class PhysicsCfg(PresetCfg):
             cone="elliptic",
             update_data_interval=2,
             iterations=100,
-            ls_iterations=15,
-            ls_parallel=False,
         ),
         num_substeps=2,
         debug_mode=False,

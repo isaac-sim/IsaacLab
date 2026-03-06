@@ -104,6 +104,14 @@ class NewtonManager(PhysicsManager):
         """
         super().initialize(sim_context)
 
+        # Normalize "cuda" -> "cuda:<id>" so torch.cuda.set_device() gets an explicit
+        # device index. PhysxManager does the same via /physics/cudaDevice setting.
+        device = PhysicsManager._device
+        if "cuda" in device and ":" not in device:
+            cuda_device = sim_context.get_setting("/physics/cudaDevice")
+            device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
+            PhysicsManager._device = f"cuda:{device_id}"
+
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
         if sim is not None:

@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.4.2 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing public properties :attr:`~isaaclab_newton.assets.ArticulationData.joint_dynamic_friction_coeff`
+  and :attr:`~isaaclab_newton.assets.ArticulationData.joint_viscous_friction_coeff` to
+  :class:`~isaaclab_newton.assets.ArticulationData`, exposing the existing private
+  ``_joint_dynamic_friction`` and ``_joint_viscous_friction`` buffers. This fixes
+  ``AttributeError`` when :class:`~isaaclab.envs.mdp.events.randomize_joint_parameters` is
+  used with a Newton physics preset.
+
 0.4.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 

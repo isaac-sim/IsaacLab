@@ -114,10 +114,8 @@ def _get_physics_cfg(backend_kind: str):
                 solver_cfg=MJWarpSolverCfg(
                     njmax=5,
                     nconmax=3,
-                    ls_iterations=10,
                     cone="pyramidal",
                     impratio=1,
-                    ls_parallel=True,
                     integrator="implicitfast",
                 ),
                 num_substeps=1,

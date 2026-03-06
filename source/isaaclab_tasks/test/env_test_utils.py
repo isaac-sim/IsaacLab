@@ -20,7 +20,7 @@ from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import apply_named_preset, load_cfg_from_registry, parse_env_cfg
 
 
 def _is_teleop_env(task_spec) -> bool:
@@ -53,6 +53,34 @@ def _is_pickplace_stack_env(task_id: str) -> bool:
     return any(keyword in task_id for keyword in ("Place", "Stack", "NutPour", "ExhaustPipe"))
 
 
+def _has_physics_preset(raw_cfg, preset_name: str) -> bool:
+    """Check if a raw (unresolved) env config has a named physics preset.
+
+    Must be called with the result of :func:`load_cfg_from_registry`, not
+    :func:`parse_env_cfg`, because the latter resolves all PresetCfg wrappers
+    to their default before returning.
+
+    Args:
+        raw_cfg: Raw env config from :func:`load_cfg_from_registry`.
+        preset_name: Name of the preset to check for (e.g., 'newton').
+
+    Returns:
+        True if ``raw_cfg.sim.physics`` is a PresetCfg with the given preset field.
+    """
+    if isinstance(raw_cfg, dict):
+        return False
+    # If the top-level cfg is itself a PresetCfg wrapper, unwrap to its default.
+    env_cfg = raw_cfg
+    if (
+        hasattr(env_cfg, "__dataclass_fields__")
+        and hasattr(env_cfg, "default")
+        and not hasattr(type(env_cfg), "class_type")
+    ):
+        env_cfg = env_cfg.default
+    physics = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    return physics is not None and hasattr(physics, preset_name)
+
+
 def setup_environment(
     include_play: bool = False,
     factory_envs: bool | None = None,
@@ -60,6 +88,7 @@ def setup_environment(
     teleop_envs: bool | None = None,
     cartpole_showcase_envs: bool | None = None,
     pickplace_stack_envs: bool | None = None,
+    newton_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -86,6 +115,10 @@ def setup_environment(
             - True: include only PickPlace/Stack environments
             - False: exclude PickPlace/Stack environments
             - None: include all environments regardless of pick-place/stack type
+        newton_envs:
+            - True: include only environments that have a newton physics preset
+            - False: exclude environments that have a newton physics preset
+            - None: include all environments regardless of newton preset availability
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -146,6 +179,16 @@ def setup_environment(
                 continue
         # if None: no filter
 
+        # apply newton preset filter
+        if newton_envs is not None:
+            # Use load_cfg_from_registry (not parse_env_cfg) so that the PresetCfg
+            # wrapper on sim.physics is not yet resolved to its default.
+            raw_cfg = load_cfg_from_registry(task_spec.id, "env_cfg_entry_point")
+            has_newton = _has_physics_preset(raw_cfg, "newton")
+            if (newton_envs is True and not has_newton) or (newton_envs is False and has_newton):
+                continue
+        # if None: no filter
+
         registered_tasks.append(task_spec.id)
 
     # sort environments alphabetically
@@ -167,6 +210,7 @@ def _run_environments(
     multi_agent=False,
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
+    physics_preset_name: str | None = None,
 ):
     """Run all environments and check environments return valid signals.
 
@@ -178,6 +222,8 @@ def _run_environments(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
+        physics_preset_name: Name of the physics preset to apply (e.g., 'newton').
+            If None, uses the environment's default physics.
     """
 
     # skip test if stage in memory is not supported
@@ -238,6 +284,7 @@ def _run_environments(
         multi_agent=multi_agent,
         create_stage_in_memory=create_stage_in_memory,
         disable_clone_in_fabric=disable_clone_in_fabric,
+        physics_preset_name=physics_preset_name,
     )
     print(f""">>> Closing environment: {task_name}""")
     print("-" * 80)
@@ -251,6 +298,7 @@ def _check_random_actions(
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
+    physics_preset_name: str | None = None,
 ):
     """Run random actions and check environments return valid signals.
 
@@ -262,6 +310,8 @@ def _check_random_actions(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
+        physics_preset_name: Name of the physics preset to apply (e.g., 'newton').
+            If None, uses the environment's default physics.
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
@@ -273,6 +323,23 @@ def _check_random_actions(
     try:
         # parse config
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        # apply physics preset override before creating the environment
+        if physics_preset_name is not None:
+            # parse_env_cfg already resolved PresetCfg wrappers to their default,
+            # so we load the raw config to retrieve the named preset.
+            raw_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            # Unwrap if the top-level cfg is itself a PresetCfg wrapper.
+            raw_env_cfg = raw_cfg
+            if (
+                not isinstance(raw_cfg, dict)
+                and hasattr(raw_cfg, "__dataclass_fields__")
+                and hasattr(raw_cfg, "default")
+                and not hasattr(type(raw_cfg), "class_type")
+            ):
+                raw_env_cfg = raw_cfg.default
+            # Apply the named preset to all preset wrappers in the config tree
+            # (e.g. sim.physics, scene.contact_forces, ...), not just sim.physics.
+            apply_named_preset(env_cfg, raw_env_cfg, physics_preset_name)
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:

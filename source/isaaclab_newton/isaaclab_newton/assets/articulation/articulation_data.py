@@ -336,6 +336,22 @@ class ArticulationData(BaseArticulationData):
         return self._sim_bind_joint_friction_coeff
 
     @property
+    def joint_dynamic_friction_coeff(self) -> wp.array:
+        """Joint dynamic friction coefficient [dimensionless].
+
+        Shape is (num_instances, num_joints), dtype = wp.float32.
+        """
+        return self._joint_dynamic_friction
+
+    @property
+    def joint_viscous_friction_coeff(self) -> wp.array:
+        """Joint viscous friction coefficient [N·m·s/rad or N·s/m, depending on joint type].
+
+        Shape is (num_instances, num_joints), dtype = wp.float32.
+        """
+        return self._joint_viscous_friction
+
+    @property
     def joint_pos_limits_lower(self) -> wp.array:
         """Joint position limits lower provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._sim_bind_joint_pos_limits_lower

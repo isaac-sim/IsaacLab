@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+1.5.4 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed ``EventCfg`` to :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.NewtonEventCfg`
+  in the Shadow Hand env config. The new name makes explicit that this preset covers only Newton-compatible
+  randomizations (joint gains, joint position limits, object mass, gravity). Material and fixed-tendon
+  randomization remain exclusively in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`
+  and are therefore absent from the Newton preset of :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ShadowHandEventCfg`.
+
+1.5.3 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton locomotion test failures caused by :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset`
+  only applying the named preset to ``sim.physics``. The new public helper now walks the entire config
+  tree and replaces every preset-wrapper field (both new-style :class:`~isaaclab_tasks.utils.PresetCfg`
+  subclasses and old-style ``presets``-dict wrappers) with the named variant, so ``scene.contact_forces``
+  is correctly set to the Newton contact sensor when running with ``physics_preset_name='newton'``.
+
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 

@@ -47,9 +47,7 @@ class CabinetPhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             njmax=90,
             nconmax=100,
-            ls_iterations=20,
             cone="pyramidal",
-            ls_parallel=True,
             integrator="implicitfast",
             impratio=1,
         ),
