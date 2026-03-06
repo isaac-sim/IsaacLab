@@ -27,21 +27,21 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
             frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
             base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
             position_cost=8.0,  # [cost] / [m]
-            orientation_cost=2.0,  # [cost] / [rad]
-            lm_damping=10,  # dampening for solver for step jumps
-            gain=0.5,
+            orientation_cost=4.0,  # [cost] / [rad]
+            lm_damping=75,  # dampening for solver for step jumps
+            gain=0.075,
         ),
         LocalFrameTaskCfg(
             frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
             base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
             position_cost=8.0,  # [cost] / [m]
-            orientation_cost=2.0,  # [cost] / [rad]
-            lm_damping=10,  # dampening for solver for step jumps
-            gain=0.5,
+            orientation_cost=4.0,  # [cost] / [rad]
+            lm_damping=75,  # dampening for solver for step jumps
+            gain=0.075,
         ),
         NullSpacePostureTaskCfg(
-            cost=0.5,
-            lm_damping=1,
+            cost=0.05,
+            lm_damping=75,
             controlled_frames=[
                 "g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
                 "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
@@ -57,7 +57,7 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
                 "waist_pitch_joint",
                 "waist_roll_joint",
             ],
-            gain=0.3,
+            gain=0.075,
         ),
     ],
     fixed_input_tasks=[],

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene data providers for visualizers and renderers."""
+"""PhysX scene data provider backends."""
 
 from isaaclab.utils.module import lazy_export
 
