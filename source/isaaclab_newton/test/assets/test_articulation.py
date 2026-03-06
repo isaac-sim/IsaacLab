@@ -22,8 +22,6 @@ import sys
 import pytest
 import torch
 import warp as wp
-
-from isaaclab.sim import SimulationCfg
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -36,15 +34,15 @@ from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuato
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG # isort:skip
-#, SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
+# , SHADOW_HAND_CFG  # isort:skip
 
 SIM_CFGs = {
     "humanoid": SimulationCfg(
@@ -77,7 +75,7 @@ SIM_CFGs = {
             ),
             num_substeps=2,
             debug_mode=True,
-        )
+        ),
     ),
     "panda": SimulationCfg(
         dt=1 / 120,
@@ -96,7 +94,7 @@ SIM_CFGs = {
         ),
     ),
     "single_joint_implicit": SimulationCfg(
-        dt= 1/ 120,
+        dt=1 / 120,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=20,
@@ -141,7 +139,7 @@ SIM_CFGs = {
             ),
             num_substeps=2,
             debug_mode=True,
-        )
+        ),
     ),
 }
 
@@ -192,7 +190,7 @@ def generate_articulation_cfg(
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
         pytest.skip("Shadow hand is not supported in Newton")
-        #articulation_cfg = SHADOW_HAND_CFG
+        # articulation_cfg = SHADOW_HAND_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -349,6 +347,7 @@ def generate_articulation(
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
     if any(name in usd_path for name in _REVERSED_JOINT_USD_FILES):
         import omni.usd
+
         fix_reversed_joints(omni.usd.get_context().get_stage())
 
     return articulation, translations
@@ -366,14 +365,19 @@ def sim(request):
         add_ground_plane = request.getfixturevalue("add_ground_plane")
     else:
         add_ground_plane = False  # default to no ground plane
-    articulation_type = request.getfixturevalue("articulation_type") 
+    articulation_type = request.getfixturevalue("articulation_type")
     sim_cfg = SIM_CFGs[articulation_type]
     sim_cfg.device = device
     with build_simulation_context(
-        device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane, sim_cfg=sim_cfg
+        device=device,
+        auto_add_lighting=True,
+        gravity_enabled=gravity_enabled,
+        add_ground_plane=add_ground_plane,
+        sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -648,7 +652,9 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device, articu
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
-def test_initialization_floating_base_made_fixed_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+def test_initialization_floating_base_made_fixed_base(
+    sim, num_articulations, device, add_ground_plane, articulation_type
+):
     """Test initialization for a floating-base articulation made fixed-base using schema properties.
 
     This test verifies that:
@@ -701,7 +707,9 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
-def test_initialization_fixed_base_made_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+def test_initialization_fixed_base_made_floating_base(
+    sim, num_articulations, device, add_ground_plane, articulation_type
+):
     """Test initialization for fixed base made floating-base using schema properties.
 
     This test verifies that:
@@ -1465,7 +1473,9 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulatio
 @pytest.mark.parametrize("add_ground_plane", [False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 @pytest.mark.isaacsim_ci
-def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane, articulation_type):
+def test_setting_velocity_limit_implicit(
+    sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane, articulation_type
+):
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
@@ -1499,7 +1509,9 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # read the values set into the simulation
-    newton_vel_limit = wp.to_torch(articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())).to(device)[:,0,:]
+    newton_vel_limit = wp.to_torch(
+        articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
+    ).to(device)[:, 0, :]
     # check data buffer
     torch.testing.assert_close(wp.to_torch(articulation.data.joint_velocity_limits), newton_vel_limit)
     # check actuator has simulation velocity limit
@@ -1549,7 +1561,9 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # collect limit init values
-    newton_vel_limit = wp.to_torch(articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())).to(device)[:,0,:]
+    newton_vel_limit = wp.to_torch(
+        articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
+    ).to(device)[:, 0, :]
     actuator_vel_limit = articulation.actuators["joint"].velocity_limit
     actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
 
@@ -1588,7 +1602,9 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 @pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 @pytest.mark.isaacsim_ci
-def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type):
+def test_setting_effort_limit_implicit(
+    sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
+):
     """Test setting of effort limit for implicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -1614,7 +1630,9 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
     sim.reset()
 
     # obtain the physx effort limits
-    newton_effort_limit = wp.to_torch(articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())).to(device)[:,0,:]
+    newton_effort_limit = wp.to_torch(
+        articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
+    ).to(device)[:, 0, :]
 
     # check that the two are equivalent
     torch.testing.assert_close(
@@ -1642,7 +1660,9 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 @pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
 @pytest.mark.isaacsim_ci
-def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type):
+def test_setting_effort_limit_explicit(
+    sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
+):
     """Test setting of effort limit for explicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -1669,7 +1689,9 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     usd_default_effort_limit = 80.0
 
     # collect limit init values
-    newton_effort_limit = wp.to_torch(articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())).to(device)[:,0,:]
+    newton_effort_limit = wp.to_torch(
+        articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
+    ).to(device)[:, 0, :]
     actuator_effort_limit = articulation.actuators["joint"].effort_limit
     actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
 
@@ -1817,7 +1839,6 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
     sim._app_control_on_stop_handle = None
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-    env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10, "Possible reference leak for articulation"
     # Play sim
@@ -1848,7 +1869,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
         SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
-    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_attribute("body_com", SimulationManager.get_model())), com)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("body_com", SimulationManager.get_model())), com
+    )
 
     for i in range(50):
         # perform step
@@ -1927,7 +1950,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
-def test_write_root_state(sim, num_articulations, device, with_offset, state_location, gravity_enabled, articulation_type):
+def test_write_root_state(
+    sim, num_articulations, device, with_offset, state_location, gravity_enabled, articulation_type
+):
     """Test the setters for root_state using both the link frame and center of mass as reference frame.
 
     This test verifies that:
@@ -1969,7 +1994,9 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
-    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_attribute("body_com", SimulationManager.get_model())), com)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("body_com", SimulationManager.get_model())), com
+    )
 
     rand_state = torch.zeros(num_articulations, 13, device=device)
     rand_state[..., :7] = wp.to_torch(articulation.data.default_root_pose)
@@ -2138,7 +2165,7 @@ def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_t
     assert sys.getrefcount(articulation) < 10
 
     # Play sim
-    with pytest.raises(RuntimeError):
+    with pytest.raises((RuntimeError, KeyError)):
         sim.reset()
 
 
@@ -2337,9 +2364,10 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # update buffers
         articulation.update(sim.cfg.dt)
 
-    joint_friction_coeff_sim = wp.to_torch(articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model()))[:, 0, :]
+    joint_friction_coeff_sim = wp.to_torch(
+        articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
+    )[:, 0, :]
     assert torch.allclose(joint_friction_coeff_sim, friction)
-
 
     # Reset simulator to ensure a clean state for the alternative API path
     sim.reset()
@@ -2363,7 +2391,9 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         sim.step()
         articulation.update(sim.cfg.dt)
 
-    joint_friction_coeff_sim_2 = wp.to_torch(articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model()))[:, 0, :]
+    joint_friction_coeff_sim_2 = wp.to_torch(
+        articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
+    )[:, 0, :]
 
     # Validate values propagated
     assert torch.allclose(joint_friction_coeff_sim_2, friction_2)

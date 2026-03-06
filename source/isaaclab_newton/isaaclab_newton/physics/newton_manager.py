@@ -185,7 +185,6 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def step(cls) -> None:
-    
         """Step the physics simulation."""
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():

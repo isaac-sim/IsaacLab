@@ -1240,8 +1240,10 @@ class ArticulationData(BaseArticulationData):
             :, 0
         ]
         try:
-            self._sim_bind_body_parent_f = self._root_view.get_attribute("body_parent_f", SimulationManager.get_state_0())[:, 0]
-        except:
+            self._sim_bind_body_parent_f = self._root_view.get_attribute(
+                "body_parent_f", SimulationManager.get_state_0()
+            )[:, 0]
+        except Exception:
             self._sim_bind_body_parent_f = None
         # -- joint properties
         if n_dof > 0:
