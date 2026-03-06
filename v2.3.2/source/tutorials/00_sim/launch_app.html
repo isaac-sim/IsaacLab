@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -159,6 +159,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../develop/source/tutorials/00_sim/launch_app.html" >develop</option>
             <option value="../../../../main/source/tutorials/00_sim/launch_app.html" >main</option>
             <option value="../../../../release/2.1.0/source/tutorials/00_sim/launch_app.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/tutorials/00_sim/launch_app.html" >release/2.2.0</option>
@@ -208,7 +209,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -693,17 +694,17 @@
 <h1>Deep-dive into AppLauncher<a class="headerlink" href="#deep-dive-into-applauncher" title="Permalink to this heading">#</a></h1>
 <p>In this tutorial, we will dive into the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class to configure the simulator using
 CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
-<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> to enable livestreaming and configure the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.simulation_app.SimulationApp</span></code></a>
+<a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> to enable livestreaming and configure the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.simulation_app.SimulationApp</span></code></a>
 instance it wraps, while also allowing user-provided options.</p>
-<p>The <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is a wrapper for <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> to simplify
-its configuration. The <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> has many extensions that must be
+<p>The <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is a wrapper for <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> to simplify
+its configuration. The <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> has many extensions that must be
 loaded to enable different capabilities, and some of these extensions are order- and inter-dependent.
 Additionally, there are startup options such as <code class="docutils literal notranslate"><span class="pre">headless</span></code> which must be set at instantiation time,
 and which have an implied relationship with some extensions, e.g. the livestreaming extensions.
 The <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> presents an interface that can handle these extensions and startup
 options in a portable manner across a variety of use cases. To achieve this, we offer CLI and envar
 flags which can be merged with user-defined CLI args, while passing forward arguments intended
-for <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>.</p>
+for <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>.</p>
 <section id="the-code">
 <h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">launch_app.py</span></code> script in the
@@ -819,7 +820,7 @@ for <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.c
 their own scripts, while still providing a portable CLI interface.</p>
 <p>In this tutorial, a standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> is instantiated and given the
 script-specific <code class="docutils literal notranslate"><span class="pre">--size</span></code> argument, as well as the arguments <code class="docutils literal notranslate"><span class="pre">--height</span></code> and <code class="docutils literal notranslate"><span class="pre">--width</span></code>.
-The latter are ingested by <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>.</p>
+The latter are ingested by <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>.</p>
 <p>The argument <code class="docutils literal notranslate"><span class="pre">--size</span></code> is not used by <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>, but will merge seamlessly
 with the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface. In-script arguments can be merged with the
 <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface via the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher.add_app_launcher_args" title="isaaclab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_app_launcher_args()</span></code></a> method,
@@ -891,10 +892,10 @@ custom arguments and those from <a class="reference internal" href="../../api/la
 <p>This readout details the <code class="docutils literal notranslate"><span class="pre">--size</span></code>, <code class="docutils literal notranslate"><span class="pre">--height</span></code>, and <code class="docutils literal notranslate"><span class="pre">--width</span></code> arguments defined in the script directly,
 as well as the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">[INFO]</span></code> messages preceding the help output also reads out which of these arguments are going
-to be interpreted as arguments to the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> instance which the
+to be interpreted as arguments to the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> instance which the
 <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> class wraps. In this case, it is <code class="docutils literal notranslate"><span class="pre">--height</span></code> and <code class="docutils literal notranslate"><span class="pre">--width</span></code>. These
 are classified as such because they match the name and type of an argument which can be processed
-by <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>. Please refer to the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG">specification</a> for such arguments
+by <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>. Please refer to the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG">specification</a> for such arguments
 for more examples.</p>
 </section>
 <section id="using-environment-variables">
@@ -910,7 +911,7 @@ as we will demonstrate later in this tutorial.</p>
 <p>These arguments can be used with any script that starts the simulation using <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>,
 with one exception, <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>. This setting sets the rendering pipeline to use the
 offscreen renderer. However, this setting is only compatible with the <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.SimulationContext</span></code></a>.
-It will not work with Isaac Sim’s <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code></a> class.
+It will not work with Isaac Sim’s <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code></a> class.
 For more information on this flag, please see the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> API documentation.</p>
 </section>
 </section>
@@ -935,7 +936,7 @@ process can be killed by pressing <code class="docutils literal notranslate"><sp
 <p>This will cause the same behavior as in the previous run, because although we have set <code class="docutils literal notranslate"><span class="pre">LIVESTREAM=0</span></code>
 in our envars, CLI args such as <code class="docutils literal notranslate"><span class="pre">--livestream</span></code> take precedence in determining behavior. The process can
 be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching terminal.</p>
-<p>Finally, we will examine passing arguments to <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> through
+<p>Finally, we will examine passing arguments to <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> through
 <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080</span>
 </pre></div>

@@ -1,0 +1,1397 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Mock Interfaces for Unit Testing &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/testing/mock_interfaces';</script>
+    <link rel="icon" href="../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Micro-Benchmarks for Performance Testing" href="micro_benchmarks.html" />
+    <link rel="prev" title="Testing" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="3.0.0" />
+    <meta name="docbuild:last-update" content="Mar 06, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="mock_interfaces.html" selected>develop</option>
+            <option value="../../../main/index.html" >main</option>
+            <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../v2.3.2/index.html" >v2.3.2</option>
+            <option value="../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/cloudxr_teleoperation.html">Setting up Isaac Teleop with CloudXR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Testing</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Mock Interfaces for Unit Testing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="micro_benchmarks.html">Micro-Benchmarks for Performance Testing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="benchmarks.html">Benchmarking Framework</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/renderers.html">Renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/humanoids_imitation.html">Examples: Data Generation and Imitation Learning for Humanoids</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/isaac_teleop.html">Isaac Teleop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab - Newton Beta 2</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/02_gear_assembly/gear_assembly_policy.html">Training a Gear Insertion Policy and ROS Deployment</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_to_isaaclab_3-0.html">Migrating to Isaac Lab 3.0</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../migration/comparing_simulation_isaacgym.html">Comparing Simulations Between Isaac Gym and Isaac Lab</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.renderers.html">isaaclab.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.rl.html">isaaclab_contrib.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_teleop/isaaclab_teleop.html">isaaclab_teleop</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_physx/isaaclab_physx.assets.html">isaaclab_physx.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_physx/isaaclab_physx.assets.html">isaaclab_physx.assets</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/testing/mock_interfaces.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/testing/mock_interfaces.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/source/testing/mock_interfaces.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Mock Interfaces for Unit Testing</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#high-level-mock-interfaces">High-Level Mock Interfaces</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-mocks">Available Mocks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#factory-functions">Factory Functions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#patching-utilities">Patching Utilities</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#low-level-physx-mock-interfaces">Low-Level PhysX Mock Interfaces</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Available Mocks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Quick Start</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Factory Functions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Patching Utilities</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-shapes-reference">Data Shapes Reference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#high-level-mocks">High-Level Mocks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physx-view-mocks">PhysX View Mocks</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#design-patterns">Design Patterns</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-testing-an-observation-function">Example: Testing an Observation Function</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-testing-with-physx-view-mocks">Example: Testing with PhysX View Mocks</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="mock-interfaces-for-unit-testing">
+<span id="testing-mock-interfaces"></span><h1>Mock Interfaces for Unit Testing<a class="headerlink" href="#mock-interfaces-for-unit-testing" title="Permalink to this heading">#</a></h1>
+<p>Isaac Lab provides mock implementations of sensor, asset, and PhysX view classes
+for unit testing without requiring Isaac Sim or GPU simulation.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
+<p>Two levels of mock interfaces are available:</p>
+<ol class="arabic simple">
+<li><p><strong>High-level mocks</strong> (<code class="docutils literal notranslate"><span class="pre">isaaclab.test.mock_interfaces</span></code>) - Mock sensors and assets</p></li>
+<li><p><strong>Low-level PhysX mocks</strong> (<code class="docutils literal notranslate"><span class="pre">isaaclab_physx.test.mock_interfaces</span></code>) - Mock PhysX TensorAPI views</p></li>
+</ol>
+</section>
+<section id="high-level-mock-interfaces">
+<h2>High-Level Mock Interfaces<a class="headerlink" href="#high-level-mock-interfaces" title="Permalink to this heading">#</a></h2>
+<p>Located in <code class="docutils literal notranslate"><span class="pre">isaaclab.test.mock_interfaces</span></code>, these mock the public API of sensor
+and asset base classes.</p>
+<section id="available-mocks">
+<h3>Available Mocks<a class="headerlink" href="#available-mocks" title="Permalink to this heading">#</a></h3>
+<p><strong>Sensors:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Mock Class</p></th>
+<th class="head"><p>Real Class</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MockImu</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseImu</span></code></p></td>
+<td><p>IMU sensor (accelerometer + gyroscope)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MockContactSensor</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseContactSensor</span></code></p></td>
+<td><p>Contact force sensor</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MockFrameTransformer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseFrameTransformer</span></code></p></td>
+<td><p>Frame tracking sensor</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Assets:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Mock Class</p></th>
+<th class="head"><p>Real Class</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MockArticulation</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseArticulation</span></code></p></td>
+<td><p>Articulated robot (joints + bodies)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MockRigidObject</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseRigidObject</span></code></p></td>
+<td><p>Single rigid body</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MockRigidObjectCollection</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseRigidObjectCollection</span></code></p></td>
+<td><p>Collection of rigid bodies</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="quick-start">
+<h3>Quick Start<a class="headerlink" href="#quick-start" title="Permalink to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.test.mock_interfaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">MockArticulation</span><span class="p">,</span> <span class="n">MockContactSensor</span>
+
+<span class="c1"># Create a mock quadruped robot</span>
+<span class="n">robot</span> <span class="o">=</span> <span class="n">MockArticulation</span><span class="p">(</span>
+    <span class="n">num_instances</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">num_joints</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+    <span class="n">num_bodies</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span>
+    <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;joint_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">12</span><span class="p">)],</span>
+    <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Set joint states</span>
+<span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_mock_data</span><span class="p">(</span>
+    <span class="n">joint_pos</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">),</span>
+    <span class="n">joint_vel</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+<span class="p">)</span>
+
+<span class="c1"># Access data like the real asset</span>
+<span class="n">positions</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span>  <span class="c1"># Shape: (4, 12)</span>
+
+<span class="c1"># Create a mock contact sensor</span>
+<span class="n">sensor</span> <span class="o">=</span> <span class="n">MockContactSensor</span><span class="p">(</span><span class="n">num_instances</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">num_bodies</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+<span class="n">sensor</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_net_forces_w</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="factory-functions">
+<h3>Factory Functions<a class="headerlink" href="#factory-functions" title="Permalink to this heading">#</a></h3>
+<p>Pre-configured factories for common use cases:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.test.mock_interfaces</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">create_mock_quadruped</span><span class="p">,</span>
+    <span class="n">create_mock_humanoid</span><span class="p">,</span>
+    <span class="n">create_mock_foot_contact_sensor</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Pre-configured quadruped (12 joints, 13 bodies)</span>
+<span class="n">robot</span> <span class="o">=</span> <span class="n">create_mock_quadruped</span><span class="p">(</span><span class="n">num_instances</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+<span class="c1"># Pre-configured humanoid (21 joints, 22 bodies)</span>
+<span class="n">humanoid</span> <span class="o">=</span> <span class="n">create_mock_humanoid</span><span class="p">(</span><span class="n">num_instances</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="c1"># Foot contact sensor for quadruped</span>
+<span class="n">foot_contact</span> <span class="o">=</span> <span class="n">create_mock_foot_contact_sensor</span><span class="p">(</span><span class="n">num_instances</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">num_feet</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="patching-utilities">
+<h3>Patching Utilities<a class="headerlink" href="#patching-utilities" title="Permalink to this heading">#</a></h3>
+<p>Use context managers or decorators to inject mocks into tests:</p>
+<p><strong>Context Managers:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.test.mock_interfaces.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">patch_articulation</span><span class="p">,</span> <span class="n">patch_sensor</span>
+
+<span class="k">with</span> <span class="n">patch_articulation</span><span class="p">(</span><span class="s2">&quot;my_module.Articulation&quot;</span><span class="p">,</span> <span class="n">num_joints</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span> <span class="k">as</span> <span class="n">MockRobot</span><span class="p">:</span>
+    <span class="n">robot</span> <span class="o">=</span> <span class="n">my_function_that_creates_robot</span><span class="p">()</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_joint_pos</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+
+<span class="k">with</span> <span class="n">patch_sensor</span><span class="p">(</span><span class="s2">&quot;my_module.ContactSensor&quot;</span><span class="p">,</span> <span class="s2">&quot;contact&quot;</span><span class="p">,</span> <span class="n">num_bodies</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+    <span class="n">sensor</span> <span class="o">=</span> <span class="n">my_function_that_creates_sensor</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><strong>Decorators:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.test.mock_interfaces.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">mock_articulation</span><span class="p">,</span> <span class="n">mock_sensor</span>
+
+<span class="nd">@mock_articulation</span><span class="p">(</span><span class="n">num_joints</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">num_bodies</span><span class="o">=</span><span class="mi">13</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_observation_function</span><span class="p">(</span><span class="n">mock_robot</span><span class="p">):</span>
+    <span class="n">mock_robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_joint_pos</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">compute_observation</span><span class="p">(</span><span class="n">mock_robot</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">24</span><span class="p">)</span>
+
+<span class="nd">@mock_sensor</span><span class="p">(</span><span class="s2">&quot;contact&quot;</span><span class="p">,</span> <span class="n">num_instances</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">num_bodies</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_contact_reward</span><span class="p">(</span><span class="n">mock_contact</span><span class="p">):</span>
+    <span class="n">mock_contact</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_net_forces_w</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="n">reward</span> <span class="o">=</span> <span class="n">compute_contact_reward</span><span class="p">(</span><span class="n">mock_contact</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="low-level-physx-mock-interfaces">
+<h2>Low-Level PhysX Mock Interfaces<a class="headerlink" href="#low-level-physx-mock-interfaces" title="Permalink to this heading">#</a></h2>
+<p>Located in <code class="docutils literal notranslate"><span class="pre">isaaclab_physx.test.mock_interfaces</span></code>, these mock the PhysX TensorAPI
+views used internally by assets and sensors.</p>
+<section id="id1">
+<h3>Available Mocks<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Mock Class</p></th>
+<th class="head"><p>PhysX Class</p></th>
+<th class="head"><p>Used By</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MockRigidBodyView</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">physx.RigidBodyView</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RigidObject</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MockArticulationView</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">physx.ArticulationView</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Articulation</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MockRigidContactView</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">physx.RigidContactView</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ContactSensor</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="id2">
+<h3>Quick Start<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.test.mock_interfaces</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MockRigidBodyView</span><span class="p">,</span>
+    <span class="n">MockArticulationView</span><span class="p">,</span>
+    <span class="n">MockRigidContactView</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Create a mock rigid body view</span>
+<span class="n">view</span> <span class="o">=</span> <span class="n">MockRigidBodyView</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+<span class="n">transforms</span> <span class="o">=</span> <span class="n">view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span>  <span class="c1"># Shape: (4, 7)</span>
+
+<span class="c1"># Set mock data</span>
+<span class="n">view</span><span class="o">.</span><span class="n">set_mock_transforms</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span>
+
+<span class="c1"># Create a mock articulation view</span>
+<span class="n">art_view</span> <span class="o">=</span> <span class="n">MockArticulationView</span><span class="p">(</span>
+    <span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">num_dofs</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+    <span class="n">num_links</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span>
+<span class="p">)</span>
+<span class="n">positions</span> <span class="o">=</span> <span class="n">art_view</span><span class="o">.</span><span class="n">get_dof_positions</span><span class="p">()</span>  <span class="c1"># Shape: (4, 12)</span>
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h3>Factory Functions<a class="headerlink" href="#id3" title="Permalink to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.test.mock_interfaces</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">create_mock_rigid_body_view</span><span class="p">,</span>
+    <span class="n">create_mock_articulation_view</span><span class="p">,</span>
+    <span class="n">create_mock_quadruped_view</span><span class="p">,</span>
+    <span class="n">create_mock_rigid_contact_view</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Pre-configured quadruped view (12 DOFs, 13 links)</span>
+<span class="n">view</span> <span class="o">=</span> <span class="n">create_mock_quadruped_view</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+<span class="c1"># Pre-configured humanoid view (21 DOFs, 22 links)</span>
+<span class="n">humanoid</span> <span class="o">=</span> <span class="n">create_mock_humanoid_view</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="id4">
+<h3>Patching Utilities<a class="headerlink" href="#id4" title="Permalink to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.test.mock_interfaces.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">patch_rigid_body_view</span><span class="p">,</span>
+    <span class="n">patch_articulation_view</span><span class="p">,</span>
+    <span class="n">mock_articulation_view</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Context manager</span>
+<span class="k">with</span> <span class="n">patch_rigid_body_view</span><span class="p">(</span><span class="s2">&quot;my_module.physx.RigidBodyView&quot;</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+    <span class="n">view</span> <span class="o">=</span> <span class="n">create_rigid_body</span><span class="p">()</span>
+
+<span class="c1"># Decorator</span>
+<span class="nd">@mock_articulation_view</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">num_dofs</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">num_links</span><span class="o">=</span><span class="mi">13</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_my_function</span><span class="p">(</span><span class="n">mock_view</span><span class="p">):</span>
+    <span class="n">positions</span> <span class="o">=</span> <span class="n">mock_view</span><span class="o">.</span><span class="n">get_dof_positions</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">positions</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="data-shapes-reference">
+<h2>Data Shapes Reference<a class="headerlink" href="#data-shapes-reference" title="Permalink to this heading">#</a></h2>
+<section id="high-level-mocks">
+<h3>High-Level Mocks<a class="headerlink" href="#high-level-mocks" title="Permalink to this heading">#</a></h3>
+<p><strong>IMU Data:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 20.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Property</p></th>
+<th class="head"><p>Shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pos_w</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Position in world frame</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">quat_w</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">4)</span></code></p></td>
+<td><p>Orientation (w,x,y,z) in world frame</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lin_vel_b</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Linear velocity in body frame</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ang_vel_b</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Angular velocity in body frame</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">projected_gravity_b</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Gravity in body frame</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Contact Sensor Data:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 20.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Property</p></th>
+<th class="head"><p>Shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">net_forces_w</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">B,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Net contact forces</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">force_matrix_w</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">B,</span> <span class="pre">M,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Filtered forces</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">current_contact_time</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">B)</span></code></p></td>
+<td><p>Time in contact</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">current_air_time</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">B)</span></code></p></td>
+<td><p>Time in air</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Where N = instances, B = bodies, M = filter bodies</p>
+<p><strong>Articulation Data:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 20.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Property</p></th>
+<th class="head"><p>Shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">joint_pos</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">J)</span></code></p></td>
+<td><p>Joint positions</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">joint_vel</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">J)</span></code></p></td>
+<td><p>Joint velocities</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">root_link_pose_w</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">7)</span></code></p></td>
+<td><p>Root pose in world</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">body_link_pose_w</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">B,</span> <span class="pre">7)</span></code></p></td>
+<td><p>Body poses in world</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Where N = instances, J = joints, B = bodies</p>
+</section>
+<section id="physx-view-mocks">
+<h3>PhysX View Mocks<a class="headerlink" href="#physx-view-mocks" title="Permalink to this heading">#</a></h3>
+<p><strong>RigidBodyView:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">get_transforms()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">7)</span></code></p></td>
+<td><p>[pos(3), quat_xyzw(4)]</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">get_velocities()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">6)</span></code></p></td>
+<td><p>[lin_vel(3), ang_vel(3)]</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">get_masses()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">1)</span></code></p></td>
+<td><p>mass per body</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">get_inertias()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">3,</span> <span class="pre">3)</span></code></p></td>
+<td><p>3x3 inertia matrix</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>ArticulationView:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 35.0%" />
+<col style="width: 20.0%" />
+<col style="width: 45.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">get_root_transforms()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">7)</span></code></p></td>
+<td><p>Root pose</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">get_link_transforms()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">L,</span> <span class="pre">7)</span></code></p></td>
+<td><p>Link poses</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">get_dof_positions()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">J)</span></code></p></td>
+<td><p>Joint positions</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">get_dof_limits()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">J,</span> <span class="pre">2)</span></code></p></td>
+<td><p>[lower, upper]</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>RigidContactView:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 20.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">get_net_contact_forces(dt)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N*B,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Flat net forces</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">get_contact_force_matrix(dt)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(N*B,</span> <span class="pre">F,</span> <span class="pre">3)</span></code></p></td>
+<td><p>Per-filter forces</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="design-patterns">
+<h2>Design Patterns<a class="headerlink" href="#design-patterns" title="Permalink to this heading">#</a></h2>
+<p>All mock interfaces follow these patterns:</p>
+<ol class="arabic simple">
+<li><p><strong>Lazy Initialization</strong> - Tensors created on first access with correct shapes</p></li>
+<li><p><strong>Device Transfer</strong> - All setters call <code class="docutils literal notranslate"><span class="pre">.to(device)</span></code></p></li>
+<li><p><strong>Identity Quaternion Defaults</strong> - Quaternions default to identity</p></li>
+<li><p><strong>Clone on Getters</strong> - Return <code class="docutils literal notranslate"><span class="pre">.clone()</span></code> to prevent mutation</p></li>
+<li><p><strong>No-op Actions</strong> - Simulation operations (reset, update, write_to_sim) do nothing</p></li>
+<li><p><strong>Mock Setters</strong> - Direct <code class="docutils literal notranslate"><span class="pre">set_mock_*</span></code> methods for test setup</p></li>
+</ol>
+</section>
+<section id="example-testing-an-observation-function">
+<h2>Example: Testing an Observation Function<a class="headerlink" href="#example-testing-an-observation-function" title="Permalink to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.test.mock_interfaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">MockArticulation</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">robot</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">MockArticulation</span><span class="p">(</span>
+        <span class="n">num_instances</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+        <span class="n">num_joints</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+        <span class="n">num_bodies</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span>
+    <span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_joint_observation</span><span class="p">(</span><span class="n">robot</span><span class="p">):</span>
+    <span class="c1"># Setup</span>
+    <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_joint_pos</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span>
+
+    <span class="c1"># Test your observation function</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">compute_joint_observation</span><span class="p">(</span><span class="n">robot</span><span class="p">)</span>
+
+    <span class="c1"># Verify</span>
+    <span class="k">assert</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">24</span><span class="p">)</span>  <span class="c1"># pos + vel</span>
+    <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">obs</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">12</span><span class="p">],</span> <span class="n">joint_pos</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_body_observation</span><span class="p">(</span><span class="n">robot</span><span class="p">):</span>
+    <span class="c1"># Setup</span>
+    <span class="n">body_poses</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_body_link_pose_w</span><span class="p">(</span><span class="n">body_poses</span><span class="p">)</span>
+
+    <span class="c1"># Test</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">compute_body_observation</span><span class="p">(</span><span class="n">robot</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="example-testing-with-physx-view-mocks">
+<h2>Example: Testing with PhysX View Mocks<a class="headerlink" href="#example-testing-with-physx-view-mocks" title="Permalink to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.test.mock_interfaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_mock_quadruped_view</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.test.mock_interfaces.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">mock_articulation_view</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_quadruped_joint_limits</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test quadruped joint limit handling.&quot;&quot;&quot;</span>
+    <span class="n">view</span> <span class="o">=</span> <span class="n">create_mock_quadruped_view</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+    <span class="c1"># Set custom joint limits</span>
+    <span class="n">limits</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">limits</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.5</span>  <span class="c1"># lower limit</span>
+    <span class="n">limits</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.5</span>   <span class="c1"># upper limit</span>
+    <span class="n">view</span><span class="o">.</span><span class="n">set_mock_dof_limits</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span>
+
+    <span class="c1"># Verify limits</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">view</span><span class="o">.</span><span class="n">get_dof_limits</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">result</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">),</span> <span class="o">-</span><span class="mf">1.5</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">result</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">),</span> <span class="mf">1.5</span><span class="p">))</span>
+
+<span class="nd">@mock_articulation_view</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">num_dofs</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">num_links</span><span class="o">=</span><span class="mi">13</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_articulation_with_decorator</span><span class="p">(</span><span class="n">mock_view</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test using the decorator pattern.&quot;&quot;&quot;</span>
+    <span class="c1"># Set some initial positions</span>
+    <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">mock_view</span><span class="o">.</span><span class="n">set_mock_dof_positions</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span>
+
+    <span class="c1"># Verify</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">mock_view</span><span class="o">.</span><span class="n">get_dof_positions</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">positions</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Testing</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="micro_benchmarks.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Micro-Benchmarks for Performance Testing</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#high-level-mock-interfaces">High-Level Mock Interfaces</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-mocks">Available Mocks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#factory-functions">Factory Functions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#patching-utilities">Patching Utilities</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#low-level-physx-mock-interfaces">Low-Level PhysX Mock Interfaces</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Available Mocks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Quick Start</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Factory Functions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Patching Utilities</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-shapes-reference">Data Shapes Reference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#high-level-mocks">High-Level Mocks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physx-view-mocks">PhysX View Mocks</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#design-patterns">Design Patterns</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-testing-an-observation-function">Example: Testing an Observation Function</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-testing-with-physx-view-mocks">Example: Testing with PhysX View Mocks</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Mar 06, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
