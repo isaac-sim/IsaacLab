@@ -488,8 +488,8 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentationSD"].map(device=Device.CUDA) as mapping:
+        if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
+            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
                 if tiled_semantic_data.dtype == wp.uint32:
