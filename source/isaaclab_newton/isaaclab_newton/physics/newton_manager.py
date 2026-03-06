@@ -16,6 +16,7 @@ import warp as wp
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
+from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
@@ -191,23 +192,25 @@ class NewtonManager(PhysicsManager):
 
         # Notify solver of model changes
         if cls._model_changes:
-            for change in cls._model_changes:
-                cls._solver.notify_model_changed(change)
-            cls._model_changes = set()
+            with wp.ScopedDevice(PhysicsManager._device):
+                for change in cls._model_changes:
+                    cls._solver.notify_model_changed(change)
+                cls._model_changes = set()
 
         # Step simulation (graphed or not; _graph is None when RTX/Fabric sync is active)
         cfg = PhysicsManager._cfg
-        if cls._graph is not None:
+        if cfg is not None and cfg.use_cuda_graph and "cuda" in PhysicsManager._device:  # type: ignore[union-attr]
             wp.capture_launch(cls._graph)  # type: ignore[arg-type]
         else:
-            cls._simulate()
+            with wp.ScopedDevice(PhysicsManager._device):
+                cls._simulate()
 
         # Debug convergence info
         if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
             convergence_data = cls.get_solver_convergence_steps()
+            logger.info(f"Solver convergence data: {convergence_data}")
             if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:
                 logger.warning(f"Solver didn't converge! max_iter={convergence_data['max']}")
-
         PhysicsManager._sim_time += cls._solver_dt * cls._num_substeps
 
     @classmethod
@@ -320,13 +323,71 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def instantiate_builder_from_stage(cls):
-        """Create builder from USD stage."""
+        """Create builder from USD stage.
+
+        Detects env Xforms (e.g. ``/World/Env_0``, ``/World/Env_1``) and builds
+        each as a separate Newton world via ``begin_world``/``end_world``.
+        Falls back to a flat ``add_usd`` when no env Xforms are found.
+        """
+        import re
+
         from pxr import UsdGeom
 
         stage = get_current_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
+
+        # Scan /World children for env-like Xforms (Env_0, env_1, ...)
+        env_pattern = re.compile(r"^[Ee]nv_(\d+)$")
+        world_prim = stage.GetPrimAtPath("/World")
+        env_paths: list[tuple[int, str]] = []
+        if world_prim and world_prim.IsValid():
+            for child in world_prim.GetChildren():
+                m = env_pattern.match(child.GetName())
+                if m:
+                    env_paths.append((int(m.group(1)), child.GetPath().pathString))
+        env_paths.sort(key=lambda x: x[0])
+
         builder = ModelBuilder(up_axis=up_axis)
-        builder.add_usd(stage)
+
+        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+
+        if not env_paths:
+            # No env Xforms — flat loading
+            builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            cls._num_envs = 1
+        else:
+            # Load everything except the env subtrees (ground plane, lights, etc.)
+            ignore_paths = [path for _, path in env_paths]
+            builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+
+            # Build a prototype from the first env (all envs assumed identical)
+            _, proto_path = env_paths[0]
+            proto = ModelBuilder(up_axis=up_axis)
+            proto.add_usd(
+                stage,
+                root_path=proto_path,
+                schema_resolvers=schema_resolvers,
+            )
+
+            # Add each env as a separate Newton world
+            xform_cache = UsdGeom.XformCache()
+            for _, env_path in env_paths:
+                builder.begin_world()
+                world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
+                translation = world_xform.ExtractTranslation()
+                rotation = world_xform.ExtractRotationQuat()
+                pos = (translation[0], translation[1], translation[2])
+                quat = (
+                    rotation.GetImaginary()[0],
+                    rotation.GetImaginary()[1],
+                    rotation.GetImaginary()[2],
+                    rotation.GetReal(),
+                )
+                builder.add_builder(proto, xform=wp.transform(pos, quat))
+                builder.end_world()
+
+            cls._num_envs = len(env_paths)
+
         cls.set_builder(builder)
 
     @classmethod
@@ -418,16 +479,14 @@ class NewtonManager(PhysicsManager):
             # Initialize contacts and collision pipeline
             cls._initialize_contacts()
 
-        # Ensure we are using a CUDA enabled device
         device = PhysicsManager._device
-        assert device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
 
         # Skip CUDA graph when syncing to USD/Fabric for RTX: capture conflicts with RTX/Replicator
         # using the legacy stream (cudaErrorStreamCaptureImplicit).
         use_cuda_graph = cfg.use_cuda_graph and (cls._usdrt_stage is None)  # type: ignore[union-attr]
 
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-            if use_cuda_graph:
+            if use_cuda_graph and "cuda" in device:
                 with wp.ScopedCapture() as capture:
                     cls._simulate()
                 cls._graph = capture.graph

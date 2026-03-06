@@ -131,6 +131,11 @@ class MockNewtonArticulationView:
         """Names of the bodies."""
         return self._body_names
 
+    @property
+    def link_names(self) -> list[str]:
+        """Alias for body_names (Newton calls bodies 'links')."""
+        return self._body_names
+
     # -- Lazy Initialization Helpers --
 
     def _ensure_root_transforms(self) -> wp.array:
