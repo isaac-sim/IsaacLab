@@ -168,4 +168,9 @@ class ActuatorBaseCfg:
 
     gravity_compensation: bool | None = None
     """Whether to perform gravity compensation for this group of actuators. Defaults to None.
+
+    .. note::
+
+        This attribute is only supported by the Newton (MuJoCo) simulation backend.
+        When using other backends (e.g. PhysX), this setting is silently ignored.
     """
