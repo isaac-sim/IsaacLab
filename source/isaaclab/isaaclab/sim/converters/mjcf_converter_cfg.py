@@ -37,5 +37,5 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
 
-    import_scene: bool = True
-    """Import the scene from the MJCF file. Defaults to True."""
+    import_physics_scene: bool = False
+    """Import the physics scene (time step per second, gravity, etc.) from the MJCF file. Defaults to False."""
