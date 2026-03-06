@@ -1,15 +1,6 @@
 Changelog
 ---------
 
-1.2.2 (2026-03-05)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Added a note in SkillGen documentation recommending conda as the supported environment for installing cuRobo with Isaac Lab and Isaac Sim.
-
-
 1.2.1 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~~
 
