@@ -529,13 +529,22 @@ Generate the dataset with manipulation and point-to-point navigation
 
 To create a comprehensive locomanipulation dataset that combines both manipulation and navigation capabilities, you can generate a navigation dataset using the manipulation dataset from the previous step as input.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/disjoint_navigation.gif
-   :width: 100%
-   :align: center
-   :alt: G1 humanoid robot combining navigation with locomanipulation
-   :figclass: align-center
+.. list-table::
+   :widths: 50 50
+   :header-rows: 0
 
-   G1 humanoid robot performing locomanipulation with navigation capabilities.
+   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/g1_locomanip_no_obstacles.gif
+         :height: 260px
+         :align: center
+         :alt: G1 locomanipulation data generation without obstacles
+
+         Default: no obstacles (open scene).
+     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/g1_locomanip_with_obstacles.gif
+         :height: 260px
+         :align: center
+         :alt: G1 locomanipulation data generation with forklift obstacles
+
+         With 8 forklift obstacles and ``--randomize_placement`` enabled.
 
 The locomanipulation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
 
@@ -567,6 +576,10 @@ The key parameters for locomanipulation dataset generation are:
 * ``--navigate_step 130``: Number of steps for the navigation phase between locations. This should make the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
 
+.. note::
+
+   You can change the number of obstacles (forklifts and boxes) in the scene by editing the locomanipulation SDG environment configuration. In ``source/isaaclab_mimic/isaaclab_mimic/locomanipulation_sdg/envs/g1_locomanipulation_sdg_env.py``, set the module-level constants ``NUM_FORKLIFTS`` and ``NUM_BOXES`` to the desired counts. Use ``--randomize_placement`` when running :file:`generate_data.py` to randomize obstacle and fixture positions each run.
+
 This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
 
 .. note::
@@ -577,9 +590,96 @@ This process creates a dataset where the robot performs the manipulation task at
 
       ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
 
-The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.  To do this,
-you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided
-in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in the video below:
+The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.
+The following steps describe how to install GR00T, convert the dataset to LeRobot format, finetune the policy, and run rollouts in Isaac Lab.
+
+Finetune GR00T N1.5 policy for locomanipulation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Prerequisites:** Generate the locomanipulation dataset using the command in the previous section (e.g. ``generated_dataset_g1_locomanipulation_sdg.hdf5``).
+You may place one or more such HDF5 files in a single directory for the conversion step.
+
+Install GR00T with Isaac Lab (uv)
+"""""""""""""""""""""""""""""""""
+
+Clone the Isaac-GR00T repository and install GR00T N1.5 in the same uv environment used for Isaac Lab. From a parent directory that contains both repositories (or adjust paths accordingly), run:
+
+.. code:: bash
+
+   git clone -b n1.5-release https://github.com/NVIDIA/Isaac-GR00T
+
+Copy the G1 locomanipulation data config from Isaac Lab into the GR00T experiment data config:
+
+.. code:: bash
+
+   cp IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/data_config.py Isaac-GR00T/gr00t/experiment/data_config.py
+
+Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencies:
+
+.. code:: bash
+
+   cd Isaac-GR00T
+   uv pip install -e .
+   uv pip install wheel
+   MAX_JOBS=4 uv pip install --no-build-isolation flash-attn==2.7.1.post4
+   MAX_JOBS=4 uv pip install --no-build-isolation pytorch3d
+   uv pip install diffusers decord zmq
+
+Convert dataset to LeRobot format
+"""""""""""""""""""""""""""""""""
+
+GR00T N1.5 expects data in LeRobot format. From the **IsaacLab** repository root, run the conversion script. ``<input_dir>`` is a directory containing one or more ``.hdf5`` files (e.g. the output directory where you saved files from ``generate_data.py``). ``<output_path>`` is the LeRobot-format output directory (e.g. ``./datasets/datasets_train_200_lerobot``). Episodes with very low object displacement are skipped.
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
+
+Example:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets ./datasets/datasets_train_200_lerobot
+
+Finetune the policy
+"""""""""""""""""""
+
+Run finetuning from the **Isaac-GR00T** repository root. Use the LeRobot-format output path from the previous step as ``--dataset-path`` and choose an ``--output-dir`` for checkpoints. The ``--data-config g1_locomanipulation_sdg`` and ``--embodiment-tag new_embodiment`` options are required for the G1 locomanipulation task.
+
+.. code:: bash
+
+   cd Isaac-GR00T
+   python scripts/gr00t_finetune.py \
+       --dataset-path <path_to_lerobot_output> \
+       --output-dir <checkpoint_dir> \
+       --data-config g1_locomanipulation_sdg \
+       --embodiment-tag new_embodiment \
+       --num-gpus 1 \
+       --max-steps 10000 \
+       --save-steps 1000 \
+       --video-backend decord \
+       --report-to tensorboard
+
+See the GR00T N1.5 repository documentation for additional training options.
+
+Rollout the policy in Isaac Lab
+"""""""""""""""""""""""""""""""
+
+From the **IsaacLab** repository root, run the rollout script with the path to your finetuned checkpoint, the static manipulation dataset (used for scene/demo setup), and the task name:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
+       --model_path <checkpoint_dir_or_file> \
+       --embodiment_tag new_embodiment \
+       --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
+       --demo demo_0 \
+       --output_file ./datasets/rollout_output.hdf5 \
+       --task Isaac-G1-SteeringWheel-Locomanipulation \
+       --device cpu \
+       --enable_cameras \
+       --visualizer kit
+
+Optional arguments include ``--randomize_placement`` and ``--policy_quat_format wxyz`` (use if your checkpoint was trained with wxyz quaternion format).
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
    :width: 100%
@@ -628,7 +728,6 @@ Then run the following command:
        --num_runs 1 \
        --lift_step 60 \
        --navigate_step 130 \
-       --enable_pinocchio \
        --output_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
        --enable_cameras \
        --visualizer kit \
