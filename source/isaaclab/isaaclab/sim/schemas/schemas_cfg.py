@@ -115,6 +115,14 @@ class RigidBodyPropertiesCfg:
     stabilization_threshold: float | None = None
     """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
 
+    gravity_compensation_scale: float | None = None
+    """Scale factor for gravity compensation for the body. Defaults to None (attribute not written to USD).
+
+    .. note::
+
+        This attribute is only supported by the Newton (MuJoCo) simulation backend.
+        When using other backends (e.g. PhysX), the attribute is written to USD but has no effect.
+    """
 
 @configclass
 class CollisionPropertiesCfg:

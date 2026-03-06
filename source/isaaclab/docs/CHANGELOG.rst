@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.5.7 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg.gravity_compensation_scale` to
+  :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg` for setting body-level gravity compensation
+  (written as ``mjc:gravcomp`` on USD rigid body prims).
+* Added :attr:`~isaaclab.actuators.ActuatorBaseCfg.gravity_compensation` flag to
+  :class:`~isaaclab.actuators.ActuatorBaseCfg` to enable per-actuator gravity compensation.
+
 4.5.6 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
@@ -34,7 +46,6 @@ Changed
   (``s``/``ms``/``us``/``ns``), global enable/disable toggle, display output
   control, and ``wp.synchronize()`` before stopping to ensure accurate
   GPU timing.
-
 
 4.5.3 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~

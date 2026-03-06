@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -25,7 +26,8 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.sim.utils.prims import safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils.queries import find_first_matching_prim, find_matching_prims, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -113,6 +115,7 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        self._write_actuator_gravity_comp_to_usd()
 
     """
     Properties
@@ -3787,6 +3790,33 @@ class Articulation(BaseArticulation):
         if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
             return self._ALL_SPATIAL_TENDON_INDICES
         return spatial_tendon_ids
+
+    def _write_actuator_gravity_comp_to_usd(self) -> None:
+        """Write ``mjc:actuatorgravcomp = True`` to joint USD prims for actuators with gravity_compensation=True.
+
+        Must be called after spawning (joint prims exist) but before ``sim.reset()``
+        so Newton reads the attribute during ``instantiate_builder_from_stage()``.
+        """
+
+        gc_actuators = {
+            name: cfg for name, cfg in self.cfg.actuators.items() if getattr(cfg, "gravity_compensation", None)
+        }
+        if not gc_actuators:
+            return
+
+        _JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint", "PhysicsSphericalJoint", "PhysicsD6Joint"}
+
+        for artic_prim in find_matching_prims(self.cfg.prim_path):
+            joint_prims = get_all_matching_child_prims(
+                artic_prim.GetPath().pathString,
+                predicate=lambda prim: prim.GetTypeName() in _JOINT_TYPES,
+            )
+            for joint_prim in joint_prims:
+                joint_name = joint_prim.GetName()
+                for actuator_cfg in gc_actuators.values():
+                    if any(re.fullmatch(expr, joint_name) for expr in actuator_cfg.joint_names_expr):
+                        safe_set_attribute_on_usd_prim(joint_prim, "mjc:actuatorgravcomp", True, camel_case=False)
+                        break
 
     """
     Deprecated methods.
