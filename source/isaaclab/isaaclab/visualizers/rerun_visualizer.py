@@ -207,7 +207,8 @@ class RerunVisualizer(Visualizer):
             record_to_rrd=record_to_rrd,
             metadata=metadata or {},
         )
-        self._viewer.set_model(self._model)
+        max_worlds = self.cfg.max_worlds
+        self._viewer.set_model(self._model, max_worlds=None if max_worlds in (None, 0) else max_worlds)
         self._set_rerun_camera_view(self._resolve_initial_camera_pose())
 
         if reset_time:

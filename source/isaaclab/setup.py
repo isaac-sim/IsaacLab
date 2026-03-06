@@ -54,6 +54,7 @@ INSTALL_REQUIRES = [
     "newton==1.0.0rc1",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
+    "viser>=1.0.16",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",

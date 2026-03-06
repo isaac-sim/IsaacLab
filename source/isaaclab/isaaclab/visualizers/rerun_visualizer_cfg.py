@@ -42,3 +42,6 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
+
+    max_worlds: int | None = 0
+    """Maximum number of worlds/environments rendered by the viewer (0/None = all)."""

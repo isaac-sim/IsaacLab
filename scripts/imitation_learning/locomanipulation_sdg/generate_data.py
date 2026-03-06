@@ -5,15 +5,11 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 import os
 
 from isaaclab.app import AppLauncher
 
-# Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
@@ -94,12 +90,6 @@ parser.add_argument(
     action="store_true",
     default=False,
     help="Whether or not to randomize the placement of fixtures in the scene upon environment initialization.",
-)
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
 )
 parser.add_argument(
     "--background_usd_path",
@@ -452,6 +442,7 @@ def setup_navigation_scene(
         input_episode_data: Input episode data
         approach_distance: Buffer distance from final goal
         randomize_placement: Whether to randomize fixture placement
+        draw_visualization: Whether to add occupancy map and path to the USD stage
 
     Returns:
         NavigationScene or None if the navigation scene setup failed.
@@ -479,8 +470,8 @@ def setup_navigation_scene(
                 print(f"Failed to randomize fixture placement for {fixture.entity_name}", flush=True)
                 return None
 
-            sync_simulation_state(env)
-            occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
+        sync_simulation_state(env)
+        occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
 
     initial_state = env.load_input_data(input_episode_data, 0)
 
@@ -885,6 +876,10 @@ def replay(
         angle_threshold: Angular threshold for orientation control (rad)
         approach_distance: Buffer distance from final goal (m)
         randomize_placement: Whether to randomize obstacle placement
+        init_camera_view: Whether to set the viewport camera behind the robot at episode start
+
+    Returns:
+        True if the episode ended with success termination, False otherwise.
     """
 
     # Reset recorder manager to clear any leftover episode data from previous runs

@@ -96,6 +96,30 @@ def _is_kit_camera(node) -> bool:
     return True
 
 
+def compute_kit_requirements(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None = None,
+) -> tuple[bool, bool, set[str]]:
+    """Compute whether Kit is needed and related flags.
+
+    Uses the same logic as :func:`launch_simulation` to decide whether Isaac Sim
+    Kit must be launched.
+
+    Args:
+        env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
+        launcher_args: Optional CLI args; if ``visualizer=kit`` is set, needs_kit is True.
+
+    Returns:
+        (needs_kit, has_kit_cameras, visualizer_types)
+    """
+    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
+    needs_kit = has_kit_cameras or not is_newton
+    visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in visualizer_types:
+        needs_kit = True
+    return needs_kit, has_kit_cameras, visualizer_types
+
+
 @contextmanager
 def launch_simulation(
     env_cfg,
@@ -116,15 +140,7 @@ def launch_simulation(
         with launch_simulation(env_cfg, args_cli):
             main()
     """
-    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
-    # For Newton Physics + RTX Renderer (with Kit cameras): start Kit so RTX can run;
-    # Newton will sync state to USD each step.
-    needs_kit = has_kit_cameras or not is_newton
-
-    # If the Kit visualizer is explicitly requested, Kit must launch even for Newton physics.
-    visualizer_types = _get_visualizer_types(launcher_args)
-    if "kit" in visualizer_types:
-        needs_kit = True
+    needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
 
     if needs_kit and has_kit_cameras:
         if isinstance(launcher_args, argparse.Namespace):
