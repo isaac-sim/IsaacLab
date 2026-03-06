@@ -11,7 +11,6 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import logging
-import shutil
 
 import pytest
 import torch
@@ -81,8 +80,6 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "rerun":
         __import__("newton")
         __import__("rerun")
-        if shutil.which("rerun") is None:
-            raise RuntimeError("rerun binary not found in PATH")
         return RerunVisualizerCfg(bind_address="127.0.0.1", open_browser=False), RerunVisualizer
     return KitVisualizerCfg(), KitVisualizer
 
