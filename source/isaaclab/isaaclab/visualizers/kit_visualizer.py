@@ -36,6 +36,9 @@ class KitVisualizer(Visualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
+        # Camera prim path that set_camera_view() writes to. Pinned at initialization so that
+        # user-switching the GUI viewport to a sensor camera does not corrupt the sensor's prim.
+        self._controlled_camera_path: str | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -194,6 +197,9 @@ class KitVisualizer(Visualizer):
                 self._viewport_window = vp_utils.get_active_viewport_window()
 
         self._viewport_api = self._viewport_window.viewport_api
+        # Pin the camera path we will write to, using the active camera at init time.
+        # This must happen before any _set_viewport_camera() call so the path is known.
+        self._controlled_camera_path = self._viewport_api.get_active_camera() or "/OmniverseKit_Persp"
         # TODO: Unify camera initialization with a renderer-level rendering_cfg/camera_cfg
         # so visualizers can consume one canonical camera policy.
         if self.cfg.camera_source == "usd_path":
@@ -246,11 +252,16 @@ class KitVisualizer(Visualizer):
 
         if self._viewport_api:
             self._viewport_api.set_active_camera(camera_path)
+            self._controlled_camera_path = camera_path
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
-        camera_path = self._viewport_api.get_active_camera()
+        # Use the camera path pinned at initialization. This prevents user-switching the GUI
+        # viewport to a sensor camera from corrupting the sensor's USD prim transform.
+        camera_path = self._controlled_camera_path
+        if not camera_path:
+            camera_path = self._viewport_api.get_active_camera() if self._viewport_api else None
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
 
@@ -268,6 +279,7 @@ class KitVisualizer(Visualizer):
         if not camera_prim.IsValid():
             return False
         self._viewport_api.set_active_camera(camera_path)
+        self._controlled_camera_path = camera_path
         return True
 
     def _apply_env_visibility(self, usd_stage, metadata: dict) -> None:
