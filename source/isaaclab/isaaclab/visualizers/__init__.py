@@ -3,52 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Visualizer Registry.
+"""Visualizer base and factory entrypoints."""
 
-This module uses a registry pattern to decouple visualizer instantiation
-from specific types. Configs can create visualizers via the
-`create_visualizer()` factory method.
-"""
+from __future__ import annotations
 
+from .base_visualizer import BaseVisualizer
 from .visualizer import Visualizer
-from typing import Any
+from .visualizer_cfg import VisualizerCfg
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
-
-_VISUALIZER_REGISTRY: dict[str, Any] = {}
-
-
-def get_visualizer_class(name: str) -> type[Visualizer] | None:
-    """Get a visualizer class by name (lazy-loaded)."""
-    if name in _VISUALIZER_REGISTRY:
-        return _VISUALIZER_REGISTRY[name]
-
-    try:
-        if name == "newton":
-            from .newton_visualizer import NewtonVisualizer
-
-            _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
-            return NewtonVisualizer
-        if name == "viser":
-            from .viser_visualizer import ViserVisualizer
-
-            _VISUALIZER_REGISTRY["viser"] = ViserVisualizer
-            return ViserVisualizer
-        if name == "kit":
-            from .kit_visualizer import KitVisualizer
-
-            _VISUALIZER_REGISTRY["kit"] = KitVisualizer
-            return KitVisualizer
-        if name == "rerun":
-            from .rerun_visualizer import RerunVisualizer
-
-            _VISUALIZER_REGISTRY["rerun"] = RerunVisualizer
-            return RerunVisualizer
-        return None
-    except ImportError as exc:
-        import warnings
-
-        warnings.warn(f"Failed to load visualizer '{name}': {exc}", ImportWarning)
-        return None
+__all__ = ["BaseVisualizer", "Visualizer", "VisualizerCfg"]

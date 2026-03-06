@@ -8,8 +8,7 @@
 from __future__ import annotations
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 
 @configclass
@@ -29,10 +28,18 @@ class RerunVisualizerCfg(VisualizerCfg):
     """Port of the rerun gRPC server (used when serving web viewer externally)."""
 
     bind_address: str | None = "0.0.0.0"
-    """If set, start a rerun server bound to this address (e.g. '0.0.0.0') and connect to it."""
+    """Bind host used when starting a rerun server and for display endpoint formatting.
+
+    Notes:
+    - If an existing rerun server is already reachable on ``grpc_port``, it is reused.
+    - Local browser links normalize common loopback/wildcard hosts to ``127.0.0.1``.
+    """
 
     open_browser: bool = True
-    """Whether to auto-open a browser when serving the rerun web viewer."""
+    """Whether to attempt opening the rerun web viewer URL in a browser."""
+
+    auto_kill_stale_rerun_process: bool = True
+    """Whether to terminate a stale rerun process blocking the web port before spawning."""
 
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
@@ -43,5 +50,8 @@ class RerunVisualizerCfg(VisualizerCfg):
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
 
-    max_worlds: int | None = 0
-    """Maximum number of worlds/environments rendered by the viewer (0/None = all)."""
+    max_worlds: int | None = None
+    """Maximum number of worlds/environments rendered by the viewer.
+
+    Set to ``None`` to leave this option disabled.
+    """

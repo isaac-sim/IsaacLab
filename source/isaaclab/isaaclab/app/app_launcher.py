@@ -252,7 +252,7 @@ class AppLauncher:
 
         * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
           rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
-          config default. Use ``0`` to render all worlds.
+          config default.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -403,8 +403,7 @@ class AppLauncher:
             default=AppLauncher._APPLAUNCHER_CFG_INFO["visualizer_max_worlds"][1],
             help=(
                 "Optional global max worlds override for Newton-based visualizers (newton/rerun/viser). "
-                "If omitted, visualizer config defaults are used. "
-                "Set to 0 to render all worlds."
+                "If omitted, visualizer config defaults are used."
             ),
         )
         # special flag for backwards compatibility
@@ -979,7 +978,7 @@ class AppLauncher:
 
         with contextlib.suppress(Exception):
             visualizer_str = " ".join(visualizers) if visualizers else ""
-            get_settings_manager().set_string("/isaaclab/visualizer", visualizer_str)
+            get_settings_manager().set_string("/isaaclab/visualizer/types", visualizer_str)
             # Store as int setting where -1 means "use per-visualizer defaults".
             if visualizer_max_worlds is None:
                 get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", -1)

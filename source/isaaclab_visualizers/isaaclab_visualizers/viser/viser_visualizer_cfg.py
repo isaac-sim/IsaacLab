@@ -8,8 +8,7 @@
 from __future__ import annotations
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 
 @configclass
@@ -21,6 +20,9 @@ class ViserVisualizerCfg(VisualizerCfg):
 
     port: int = 8080
     """Port of the local viser web server."""
+
+    open_browser: bool = True
+    """Whether to attempt opening the viser web viewer URL in a browser."""
 
     label: str | None = "Isaac Lab Simulation"
     """Optional label shown in the viewer page title."""
@@ -34,5 +36,8 @@ class ViserVisualizerCfg(VisualizerCfg):
     record_to_viser: str | None = None
     """Path to save a .viser recording file. None = no recording."""
 
-    max_worlds: int | None = 0
-    """Maximum number of worlds/environments rendered by the viewer (0/None = all)."""
+    max_worlds: int | None = None
+    """Maximum number of worlds/environments rendered by the viewer.
+
+    Set to ``None`` to leave this option disabled.
+    """

@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.5.6 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reorganized Visualizers and SDP packages
+* Added Visualizer unit tests
+* Improved PhysX Scene Data Provider perf
+* Tweaked default Visualizer Configs
+
+
 4.5.5 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 

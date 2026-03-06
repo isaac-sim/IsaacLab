@@ -44,7 +44,7 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
     launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "visualizer_max_worlds": 0})
 
     assert settings.values == {
-        "/isaaclab/visualizer": "viser rerun",
+        "/isaaclab/visualizer/types": "viser rerun",
         "/isaaclab/visualizer/max_worlds": 0,
     }
 

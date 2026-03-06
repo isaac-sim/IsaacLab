@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 
-class SceneDataProvider(ABC):
+class BaseSceneDataProvider(ABC):
     """Backend-agnostic scene data provider interface."""
 
     @abstractmethod
