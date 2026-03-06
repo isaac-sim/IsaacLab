@@ -25,8 +25,7 @@ from typing import Any, Literal
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+    from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
