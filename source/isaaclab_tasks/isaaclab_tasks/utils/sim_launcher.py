@@ -158,7 +158,7 @@ def launch_simulation(
         # check if Isaac Sim is installed
         import importlib.util
 
-        if importlib.util.find_spec("isaacsim") is None:
+        if importlib.util.find_spec("omni.kit") is None:
             print(
                 "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
                 "\n"
