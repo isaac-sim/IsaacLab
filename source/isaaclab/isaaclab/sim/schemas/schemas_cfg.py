@@ -116,7 +116,7 @@ class RigidBodyPropertiesCfg:
     """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
 
     gravity_compensation_scale: float | None = None
-    """Scale factor for gravity compensation for the body. Defaults to 1.0."""
+    """Scale factor for gravity compensation for the body. Defaults to None (attribute not written to USD)."""
 
 
 @configclass
