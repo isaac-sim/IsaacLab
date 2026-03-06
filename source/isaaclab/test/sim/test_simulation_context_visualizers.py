@@ -7,6 +7,12 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
+import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
+import pytest
+from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
+
 from isaaclab.sim.simulation_context import SimulationContext
 
 
@@ -140,3 +146,112 @@ def test_update_visualizers_handles_training_pause_loop():
     ctx.update_visualizers(0.2)
 
     assert viz.step_calls == [0.0, 0.2]
+
+
+class _DummyViserSceneDataProvider:
+    def __init__(self):
+        self._metadata = {"num_envs": 4}
+        self.state_calls: list[list[int] | None] = []
+
+    def get_metadata(self) -> dict:
+        return self._metadata
+
+    def get_newton_model(self):
+        return "dummy-model"
+
+    def get_newton_state(self, env_ids: list[int] | None):
+        self.state_calls.append(env_ids)
+        return {"state_call": len(self.state_calls), "env_ids": env_ids}
+
+
+class _DummyViserViewer:
+    def __init__(self):
+        self.calls = []
+
+    def begin_frame(self, sim_time: float) -> None:
+        self.calls.append(("begin_frame", sim_time))
+
+    def log_state(self, state) -> None:
+        self.calls.append(("log_state", state))
+
+    def end_frame(self) -> None:
+        self.calls.append(("end_frame",))
+
+    def is_running(self) -> bool:
+        return True
+
+
+def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: pytest.MonkeyPatch):
+    provider = _DummyViserSceneDataProvider()
+    viewer = _DummyViserViewer()
+
+    def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
+        assert record_to_viser is None
+        assert metadata == provider.get_metadata()
+        self._viewer = viewer
+
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
+
+    visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
+    visualizer.initialize(cast(Any, provider))
+    visualizer.step(0.25)
+
+    assert visualizer.is_initialized
+    assert provider.state_calls == [None, None]
+    assert visualizer._sim_time == pytest.approx(0.25)
+    assert viewer.calls[0][0] == "begin_frame"
+    assert viewer.calls[0][1] == pytest.approx(0.25)
+    assert viewer.calls[1] == ("log_state", {"state_call": 2, "env_ids": None})
+    assert viewer.calls[2] == ("end_frame",)
+
+
+@pytest.mark.parametrize(
+    ("cfg_max_worlds", "expected_max_worlds"),
+    [
+        (None, None),
+        (0, 0),
+        (3, 3),
+    ],
+)
+def test_viser_visualizer_create_viewer_forwards_max_worlds(
+    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+):
+    captured = {}
+
+    class _FakeNewtonViewerViser:
+        def __init__(
+            self,
+            *,
+            port: int,
+            label: str | None,
+            verbose: bool,
+            share: bool,
+            record_to_viser: str | None,
+            metadata: dict | None = None,
+        ):
+            captured["init"] = {
+                "port": port,
+                "label": label,
+                "verbose": verbose,
+                "share": share,
+                "record_to_viser": record_to_viser,
+                "metadata": metadata,
+            }
+
+        def set_model(self, model: Any, max_worlds: int | None) -> None:
+            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+
+    monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
+    monkeypatch.setattr(
+        viser_visualizer.ViserVisualizer,
+        "_resolve_initial_camera_pose",
+        lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
+    )
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
+
+    cfg = ViserVisualizerCfg(max_worlds=cfg_max_worlds, open_browser=False)
+    visualizer = viser_visualizer.ViserVisualizer(cfg)
+    visualizer._model = "dummy-model"
+    visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
+
+    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}

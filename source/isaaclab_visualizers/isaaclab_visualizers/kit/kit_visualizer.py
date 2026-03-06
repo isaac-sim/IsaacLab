@@ -87,11 +87,16 @@ class KitVisualizer(BaseVisualizer):
         try:
             import omni.kit.app
 
+            from isaaclab.app.settings_manager import get_settings_manager
+
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
                 # Keep app pumping for viewport/UI updates only.
                 # Simulation stepping is owned by SimulationContext.
+                settings = get_settings_manager()
+                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
+                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 

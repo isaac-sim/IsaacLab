@@ -32,7 +32,7 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 logger = logging.getLogger(__name__)
 
 # Visualizer type names (CLI and config). App launcher stores --visualizer a b c as space-separated.
-_VISUALIZER_TYPES = ("newton", "rerun", "kit")
+_VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
 
 
 class SettingsHelper:
@@ -327,7 +327,7 @@ class SimulationContext:
             self._has_gui
             or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.get_setting("/isaaclab/visualizer"))
+            or bool(self.get_setting("/isaaclab/visualizer/types"))
         )
 
     def get_physics_dt(self) -> float:
@@ -343,7 +343,12 @@ class SimulationContext:
         import importlib
 
         default_configs = []
-        cfg_class_names = {"kit": "KitVisualizerCfg", "newton": "NewtonVisualizerCfg", "rerun": "RerunVisualizerCfg"}
+        cfg_class_names = {
+            "kit": "KitVisualizerCfg",
+            "newton": "NewtonVisualizerCfg",
+            "rerun": "RerunVisualizerCfg",
+            "viser": "ViserVisualizerCfg",
+        }
         for viz_type in requested_visualizers:
             try:
                 if viz_type not in _VISUALIZER_TYPES:
@@ -376,11 +381,56 @@ class SimulationContext:
 
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
-        requested = self.get_setting("/isaaclab/visualizer")
+        requested = self.get_setting("/isaaclab/visualizer/types")
         if not requested:
             return []
-        parts = [p.strip() for p in requested.split(",") if p.strip()]
-        return [v for part in parts for v in part.split() if v]
+        # Depending on settings backend, this may be a string or list.
+        if isinstance(requested, str):
+            parts = [p.strip() for p in requested.split(",") if p.strip()]
+            return [v for part in parts for v in part.split() if v]
+
+        if isinstance(requested, (list, tuple, set)):
+            out = []
+            for value in requested:
+                if isinstance(value, str):
+                    out.extend(v for v in value.replace(",", " ").split() if v)
+            return out
+
+        return []
+
+    def _get_cli_visualizer_max_worlds_override(self) -> tuple[bool, int | None]:
+        """Return CLI override for visualizer max worlds.
+
+        Returns:
+            Tuple of (has_override, value), where value=None means no override.
+        """
+        value = self.get_setting("/isaaclab/visualizer/max_worlds")
+        if value is None:
+            return False, None
+        try:
+            max_worlds = int(value)
+        except (TypeError, ValueError):
+            logger.warning("[SimulationContext] Invalid /isaaclab/visualizer/max_worlds setting: %r", value)
+            return False, None
+
+        # -1 means no CLI override.
+        if max_worlds < 0:
+            return False, None
+        return True, max_worlds
+
+    def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
+        """Apply CLI visualizer overrides (e.g., max worlds) to resolved configs.
+
+        Args:
+            visualizer_cfgs: Resolved visualizer configs to update in-place.
+        """
+        has_max_worlds_override, max_worlds_override = self._get_cli_visualizer_max_worlds_override()
+        if not has_max_worlds_override:
+            return
+
+        for cfg in visualizer_cfgs:
+            if hasattr(cfg, "max_worlds"):
+                cfg.max_worlds = max_worlds_override
 
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
@@ -402,9 +452,12 @@ class SimulationContext:
 
         cli_requested = self._get_cli_visualizer_types()
         if not visualizer_cfgs:
-            return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            resolved_cfgs = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            self._apply_visualizer_cli_overrides(resolved_cfgs)
+            return resolved_cfgs
 
         if not cli_requested:
+            self._apply_visualizer_cli_overrides(visualizer_cfgs)
             return visualizer_cfgs
 
         # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
@@ -415,6 +468,7 @@ class SimulationContext:
             if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
                 selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
                 existing_types.add(viz_type)
+        self._apply_visualizer_cli_overrides(selected_cfgs)
         return selected_cfgs
 
     def initialize_visualizers(self) -> None:
