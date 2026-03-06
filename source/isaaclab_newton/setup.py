@@ -24,8 +24,6 @@ INSTALL_REQUIRES = [
     "mujoco-warp==3.5.0.2",
     "newton==1.0.0rc1",
     "PyOpenGL-accelerate==3.1.10",
-    "imgui-bundle>=1.92.5",
-    "rerun-sdk>=0.29.0",
 ]
 
 # Installation operation
