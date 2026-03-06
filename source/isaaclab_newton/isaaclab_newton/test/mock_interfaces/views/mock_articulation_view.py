@@ -11,6 +11,151 @@ import numpy as np
 import warp as wp
 
 
+class MockNewtonCollectionView:
+    """Mock Newton ArticulationView for rigid object collection testing.
+
+    This class mimics the interface of a single ``ArticulationView`` whose combined
+    fnmatch pattern matches **B** body types per world. Its data is shaped
+    ``(N, B, ...)`` rather than the ``(N, 1, ...)`` convention used for single
+    articulations or single rigid bodies.
+
+    Data Shapes:
+        - root_transforms: ``(N, B)`` dtype=wp.transformf
+        - root_velocities: ``(N, B)`` dtype=wp.spatial_vectorf
+        - body_com:        ``(N, B, 1)`` dtype=wp.vec3f
+        - body_mass:       ``(N, B, 1)`` dtype=wp.float32
+        - body_inertia:    ``(N, B, 1)`` dtype=wp.mat33f
+        - body_f:          ``(N, B, 1)`` dtype=wp.spatial_vectorf
+
+    Where N = num_envs, B = num_bodies (body types in the collection).
+    ``count`` returns ``N * B`` so that the data class can compute
+    ``num_instances = count // num_bodies``.
+    """
+
+    def __init__(
+        self,
+        num_envs: int = 2,
+        num_bodies: int = 3,
+        device: str = "cpu",
+        body_names: list[str] | None = None,
+    ):
+        self._num_envs = num_envs
+        self._num_bodies = num_bodies
+        self._device = device
+        self._noop_setters = False
+
+        self._body_names = body_names if body_names is not None else [f"object_{i}" for i in range(num_bodies)]
+
+        # Internal state (lazily initialised)
+        self._root_transforms: wp.array | None = None
+        self._root_velocities: wp.array | None = None
+        self._attributes: dict[str, wp.array | None] = {
+            "body_com": None,
+            "body_mass": None,
+            "body_inertia": None,
+            "body_f": None,
+        }
+
+    # -- Properties --------------------------------------------------------
+
+    @property
+    def count(self) -> int:
+        """Total matched entities (``N * B``)."""
+        return self._num_envs * self._num_bodies
+
+    @property
+    def body_names(self) -> list[str]:
+        return self._body_names
+
+    # -- Lazy init helpers -------------------------------------------------
+
+    def _ensure_root_transforms(self) -> wp.array:
+        if self._root_transforms is None:
+            self._root_transforms = wp.zeros(
+                (self._num_envs, self._num_bodies), dtype=wp.transformf, device=self._device
+            )
+        return self._root_transforms
+
+    def _ensure_root_velocities(self) -> wp.array:
+        if self._root_velocities is None:
+            self._root_velocities = wp.zeros(
+                (self._num_envs, self._num_bodies), dtype=wp.spatial_vectorf, device=self._device
+            )
+        return self._root_velocities
+
+    def _ensure_attribute(self, name: str) -> wp.array:
+        if self._attributes[name] is None:
+            self._attributes[name] = self._create_default_attribute(name)
+        return self._attributes[name]
+
+    def _create_default_attribute(self, name: str) -> wp.array:
+        N, B = self._num_envs, self._num_bodies
+        dev = self._device
+        if name == "body_com":
+            return wp.zeros((N, B, 1), dtype=wp.vec3f, device=dev)
+        elif name == "body_mass":
+            return wp.zeros((N, B, 1), dtype=wp.float32, device=dev)
+        elif name == "body_inertia":
+            return wp.zeros((N, B, 1), dtype=wp.mat33f, device=dev)
+        elif name == "body_f":
+            return wp.zeros((N, B, 1), dtype=wp.spatial_vectorf, device=dev)
+        else:
+            raise KeyError(f"Unknown attribute: {name}")
+
+    # -- Getters -----------------------------------------------------------
+
+    def get_root_transforms(self, state) -> wp.array:
+        return self._ensure_root_transforms()
+
+    def get_root_velocities(self, state) -> wp.array:
+        return self._ensure_root_velocities()
+
+    def get_attribute(self, name: str, model_or_state) -> wp.array:
+        return self._ensure_attribute(name)
+
+    # -- Setters -----------------------------------------------------------
+
+    def set_root_transforms(self, state, transforms: wp.array) -> None:
+        if self._noop_setters:
+            return
+        self._ensure_root_transforms().assign(transforms)
+
+    def set_root_velocities(self, state, velocities: wp.array) -> None:
+        if self._noop_setters:
+            return
+        self._ensure_root_velocities().assign(velocities)
+
+    # -- Mock data injection -----------------------------------------------
+
+    def set_random_mock_data(self) -> None:
+        """Set all internal state to random values for testing."""
+        N, B = self._num_envs, self._num_bodies
+        dev = self._device
+
+        # Root transforms
+        root_tf_np = np.random.randn(N, B, 7).astype(np.float32)
+        root_tf_np[..., 3:7] /= np.linalg.norm(root_tf_np[..., 3:7], axis=-1, keepdims=True)
+        self._root_transforms = wp.array(root_tf_np, dtype=wp.transformf, device=dev)
+
+        # Root velocities
+        root_vel_np = np.random.randn(N, B, 6).astype(np.float32)
+        self._root_velocities = wp.array(root_vel_np, dtype=wp.spatial_vectorf, device=dev)
+
+        # Attributes (all have trailing link dim of 1)
+        self._attributes["body_com"] = wp.array(
+            np.random.randn(N, B, 1, 3).astype(np.float32), dtype=wp.vec3f, device=dev
+        )
+        self._attributes["body_mass"] = wp.array(
+            (np.random.rand(N, B, 1) * 10 + 0.1).astype(np.float32), dtype=wp.float32, device=dev
+        )
+        self._attributes["body_inertia"] = wp.array(
+            np.random.randn(N, B, 1, 9).astype(np.float32), dtype=wp.mat33f, device=dev
+        )
+        self._attributes["body_f"] = wp.array(
+            np.random.randn(N, B, 1, 6).astype(np.float32), dtype=wp.spatial_vectorf, device=dev
+        )
+
+
 class MockNewtonArticulationView:
     """Mock Newton ArticulationView for unit testing without simulation.
 

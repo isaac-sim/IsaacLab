@@ -61,6 +61,20 @@ try:
 except ImportError:
     pass
 
+try:
+    from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
+        RigidObjectCollection as NewtonRigidObjectCollection,
+    )
+    from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
+        RigidObjectCollectionData as NewtonRigidObjectCollectionData,
+    )
+    from isaaclab_newton.test.mock_interfaces.mock_newton import MockWrenchComposer as NewtonMockWrenchComposer
+    from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView as NewtonMockCollectionView
+
+    BACKENDS.append("newton")
+except ImportError:
+    pass
+
 
 def create_physx_rigid_object_collection(
     num_instances: int = 2,
@@ -113,6 +127,88 @@ def create_physx_rigid_object_collection(
     return collection, mock_view
 
 
+def create_newton_rigid_object_collection(
+    num_instances: int = 2,
+    num_bodies: int = 3,
+    device: str = "cuda:0",
+):
+    """Create a test Newton RigidObjectCollection instance with mocked dependencies."""
+    import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection as newton_coll_module
+    import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data as newton_data_module
+
+    body_names = [f"object_{i}" for i in range(num_bodies)]
+
+    # Create collection-specific mock view with (N, B) root shapes
+    mock_view = NewtonMockCollectionView(
+        num_envs=num_instances,
+        num_bodies=num_bodies,
+        device=device,
+        body_names=body_names,
+    )
+    mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
+
+    # Mock NewtonManager (aliased as SimulationManager in Newton modules)
+    mock_model = MagicMock()
+    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_state = MagicMock()
+    mock_control = MagicMock()
+
+    mock_manager = MagicMock()
+    mock_manager.get_model.return_value = mock_model
+    mock_manager.get_state_0.return_value = mock_state
+    mock_manager.get_state_1.return_value = mock_state
+    mock_manager.get_control.return_value = mock_control
+
+    # Patch SimulationManager in both data and collection modules
+    original_data_manager = newton_data_module.SimulationManager
+    original_coll_manager = newton_coll_module.SimulationManager
+    newton_data_module.SimulationManager = mock_manager
+    newton_coll_module.SimulationManager = mock_manager
+
+    try:
+        data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
+    finally:
+        newton_data_module.SimulationManager = original_data_manager
+        newton_coll_module.SimulationManager = original_coll_manager
+
+    # Create collection shell (bypass __init__)
+    collection = object.__new__(NewtonRigidObjectCollection)
+
+    rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
+    collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
+
+    object.__setattr__(collection, "_root_view", mock_view)
+    object.__setattr__(collection, "_device", device)
+    object.__setattr__(collection, "_num_bodies", num_bodies)
+    object.__setattr__(collection, "_num_instances", num_instances)
+    object.__setattr__(collection, "_body_names_list", body_names)
+    object.__setattr__(collection, "_data", data)
+    data.body_names = body_names
+
+    # Mock wrench composers (Newton-specific)
+    mock_inst_wrench = NewtonMockWrenchComposer(collection)
+    mock_perm_wrench = NewtonMockWrenchComposer(collection)
+    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising AttributeError
+    object.__setattr__(collection, "_initialize_handle", None)
+    object.__setattr__(collection, "_invalidate_initialize_handle", None)
+    object.__setattr__(collection, "_prim_deletion_handle", None)
+    object.__setattr__(collection, "_debug_vis_handle", None)
+
+    # Index arrays (warp)
+    object.__setattr__(
+        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    )
+    object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
+    object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
+    object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
+
+    return collection, mock_view
+
+
 def create_mock_rigid_object_collection(
     num_instances: int = 2,
     num_bodies: int = 3,
@@ -136,6 +232,8 @@ def get_rigid_object_collection(
 ):
     if backend == "physx":
         return create_physx_rigid_object_collection(num_instances, num_bodies, device)
+    elif backend == "newton":
+        return create_newton_rigid_object_collection(num_instances, num_bodies, device)
     elif backend.lower() == "mock":
         return create_mock_rigid_object_collection(num_instances, num_bodies, device)
     else:
@@ -984,6 +1082,8 @@ class TestCollectionWritersBody:
     def test_body_writer_index(
         self, backend, num_instances, num_bodies, device, collection_iface, method_base, kwarg, wp_dtype, trailing
     ):
+        if backend == "newton" and method_base == "set_coms":
+            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"{method_base}_index")
@@ -1049,6 +1149,8 @@ class TestCollectionWritersBody:
     def test_body_writer_mask(
         self, backend, num_instances, num_bodies, device, collection_iface, method_base, kwarg, wp_dtype, trailing
     ):
+        if backend == "newton" and method_base == "set_coms":
+            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"{method_base}_mask")

@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.5.1 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.assets.RigidObjectCollection` and
+  :class:`~isaaclab_newton.assets.RigidObjectCollectionData` for managing
+  collections of independent rigid bodies. Uses a single
+  ``ArticulationView`` with a combined fnmatch pattern to get direct
+  ``(num_envs, num_bodies)`` bindings into Newton's state, avoiding the
+  scatter/gather overhead needed by PhysX.
+
+* Added :class:`~isaaclab_newton.test.mock_interfaces.views.MockNewtonCollectionView`
+  for unit testing the collection data class without simulation.
+
+* Added Newton backend to the rigid object collection interface conformance
+  tests (``test_rigid_object_collection_iface.py``).
+
+
 0.5.0 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
