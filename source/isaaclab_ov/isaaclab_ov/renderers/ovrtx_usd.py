@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdGeom
 
 if TYPE_CHECKING:
     from .ovrtx_renderer_cfg import OVRTXRendererCfg
@@ -94,6 +94,7 @@ def inject_cameras_into_usd(
     height: int,
     num_envs: int,
     data_types: list[str],
+    camera_rel_path: str = "Camera",
 ) -> tuple[str, str]:
     """Inject camera and render product definitions into an existing USD file.
 
@@ -107,6 +108,8 @@ def inject_cameras_into_usd(
         height: Tile height from sensor config.
         num_envs: Number of environments from scene.
         data_types: Data types from sensor config.
+        camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"``
+            or ``"Robot/head_cam"``).
     """
     with open(usd_scene_path) as f:
         original_usd = f.read()
@@ -114,7 +117,7 @@ def inject_cameras_into_usd(
     data_types = data_types if data_types else ["rgb"]
     tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
 
-    camera_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
+    camera_paths = [f"/World/envs/env_{i}/{camera_rel_path}" for i in range(num_envs)]
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
@@ -140,18 +143,20 @@ def inject_cameras_into_usd(
     return temp_path, render_product_path
 
 
-def create_cloning_attributes(
-    stage, camera_prim_name: str = "Camera", num_envs: int = 1, use_cloning: bool = True
-) -> int:
+def create_cloning_attributes(stage, num_envs: int = 1, use_cloning: bool = True) -> int:
     """Create OVRTX cloning attributes (scene partition, xform) on env_0 only.
 
     Only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
     OVRTX clones env_0 internally and _update_scene_partitions_after_clone sets
     partition attributes on the clones. So we only need to set attributes on env_0 here.
 
+    Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by
+    name, so this works regardless of where the camera is placed in the hierarchy.
+
     Args:
         stage: USD stage to modify.
-        camera_prim_name: Name of the camera prim under each env (e.g. "Camera").
+        num_envs: Number of environments.
+        use_cloning: Whether OVRTX cloning is enabled.
 
     Returns:
         Total number of objects (non-camera prims) that received partition attributes.
@@ -167,15 +172,13 @@ def create_cloning_attributes(
         attr = env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
         attr.Set(partition_name)
         for prim in Usd.PrimRange(env_prim):
-            if prim.GetPath() == env_prim.GetPath() or "Camera" in prim.GetPath().pathString:
+            if prim.GetPath() == env_prim.GetPath():
                 continue
-            obj_attr = prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
-            obj_attr.Set(partition_name)
-            total_objects += 1
-        camera_path = f"{env_path}/{camera_prim_name}"
-        camera_prim = stage.GetPrimAtPath(camera_path)
-        if camera_prim.IsValid():
-            camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
+            if prim.IsA(UsdGeom.Camera):
+                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
+            else:
+                prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
+                total_objects += 1
     return total_objects
 
 

@@ -120,6 +120,7 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = False
         self._sensor_ref: weakref.ref[object] | None = None
         self._exported_usd_path: str | None = None
+        self._camera_rel_path: str | None = None
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
@@ -133,7 +134,7 @@ class OVRTXRenderer(BaseRenderer):
         use_cloning = self.cfg.use_cloning
 
         logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
-        create_cloning_attributes(stage, "Camera", num_envs, use_cloning)
+        create_cloning_attributes(stage, num_envs, use_cloning)
 
         export_path = "/tmp/stage_before_ovrtx.usda"
         export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
@@ -153,6 +154,12 @@ class OVRTXRenderer(BaseRenderer):
         height = sensor.cfg.height
         num_envs = sensor.num_instances
         data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
+
+        env_0_prefix = "/World/envs/env_0/"
+        first_cam_path = sensor._view.prims[0].GetPath().pathString
+        if not first_cam_path.startswith(env_0_prefix):
+            raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
+        self._camera_rel_path = first_cam_path.removeprefix(env_0_prefix)
 
         usd_scene_path = self._exported_usd_path
         use_cloning = self.cfg.use_cloning
@@ -176,6 +183,7 @@ class OVRTXRenderer(BaseRenderer):
                 height=height,
                 num_envs=num_envs,
                 data_types=data_types,
+                camera_rel_path=self._camera_rel_path,
             )
             self._render_product_paths.append(render_product_path)
 
@@ -195,7 +203,7 @@ class OVRTXRenderer(BaseRenderer):
 
             self._initialized_scene = True
 
-            camera_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
+            camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
             self._camera_binding = self._renderer.bind_attribute(
                 prim_paths=camera_paths,
                 attribute_name="omni:xform",
@@ -237,7 +245,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Writing scene partitions for %d environments...", num_envs)
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
+        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
 
         try:
             self._renderer.write_attribute(
@@ -280,7 +288,7 @@ class OVRTXRenderer(BaseRenderer):
             object_paths = []
             newton_indices = []
             for idx, path in enumerate(all_body_paths):
-                if "/World/envs/" in path and "Camera" not in path and "GroundPlane" not in path:
+                if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
                     object_paths.append(path)
                     newton_indices.append(idx)
 
