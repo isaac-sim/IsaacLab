@@ -760,13 +760,13 @@
     <span class="n">collision_from_visuals</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to create collision geometry from visual geometry. Defaults to False.&quot;&quot;&quot;</span>
 
-    <span class="n">collider_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;convex_hull&quot;</span><span class="p">,</span> <span class="s2">&quot;convex_decomposition&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;convex_hull&quot;</span>
+    <span class="n">collision_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;Convex Hull&quot;</span><span class="p">,</span> <span class="s2">&quot;Convex Decomposition&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Convex Hull&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The collision shape simplification. Defaults to &quot;convex_hull&quot;.</span>
 
 <span class="sd">    Supported values are:</span>
 
-<span class="sd">    * ``&quot;convex_hull&quot;``: The collision shape is simplified to a convex hull.</span>
-<span class="sd">    * ``&quot;convex_decomposition&quot;``: The collision shape is decomposed into smaller convex shapes for a closer fit.</span>
+<span class="sd">    * ``&quot;Convex Hull&quot;``: The collision shape is simplified to a convex hull.</span>
+<span class="sd">    * ``&quot;Convex Decomposition&quot;``: The collision shape is decomposed into smaller convex shapes for a closer fit.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">self_collision</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
@@ -777,7 +777,10 @@
 
 <span class="sd">    .. deprecated::</span>
 <span class="sd">        This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">merge_mesh</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Merge meshes where possible to optimize the model. Defaults to False.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

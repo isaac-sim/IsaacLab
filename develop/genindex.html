@@ -2311,12 +2311,6 @@
 </li>
       <li><a href="source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.SurfaceGripperCfg.coaxial_force_limit">coaxial_force_limit (isaaclab_physx.assets.SurfaceGripperCfg attribute)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.collider_type">collider_type (isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
-
-      <ul>
-        <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.collider_type">(isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
-</li>
-      </ul></li>
       <li><a href="source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.DeformableObjectData.collision_element_deform_gradient_w">collision_element_deform_gradient_w (isaaclab_physx.assets.DeformableObjectData property)</a>
 </li>
       <li><a href="source/api/lab_physx/isaaclab_physx.assets.html#isaaclab_physx.assets.DeformableObjectData.collision_element_quat_w">collision_element_quat_w (isaaclab_physx.assets.DeformableObjectData property)</a>
@@ -2398,7 +2392,13 @@
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count">collision_simplification_target_triangle_count (isaaclab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg.collision_type">collision_type (isaaclab.sim.converters.MjcfConverterCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.collision_type">(isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.collision_type">(isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.CollisionPropertiesCfg">CollisionPropertiesCfg (class in isaaclab.sim.schemas)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.GroundPlaneCfg.color">color (isaaclab.sim.spawners.from_files.GroundPlaneCfg attribute)</a>
@@ -5007,6 +5007,8 @@
 </li>
       <li><a href="source/api/lab_tasks/isaaclab_tasks.utils.html#isaaclab_tasks.utils.import_packages">import_packages() (in module isaaclab_tasks.utils)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg.import_physics_scene">import_physics_scene (isaaclab.sim.converters.MjcfConverterCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.import_usd">import_usd() (isaaclab.terrains.TerrainImporter method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Imu">Imu (class in isaaclab.sensors)</a>
@@ -5323,6 +5325,8 @@
         <li><a href="source/api/lab/isaaclab.app.html#module-isaaclab.app">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.assets
 
@@ -5330,8 +5334,6 @@
         <li><a href="source/api/lab/isaaclab.assets.html#module-isaaclab.assets">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.controllers
 
@@ -6623,7 +6625,13 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg.merge_mesh">merge_mesh (isaaclab.sim.converters.MjcfConverterCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.merge_mesh">(isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.merge_mesh">(isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg.merge_prim_meshes">merge_prim_meshes (isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props">mesh_collision_props (isaaclab.sim.converters.MeshConverterCfg attribute)</a>
@@ -6700,10 +6708,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg">MeshRepeatedObjectsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.ObjectCfg">MeshRepeatedObjectsTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.ObjectCfg">MeshRepeatedObjectsTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg">MeshRepeatedPyramidsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg">MeshRepeatedPyramidsTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>

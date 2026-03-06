@@ -654,14 +654,17 @@
     <span class="n">collision_from_visuals</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate collision geometry from visual geometries. Defaults to False.&quot;&quot;&quot;</span>
 
-    <span class="n">collision_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Type of collision geometry to use. Defaults to ``&quot;default&quot;``.</span>
+    <span class="n">collision_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Convex Hull&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Type of collision geometry to use. Defaults to ``&quot;Convex Hull&quot;``.</span>
 
-<span class="sd">    Supported values are ``&quot;default&quot;``, ``&quot;Convex Hull&quot;``, and ``&quot;Convex Decomposition&quot;``.</span>
+<span class="sd">    Supported values are ``&quot;Convex Hull&quot;``, and ``&quot;Convex Decomposition&quot;``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">self_collision</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Activate self-collisions between links of the articulation. Defaults to False.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Activate self-collisions between links of the articulation. Defaults to False.&quot;&quot;&quot;</span>
+
+    <span class="n">import_physics_scene</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Import the physics scene (time step per second, gravity, etc.) from the MJCF file. Defaults to False.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
