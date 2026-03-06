@@ -25,9 +25,9 @@ INSTALL_REQUIRES = [
     # reinforcement learning
     "pyglet>=2.1.6",
     # newton
-    "mujoco>=3.5.0",
-    "mujoco-warp>=3.5.0",
-    "newton @ git+https://github.com/newton-physics/newton.git@51ce35e8def843377546764033edc33a0b479d65",
+    "mujoco==3.5.0",
+    "mujoco-warp==3.5.0.2",
+    "newton==1.0.0rc1",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
 ]
