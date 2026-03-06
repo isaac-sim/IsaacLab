@@ -329,8 +329,8 @@ def modify_rigid_body_properties(
     for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
         value = cfg.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
-        
-    if(cfg.get("gravity_compensation_scale", None) is not None):
+
+    if cfg.get("gravity_compensation_scale", None) is not None:
         value = cfg.pop("gravity_compensation_scale")
         safe_set_attribute_on_usd_prim(rigid_body_prim, "mjc:gravcomp", value, camel_case=False)
     # set into PhysX API (prim attributes under physxRigidBody:*)

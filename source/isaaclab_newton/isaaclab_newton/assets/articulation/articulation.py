@@ -25,8 +25,8 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, find_matching_prims
 from isaaclab.sim.utils.prims import safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils.queries import find_first_matching_prim, find_matching_prims, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -3798,9 +3798,7 @@ class Articulation(BaseArticulation):
         import re
 
         gc_actuators = {
-            name: cfg
-            for name, cfg in self.cfg.actuators.items()
-            if getattr(cfg, "gravity_compensation", None)
+            name: cfg for name, cfg in self.cfg.actuators.items() if getattr(cfg, "gravity_compensation", None)
         }
         if not gc_actuators:
             return
@@ -3816,9 +3814,7 @@ class Articulation(BaseArticulation):
                 joint_name = joint_prim.GetName()
                 for actuator_cfg in gc_actuators.values():
                     if any(re.fullmatch(expr, joint_name) for expr in actuator_cfg.joint_names_expr):
-                        safe_set_attribute_on_usd_prim(
-                            joint_prim, "mjc:actuatorgravcomp", True, camel_case=False
-                        )
+                        safe_set_attribute_on_usd_prim(joint_prim, "mjc:actuatorgravcomp", True, camel_case=False)
                         break
 
     """

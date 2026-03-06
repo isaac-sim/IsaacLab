@@ -16,14 +16,16 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
-import pytest
 import tempfile
 import xml.etree.ElementTree as ET
 
 import newton
+import numpy as np
+import pytest
+from isaaclab_newton.assets.articulation.articulation import Articulation
 from newton.solvers import SolverMuJoCo
+
 from pxr import Gf, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -31,7 +33,6 @@ import isaaclab.sim.schemas as schemas
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab_newton.assets.articulation.articulation import Articulation
 
 
 @pytest.fixture
