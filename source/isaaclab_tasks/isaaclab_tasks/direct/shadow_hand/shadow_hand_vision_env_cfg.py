@@ -11,7 +11,7 @@ from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.renderer_cfg import RendererPresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_env_cfg import ShadowHandEnvCfg
@@ -23,7 +23,7 @@ class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
 
     This is an internal config used by :class:`ShadowHandVisionTiledCameraCfg` presets and
     by derived env configs that hard-code a specific data type. It embeds
-    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` so the renderer backend can
+    :class:`~isaaclab_tasks.utils.MultiBackendRendererCfg` so the renderer backend can
     still be selected via the ``presets`` CLI argument.
     """
 
@@ -37,7 +37,7 @@ class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
     )
     width: int = 120
     height: int = 120
-    renderer_cfg: RendererPresetCfg = RendererPresetCfg()
+    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
 
 @configclass
@@ -55,7 +55,7 @@ class ShadowHandVisionTiledCameraCfg(PresetCfg):
 
     Renderer and data-type presets can be combined::
 
-        presets = warp, rgb
+        presets = newton_renderer, rgb
     """
 
     default: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
@@ -99,8 +99,8 @@ class ShadowHandVisionTiledCameraCfg(PresetCfg):
         to measure pure depth-rendering throughput, e.g.::
 
             presets=depth          # depth rendering, default renderer
-            presets=depth,warp     # depth rendering with Warp renderer
-            presets=depth,ovrtx    # depth rendering with OVRTX renderer
+            presets=depth,newton_renderer     # depth rendering with Newton renderer
+            presets=depth,ovrtx_renderer    # depth rendering with OVRTX renderer
     """
 
 
@@ -136,10 +136,10 @@ class ShadowHandVisionBenchmarkEnvCfg(ShadowHandVisionEnvCfg):
 
     The renderer backend and camera data types can still be selected via ``presets``::
 
-        presets = warp  # benchmark with Warp renderer
-        presets = ovrtx  # benchmark with OVRTX renderer
+        presets = newton_renderer  # benchmark with Newton renderer
+        presets = ovrtx_renderer  # benchmark with OVRTX renderer
         presets = rgb  # benchmark RGB rendering only
-        presets = depth, warp  # benchmark depth rendering with Warp
+        presets = depth, newton_renderer  # benchmark depth rendering with Newton
     """
 
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(enabled=False)
