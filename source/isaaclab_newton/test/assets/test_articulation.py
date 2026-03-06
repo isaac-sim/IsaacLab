@@ -62,7 +62,7 @@ SIM_CFGs = {
         ),
     ),
     "anymal": SimulationCfg(
-        dt=1 / 120,
+        dt=1 / 200,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=70,
@@ -1094,14 +1094,14 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
     body_ids, _ = articulation.find_bodies("base")
     # Sample a large force
     external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 250.0
+    external_wrench_b[..., 2] = 100.0
     external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
     external_wrench_positions_b[..., 1] = 1.0
 
     desired_force = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
-    desired_force[..., 2] = 500.0
+    desired_force[..., 2] = 200.0
     desired_torque = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
-    desired_torque[..., 0] = 500.0
+    desired_torque[..., 0] = 200.0
 
     # Now we are ready!
     for i in range(5):
@@ -1193,7 +1193,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
     body_ids, _ = articulation.find_bodies(".*_SHANK")
     # Sample a large force
     external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 1] = 50.0
+    external_wrench_b[..., 1] = 200.0
 
     # Now we are ready!
     for _ in range(5):
@@ -1260,14 +1260,14 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     body_ids, _ = articulation.find_bodies(".*_SHANK")
     # Sample a large force
     external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 500.0
+    external_wrench_b[..., 2] = 100.0
     external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
     external_wrench_positions_b[..., 1] = 1.0
 
     desired_force = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
-    desired_force[..., 2] = 1000.0
+    desired_force[..., 2] = 200.0
     desired_torque = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
-    desired_torque[..., 0] = 1000.0
+    desired_torque[..., 0] = 200.0
 
     # Now we are ready!
     for i in range(5):

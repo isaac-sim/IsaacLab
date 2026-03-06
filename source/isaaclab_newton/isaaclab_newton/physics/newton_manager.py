@@ -333,8 +333,6 @@ class NewtonManager(PhysicsManager):
 
         from pxr import UsdGeom
 
-        from isaaclab_newton.cloner.newton_replicate import get_inverse_env_xform
-
         stage = get_current_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
 
@@ -364,11 +362,9 @@ class NewtonManager(PhysicsManager):
             # Build a prototype from the first env (all envs assumed identical)
             _, proto_path = env_paths[0]
             proto = ModelBuilder(up_axis=up_axis)
-            inverse_env_xform = get_inverse_env_xform(stage, proto_path)
             proto.add_usd(
                 stage,
                 root_path=proto_path,
-                xform=inverse_env_xform,
                 schema_resolvers=schema_resolvers,
             )
 
