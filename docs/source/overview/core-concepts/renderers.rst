@@ -46,7 +46,7 @@ Core concepts
      # Lazily loads ovrtx when instantiated; may fail if isaaclab_ov / ovrtx is not installed
      renderer: BaseRenderer = Renderer(OVRTXRendererCfg())
 
-- **Opaque render data**: The render data object returned by :meth:`create_render_data` is passed to
+- **Opaque render data**: The render data object returned by :meth:`~isaaclab.renderers.BaseRenderer.create_render_data` is passed to
   subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it
   via get/set attributes is an anti-pattern and breaks the API contract.
 
