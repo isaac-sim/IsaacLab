@@ -42,16 +42,6 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         # when computing sync requirements in SimulationContext and pass them into the provider.
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
         self._needs_usd_sync = "kit" in viz_types
-        self._update_calls = 0
-        self._sync_calls = 0
-        self._sync_failures = 0
-        self._sync_log_period = 300
-        self._last_sync_exception: str | None = None
-        logger.info(
-            "[NewtonSceneDataProvider] initialized | needs_usd_sync=%s visualizers=%s",
-            self._needs_usd_sync,
-            sorted(v for v in viz_types if v),
-        )
 
     def _warn_once(self, key: str, message: str, *args) -> None:
         if key in self._warned_once:
@@ -94,34 +84,14 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         (or other USD-based) visualizer is in use. When both sim and rendering backend
         are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
         """
-        self._update_calls += 1
         if not self._needs_usd_sync:
             return
         try:
             from isaaclab_newton.physics import NewtonManager
 
             NewtonManager.sync_transforms_to_usd()
-            self._sync_calls += 1
-            if self._sync_calls == 1 or self._sync_calls % self._sync_log_period == 0:
-                logger.info(
-                    "[NewtonSceneDataProvider] sync_transforms_to_usd ok | update_calls=%d sync_calls=%d "
-                    "sync_failures=%d env_ids=%s",
-                    self._update_calls,
-                    self._sync_calls,
-                    self._sync_failures,
-                    env_ids,
-                )
         except Exception:
-            self._sync_failures += 1
-            self._last_sync_exception = "sync_transforms_to_usd failed"
-            logger.exception(
-                "[NewtonSceneDataProvider] sync_transforms_to_usd failed | update_calls=%d sync_calls=%d "
-                "sync_failures=%d env_ids=%s",
-                self._update_calls,
-                self._sync_calls,
-                self._sync_failures,
-                env_ids,
-            )
+            pass
 
     def get_newton_model(self) -> Any | None:
         """Return Newton model from NewtonManager."""
@@ -161,10 +131,6 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         out = dict(self._metadata)
         out["num_envs"] = self.get_num_envs()
         out["needs_usd_sync"] = self._needs_usd_sync
-        out["provider_update_calls"] = self._update_calls
-        out["provider_sync_calls"] = self._sync_calls
-        out["provider_sync_failures"] = self._sync_failures
-        out["provider_last_sync_exception"] = self._last_sync_exception
         return out
 
     def get_transforms(self) -> dict[str, Any] | None:
