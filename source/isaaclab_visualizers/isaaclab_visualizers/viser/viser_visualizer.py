@@ -7,30 +7,28 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import logging
 import os
+import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from newton.viewer import ViewerViser
 
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
 from .viser_visualizer_cfg import ViserVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
 
 
 def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
-    """Skip viser's runtime frontend rebuild when a bundled build is present.
-
-    Newer viser versions may try to rebuild the client if source timestamps are newer
-    than the packaged build directory, which requires ``nodeenv`` at runtime.
-    For Isaac Lab usage, we prefer the prebuilt static assets shipped with the package.
-    """
-
+    """Skip viser's runtime frontend rebuild when a bundled build is present."""
     try:
         import viser
         import viser._client_autobuild as client_autobuild
@@ -43,6 +41,33 @@ def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
         return
 
     client_autobuild.ensure_client_is_built = lambda: None
+
+
+@contextlib.contextmanager
+def _suppress_viser_startup_logs(enabled: bool):
+    """Temporarily quiet noisy viser/websockets startup output."""
+    if not enabled:
+        yield
+        return
+
+    websockets_logger = logging.getLogger("websockets.server")
+    previous_level = websockets_logger.level
+    websockets_logger.setLevel(logging.WARNING)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            yield
+    finally:
+        websockets_logger.setLevel(previous_level)
+
+
+def _open_viser_web_viewer(port: int) -> None:
+    """Open the local viser web UI in a browser."""
+    url = f"http://localhost:{int(port)}"
+    try:
+        if not webbrowser.open_new_tab(url):
+            logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
+    except Exception:
+        logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
 
 
 class NewtonViewerViser(ViewerViser):
@@ -68,25 +93,22 @@ class NewtonViewerViser(ViewerViser):
         self._metadata = metadata or {}
 
 
-class ViserVisualizer(Visualizer):
+class ViserVisualizer(BaseVisualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
 
     def __init__(self, cfg: ViserVisualizerCfg):
-        """Initialize the visualizer state from the resolved config."""
         super().__init__(cfg)
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
         self._model: Any | None = None
         self._state = None
-        self._is_initialized = False
         self._sim_time = 0.0
         self._scene_data_provider = None
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
-        """Create the viewer and bind it to the active scene data provider."""
+    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
@@ -98,29 +120,33 @@ class ViserVisualizer(Visualizer):
         self._env_ids = self._compute_visualized_env_ids()
         if self._env_ids:
             get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
-            if callable(get_filtered_model):
-                self._model = get_filtered_model(self._env_ids)
-            else:
-                self._model = scene_data_provider.get_newton_model()
+            self._model = (
+                get_filtered_model(self._env_ids)
+                if callable(get_filtered_model)
+                else scene_data_provider.get_newton_model()
+            )
         else:
             self._model = scene_data_provider.get_newton_model()
         self._state = scene_data_provider.get_newton_state(self._env_ids)
 
-        try:
-            self._active_record_path = self.cfg.record_to_viser
-            self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
-            logger.info(
-                "[ViserVisualizer] initialized | camera_pos=%s camera_target=%s",
-                self.cfg.camera_position,
-                self.cfg.camera_target,
-            )
-            self._is_initialized = True
-        except Exception as exc:
-            logger.error(f"[ViserVisualizer] Failed to initialize viewer: {exc}")
-            raise
+        self._active_record_path = self.cfg.record_to_viser
+        self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._log_initialization_table(
+            logger=logger,
+            title="ViserVisualizer Configuration",
+            rows=[
+                ("camera_position", self.cfg.camera_position),
+                ("camera_target", self.cfg.camera_target),
+                ("camera_source", self.cfg.camera_source),
+                ("num_visualized_envs", num_visualized_envs),
+                ("port", self.cfg.port),
+                ("record_to_viser", self.cfg.record_to_viser or "<none>"),
+            ],
+        )
+        self._is_initialized = True
 
     def step(self, dt: float) -> None:
-        """Fetch the latest state and stream one frame to Viser."""
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
@@ -130,20 +156,17 @@ class ViserVisualizer(Visualizer):
 
         self._state = self._scene_data_provider.get_newton_state(self._env_ids)
         self._sim_time += dt
-
         self._viewer.begin_frame(self._sim_time)
         self._viewer.log_state(self._state)
         self._viewer.end_frame()
 
     def close(self) -> None:
-        """Close the viewer and finalize any active recording."""
         if not self._is_initialized:
             return
-
         try:
             self._close_viewer(finalize_viser=bool(self.cfg.record_to_viser))
         except Exception as exc:
-            logger.warning(f"[ViserVisualizer] Error during close: {exc}")
+            logger.warning("[ViserVisualizer] Error during close: %s", exc)
 
         self._viewer = None
         self._is_initialized = False
@@ -152,60 +175,54 @@ class ViserVisualizer(Visualizer):
         self._pending_camera_pose = None
 
     def is_running(self) -> bool:
-        """Return whether the underlying Viser server is still running."""
+        if not self._is_initialized or self._is_closed:
+            return False
         if self._viewer is None:
             return False
         return self._viewer.is_running()
 
     def is_training_paused(self) -> bool:
-        """Viser does not currently expose training pause controls."""
         return False
 
     def supports_markers(self) -> bool:
-        """Viser marker support is not implemented yet."""
         return False
 
     def supports_live_plots(self) -> bool:
-        """Viser live plot support is not implemented yet."""
         return False
 
     def _create_viewer(self, record_to_viser: str | None, metadata: dict | None = None) -> None:
-        """Create the Viser viewer and load the Newton model."""
         if self._model is None:
             raise RuntimeError("Viser visualizer requires a Newton model.")
 
-        self._viewer = NewtonViewerViser(
-            port=self.cfg.port,
-            label=self.cfg.label,
-            verbose=self.cfg.verbose,
-            share=self.cfg.share,
-            record_to_viser=record_to_viser,
-            metadata=metadata or {},
-        )
+        with _suppress_viser_startup_logs(enabled=not self.cfg.verbose):
+            self._viewer = NewtonViewerViser(
+                port=self.cfg.port,
+                label=self.cfg.label,
+                verbose=self.cfg.verbose,
+                share=self.cfg.share,
+                record_to_viser=record_to_viser,
+                metadata=metadata or {},
+            )
         max_worlds = self.cfg.max_worlds
-        self._viewer.set_model(self._model, max_worlds=None if max_worlds in (None, 0) else max_worlds)
+        self._viewer.set_model(self._model, max_worlds=max_worlds)
+        if self.cfg.open_browser:
+            _open_viser_web_viewer(self.cfg.port)
         self._set_viser_camera_view(self._resolve_initial_camera_pose())
         self._sim_time = 0.0
 
     def _close_viewer(self, finalize_viser: bool = False) -> None:
-        """Close the viewer and log the finalized recording, if any."""
         if self._viewer is None:
             return
         self._viewer.close()
         if finalize_viser and self._active_record_path:
             if os.path.exists(self._active_record_path):
                 size = os.path.getsize(self._active_record_path)
-                logger.info(
-                    "[ViserVisualizer] Recording saved: %s (%s bytes)",
-                    self._active_record_path,
-                    size,
-                )
+                logger.info("[ViserVisualizer] Recording saved: %s (%s bytes)", self._active_record_path, size)
             else:
                 logger.warning("[ViserVisualizer] Recording file not found: %s", self._active_record_path)
         self._viewer = None
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve the startup camera pose from config or a USD camera path."""
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
             if pose is not None:
@@ -217,10 +234,8 @@ class ViserVisualizer(Visualizer):
         return self.cfg.camera_position, self.cfg.camera_target
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
-        """Best-effort apply a camera pose to any connected Viser clients."""
         if self._viewer is None:
             return False
-
         server = getattr(self._viewer, "_server", None)
         get_clients = getattr(server, "get_clients", None) if server is not None else None
         if not callable(get_clients):
@@ -231,11 +246,7 @@ class ViserVisualizer(Visualizer):
         except Exception:
             return False
 
-        if isinstance(clients, dict):
-            client_iterable = clients.values()
-        else:
-            client_iterable = clients
-
+        client_iterable = clients.values() if isinstance(clients, dict) else clients
         cam_pos, cam_target = pose
         applied = False
         for client in client_iterable:
@@ -254,7 +265,6 @@ class ViserVisualizer(Visualizer):
         return applied
 
     def _set_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
-        """Apply the pose immediately or queue it until a client connects."""
         if self._try_apply_viser_camera_view(pose):
             self._last_camera_pose = pose
             self._pending_camera_pose = None
@@ -262,7 +272,6 @@ class ViserVisualizer(Visualizer):
             self._pending_camera_pose = pose
 
     def _apply_pending_camera_pose(self) -> None:
-        """Retry applying any queued camera pose once clients are available."""
         if self._pending_camera_pose is None:
             return
         if self._try_apply_viser_camera_view(self._pending_camera_pose):
@@ -270,7 +279,6 @@ class ViserVisualizer(Visualizer):
             self._pending_camera_pose = None
 
     def _update_camera_from_usd_path(self) -> None:
-        """Mirror the configured USD camera path into the active Viser camera."""
         pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
         if pose is None:
             return

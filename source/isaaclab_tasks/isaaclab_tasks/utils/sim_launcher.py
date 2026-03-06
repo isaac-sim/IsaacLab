@@ -165,7 +165,8 @@ def launch_simulation(
         # SimulationContext._get_cli_visualizer_types() can find it.
         from isaaclab.app.settings_manager import get_settings_manager
 
-        get_settings_manager().set_string("/isaaclab/visualizer", " ".join(sorted(visualizer_types)))
+        visualizer_str = " ".join(sorted(visualizer_types))
+        get_settings_manager().set_string("/isaaclab/visualizer/types", visualizer_str)
 
     try:
         yield

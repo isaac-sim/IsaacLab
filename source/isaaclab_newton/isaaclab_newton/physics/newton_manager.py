@@ -110,8 +110,13 @@ class NewtonManager(PhysicsManager):
             cls._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
 
             # USD/Fabric sync for Omniverse rendering (visualizer) or Newton+RTX (Kit cameras)
-            viz_str = sim.get_setting("/isaaclab/visualizer") or ""
-            requested = [v.strip() for v in viz_str.split(",") if v.strip()]
+            try:
+                requested = sim.resolve_visualizer_types()
+            except Exception:
+                requested = []
+                viz_raw = sim.get_setting("/isaaclab/visualizer/types")
+                if isinstance(viz_raw, str):
+                    requested = [v for part in viz_raw.split(",") for v in part.split() if v]
             from isaaclab.app.settings_manager import get_settings_manager
 
             cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))

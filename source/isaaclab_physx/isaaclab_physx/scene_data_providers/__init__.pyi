@@ -4,11 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "BaseVisualizer",
-    "Visualizer",
-    "VisualizerCfg",
+    "NewtonSceneDataProvider",
+    "PhysxSceneDataProvider",
 ]
 
-from .base_visualizer import BaseVisualizer
-from .visualizer import Visualizer
-from .visualizer_cfg import VisualizerCfg
+from .newton_scene_data_provider import NewtonSceneDataProvider
+from .physx_scene_data_provider import PhysxSceneDataProvider
