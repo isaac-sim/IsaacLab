@@ -10,11 +10,7 @@ from __future__ import annotations
 import atexit
 import contextlib
 import logging
-import os
-import re
-import shutil
 import socket
-import subprocess
 import time
 import webbrowser
 from typing import TYPE_CHECKING
@@ -32,7 +28,7 @@ if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
 
 logger = logging.getLogger(__name__)
-_RERUN_SERVER_PROCESS: subprocess.Popen | None = None
+_RERUN_SERVER_STARTED = False
 
 
 def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
@@ -57,114 +53,76 @@ def _normalize_host(addr: str) -> str:
     return addr
 
 
-def _listening_rerun_pid(port: int) -> int | None:
-    """Return rerun pid listening on port, if any."""
-    try:
-        proc = subprocess.run(["ss", "-ltnp"], capture_output=True, text=True, check=False)
-        if proc.returncode != 0:
-            return None
-        pattern = re.compile(rf":{int(port)}\b.*users:\(\(\"rerun\",pid=(\d+),")
-        for line in proc.stdout.splitlines():
-            match = pattern.search(line)
-            if match:
-                return int(match.group(1))
-    except Exception:
-        return None
-    return None
-
-
-def _terminate_pid(pid: int, timeout_s: float = 2.0) -> bool:
-    try:
-        os.kill(pid, 15)  # SIGTERM
-    except OSError:
-        return True
+def _wait_for_port_open(host: str, port: int, timeout_s: float = 6.0) -> bool:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        if not os.path.exists(f"/proc/{pid}"):
+        if _is_port_open(port, host=host):
             return True
-        time.sleep(0.05)
-    with contextlib.suppress(OSError):
-        os.kill(pid, 9)  # SIGKILL
-    time.sleep(0.05)
-    return not os.path.exists(f"/proc/{pid}")
+        time.sleep(0.1)
+    return _is_port_open(port, host=host)
+
+
+def _serve_grpc_compat(grpc_port: int) -> str:
+    """Start Rerun gRPC server using supported SDK argument names."""
+    try:
+        uri = rr.serve_grpc(grpc_port=int(grpc_port))
+    except TypeError:
+        # Backward-compatibility for older SDK versions.
+        uri = rr.serve_grpc(port=int(grpc_port))  # type: ignore[call-arg]
+    if isinstance(uri, str) and uri:
+        return uri
+    return f"rerun+http://127.0.0.1:{int(grpc_port)}/proxy"
+
+
+def _serve_web_viewer_compat(web_port: int, connect_to: str) -> None:
+    """Start Rerun web viewer server using supported SDK argument names."""
+    try:
+        rr.serve_web_viewer(web_port=int(web_port), open_browser=False, connect_to=connect_to)
+    except TypeError:
+        # Backward-compatibility for older SDK versions.
+        rr.serve_web_viewer(port=int(web_port), open_browser=False, connect_to=connect_to)  # type: ignore[call-arg]
 
 
 def _stop_managed_rerun_server() -> None:
-    global _RERUN_SERVER_PROCESS
-    if _RERUN_SERVER_PROCESS is None:
+    global _RERUN_SERVER_STARTED
+    if not _RERUN_SERVER_STARTED:
         return
-    with contextlib.suppress(OSError):
-        _RERUN_SERVER_PROCESS.terminate()
-    _RERUN_SERVER_PROCESS = None
+    with contextlib.suppress(Exception):
+        rr.rerun_shutdown()
+    _RERUN_SERVER_STARTED = False
 
 
 def _ensure_rerun_server(
-    bind_address: str, grpc_port: int, web_port: int, auto_kill_stale_rerun_process: bool
+    app_id: str, bind_address: str, grpc_port: int, web_port: int, auto_kill_stale_rerun_process: bool
 ) -> tuple[str, bool]:
     """Ensure rerun server exists; return (grpc_uri, process_owned_by_this_instance)."""
-    global _RERUN_SERVER_PROCESS
+    global _RERUN_SERVER_STARTED
     connect_host = _normalize_host(bind_address)
-    grpc_uri = f"rerun+http://{connect_host}:{int(grpc_port)}/proxy"
+    expected_uri = f"rerun+http://{connect_host}:{int(grpc_port)}/proxy"
 
     if _is_port_open(grpc_port, host=connect_host):
-        return grpc_uri, False
+        with contextlib.suppress(Exception):
+            rr.connect_grpc(expected_uri)
+        return expected_uri, False
 
     if not _is_port_free(web_port, host=connect_host):
-        pid = _listening_rerun_pid(web_port)
-        if pid is not None and auto_kill_stale_rerun_process:
-            logger.info("[RerunVisualizer] Terminating stale rerun process on web port %s (pid=%s).", web_port, pid)
-            _terminate_pid(pid)
-            time.sleep(0.1)
-        if not _is_port_free(web_port, host=connect_host):
-            if pid is not None and not auto_kill_stale_rerun_process:
-                raise RuntimeError(
-                    f"Rerun web port {web_port} is in use by rerun pid={pid}; "
-                    "set auto_kill_stale_rerun_process=True to allow cleanup."
-                )
-            raise RuntimeError(f"Rerun web port {web_port} is in use and not owned by a detectable rerun process.")
+        if auto_kill_stale_rerun_process:
+            raise RuntimeError(
+                f"Rerun web port {web_port} is in use. Automatic stale-process cleanup is not supported "
+                "in Python SDK mode; free the port or choose a different web_port."
+            )
+        raise RuntimeError(f"Rerun web port {web_port} is in use.")
 
-    rerun_bin = shutil.which("rerun")
-    if rerun_bin is None:
-        raise RuntimeError("'rerun' binary not found in PATH.")
+    rr.init(app_id, spawn=False)
+    grpc_uri = _serve_grpc_compat(grpc_port)
+    _serve_web_viewer_compat(web_port, connect_to=grpc_uri)
 
-    cmd = [
-        rerun_bin,
-        "--serve-web",
-        "--bind",
-        bind_address,
-        "--port",
-        str(int(grpc_port)),
-        "--web-viewer-port",
-        str(int(web_port)),
-        "--memory-limit",
-        "25%",
-    ]
+    if not _wait_for_port_open(connect_host, grpc_port, timeout_s=6.0):
+        _stop_managed_rerun_server()
+        raise RuntimeError(f"Timed out waiting for rerun gRPC port {connect_host}:{grpc_port}.")
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    _RERUN_SERVER_PROCESS = proc
-    deadline = time.time() + 6.0
-    while time.time() < deadline:
-        if proc.poll() is not None:
-            stderr_txt = ""
-            stdout_txt = ""
-            with contextlib.suppress(Exception):
-                stdout_txt, stderr_txt = proc.communicate(timeout=0.2)
-            _RERUN_SERVER_PROCESS = None
-            detail = "\n".join(
-                part
-                for part in [
-                    f"stderr:\n{stderr_txt.strip()}" if stderr_txt.strip() else "",
-                    f"stdout:\n{stdout_txt.strip()}" if stdout_txt.strip() else "",
-                ]
-                if part
-            ).strip()
-            raise RuntimeError(detail or "rerun server exited before opening gRPC port.")
-        if _is_port_open(grpc_port, host=connect_host):
-            return grpc_uri, True
-        time.sleep(0.1)
-
-    _stop_managed_rerun_server()
-    raise RuntimeError(f"Timed out waiting for rerun gRPC port {connect_host}:{grpc_port}.")
+    _RERUN_SERVER_STARTED = True
+    return grpc_uri, True
 
 
 def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
@@ -238,6 +196,7 @@ class RerunVisualizer(BaseVisualizer):
         web_port = int(self.cfg.web_port)
         bind_address = self.cfg.bind_address or "0.0.0.0"
         rerun_address, owns_server = _ensure_rerun_server(
+            app_id=self.cfg.app_id,
             bind_address=bind_address,
             grpc_port=grpc_port,
             web_port=web_port,
