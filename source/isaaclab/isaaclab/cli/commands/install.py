@@ -127,22 +127,85 @@ def _ensure_cuda_torch() -> None:
 
 # Valid sub-package names that can be passed to --install.
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
-VALID_ISAACLAB_SUBPACKAGES: set[str] = {"assets", "physx", "contrib", "mimic", "newton", "rl", "tasks", "teleop"}
+VALID_ISAACLAB_SUBPACKAGES: set[str] = {
+    "assets",
+    "physx",
+    "contrib",
+    "mimic",
+    "newton",
+    "rl",
+    "tasks",
+    "teleop",
+    "visualizers",
+}
+VALID_VISUALIZER_EXTRAS: set[str] = {"all", "kit", "newton", "rerun", "viser"}
 
 # RL framework names accepted.
 # Passing one of these installs all extensions + that framework.
 VALID_RL_FRAMEWORKS: set[str] = {"rl_games", "rsl_rl", "sb3", "skrl", "robomimic"}
 
 
-def _install_isaaclab_extensions(extensions: list[str] | None = None) -> None:
+def _split_install_items(install_type: str) -> list[str]:
+    """Split comma-separated install items, ignoring commas inside brackets."""
+    parts: list[str] = []
+    buf: list[str] = []
+    bracket_depth = 0
+    for ch in install_type:
+        if ch == "[":
+            bracket_depth += 1
+        elif ch == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+        if ch == "," and bracket_depth == 0:
+            token = "".join(buf).strip()
+            if token:
+                parts.append(token)
+            buf = []
+        else:
+            buf.append(ch)
+    token = "".join(buf).strip()
+    if token:
+        parts.append(token)
+    return parts
+
+
+def _parse_visualizer_selector(token: str) -> str | None:
+    """Parse visualizer selector token like 'visualizers[rerun]' into '[rerun]'."""
+    if token == "visualizers":
+        return "[all]"
+    prefix = "visualizers["
+    if not (token.startswith(prefix) and token.endswith("]")):
+        return None
+
+    extras_raw = token[len(prefix) : -1].strip()
+    if not extras_raw:
+        return "[all]"
+
+    extras = [x.strip() for x in extras_raw.split(",") if x.strip()]
+    invalid = [x for x in extras if x not in VALID_VISUALIZER_EXTRAS]
+    if invalid:
+        valid = ", ".join(sorted(VALID_VISUALIZER_EXTRAS))
+        print_warning(
+            f"Unknown visualizer extra(s) in '{token}': {', '.join(invalid)}. "
+            f"Valid visualizer extras: {valid}. Skipping visualizers selector."
+        )
+        return None
+
+    return f"[{','.join(extras)}]"
+
+
+def _install_isaaclab_extensions(
+    extensions: list[str] | None = None, extension_extras: dict[str, str] | None = None
+) -> None:
     """Install Isaac Lab extensions from the source directory.
 
     Scans ``source/`` for sub-directories that contain a ``setup.py`` and
     installs each one as an editable pip package.
 
     Args:
-        extensions: Optional, list of source directory names to install
-        If ``None`` is provided, every extension found under ``source/`` is installed.
+        extensions: Optional, list of source directory names to install.
+            If ``None`` is provided, every extension found under ``source/`` is installed.
+        extension_extras: Optional mapping from extension source directory name to
+            pip extras selector (for example ``{"isaaclab_visualizers": "[rerun]"}``).
     """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -160,6 +223,8 @@ def _install_isaaclab_extensions(extensions: list[str] | None = None) -> None:
             if extensions is not None and item.name not in extensions:
                 continue
             print_info(f"Installing extension: {item.name}")
+            extras_suffix = (extension_extras or {}).get(item.name, "")
+            install_target = f"{item}{extras_suffix}"
             # If the directory contains setup.py then install the python module.
             run_command(
                 [
@@ -168,7 +233,7 @@ def _install_isaaclab_extensions(extensions: list[str] | None = None) -> None:
                     "pip",
                     "install",
                     "--editable",
-                    str(item),
+                    install_target,
                 ]
             )
 
@@ -252,20 +317,35 @@ def command_install(install_type: str = "all") -> None:
     # "a,b"        : core + selected sub-package directories, no RL frameworks
     if install_type == "all":
         extensions = None
+        extension_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = "all"
     elif install_type == "none":
         extensions = ["isaaclab"]
+        extension_extras = {}
         framework_type = "none"
     elif install_type in VALID_RL_FRAMEWORKS:
         # Single RL framework name: install all extensions + only that framework.
         extensions = None
+        extension_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
         # Parse comma-separated sub-package names into source directory names.
         extensions = ["isaaclab"]  # core is always required
-        for name in (s.strip() for s in install_type.split(",") if s.strip()):
+        extension_extras = {}
+        for name in _split_install_items(install_type):
+            visualizer_extras = _parse_visualizer_selector(name)
+            if visualizer_extras is not None:
+                if "isaaclab_visualizers" not in extensions:
+                    extensions.append("isaaclab_visualizers")
+                extension_extras["isaaclab_visualizers"] = visualizer_extras
+                continue
             if name in VALID_ISAACLAB_SUBPACKAGES:
-                extensions.append(f"isaaclab_{name}")
+                if name == "visualizers":
+                    if "isaaclab_visualizers" not in extensions:
+                        extensions.append("isaaclab_visualizers")
+                    extension_extras["isaaclab_visualizers"] = "[all]"
+                else:
+                    extensions.append(f"isaaclab_{name}")
             else:
                 valid = sorted(VALID_ISAACLAB_SUBPACKAGES) + sorted(VALID_RL_FRAMEWORKS)
                 print_warning(f"Unknown sub-package '{name}'. Valid values: {', '.join(valid)}. Skipping.")
@@ -316,7 +396,7 @@ def command_install(install_type: str = "all") -> None:
         _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        _install_isaaclab_extensions(extensions)
+        _install_isaaclab_extensions(extensions, extension_extras)
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")

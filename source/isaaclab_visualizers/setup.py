@@ -7,17 +7,31 @@
 
 from setuptools import setup
 
-# Install all visualizer backend dependencies by default.
+# Base requirements shared across visualizer backends.
 INSTALL_REQUIRES = [
     "isaaclab",
     "numpy",
-    "warp-lang",
-    "newton",
-    "PyOpenGL-accelerate",
-    "imgui-bundle>=1.92.5",
-    "rerun-sdk>=0.29.0",
-    "viser>=1.0.16",
 ]
+
+EXTRAS_REQUIRE = {
+    "kit": [],
+    "newton": [
+        "warp-lang",
+        "newton",
+        "PyOpenGL-accelerate",
+        "imgui-bundle>=1.92.5",
+    ],
+    "rerun": [
+        "newton",
+        "rerun-sdk>=0.29.0",
+    ],
+    "viser": [
+        "newton",
+        "viser>=1.0.16",
+    ],
+}
+
+EXTRAS_REQUIRE["all"] = sorted({dep for group in EXTRAS_REQUIRE.values() for dep in group})
 
 setup(
     name="isaaclab_visualizers",
@@ -32,6 +46,7 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_visualizers"],
     classifiers=[
         "Natural Language :: English",
