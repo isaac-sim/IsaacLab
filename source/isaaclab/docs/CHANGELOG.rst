@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.5.4 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg.gravity_compensation_scale` to
+  :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg` for setting body-level gravity compensation
+  (written as ``mjc:gravcomp`` on USD rigid body prims).
+* Added :attr:`~isaaclab.actuators.ActuatorBaseCfg.gravity_compensation` flag to
+  :class:`~isaaclab.actuators.ActuatorBaseCfg` to enable per-actuator gravity compensation.
+
 4.5.3 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 

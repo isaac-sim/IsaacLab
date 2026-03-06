@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.4.2 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_newton.assets.Articulation._write_actuator_gravity_comp_to_usd` to stamp
+  ``mjc:actuatorgravcomp`` on joint USD prims for actuators with gravity compensation enabled,
+  allowing Newton's MuJoCo solver to apply per-joint gravity compensation.
+
 0.4.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 
