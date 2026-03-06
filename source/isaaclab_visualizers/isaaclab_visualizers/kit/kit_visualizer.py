@@ -13,16 +13,17 @@ from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
 
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
 from .kit_visualizer_cfg import KitVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider
 
 
-class KitVisualizer(Visualizer):
+class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
     def __init__(self, cfg: KitVisualizerCfg):
@@ -36,10 +37,11 @@ class KitVisualizer(Visualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
+        self._runtime_headless = bool(cfg.headless)
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         if self._is_initialized:
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
@@ -61,9 +63,19 @@ class KitVisualizer(Visualizer):
                 "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
             )
             self._apply_env_visibility(usd_stage, metadata)
-        cam_pos = self.cfg.camera_position
-        cam_target = self.cfg.camera_target
-        logger.info("[KitVisualizer] initialized | camera_pos=%s camera_target=%s", cam_pos, cam_target)
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._log_initialization_table(
+            logger=logger,
+            title="KitVisualizer Configuration",
+            rows=[
+                ("camera_position", self.cfg.camera_position),
+                ("camera_target", self.cfg.camera_target),
+                ("camera_source", self.cfg.camera_source),
+                ("num_visualized_envs", num_visualized_envs),
+                ("create_viewport", self.cfg.create_viewport),
+                ("headless", self._runtime_headless),
+            ],
+        )
 
         self._is_initialized = True
 
@@ -79,6 +91,8 @@ class KitVisualizer(Visualizer):
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
+                # Keep app pumping for viewport/UI updates only.
+                # Simulation stepping is owned by SimulationContext.
                 settings = get_settings_manager()
                 settings.set_bool("/app/player/playSimulations", False)
                 app.update()
@@ -110,7 +124,14 @@ class KitVisualizer(Visualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        return False
+        try:
+            from isaaclab.app.settings_manager import get_settings_manager
+
+            settings = get_settings_manager()
+            play_flag = settings.get("/app/player/playSimulations")
+            return play_flag is False
+        except Exception:
+            return False
 
     def supports_markers(self) -> bool:
         return True
@@ -154,7 +175,8 @@ class KitVisualizer(Visualizer):
 
             if sim_app is not None:
                 self._simulation_app = sim_app
-                if self._simulation_app.config.get("headless", False):
+                self._runtime_headless = bool(self.cfg.headless or self._simulation_app.config.get("headless", False))
+                if self._runtime_headless:
                     logger.warning("[KitVisualizer] Running in headless mode. Viewport may not display.")
         except ImportError:
             pass
@@ -162,6 +184,12 @@ class KitVisualizer(Visualizer):
     def _setup_viewport(self, usd_stage) -> None:
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
+
+        if self._runtime_headless:
+            # In headless mode we keep the visualizer active but skip viewport/window setup.
+            self._viewport_window = None
+            self._viewport_api = None
+            return
 
         if self.cfg.create_viewport and self.cfg.viewport_name:
             dock_position_name = self.cfg.dock_position.upper()
@@ -185,17 +213,13 @@ class KitVisualizer(Visualizer):
             asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
             self._create_and_assign_camera(usd_stage)
         else:
-            if self.cfg.viewport_name:
-                self._viewport_window = vp_utils.get_viewport_window_by_name(self.cfg.viewport_name)
-                if self._viewport_window is None:
-                    logger.warning(f"[KitVisualizer] Viewport '{self.cfg.viewport_name}' not found. Using active.")
-                    self._viewport_window = vp_utils.get_active_viewport_window()
-            else:
-                self._viewport_window = vp_utils.get_active_viewport_window()
+            self._viewport_window = vp_utils.get_active_viewport_window()
 
+        if self._viewport_window is None:
+            logger.warning("[KitVisualizer] No active viewport window found.")
+            self._viewport_api = None
+            return
         self._viewport_api = self._viewport_window.viewport_api
-        # TODO: Unify camera initialization with a renderer-level rendering_cfg/camera_cfg
-        # so visualizers can consume one canonical camera policy.
         if self.cfg.camera_source == "usd_path":
             if not self._set_active_camera_path(self.cfg.camera_usd_path):
                 logger.warning(
@@ -237,7 +261,6 @@ class KitVisualizer(Visualizer):
             viewport_window.focus()
 
     def _create_and_assign_camera(self, usd_stage) -> None:
-        # Create camera prim path based on viewport name (sanitize to ensure valid USD path).
         camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
 
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
@@ -250,6 +273,8 @@ class KitVisualizer(Visualizer):
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
+        if self._viewport_api is None:
+            return
         camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"

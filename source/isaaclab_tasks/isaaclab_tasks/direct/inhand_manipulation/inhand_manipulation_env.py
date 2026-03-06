@@ -135,9 +135,15 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         if self.cfg.asymmetric_obs:
-            self.fingertip_force_sensors = wp.to_torch(self.hand.data.body_incoming_joint_wrench_b)[
-                :, self.finger_bodies
-            ]
+            # Newton does not implement body_incoming_joint_wrench_b; fall back to zeros.
+            try:
+                self.fingertip_force_sensors = wp.to_torch(self.hand.data.body_incoming_joint_wrench_b)[
+                    :, self.finger_bodies
+                ]
+            except NotImplementedError:
+                self.fingertip_force_sensors = torch.zeros(
+                    self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
+                )
 
         if self.cfg.obs_type == "openai":
             obs = self.compute_reduced_observations()
