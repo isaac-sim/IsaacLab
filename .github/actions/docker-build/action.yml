@@ -24,10 +24,25 @@ inputs:
     description: 'Build context path'
     default: '.'
     required: false
+  push:
+    description: 'Push the built image to the registry instead of loading it locally'
+    default: 'false'
+    required: false
+  ecr-cache-tags:
+    description: 'Space-separated ECR image refs to use as registry layer-cache sources (--cache-from type=registry,ref=...). Falls back to GitHub Actions cache when empty.'
+    default: ''
+    required: false
+  ecr-write-cache-tag:
+    description: 'ECR image ref to write the build cache to (--cache-to type=registry,ref=...,mode=max). Falls back to GitHub Actions cache when empty.'
+    default: ''
+    required: false
 
 runs:
   using: composite
   steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: NGC Login
       shell: sh
       run: |
@@ -44,35 +59,55 @@ runs:
     - name: Build Docker Image
       shell: sh
       run: |
-        # Function to build Docker image
-        build_docker_image() {
-          local image_tag="$1"
-          local isaacsim_base_image="$2"
-          local isaacsim_version="$3"
-          local dockerfile_path="$4"
-          local context_path="$5"
+        IMAGE_TAG="${{ inputs.image-tag }}"
+        PUSH="${{ inputs.push }}"
+        ECR_CACHE_TAGS="${{ inputs.ecr-cache-tags }}"
+        ECR_WRITE_CACHE_TAG="${{ inputs.ecr-write-cache-tag }}"
 
-          echo "Building Docker image: $image_tag"
-          echo "Using Dockerfile: $dockerfile_path"
-          echo "Build context: $context_path"
+        echo "Building Docker image: $IMAGE_TAG"
+        echo "Using Dockerfile: ${{ inputs.dockerfile-path }}"
+        echo "Build context: ${{ inputs.context-path }}"
 
-          # Build Docker image
-          docker buildx build --progress=plain --platform linux/amd64 \
-            -t isaac-lab-dev \
-            -t $image_tag \
-            --build-arg ISAACSIM_BASE_IMAGE_ARG="$isaacsim_base_image" \
-            --build-arg ISAACSIM_VERSION_ARG="$isaacsim_version" \
-            --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
-            --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
-            --build-arg DOCKER_USER_HOME_ARG=/root \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            -f $dockerfile_path \
-            --load $context_path
+        # Assemble --cache-from flags: prefer ECR registry cache, fall back to GHA cache
+        if [ -n "$ECR_CACHE_TAGS" ]; then
+          CACHE_FROM_ARGS=""
+          for tag in $ECR_CACHE_TAGS; do
+            CACHE_FROM_ARGS="$CACHE_FROM_ARGS --cache-from type=registry,ref=$tag"
+          done
+        else
+          CACHE_FROM_ARGS="--cache-from type=gha"
+        fi
 
-          echo "✅ Docker image built successfully: $image_tag"
-          docker images | grep isaac-lab-dev
-        }
+        # Assemble --cache-to flag: prefer ECR registry cache, fall back to GHA cache
+        if [ -n "$ECR_WRITE_CACHE_TAG" ]; then
+          CACHE_TO_ARG="--cache-to type=registry,ref=$ECR_WRITE_CACHE_TAG,mode=max"
+        else
+          CACHE_TO_ARG="--cache-to type=gha,mode=max"
+        fi
 
-        # Call the function with provided parameters
-        build_docker_image "${{ inputs.image-tag }}" "${{ inputs.isaacsim-base-image }}" "${{ inputs.isaacsim-version }}" "${{ inputs.dockerfile-path }}" "${{ inputs.context-path }}"
+        # Assemble output mode: push to registry or load into local daemon
+        if [ "$PUSH" = "true" ]; then
+          OUTPUT_ARG="--push"
+          TAG_ARGS="-t $IMAGE_TAG"
+        else
+          OUTPUT_ARG="--load"
+          TAG_ARGS="-t isaac-lab-dev -t $IMAGE_TAG"
+        fi
+
+        # shellcheck disable=SC2086
+        docker buildx build --progress=plain --platform linux/amd64 \
+          $TAG_ARGS \
+          --build-arg ISAACSIM_BASE_IMAGE_ARG="${{ inputs.isaacsim-base-image }}" \
+          --build-arg ISAACSIM_VERSION_ARG="${{ inputs.isaacsim-version }}" \
+          --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
+          --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
+          --build-arg DOCKER_USER_HOME_ARG=/root \
+          $CACHE_FROM_ARGS \
+          $CACHE_TO_ARG \
+          -f "${{ inputs.dockerfile-path }}" \
+          $OUTPUT_ARG "${{ inputs.context-path }}"
+
+        echo "✅ Docker image built successfully: $IMAGE_TAG"
+        if [ "$PUSH" != "true" ]; then
+          docker images | grep "isaac-lab-dev" || true
+        fi

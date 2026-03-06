@@ -93,6 +93,10 @@ jobs:
         echo "Repository name: $REPO_SHORT_NAME"
         echo "IsaacSim versions: ${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
 
+        # ECR layer-cache tags: write to branch-specific key, read branch + develop as fallback
+        ECR_CACHE_WRITE="${ECR_CACHE_URL}:cache-base-${SAFE_BRANCH_NAME}"
+        ECR_CACHE_READ_FALLBACK="${ECR_CACHE_URL}:cache-base-develop"
+
         # Parse the env variable string into an array
         IMAGE_BASE_VERSIONS_STRING="${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
         # Use set to split the string into positional parameters, then convert to array
@@ -149,8 +153,11 @@ jobs:
           echo "IsaacSim version: $IMAGE_BASE_VERSION"
           echo "Base image: $BASE_IMAGE_FULL"
           echo "Target platforms: $BUILD_PLATFORMS"
+          echo "ECR layer cache: read=${ECR_CACHE_WRITE},${ECR_CACHE_READ_FALLBACK} write=${ECR_CACHE_WRITE}"
 
-          # Build Docker image once with both tags for multiple architectures
+          # Build Docker image once with both tags for multiple architectures.
+          # Layer cache is read from / written to ECR so subsequent runs and
+          # parallel PR builds on the same branch skip already-built layers.
           docker buildx build \
             --platform $BUILD_PLATFORMS \
             --progress=plain \
@@ -161,8 +168,9 @@ jobs:
             --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
             --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
             --build-arg DOCKER_USER_HOME_ARG=/root \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            --cache-from type=registry,ref=${ECR_CACHE_WRITE} \
+            --cache-from type=registry,ref=${ECR_CACHE_READ_FALLBACK} \
+            --cache-to type=registry,ref=${ECR_CACHE_WRITE},mode=max \
             -f docker/Dockerfile.base \
             --push .
 
