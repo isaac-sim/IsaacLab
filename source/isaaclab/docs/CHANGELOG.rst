@@ -4,13 +4,14 @@ Changelog
 4.5.5 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
-Fixed
-^^^^^
+Changed
+^^^^^^^
 
-* Fixed visualizer CLI type resolution to read from a dedicated settings key
-  (``/isaaclab/visualizer/types``), avoiding runtime failures when nested
-  visualizer settings (for example ``/isaaclab/visualizer/max_worlds``) are
-  present.
+* Reorganized Visualizers and SDP packages
+* Added Visualizer unit tests
+* Improve PhysX Scene Data Provider perf
+* Tweaks default Visualizer Configs
+
 
 4.5.4 (2026-03-01)
 ~~~~~~~~~~~~~~~~~~
