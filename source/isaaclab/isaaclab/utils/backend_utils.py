@@ -46,6 +46,8 @@ class FactoryBase:
         manager_name = SimulationContext.instance().physics_manager.__name__.lower()
         if "newton" in manager_name:
             return "newton"
+        if "ovphysx" in manager_name:
+            return "ovphysx"
         if "physx" in manager_name:
             return "physx"
         else:

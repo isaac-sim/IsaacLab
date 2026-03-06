@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
@@ -37,6 +38,7 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 @configclass
