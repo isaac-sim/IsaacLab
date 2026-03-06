@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Mock Newton views."""
-
-from .mock_articulation_view import MockNewtonArticulationView, MockNewtonCollectionView
-
 __all__ = [
-    "MockNewtonArticulationView",
-    "MockNewtonCollectionView",
+    "RigidObjectCollection",
+    "RigidObjectCollectionData",
 ]
+
+from .rigid_object_collection import RigidObjectCollection
+from .rigid_object_collection_data import RigidObjectCollectionData
