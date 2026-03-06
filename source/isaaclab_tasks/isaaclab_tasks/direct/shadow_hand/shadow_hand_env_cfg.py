@@ -162,7 +162,7 @@ class ShadowHandRobotCfg(PresetCfg):
             # discards the root body's native USD orientation, so we must re-apply it here as a
             # spawn rotation. PhysX or USD does not have this issue. Remove once Newton fixes root joint
             # transform handling in import_usd.py.
-            rot=(-0.7071, 0.0, 0.0, 0.7071),
+            rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={".*": 0.0},
         ),
         actuators={
@@ -232,7 +232,7 @@ class ObjectCfg(PresetCfg):
             scale=(0.9, 0.9, 0.9),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.36, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
+            pos=(0.0, -0.36, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
         ),
         actuators={},
         articulation_root_prim_path="",
