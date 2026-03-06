@@ -45,6 +45,7 @@ from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     DEVICE,
+    compute_crc32_hash_kernel,
     create_camera_transforms_kernel,
     extract_depth_tile_from_tiled_buffer_kernel,
     extract_tile_from_tiled_buffer_kernel,
@@ -396,6 +397,17 @@ class OVRTXRenderer(BaseRenderer):
         if src.ptr != output_data.data_ptr():
             wp.copy(dest=wp.from_torch(output_data), src=src)
 
+    def _compute_crc32_hash(self, input_data: wp.array) -> wp.array:
+        """Compute CRC32 hash per pixel for a 2D uint32 buffer; returns (h, w) uint32 array."""
+        output_hash = wp.zeros(shape=input_data.shape, dtype=wp.uint32, device=DEVICE)
+        wp.launch(
+            kernel=compute_crc32_hash_kernel,
+            dim=input_data.shape,
+            inputs=[input_data, output_hash],
+            device=DEVICE,
+        )
+        return output_hash
+
     def _extract_rgba_tiles(
         self,
         render_data: OVRTXRenderData,
@@ -476,16 +488,23 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentationSD"].map(device=Device.CUDA) as mapping:
+        if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
+            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
+
                 if tiled_semantic_data.dtype == wp.uint32:
-                    semantic_torch = wp.to_torch(tiled_semantic_data)
+                    # Hash each semantic ID so nearby IDs (e.g. 1, 2, 3) map to visually distinct colors in the output.
+                    semantic_hash = self._compute_crc32_hash(tiled_semantic_data)
+
+                    semantic_torch = wp.to_torch(semantic_hash)
                     semantic_uint8 = semantic_torch.view(torch.uint8)
+
                     if semantic_torch.dim() == 2:
                         h, w = semantic_torch.shape
                         semantic_uint8 = semantic_uint8.reshape(h, w, 4)
+
                     tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
+
                 self._extract_rgba_tiles(
                     render_data,
                     tiled_semantic_data,

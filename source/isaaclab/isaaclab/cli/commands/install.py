@@ -127,7 +127,7 @@ def _ensure_cuda_torch() -> None:
 
 # Valid sub-package names that can be passed to --install.
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
-VALID_ISAACLAB_SUBPACKAGES: set[str] = {"assets", "physx", "contrib", "mimic", "newton", "rl", "tasks", "teleop"}
+VALID_ISAACLAB_SUBPACKAGES: set[str] = {"assets", "contrib", "mimic", "newton", "ov", "physx", "rl", "tasks", "teleop"}
 
 # RL framework names accepted.
 # Passing one of these installs all extensions + that framework.
