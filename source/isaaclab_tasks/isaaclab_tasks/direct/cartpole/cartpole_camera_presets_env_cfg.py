@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -19,6 +17,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -28,13 +27,6 @@ class PhysicsCfg(PresetCfg):
     default = PhysxCfg()
     physx = PhysxCfg()
     newton = NewtonCfg()
-
-
-@configclass
-class MultiBackendRendererCfg(PresetCfg):
-    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
-    newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
-    isaacsim_rtx_renderer: IsaacRtxRendererCfg = default
 
 
 @configclass
