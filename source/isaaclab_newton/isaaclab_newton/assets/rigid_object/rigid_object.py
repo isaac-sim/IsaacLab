@@ -656,9 +656,12 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -708,9 +711,12 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     """
     Operations - Setters.
@@ -986,8 +992,6 @@ class RigidObject(BaseRigidObject):
     """
 
     def _initialize_impl(self):
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
         template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:
@@ -1030,11 +1034,11 @@ class RigidObject(BaseRigidObject):
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- object view
-        self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
-
-        # check if the rigid body was created
-        if self.root_view._backend is None:
-            raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
+        self._root_view = ArticulationView(
+            SimulationManager.get_model(),
+            root_prim_path_expr.replace(".*", "*"),
+            verbose=False,
+        )
 
         # log information about the rigid body
         logger.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")

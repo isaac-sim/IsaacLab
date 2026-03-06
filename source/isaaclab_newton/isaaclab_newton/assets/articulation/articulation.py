@@ -3782,7 +3782,7 @@ class Articulation(BaseArticulation):
             return full_mask
 
         if isinstance(mask, torch.Tensor):
-            return wp.from_torch(mask, dtype=wp.bool, device=self.device)
+            return wp.from_torch(mask, dtype=wp.bool)
         return mask
     
 
