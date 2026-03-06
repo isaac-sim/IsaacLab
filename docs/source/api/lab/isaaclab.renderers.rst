@@ -1,5 +1,5 @@
 isaaclab.renderers
-=================
+==================
 
 .. automodule:: isaaclab.renderers
 
