@@ -46,20 +46,32 @@ class OvPhysxManager(PhysicsManager):
     _stage_path: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
     _tmp_dir: ClassVar[tempfile.TemporaryDirectory | None] = None
-    # Pending (source, targets) pairs registered by ovphysx_replicate() before
-    # the PhysX instance exists.  Replayed via physx.clone() in _warmup_and_load().
-    _pending_clones: ClassVar[list[tuple[str, list[str]]]] = []
+    # Pending (source, targets, parent_positions) triples registered by
+    # ovphysx_replicate() before the PhysX instance exists.  Replayed via
+    # physx.clone() in _warmup_and_load().
+    # parent_positions is a list of (x, y, z) tuples — one per target.
+    _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
 
     @classmethod
-    def register_clone(cls, source: str, targets: list[str]) -> None:
-        """Register a (source, targets) pair to be replayed via physx.clone().
+    def register_clone(cls, source: str, targets: list[str],
+                       parent_positions: list[tuple[float, float, float]] | None = None) -> None:
+        """Register a (source, targets, parent_positions) triple for replay via physx.clone().
 
         Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
         scene setup, before the PhysX instance exists.  The clone operations
         are executed in :meth:`_warmup_and_load` immediately after
         ``physx.add_usd()``.
+
+        Args:
+            source: Source prim path (env_0 articulation root).
+            targets: Target prim paths for env_1..N.
+            parent_positions: World positions (x, y, z) for each target's parent
+                Xform prim (e.g. /World/envs/env_N).  When provided the clone
+                plugin sets those transforms in Fabric so all environments start
+                at their correct grid locations, preventing solver divergence
+                during the warmup step.
         """
-        cls._pending_clones.append((source, targets))
+        cls._pending_clones.append((source, targets, parent_positions or []))
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -251,6 +263,16 @@ class OvPhysxManager(PhysicsManager):
 
         atexit.register(_atexit_release_and_exit)
 
+        # Tell the clone plugin which path to exclude from eager attachStage
+        # parsing.  Without this, attachStage would create a duplicate actor
+        # for env_0 before replicate() runs, corrupting the articulation count.
+        # When no clones are pending the env root stays empty (no exclusion).
+        if cls._pending_clones:
+            source = cls._pending_clones[0][0]
+            env_root = source.rsplit("/", 1)[0]
+            cls._physx.set_clone_env_root(env_root)
+            logger.info("OvPhysxManager: set clone env root to '%s'", env_root)
+
         usd_handle, op_idx = cls._physx.add_usd(stage_file)
         cls._physx.wait_op(op_idx)
         cls._usd_handle = usd_handle
@@ -261,12 +283,17 @@ class OvPhysxManager(PhysicsManager):
         # Xform containers.  physx.clone() creates the remaining environments
         # in the physics runtime without modifying the USD file.
         if cls._pending_clones:
-            for source, targets in cls._pending_clones:
+            # ovphysx_replicate() only registers pending clones when clone_usd=False,
+            # meaning the USD contains only env_0 physics and physx.clone() is required
+            # to populate env_1..N in the physics runtime.  Execute unconditionally —
+            # no USD content heuristic is needed.
+            for source, targets, parent_positions in cls._pending_clones:
                 logger.info(
                     "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
                     source, len(targets), targets[0], targets[-1],
                 )
-                op_idx = cls._physx.clone(source, targets)
+                positions_arg = parent_positions if parent_positions else None
+                op_idx = cls._physx.clone(source, targets, positions_arg)
                 cls._physx.wait_op(op_idx)
             cls._pending_clones = []
 

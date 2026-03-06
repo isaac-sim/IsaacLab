@@ -320,20 +320,24 @@ class Articulation(BaseArticulation):
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(position, (n, d), wp.float32, "position")
         self._write_flat_tensor(TT.DOF_POSITION, position, env_ids, joint_ids)
+        self.data._joint_pos_buf.timestamp = -1.0
 
     def write_joint_position_to_sim_mask(self, *, position, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
         self._write_flat_tensor_mask(TT.DOF_POSITION, position, env_mask, joint_mask)
+        self.data._joint_pos_buf.timestamp = -1.0
 
     def write_joint_velocity_to_sim_index(self, *, velocity, joint_ids=None, env_ids=None) -> None:
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(velocity, (n, d), wp.float32, "velocity")
         self._write_flat_tensor(TT.DOF_VELOCITY, velocity, env_ids, joint_ids)
+        self.data._joint_vel_buf.timestamp = -1.0
 
     def write_joint_velocity_to_sim_mask(self, *, velocity, joint_mask=None, env_mask=None) -> None:
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
         self._write_flat_tensor_mask(TT.DOF_VELOCITY, velocity, env_mask, joint_mask)
+        self.data._joint_vel_buf.timestamp = -1.0
 
     # ------------------------------------------------------------------
     # Joint property writers (with shape validation)
@@ -825,8 +829,19 @@ class Articulation(BaseArticulation):
         self._is_initialized = False
 
     def _process_actuators_cfg(self) -> None:
-        """Build actuator instances from the config."""
-        from isaaclab.actuators import ActuatorBaseCfg
+        """Build actuator instances from the config and write drive properties to PhysX.
+
+        Mirrors what the legacy PhysX backend does in its own _process_actuators_cfg:
+        - For ImplicitActuator: write the configured stiffness / damping to the PhysX
+          drive so the solver uses exactly the values from the actuator config.
+        - For all explicit actuators: zero out PhysX stiffness / damping so the
+          USD-authored drive gains cannot interfere with the explicit torque path.
+        - For all actuators: write effort_limit_sim and velocity_limit_sim.
+
+        These writes happen via TensorBinding (GPU-resident) after warmup has
+        allocated the GPU buffers (MODEL_INIT fires post-warmup).
+        """
+        from isaaclab.actuators import ActuatorBaseCfg, ImplicitActuator
 
         self.actuators: dict[str, ActuatorBase] = {}
         for name, act_cfg in self.cfg.actuators.items():
@@ -844,6 +859,23 @@ class Articulation(BaseArticulation):
             )
             self.actuators[name] = act
             self._joint_ids_per_actuator[name] = joint_ids
+
+            # Write drive gains and limits to PhysX to match the actuator config.
+            # Without this, PhysX retains whatever stiffness/damping was authored in the
+            # USD file, which can produce large restoring forces if the USD gains differ
+            # from the actuator config (e.g. a position-controlled robot exported with
+            # non-zero drive stiffness but configured with ImplicitActuator(stiffness=0)).
+            jids = list(joint_ids)
+            if isinstance(act, ImplicitActuator):
+                stiffness = act.stiffness  # torch (N, J)
+                damping = act.damping      # torch (N, J)
+            else:
+                stiffness = wp.zeros((self._num_instances, len(jids)), dtype=wp.float32, device=self._device)
+                damping = wp.zeros((self._num_instances, len(jids)), dtype=wp.float32, device=self._device)
+            self.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=jids)
+            self.write_joint_damping_to_sim_index(damping=damping, joint_ids=jids)
+            self.write_joint_effort_limit_to_sim_index(limits=act.effort_limit_sim, joint_ids=jids)
+            self.write_joint_velocity_limit_to_sim_index(limits=act.velocity_limit_sim, joint_ids=jids)
 
     def _process_tendons(self) -> None:
         """Discover tendon counts from binding metadata and names from USD.
@@ -1084,6 +1116,7 @@ class Articulation(BaseArticulation):
 
         if env_ids is None and mask is None:
             binding.write(self._to_flat_f32(data))
+            self._invalidate_root_caches(tensor_type)
             return
 
         src = self._as_gpu_f32_2d(data, C)
@@ -1106,6 +1139,16 @@ class Articulation(BaseArticulation):
                 self._to_cpu_numpy(mask).astype(np.uint8), device=self._device,
             )
             binding.write(src, mask=mask_u8)
+        self._invalidate_root_caches(tensor_type)
+
+    def _invalidate_root_caches(self, tensor_type: int) -> None:
+        """Force re-read from GPU on next property access after a binding write."""
+        if tensor_type == TT.ROOT_POSE:
+            self.data._root_link_pose_w.timestamp = -1.0
+            self.data._root_com_pose_w.timestamp = -1.0
+        elif tensor_type == TT.ROOT_VELOCITY:
+            self.data._root_link_vel_w.timestamp = -1.0
+            self.data._root_com_vel_w.timestamp = -1.0
 
     def _write_flat_tensor(self, tensor_type: int, data, env_ids=None, joint_ids=None) -> None:
         if isinstance(data, (int, float)):

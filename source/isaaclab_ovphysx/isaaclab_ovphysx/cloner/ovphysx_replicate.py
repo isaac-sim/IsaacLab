@@ -42,11 +42,13 @@ def ovphysx_replicate(
     ``physx.clone()`` calls happen in ``_warmup_and_load()`` after the USD
     stage has been loaded.
 
-    Positions and orientations are intentionally ignored: after
-    ``physx.clone()`` all environments share ``env_0``'s world position.
-    The correct grid-spaced positions are written during the first
-    :meth:`~isaaclab_ovphysx.assets.articulation.Articulation.reset` call via
-    the root-pose tensor binding, exactly as in the PhysX backend.
+    The ``positions`` parameter contains the 2-D grid world positions for all
+    environments.  They are forwarded to the C++ clone plugin so that the
+    parent Xform prim for each clone (e.g. ``/World/envs/env_N``) is placed at
+    the correct grid location in Fabric.  The exported USD stage only contains
+    ``env_0``; without explicit positions all clone parents would be created at
+    the origin, causing all articulations to pile up and the GPU solver to
+    diverge on the first warmup step.
 
     Args:
         stage: USD stage (not modified by this function).
@@ -55,7 +57,9 @@ def ovphysx_replicate(
         env_ids: Environment indices tensor.
         mapping: ``(num_sources, num_envs)`` bool tensor; True selects which
             environments receive each source.
-        positions: Ignored — positions are set at first reset.
+        positions: World (x, y, z) positions for every environment, shape
+            ``[num_envs, 3]``.  Used to place clone parent Xform prims in
+            Fabric at correct grid locations.
         quaternions: Ignored — orientations are set at first reset.
         device: Torch device (unused; kept for API compatibility).
     """
@@ -75,11 +79,24 @@ def ovphysx_replicate(
         if candidate.isdigit():
             self_env_id = int(candidate)
 
-        targets = [
-            destinations[i].format(e)
-            for e in active_env_ids
-            if e != self_env_id
-        ]
+        # Build parallel (targets, parent_positions) lists for non-self envs.
+        # parent_positions[j] is the world (x,y,z) for the parent Xform of
+        # targets[j] (e.g. /World/envs/env_N).  These positions are passed to
+        # the C++ clone plugin so that env_N Xform prims — absent from the
+        # exported USD stage — are created at the correct 2-D grid location
+        # rather than the origin.  Without this, all clones pile up at env_0's
+        # position during the warmup physics step and the GPU solver diverges.
+        targets: list[str] = []
+        parent_positions: list[tuple[float, float, float]] = []
+        for e in active_env_ids:
+            if e == self_env_id:
+                continue
+            targets.append(destinations[i].format(e))
+            if positions is not None and e < len(positions):
+                pos = positions[e]
+                parent_positions.append((float(pos[0]), float(pos[1]), float(pos[2])))
+            else:
+                parent_positions.append((0.0, 0.0, 0.0))
 
         if targets:
-            OvPhysxManager.register_clone(src, targets)
+            OvPhysxManager.register_clone(src, targets, parent_positions)
