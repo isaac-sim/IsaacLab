@@ -141,8 +141,10 @@ class DirectRLEnv(gym.Env):
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        # Use is_rendering instead of has_gui to support headless offscreen rendering and visualizers
-        if self.sim.is_rendering:
+        # Initialize when GUI is available OR when visualizers are active (headless rendering)
+        # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
+        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
+        if self.sim.has_gui or has_visualizers:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
