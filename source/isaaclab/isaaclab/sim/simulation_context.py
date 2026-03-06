@@ -382,21 +382,10 @@ class SimulationContext:
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
         requested = self.get_setting("/isaaclab/visualizer/types")
-        if not requested:
+        if not isinstance(requested, str) or not requested.strip():
             return []
-        # Depending on settings backend, this may be a string or list.
-        if isinstance(requested, str):
-            parts = [p.strip() for p in requested.split(",") if p.strip()]
-            return [v for part in parts for v in part.split() if v]
-
-        if isinstance(requested, (list, tuple, set)):
-            out = []
-            for value in requested:
-                if isinstance(value, str):
-                    out.extend(v for v in value.replace(",", " ").split() if v)
-            return out
-
-        return []
+        # App launcher writes this as a single string; accept comma and/or whitespace separators.
+        return [value for chunk in requested.split(",") for value in chunk.split() if value]
 
     def _get_cli_visualizer_max_worlds_override(self) -> tuple[bool, int | None]:
         """Return CLI override for visualizer max worlds.
