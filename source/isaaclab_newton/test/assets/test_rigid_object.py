@@ -58,8 +58,7 @@ def _newton_sim_context(device, gravity_enabled=True, dt=None, **kwargs):
     """
     NEWTON_SIM_CFG.device = device
     NEWTON_SIM_CFG.gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-    if dt is not None:
-        NEWTON_SIM_CFG.dt = dt
+    NEWTON_SIM_CFG.dt = dt if dt is not None else 1.0 / 60.0
     return build_simulation_context(device=device, sim_cfg=NEWTON_SIM_CFG, **kwargs)
 
 

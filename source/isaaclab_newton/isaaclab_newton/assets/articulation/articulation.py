@@ -3223,6 +3223,13 @@ class Articulation(BaseArticulation):
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
 
+    def _clear_callbacks(self) -> None:
+        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        super()._clear_callbacks()
+        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
+            self._physics_ready_handle.deregister()
+            self._physics_ready_handle = None
+
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)

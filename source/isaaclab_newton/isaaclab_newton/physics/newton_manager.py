@@ -354,6 +354,7 @@ class NewtonManager(PhysicsManager):
         if not env_paths:
             # No env Xforms — flat loading
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            cls._num_envs = 1
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]

@@ -888,6 +888,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, arti
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
 def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Validate joint effort limits via joint_effort_out_of_limit()."""
     # Create articulation
@@ -2330,6 +2331,7 @@ def test_spatial_tendons(sim, num_articulations, device):
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
 def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test applying of joint position target functions correctly for a robotic arm."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
