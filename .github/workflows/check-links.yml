@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Check Documentation Links
+name: Documentation Links
 
 on:
   # Run on pull requests that modify documentation

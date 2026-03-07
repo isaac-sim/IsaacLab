@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Check Python Dependency Licenses
+name: Python Dependency Licenses Check
 
 on:
   pull_request:
