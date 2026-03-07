@@ -28,10 +28,111 @@ env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: nvcr.io/nvidian/isaac-sim #${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' #${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
-  DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  ECR_CACHE_URL: 968945269301.dkr.ecr.us-west-2.amazonaws.com/gitci-docker-cache
 
 jobs:
+  # ── Build Phase ──────────────────────────────────────────────────────────────
+  # Each Dockerfile is built once per pipeline and pushed to ECR with the commit
+  # SHA as the image tag. All test jobs pull from ECR rather than rebuilding,
+  # eliminating redundant multi-gigabyte builds. Layer caching is stored in ECR
+  # with per-branch keys so that feature branches inherit the develop cache on
+  # first run and build incrementally on subsequent runs.
+
+  build-base-image:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 60
+    outputs:
+      ecr-image-tag: ${{ steps.tags.outputs.ecr_image_tag }}
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Login to ECR
+      run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
+    # Caching: Each branch maintains its own warm cache layer in AWS ECR,
+    # falling back to "develop"'s cache if no branch cache exists yet.
+    - name: Compute ECR image and cache tags
+      id: tags
+      run: |
+        BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
+        SHA="${{ github.sha }}"
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          ECR_IMAGE_TAG="${ECR_CACHE_URL}:pr-${{ github.event.pull_request.number }}-${SHA}"
+        else
+          ECR_IMAGE_TAG="${ECR_CACHE_URL}:${BRANCH}-${SHA}"
+        fi
+        echo "ecr_image_tag=${ECR_IMAGE_TAG}" >> $GITHUB_OUTPUT
+        echo "ecr_cache_tag=${ECR_CACHE_URL}:cache-base-${BRANCH}" >> $GITHUB_OUTPUT
+        echo "ecr_cache_fallback=${ECR_CACHE_URL}:cache-base-develop" >> $GITHUB_OUTPUT
+
+    - name: Build and Push Base Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ steps.tags.outputs.ecr_image_tag }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        push: 'true'
+        ecr-cache-tags: "${{ steps.tags.outputs.ecr_cache_tag }} ${{ steps.tags.outputs.ecr_cache_fallback }}"
+        ecr-write-cache-tag: ${{ steps.tags.outputs.ecr_cache_tag }}
+
+  build-curobo-image:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    outputs:
+      ecr-image-tag: ${{ steps.tags.outputs.ecr_image_tag }}
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Login to ECR
+      run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
+    - name: Compute ECR image and cache tags
+      id: tags
+      run: |
+        BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
+        SHA="${{ github.sha }}"
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          ECR_IMAGE_TAG="${ECR_CACHE_URL}:pr-${{ github.event.pull_request.number }}-${SHA}-curobo"
+        else
+          ECR_IMAGE_TAG="${ECR_CACHE_URL}:${BRANCH}-${SHA}-curobo"
+        fi
+        echo "ecr_image_tag=${ECR_IMAGE_TAG}" >> $GITHUB_OUTPUT
+        echo "ecr_cache_tag=${ECR_CACHE_URL}:cache-curobo-${BRANCH}" >> $GITHUB_OUTPUT
+        echo "ecr_cache_fallback=${ECR_CACHE_URL}:cache-curobo-develop" >> $GITHUB_OUTPUT
+
+    - name: Build and Push cuRobo Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ steps.tags.outputs.ecr_image_tag }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: 'docker/Dockerfile.curobo'
+        push: 'true'
+        ecr-cache-tags: "${{ steps.tags.outputs.ecr_cache_tag }} ${{ steps.tags.outputs.ecr_cache_fallback }}"
+        ecr-write-cache-tag: ${{ steps.tags.outputs.ecr_cache_tag }}
+
+  # ── Test Phase ───────────────────────────────────────────────────────────────
+
   test-isaaclab-tasks:
+    needs: [build-base-image]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -43,12 +144,15 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+    - name: Login to ECR
+      run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
+    - name: Pull Base Docker Image from ECR
+      run: docker pull ${{ needs.build-base-image.outputs.ecr-image-tag }}
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -56,7 +160,7 @@ jobs:
         test-path: "tools"
         result-file: "isaaclab-tasks-report.xml"
         container-name: "isaac-lab-tasks-test-$$"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ needs.build-base-image.outputs.ecr-image-tag }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
@@ -93,6 +197,7 @@ jobs:
         fi
 
   test-isaaclab-tasks-2:
+    needs: [build-base-image]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -104,12 +209,15 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+    - name: Login to ECR
+      run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
+    - name: Pull Base Docker Image from ECR
+      run: docker pull ${{ needs.build-base-image.outputs.ecr-image-tag }}
 
     - name: Run IsaacLab Tasks Tests 2
       uses: ./.github/actions/run-tests
@@ -117,7 +225,7 @@ jobs:
         test-path: "tools"
         result-file: "isaaclab-tasks-2-report.xml"
         container-name: "isaac-lab-tasks-2-test-$$"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ needs.build-base-image.outputs.ecr-image-tag }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
@@ -154,6 +262,7 @@ jobs:
         fi
 
   test-general:
+    needs: [build-base-image]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
 
@@ -164,12 +273,15 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+    - name: Login to ECR
+      run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
+    - name: Pull Base Docker Image from ECR
+      run: docker pull ${{ needs.build-base-image.outputs.ecr-image-tag }}
 
     - name: Run General Tests
       id: run-general-tests
@@ -178,7 +290,7 @@ jobs:
         test-path: "tools"
         result-file: "general-tests-report.xml"
         container-name: "isaac-lab-general-test-$$"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ needs.build-base-image.outputs.ecr-image-tag }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
 
@@ -214,6 +326,7 @@ jobs:
         fi
 
   test-curobo:
+    needs: [build-curobo-image]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -225,13 +338,15 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-    - name: Build Docker Image (cuRobo)
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: 'docker/Dockerfile.curobo'
+    - name: Login to ECR
+      run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
+    - name: Pull cuRobo Docker Image from ECR
+      run: docker pull ${{ needs.build-curobo-image.outputs.ecr-image-tag }}
 
     - name: Run cuRobo and SkillGen Tests
       uses: ./.github/actions/run-tests
@@ -239,7 +354,7 @@ jobs:
         test-path: "tools"
         result-file: "curobo-tests-report.xml"
         container-name: "isaac-lab-curobo-test-$$"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        image-tag: ${{ needs.build-curobo-image.outputs.ecr-image-tag }}
         pytest-options: ""
         filter-pattern: ""
         curobo-only: "true"
@@ -277,7 +392,7 @@ jobs:
 
   combine-results:
     needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted]
     if: always()
 
     steps:
