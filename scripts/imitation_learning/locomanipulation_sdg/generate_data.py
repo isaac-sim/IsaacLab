@@ -470,7 +470,7 @@ def setup_navigation_scene(
                 print(f"Failed to randomize fixture placement for {fixture.entity_name}", flush=True)
                 return None
 
-        sync_simulation_state(env)
+            sync_simulation_state(env)
         occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
 
     initial_state = env.load_input_data(input_episode_data, 0)
