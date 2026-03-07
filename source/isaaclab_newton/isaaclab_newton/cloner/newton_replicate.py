@@ -73,7 +73,7 @@ def _rename_builder_labels(
         src_prefix_len = len(src_path.rstrip("/"))
         swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
-        # IMPORTANT: keys are Newton world IDs (sequential cols), values use real env IDs in destination path.
+        # Map Newton world index (column) to the destination root path for that world's env id.
         world_roots = {c: destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
