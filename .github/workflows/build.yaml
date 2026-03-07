@@ -14,6 +14,7 @@ on:
       - 'tools/**'
       - 'apps/**'
       - '.github/workflows/build.yaml'
+      - '.github/actions/**'
     branches:
       - main
       - develop
@@ -300,7 +301,7 @@ jobs:
 
   combine-results:
     needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     if: always()
 
     steps:
