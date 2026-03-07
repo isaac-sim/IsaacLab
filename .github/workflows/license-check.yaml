@@ -20,6 +20,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        filter: tree:0
 
     # - name: Install jq
     #   run: sudo apt-get update && sudo apt-get install -y jq
