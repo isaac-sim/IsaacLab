@@ -81,6 +81,9 @@ def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> se
         return set()
     if not visualizers:
         return set()
+    if isinstance(visualizers, str):
+        # CLI now uses comma-delimited syntax: --visualizer kit,newton,rerun
+        visualizers = [token.strip() for token in visualizers.split(",")]
     return {str(v).strip().lower() for v in visualizers if str(v).strip()}
 
 
@@ -107,7 +110,7 @@ def compute_kit_requirements(
 
     Args:
         env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
-        launcher_args: Optional CLI args; if ``visualizer=kit`` is set, needs_kit is True.
+        launcher_args: Optional CLI args; if ``--visualizer`` includes ``kit``, needs_kit is True.
 
     Returns:
         (needs_kit, has_kit_cameras, visualizer_types)
@@ -155,6 +158,21 @@ def launch_simulation(
     close_fn: Any = None
 
     if needs_kit:
+        # check if Isaac Sim is installed
+        import importlib.util
+
+        if importlib.util.find_spec("omni.kit") is None:
+            logger.error(
+                "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
+                "\n"
+                "  This environment requires Isaac Sim and Omniverse Kit.\n"
+                "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
+                "\n"
+                "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
+                "\n"
+                "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+            )
+            raise SystemExit(1)
         from isaaclab.app import AppLauncher
 
         app_launcher = AppLauncher(launcher_args)

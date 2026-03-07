@@ -25,8 +25,7 @@ from typing import Any, Literal
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+    from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
@@ -42,6 +41,35 @@ class ExplicitAction(argparse.Action):
         setattr(namespace, self.dest, values)
         # Set a flag indicating the parameter was explicitly passed
         setattr(namespace, f"{self.dest}_explicit", True)
+
+
+def _parse_visualizer_csv(value: str) -> list[str]:
+    """Parse visualizer list from a single comma-delimited CLI token."""
+    valid = {"kit", "newton", "rerun", "viser"}
+    token = (value or "").strip()
+    if not token:
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --visualizer kit,newton."
+        )
+    if " " in token:
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: spaces are not allowed. "
+            "Use a comma-separated list without spaces, e.g. --visualizer kit,newton,rerun,viser."
+        )
+
+    names = [item.strip().lower() for item in token.split(",")]
+    if any(not name for name in names):
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: empty visualizer entry detected. "
+            "Use a comma-separated list without empty items."
+        )
+    invalid = [name for name in names if name not in valid]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
+        )
+    # De-duplicate while preserving order.
+    return list(dict.fromkeys(names))
 
 
 class AppLauncher:
@@ -241,7 +269,8 @@ class AppLauncher:
           - ``newton``: Use Newton visualizer.
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
-          - Multiple visualizers can be specified: ``--visualizer rerun newton viser``
+          - Multiple visualizers can be specified as a comma-delimited list:
+            ``--visualizer rerun,newton,viser``
           - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
 
           Note: If visualizer configs are not defined in the simulation config, default configs will be
@@ -327,10 +356,9 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--visualizer",
-            type=str,
-            nargs="+",
+            type=_parse_visualizer_csv,
             default=None,
-            help="Visualizer backends to enable (e.g., kit, newton, rerun, viser).",
+            help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)

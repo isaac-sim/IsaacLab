@@ -1,18 +1,96 @@
 Changelog
 ---------
 
-0.4.2 (2026-03-06)
+0.5.2 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Added missing public properties :attr:`~isaaclab_newton.assets.ArticulationData.joint_dynamic_friction_coeff`
-  and :attr:`~isaaclab_newton.assets.ArticulationData.joint_viscous_friction_coeff` to
-  :class:`~isaaclab_newton.assets.ArticulationData`, exposing the existing private
-  ``_joint_dynamic_friction`` and ``_joint_viscous_friction`` buffers. This fixes
-  ``AttributeError`` when :class:`~isaaclab.envs.mdp.events.randomize_joint_parameters` is
-  used with a Newton physics preset.
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.body_inertia` in
+  :class:`~isaaclab_newton.assets.ArticulationData` to return a ``(num_instances, num_bodies, 9)``
+  float32 array as documented, instead of a ``(num_instances, num_bodies, 3, 3)`` array. The
+  ``(N, B, 3, 3)`` shape caused a broadcasting error in
+  :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_mass` and a dimension mismatch when the
+  ``write_body_inertia_to_buffer_*`` kernels were called via
+  :meth:`~isaaclab_newton.assets.Articulation.set_inertias_index` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_inertias_mask`. The fix creates a ``(N, B, 9)``
+  view over the same memory using explicit strides, collapsing the two contiguous trailing
+  dimensions without copying data.
+
+* Fixed ``AttributeError: 'NoneType' object has no attribute 'device'`` in
+  :meth:`~isaaclab_newton.physics.NewtonManager.step` when ``use_cuda_graph=True`` but the CUDA
+  graph was not captured (e.g., when RTX/Fabric USD sync is active). The step condition now
+  checks ``cls._graph is not None`` directly instead of repeating the capture-time heuristic.
+
+
+0.5.1 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.assets.RigidObjectCollection` and
+  :class:`~isaaclab_newton.assets.RigidObjectCollectionData` for managing
+  collections of independent rigid bodies. Uses a single
+  ``ArticulationView`` with a combined fnmatch pattern to get direct
+  ``(num_envs, num_bodies)`` bindings into Newton's state, avoiding the
+  scatter/gather overhead needed by PhysX.
+
+* Added :class:`~isaaclab_newton.test.mock_interfaces.views.MockNewtonCollectionView`
+  for unit testing the collection data class without simulation.
+
+* Added Newton backend to the rigid object collection interface conformance
+  tests (``test_rigid_object_collection_iface.py``).
+
+
+0.5.0 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added full Newton articulation test suite (``test_articulation.py``) — 194 passed,
+  8 skipped, 4 xfailed — adapted from PhysX tests with Newton-specific imports, sim
+  config, and solver tolerance adjustments.
+
+* Added full Newton rigid body test suite (``test_rigid_object.py``) — 74 passed,
+  25 skipped — adapted from PhysX tests with Newton-specific mass/COM APIs and
+  ``_newton_sim_context()`` helper for device/gravity/dt configuration.
+
+Fixed
+^^^^^
+
+* Fixed ``ArticulationData`` and ``RigidObjectData`` to rebind simulation pointers
+  on full sim reset via ``PHYSICS_READY`` callback, preventing stale warp array
+  references after ``sim.reset()`` recreates the Newton model.
+
+* Fixed ``ArticulationData`` to force ``eval_fk`` after joint state writes so that
+  link poses are consistent with joint positions before the next ``sim.step()``.
+
+* Fixed lazy initialization of ``TimestampedBuffer`` properties in
+  ``RigidObjectData`` (velocity-in-body-frame and deprecated state properties)
+  that were left as ``None`` and caused ``AttributeError`` on first access.
+
+* Fixed ``None`` guards for timestamp invalidation in ``RigidObject`` write methods
+  (``write_root_pose_to_sim``, ``write_root_velocity_to_sim``) to avoid
+  ``AttributeError`` when optional buffers have not been initialized.
+
+* Fixed ``is_contiguous`` usage in ``RigidObjectData`` — warp 1.12.0rc2 exposes it
+  as a property, not a method.
+
+* Fixed ``body_com_pose_b`` → ``body_com_pos_b`` kernel input naming in
+  ``RigidObjectData`` for ``root_com_pose_w`` and ``root_link_vel_w`` properties.
+
+* Fixed ``wp.from_torch()`` called on warp arrays in ``RigidObjectData`` body
+  inertia binding — replaced with direct ``.view()``/``.reshape()`` on warp arrays.
+
+* Improved CPU support in ``NewtonManager``: added device guards for CUDA graph
+  operations that are not available on CPU.
+
+* Fixed explicit mask resolution in asset write methods to correctly handle both
+  index-based and mask-based sparse writes.
+
 
 0.4.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~

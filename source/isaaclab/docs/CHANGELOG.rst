@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+4.5.8 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``debugpy`` to :mod:`isaaclab` package dependencies to support debugging out of the box.
+
+4.5.7 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Extended ``test_articulation_iface.py`` with Newton backend mock tests — added
+  Newton-specific mock view setup, sim config, and test parametrization alongside
+  existing PhysX tests.
+
+* Extended ``test_rigid_object_iface.py`` with Newton backend mock tests — added
+  Newton-specific mock view setup and test parametrization.
+
+* Fixed mask type handling in ``test_rigid_object_collection_iface.py`` to use
+  consistent mask types across backends.
+
+
 4.5.6 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 

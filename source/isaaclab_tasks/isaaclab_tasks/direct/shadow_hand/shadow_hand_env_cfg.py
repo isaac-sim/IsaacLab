@@ -47,19 +47,6 @@ class NewtonEventCfg:
             "distribution": "log_uniform",
         },
     )
-    robot_joint_pos_limits = EventTerm(
-        func=mdp.randomize_joint_parameters,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-            "lower_limit_distribution_params": (0.00, 0.01),
-            "upper_limit_distribution_params": (0.00, 0.01),
-            "operation": "add",
-            "distribution": "gaussian",
-        },
-    )
-
     object_scale_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         min_step_count_between_reset=720,
