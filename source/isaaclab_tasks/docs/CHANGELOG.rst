@@ -1,31 +1,6 @@
 Changelog
 ---------
 
-1.5.5 (2026-03-07)
-~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Fixed ``NoiseModelWithAdditiveBias`` shape mismatch in Newton environment tests.
-  :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` replaced the scene config
-  with the preset's default ``num_envs`` (e.g. 8192), overwriting the test-requested value
-  (e.g. 2). The ``_bias`` tensor was then allocated with 8192 rows while action data only
-  had 2, causing a ``RuntimeError`` on addition. The fix re-applies ``num_envs`` after
-  preset application.
-
-1.5.4 (2026-03-06)
-~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Renamed ``EventCfg`` to :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.NewtonEventCfg`
-  in the Shadow Hand env config. The new name makes explicit that this preset covers only Newton-compatible
-  randomizations (joint gains, joint position limits, object mass, gravity). Material and fixed-tendon
-  randomization remain exclusively in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`
-  and are therefore absent from the Newton preset of :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ShadowHandEventCfg`.
-
 1.5.3 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
@@ -37,6 +12,23 @@ Fixed
   tree and replaces every preset-wrapper field (both new-style :class:`~isaaclab_tasks.utils.PresetCfg`
   subclasses and old-style ``presets``-dict wrappers) with the named variant, so ``scene.contact_forces``
   is correctly set to the Newton contact sensor when running with ``physics_preset_name='newton'``.
+
+* Fixed ``NoiseModelWithAdditiveBias`` shape mismatch in Newton environment tests.
+  :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` replaced the scene config
+  with the preset's default ``num_envs`` (e.g. 8192), overwriting the test-requested value
+  (e.g. 2). The ``_bias`` tensor was then allocated with 8192 rows while action data only
+  had 2, causing a ``RuntimeError`` on addition. The fix re-applies ``num_envs`` after
+  preset application.
+
+Changed
+^^^^^^^
+
+* Renamed ``EventCfg`` to :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.NewtonEventCfg`
+  in the Shadow Hand env config. The new name makes explicit that this preset covers only Newton-compatible
+  randomizations (joint gains, joint position limits, object mass, gravity). Material and fixed-tendon
+  randomization remain exclusively in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`
+  and are therefore absent from the Newton preset of :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ShadowHandEventCfg`.
+
 
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
