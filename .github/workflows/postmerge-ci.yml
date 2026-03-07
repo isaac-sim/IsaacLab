@@ -30,7 +30,7 @@ env:
 jobs:
   build-and-push-images:
     if: ${{ false }} #TMP
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     environment:
       name: postmerge-production

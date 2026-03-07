@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Build and Test [Staging]
+name: Docker + Tests
 
 on:
   pull_request:
@@ -33,7 +33,7 @@ env:
 
 jobs:
   test-isaaclab-tasks:
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
 
@@ -98,7 +98,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-isaaclab-tasks-2:
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
 
@@ -163,7 +163,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-general:
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
     timeout-minutes: 180
 
     steps:
@@ -227,7 +227,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-curobo:
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
 
@@ -294,7 +294,7 @@ jobs:
 
   combine-results:
     needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
     if: always()
 
     steps:
