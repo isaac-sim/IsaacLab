@@ -71,6 +71,7 @@ jobs:
       uses: lycheeverse/lychee-action@v2
       with:
         # Check all markdown files and documentation
+        # Excluded are known crawl blockers
         args: >-
           --verbose
           --no-progress
@@ -99,6 +100,7 @@ jobs:
           --exclude 'huggingface\.co/datasets/nvidia/PhysicalAI-Robotics-NuRec'
           --exclude 'huggingface\.co/nvidia/COMPASS'
           --exclude 'huggingface\.co/nvidia/X-Mobility'
+          --exclude 'openusd\.org'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20
