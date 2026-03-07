@@ -61,12 +61,12 @@ class Renderer(FactoryBase, BaseRenderer):
         """Return (requires_newton_model, requires_usd_stage) for a renderer type."""
         impl_class = cls._resolve_impl_class_for_renderer_type(renderer_type)
         if impl_class is None:
-            # Note: This intentionally fails loudly so configuration/import issues are surfaced early
-            # during setup rather than silently disabling required scene-data capabilities.
-            raise RuntimeError(
-                f"Failed to resolve renderer requirements for type '{renderer_type}'. "
-                "Check that the corresponding renderer backend is installed and importable."
+            logger.debug(
+                "[Renderer] Using default requirements (False, False) for renderer '%s' because backend "
+                "implementation could not be imported.",
+                renderer_type,
             )
+            return False, False
         return bool(getattr(impl_class, "requires_newton_model", False)), bool(
             getattr(impl_class, "requires_usd_stage", False)
         )

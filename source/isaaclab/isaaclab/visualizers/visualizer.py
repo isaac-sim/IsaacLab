@@ -76,12 +76,12 @@ class Visualizer(FactoryBase, BaseVisualizer):
             )
         impl_class = cls._resolve_impl_class_for_type(visualizer_type)
         if impl_class is None:
-            # Note: This intentionally fails loudly so configuration/import issues are surfaced early
-            # during setup rather than silently disabling required scene-data capabilities.
-            raise RuntimeError(
-                f"Failed to resolve visualizer requirements for type '{visualizer_type}'. "
-                "Check that the corresponding visualizer package/backend is installed and importable."
+            logger.debug(
+                "[Visualizer] Using default requirements (False, False) for type '%s' because implementation could not "
+                "be imported.",
+                visualizer_type,
             )
+            return False, False
         return bool(getattr(impl_class, "requires_newton_model", False)), bool(
             getattr(impl_class, "requires_usd_stage", False)
         )
