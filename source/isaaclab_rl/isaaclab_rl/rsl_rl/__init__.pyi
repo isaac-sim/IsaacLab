@@ -16,6 +16,8 @@ __all__ = [
     "RslRlPpoActorCriticCfg",
     "RslRlPpoActorCriticRecurrentCfg",
     "RslRlPpoAlgorithmCfg",
+    "RslRlMLPModelCfg",
+    "RslRlRNNModelCfg",
     "RslRlRndCfg",
     "RslRlSymmetryCfg",
     "RslRlVecEnvWrapper",
@@ -34,6 +36,8 @@ from .rl_cfg import (
     RslRlPpoActorCriticCfg,
     RslRlPpoActorCriticRecurrentCfg,
     RslRlPpoAlgorithmCfg,
+    RslRlMLPModelCfg,
+    RslRlRNNModelCfg,
 )
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
