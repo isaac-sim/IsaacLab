@@ -134,13 +134,13 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     collision_from_visuals = False
     """Whether to create collision geometry from visual geometry. Defaults to False."""
 
-    collider_type: Literal["convex_hull", "convex_decomposition"] = "convex_hull"
+    collision_type: Literal["Convex Hull", "Convex Decomposition"] = "Convex Hull"
     """The collision shape simplification. Defaults to "convex_hull".
 
     Supported values are:
 
-    * ``"convex_hull"``: The collision shape is simplified to a convex hull.
-    * ``"convex_decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
+    * ``"Convex Hull"``: The collision shape is simplified to a convex hull.
+    * ``"Convex Decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
     """
 
     self_collision: bool = False
@@ -152,3 +152,6 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     .. deprecated::
         This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
     """
+
+    merge_mesh: bool = False
+    """Merge meshes where possible to optimize the model. Defaults to False."""

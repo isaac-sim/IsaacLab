@@ -57,6 +57,15 @@ try:
 except ImportError:
     pass
 
+try:
+    from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
+    from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
+    from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
+
+    BACKENDS.append("newton")
+except ImportError:
+    pass
+
 
 def create_physx_rigid_object(
     num_instances: int = 2,
@@ -106,6 +115,81 @@ def create_physx_rigid_object(
     return rigid_object, mock_view
 
 
+def create_newton_rigid_object(
+    num_instances: int = 2,
+    device: str = "cuda:0",
+):
+    """Create a test Newton RigidObject instance with mocked dependencies."""
+    import isaaclab_newton.assets.rigid_object.rigid_object_data as newton_data_module
+
+    body_names = ["body_0"]
+
+    # Create Newton mock view (uses ArticulationView with num_bodies=1 for rigid objects)
+    mock_view = NewtonMockArticulationView(
+        num_instances=num_instances,
+        num_bodies=1,
+        num_joints=0,
+        device=device,
+        is_fixed_base=False,
+        joint_names=[],
+        body_names=body_names,
+    )
+    mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
+
+    # Mock NewtonManager (aliased as SimulationManager in Newton modules)
+    mock_model = MagicMock()
+    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_state = MagicMock()
+    mock_control = MagicMock()
+
+    mock_manager = MagicMock()
+    mock_manager.get_model.return_value = mock_model
+    mock_manager.get_state_0.return_value = mock_state
+    mock_manager.get_state_1.return_value = mock_state
+    mock_manager.get_control.return_value = mock_control
+
+    # Patch SimulationManager in the Newton data module
+    original_sim_manager = newton_data_module.SimulationManager
+    newton_data_module.SimulationManager = mock_manager
+
+    try:
+        data = NewtonRigidObjectData(mock_view, device)
+    finally:
+        newton_data_module.SimulationManager = original_sim_manager
+
+    # Create RigidObject shell (bypass __init__)
+    rigid_object = object.__new__(NewtonRigidObject)
+
+    rigid_object.cfg = RigidObjectCfg(prim_path="/World/Object")
+
+    object.__setattr__(rigid_object, "_root_view", mock_view)
+    object.__setattr__(rigid_object, "_device", device)
+    object.__setattr__(rigid_object, "_data", data)
+
+    # Mock wrench composers
+    mock_inst_wrench = MockWrenchComposer(rigid_object)
+    mock_perm_wrench = MockWrenchComposer(rigid_object)
+    object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising AttributeError
+    object.__setattr__(rigid_object, "_initialize_handle", None)
+    object.__setattr__(rigid_object, "_invalidate_initialize_handle", None)
+    object.__setattr__(rigid_object, "_prim_deletion_handle", None)
+    object.__setattr__(rigid_object, "_debug_vis_handle", None)
+
+    # Newton uses wp.array for indices
+    object.__setattr__(rigid_object, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
+    object.__setattr__(rigid_object, "_ALL_BODY_INDICES", wp.array(np.array([0], dtype=np.int32), device=device))
+
+    # Newton uses wp.bool masks
+    object.__setattr__(rigid_object, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
+    object.__setattr__(rigid_object, "_ALL_BODY_MASK", wp.ones((1,), dtype=wp.bool, device=device))
+
+    return rigid_object, mock_view
+
+
 def create_mock_rigid_object(
     num_instances: int = 2,
     device: str = "cuda:0",
@@ -126,6 +210,8 @@ def get_rigid_object(
 ):
     if backend == "physx":
         return create_physx_rigid_object(num_instances, device)
+    elif backend == "newton":
+        return create_newton_rigid_object(num_instances, device)
     elif backend.lower() == "mock":
         return create_mock_rigid_object(num_instances, device)
     else:
@@ -753,12 +839,12 @@ def _make_bad_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.ar
 
 
 def _make_env_mask(num_instances: int, device: str, partial: bool) -> wp.array | None:
-    """Create an env_mask: None for all envs, or a partial int32 mask."""
+    """Create an env_mask: None for all envs, or a partial bool mask."""
     if not partial:
         return None
-    mask_np = np.zeros(num_instances, dtype=np.int32)
-    mask_np[0] = 1
-    return wp.array(mask_np, dtype=wp.int32, device=device)
+    mask_np = np.zeros(num_instances, dtype=bool)
+    mask_np[0] = True
+    return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
 def _make_env_ids(device: str, subset: bool) -> torch.Tensor | None:
@@ -769,11 +855,11 @@ def _make_env_ids(device: str, subset: bool) -> torch.Tensor | None:
 
 
 def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
-    """Create an int32 warp mask with 1s at `selected` indices, 0s elsewhere."""
-    mask_np = np.zeros(total, dtype=np.int32)
+    """Create a bool warp mask with True at `selected` indices, False elsewhere."""
+    mask_np = np.zeros(total, dtype=bool)
     for i in selected:
-        mask_np[i] = 1
-    return wp.array(mask_np, dtype=wp.int32, device=device)
+        mask_np[i] = True
+    return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
 # ---------------------------------------------------------------------------
@@ -926,6 +1012,8 @@ class TestRigidObjectWritersBody:
     def test_body_writer_index(
         self, backend, num_instances, device, rigid_object_iface, method_base, kwarg, wp_dtype, trailing
     ):
+        if backend == "newton" and method_base == "set_coms":
+            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
         obj, _ = rigid_object_iface
         obj.data.update(dt=0.01)
         num_bodies = 1
@@ -992,6 +1080,8 @@ class TestRigidObjectWritersBody:
     def test_body_writer_mask(
         self, backend, num_instances, device, rigid_object_iface, method_base, kwarg, wp_dtype, trailing
     ):
+        if backend == "newton" and method_base == "set_coms":
+            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
         obj, _ = rigid_object_iface
         obj.data.update(dt=0.01)
         num_bodies = 1
