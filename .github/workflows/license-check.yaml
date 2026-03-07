@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   license-check:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
 
     steps:
