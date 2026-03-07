@@ -56,6 +56,7 @@ class NewtonEventCfg:
             "mass_distribution_params": (0.5, 1.5),
             "operation": "scale",
             "distribution": "uniform",
+            "recompute_inertia": False,
         },
     )
 
