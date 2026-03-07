@@ -8,7 +8,7 @@ name: Build and Test
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    
+
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
