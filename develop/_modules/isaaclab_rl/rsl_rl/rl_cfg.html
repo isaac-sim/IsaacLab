@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 06, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2026"/>
   </head>
   
   
@@ -323,6 +323,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
@@ -640,48 +641,91 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">.symmetry_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RslRlSymmetryCfg</span>
 
 <span class="c1">#########################</span>
-<span class="c1"># Policy configurations #</span>
+<span class="c1"># Model configurations #</span>
 <span class="c1">#########################</span>
 
 
-<div class="viewcode-block" id="RslRlPpoActorCriticCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">RslRlPpoActorCriticCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the PPO actor-critic networks.&quot;&quot;&quot;</span>
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlMLPModelCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the MLP model.&quot;&quot;&quot;</span>
 
-    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ActorCritic&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is ActorCritic.&quot;&quot;&quot;</span>
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;MLPModel&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is MLPModel.&quot;&quot;&quot;</span>
 
-    <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the policy.&quot;&quot;&quot;</span>
-
-    <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
-
-    <span class="n">state_dependent_std</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Default is False.&quot;&quot;&quot;</span>
-
-    <span class="n">actor_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the actor network.&quot;&quot;&quot;</span>
-
-    <span class="n">critic_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the critic network.&quot;&quot;&quot;</span>
-
-    <span class="n">actor_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the actor network.&quot;&quot;&quot;</span>
-
-    <span class="n">critic_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the critic network.&quot;&quot;&quot;</span>
+    <span class="n">hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the MLP network.&quot;&quot;&quot;</span>
 
     <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The activation function for the actor and critic networks.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The activation function for the MLP network.&quot;&quot;&quot;</span>
+
+    <span class="n">obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the model. Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">distribution_cfg</span><span class="p">:</span> <span class="n">DistributionCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the output distribution. Default is None, in which case no distribution is used.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">DistributionCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the output distribution.&quot;&quot;&quot;</span>
+
+        <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">GaussianDistributionCfg</span><span class="p">(</span><span class="n">DistributionCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the Gaussian output distribution.&quot;&quot;&quot;</span>
+
+        <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;GaussianDistribution&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name. Default is GaussianDistribution.&quot;&quot;&quot;</span>
+
+        <span class="n">init_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The initial standard deviation of the output distribution.&quot;&quot;&quot;</span>
+
+        <span class="n">std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The parameterization type of the output distribution&#39;s standard deviation. Default is scalar.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">HeteroscedasticGaussianDistributionCfg</span><span class="p">(</span><span class="n">GaussianDistributionCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the heteroscedastic Gaussian output distribution.&quot;&quot;&quot;</span>
+
+        <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;HeteroscedasticGaussianDistribution&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name. Default is HeteroscedasticGaussianDistribution.&quot;&quot;&quot;</span>
+
+    <span class="n">stochastic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the model output is stochastic.</span>
+
+<span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None</span>
+<span class="sd">    for deterministic output or to a valid configuration class, e.g., `GaussianDistributionCfg` for stochastic output.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the model.</span>
+
+<span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the</span>
+<span class="sd">    `init_std` field of the distribution configuration to specify the initial noise standard deviation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the model. Default is scalar.</span>
+
+<span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the</span>
+<span class="sd">    `std_type` field of the distribution configuration to specify the type of noise standard deviation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">state_dependent_std</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Default is False.</span>
+
+<span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use</span>
+<span class="sd">    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="RslRlPpoActorCriticRecurrentCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">RslRlPpoActorCriticRecurrentCfg</span><span class="p">(</span><span class="n">RslRlPpoActorCriticCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the PPO actor-critic networks with recurrent layers.&quot;&quot;&quot;</span>
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlRNNModelCfg</span><span class="p">(</span><span class="n">RslRlMLPModelCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for RNN model.&quot;&quot;&quot;</span>
 
-    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ActorCriticRecurrent&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is ActorCriticRecurrent.&quot;&quot;&quot;</span>
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;RNNModel&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is RNNModel.&quot;&quot;&quot;</span>
 
     <span class="n">rnn_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of RNN to use. Either &quot;lstm&quot; or &quot;gru&quot;.&quot;&quot;&quot;</span>
@@ -690,7 +734,50 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The dimension of the RNN layers.&quot;&quot;&quot;</span>
 
     <span class="n">rnn_num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of RNN layers.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of RNN layers.&quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlCNNModelCfg</span><span class="p">(</span><span class="n">RslRlMLPModelCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for CNN model.&quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;CNNModel&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is CNNModel.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">CNNCfg</span><span class="p">:</span>
+        <span class="n">output_channels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of output channels for each convolutional layer for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The kernel size for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The stride for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">dilation</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The dilation for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">padding</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;zeros&quot;</span><span class="p">,</span> <span class="s2">&quot;reflect&quot;</span><span class="p">,</span> <span class="s2">&quot;replicate&quot;</span><span class="p">,</span> <span class="s2">&quot;circular&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The padding for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">norm</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;batch&quot;</span><span class="p">,</span> <span class="s2">&quot;layer&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The normalization for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The activation function for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">max_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to use max pooling for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">global_pool</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="s2">&quot;avg&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The global pooling for the CNN.&quot;&quot;&quot;</span>
+
+        <span class="n">flatten</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to flatten the output of the CNN.&quot;&quot;&quot;</span>
+
+    <span class="n">cnn_cfg</span><span class="p">:</span> <span class="n">CNNCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the CNN(s).&quot;&quot;&quot;</span>
 
 
 <span class="c1">############################</span>
@@ -732,6 +819,9 @@
     <span class="n">max_grad_norm</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum gradient norm.&quot;&quot;&quot;</span>
 
+    <span class="n">optimizer</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;adam&quot;</span><span class="p">,</span> <span class="s2">&quot;adamw&quot;</span><span class="p">,</span> <span class="s2">&quot;sgd&quot;</span><span class="p">,</span> <span class="s2">&quot;rmsprop&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;adam&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The optimizer to use.&quot;&quot;&quot;</span>
+
     <span class="n">value_loss_coef</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The coefficient for the value loss.&quot;&quot;&quot;</span>
 
@@ -747,6 +837,9 @@
 <span class="sd">    If True, the advantage is normalized over the mini-batches only.</span>
 <span class="sd">    Otherwise, the advantage is normalized over the entire collected trajectories.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">share_cnn_encoders</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">rnd_cfg</span><span class="p">:</span> <span class="n">RslRlRndCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The RND configuration. Default is None, in which case RND is not used.&quot;&quot;&quot;</span>
@@ -776,10 +869,11 @@
     <span class="n">max_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum number of iterations.&quot;&quot;&quot;</span>
 
-    <span class="n">empirical_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">empirical_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;This parameter is deprecated and will be removed in the future.</span>
 
-<span class="sd">    Use `actor_obs_normalization` and `critic_obs_normalization` instead.</span>
+<span class="sd">    For rsl-rl &lt; 4.0.0, use `actor_obs_normalization` and `critic_obs_normalization` of the policy instead.</span>
+<span class="sd">    For rsl-rl &gt;= 4.0.0, use `obs_normalization` of the model instead.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">obs_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -794,11 +888,11 @@
 <span class="sd">    .. code-block:: python</span>
 
 <span class="sd">        obs_groups = {</span>
-<span class="sd">            &quot;policy&quot;: [&quot;policy&quot;, &quot;images&quot;],</span>
+<span class="sd">            &quot;actor&quot;: [&quot;policy&quot;, &quot;images&quot;],</span>
 <span class="sd">            &quot;critic&quot;: [&quot;policy&quot;, &quot;privileged&quot;],</span>
 <span class="sd">        }</span>
 
-<span class="sd">    This way, the policy will receive the &quot;policy&quot; and &quot;images&quot; observations, and the critic will</span>
+<span class="sd">    This way, the actor will receive the &quot;policy&quot; and &quot;images&quot; observations, and the critic will</span>
 <span class="sd">    receive the &quot;policy&quot; and &quot;privileged&quot; observations.</span>
 
 <span class="sd">    For more details, please check ``vec_env.py`` in the rsl_rl library.</span>
@@ -810,6 +904,9 @@
 <span class="sd">    .. note::</span>
 <span class="sd">        This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">check_for_nan</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to check for NaN values coming from the environment.&quot;&quot;&quot;</span>
 
     <span class="n">save_interval</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of iterations between saves.&quot;&quot;&quot;</span>
@@ -860,11 +957,81 @@
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;OnPolicyRunner&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The runner class name. Default is OnPolicyRunner.&quot;&quot;&quot;</span>
 
-    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlPpoActorCriticCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.&quot;&quot;&quot;</span>
+    <span class="n">actor</span><span class="p">:</span> <span class="n">RslRlMLPModelCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The actor configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">critic</span><span class="p">:</span> <span class="n">RslRlMLPModelCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The critic configuration.&quot;&quot;&quot;</span>
 
     <span class="n">algorithm</span><span class="p">:</span> <span class="n">RslRlPpoAlgorithmCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlPpoActorCriticCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.</span>
+
+<span class="sd">    For rsl-rl &gt;= 4.0.0, this configuration is is deprecated. Please use `actor` and `critic` model configurations</span>
+<span class="sd">    instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="c1">#############################</span>
+<span class="c1"># Deprecated configurations #</span>
+<span class="c1">#############################</span>
+
+
+<div class="viewcode-block" id="RslRlPpoActorCriticCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlPpoActorCriticCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the PPO actor-critic networks.</span>
+
+<span class="sd">    For rsl-rl &gt;= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ActorCritic&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is ActorCritic.&quot;&quot;&quot;</span>
+
+    <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the policy.&quot;&quot;&quot;</span>
+
+    <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
+
+    <span class="n">state_dependent_std</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">actor_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the actor network.&quot;&quot;&quot;</span>
+
+    <span class="n">critic_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the critic network.&quot;&quot;&quot;</span>
+
+    <span class="n">actor_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the actor network.&quot;&quot;&quot;</span>
+
+    <span class="n">critic_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the critic network.&quot;&quot;&quot;</span>
+
+    <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The activation function for the actor and critic networks.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="RslRlPpoActorCriticRecurrentCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlPpoActorCriticRecurrentCfg</span><span class="p">(</span><span class="n">RslRlPpoActorCriticCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the PPO actor-critic networks with recurrent layers.</span>
+
+<span class="sd">    For rsl-rl &gt;= 4.0.0, this configuration is deprecated. Please use `RslRlRNNModelCfg` instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ActorCriticRecurrent&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is ActorCriticRecurrent.&quot;&quot;&quot;</span>
+
+    <span class="n">rnn_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of RNN to use. Either &quot;lstm&quot; or &quot;gru&quot;.&quot;&quot;&quot;</span>
+
+    <span class="n">rnn_hidden_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The dimension of the RNN layers.&quot;&quot;&quot;</span>
+
+    <span class="n">rnn_num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of RNN layers.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -912,7 +1079,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 06, 2026.
+  Last updated on Mar 07, 2026.
   <br/>
 </p>
   </div>

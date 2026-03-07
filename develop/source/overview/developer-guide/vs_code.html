@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 06, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2026"/>
   </head>
   
   
@@ -324,6 +324,7 @@
 </details></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Developer’s Guide</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Setting up Visual Studio Code</a></li>
+
 
 
 <li class="toctree-l2"><a class="reference internal" href="repo_structure.html">Repository organization</a></li>
@@ -688,6 +689,7 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Setting up Visual Studio Code</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#attach-to-a-running-debugpy-session">Attach to a Running <code class="docutils literal notranslate"><span class="pre">debugpy</span></code> Session</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-the-python-interpreter">Configuring the python interpreter</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-formatting-and-linting">Setting up formatting and linting</a></li>
 </ul>
@@ -747,6 +749,23 @@ following links:</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code">Isaac Sim VSCode support</a></p></li>
 </ul>
+</section>
+<section id="attach-to-a-running-debugpy-session">
+<h1>Attach to a Running <code class="docutils literal notranslate"><span class="pre">debugpy</span></code> Session<a class="headerlink" href="#attach-to-a-running-debugpy-session" title="Permalink to this heading">#</a></h1>
+<p>The generated <code class="docutils literal notranslate"><span class="pre">.vscode/launch.json</span></code> includes a <code class="docutils literal notranslate"><span class="pre">Python:</span> <span class="pre">Debugger</span> <span class="pre">Attach</span></code>
+configuration that starts to listen on port <code class="docutils literal notranslate"><span class="pre">localhost:3000</span></code> for the debugpy session.</p>
+<p>To use it:</p>
+<ol class="arabic">
+<li><p>Set your breakpoints.</p></li>
+<li><p>Run your code under debugpy like so:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>debugpy<span class="w"> </span>--listen<span class="w"> </span><span class="m">3000</span><span class="w"> </span>--wait-for-client<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from isaaclab.cli import cli; cli()&quot;</span><span class="w"> </span><span class="o">[</span>cli_args<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+<li><p>In VS Code, select the <code class="docutils literal notranslate"><span class="pre">Python:</span> <span class="pre">Debugger</span> <span class="pre">Attach</span></code> configuration from the Run and Debug panel
+and press the green play button or <code class="docutils literal notranslate"><span class="pre">F5</span></code>. VS Code will connect to the debugpy server
+running on <code class="docutils literal notranslate"><span class="pre">localhost:3000</span></code>.</p></li>
+</ol>
 </section>
 <section id="configuring-the-python-interpreter">
 <h1>Configuring the python interpreter<a class="headerlink" href="#configuring-the-python-interpreter" title="Permalink to this heading">#</a></h1>
@@ -824,6 +843,7 @@ These are configured in the <code class="docutils literal notranslate"><span cla
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Setting up Visual Studio Code</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#attach-to-a-running-debugpy-session">Attach to a Running <code class="docutils literal notranslate"><span class="pre">debugpy</span></code> Session</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-the-python-interpreter">Configuring the python interpreter</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-formatting-and-linting">Setting up formatting and linting</a></li>
 </ul>
@@ -860,7 +880,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 06, 2026.
+  Last updated on Mar 07, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 06, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 07, 2026"/>
   </head>
   
   
@@ -323,6 +323,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
@@ -636,61 +637,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.rl_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RslRlBaseRunnerCfg</span>
-
-<span class="c1">#########################</span>
-<span class="c1"># Policy configurations #</span>
-<span class="c1">#########################</span>
-
-
-<div class="viewcode-block" id="RslRlDistillationStudentTeacherCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">RslRlDistillationStudentTeacherCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the distillation student-teacher networks.&quot;&quot;&quot;</span>
-
-    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;StudentTeacher&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is StudentTeacher.&quot;&quot;&quot;</span>
-
-    <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the student policy.&quot;&quot;&quot;</span>
-
-    <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
-
-    <span class="n">student_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the student network.&quot;&quot;&quot;</span>
-
-    <span class="n">teacher_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the teacher network.&quot;&quot;&quot;</span>
-
-    <span class="n">student_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the student network.&quot;&quot;&quot;</span>
-
-    <span class="n">teacher_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the teacher network.&quot;&quot;&quot;</span>
-
-    <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The activation function for the student and teacher networks.&quot;&quot;&quot;</span></div>
-
-
-<div class="viewcode-block" id="RslRlDistillationStudentTeacherRecurrentCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">RslRlDistillationStudentTeacherRecurrentCfg</span><span class="p">(</span><span class="n">RslRlDistillationStudentTeacherCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the distillation student-teacher recurrent networks.&quot;&quot;&quot;</span>
-
-    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;StudentTeacherRecurrent&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is StudentTeacherRecurrent.&quot;&quot;&quot;</span>
-
-    <span class="n">rnn_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of the RNN network. Either &quot;lstm&quot; or &quot;gru&quot;.&quot;&quot;&quot;</span>
-
-    <span class="n">rnn_hidden_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimension of the RNN network.&quot;&quot;&quot;</span>
-
-    <span class="n">rnn_num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of layers of the RNN network.&quot;&quot;&quot;</span>
-
-    <span class="n">teacher_recurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the teacher network is recurrent too.&quot;&quot;&quot;</span></div>
-
+<span class="kn">from</span><span class="w"> </span><span class="nn">.rl_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RslRlBaseRunnerCfg</span><span class="p">,</span> <span class="n">RslRlMLPModelCfg</span>
 
 <span class="c1">############################</span>
 <span class="c1"># Algorithm configurations #</span>
@@ -735,11 +682,81 @@
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;DistillationRunner&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The runner class name. Default is DistillationRunner.&quot;&quot;&quot;</span>
 
-    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlDistillationStudentTeacherCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.&quot;&quot;&quot;</span>
+    <span class="n">student</span><span class="p">:</span> <span class="n">RslRlMLPModelCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The student configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">teacher</span><span class="p">:</span> <span class="n">RslRlMLPModelCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The teacher configuration.&quot;&quot;&quot;</span>
 
     <span class="n">algorithm</span><span class="p">:</span> <span class="n">RslRlDistillationAlgorithmCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlDistillationStudentTeacherCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.</span>
+
+<span class="sd">    For rsl-rl &gt;= 4.0.0, this configuration is deprecated. Please use `student` and `teacher` model configurations</span>
+<span class="sd">    instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="c1">#############################</span>
+<span class="c1"># Deprecated configurations #</span>
+<span class="c1">#############################</span>
+
+
+<div class="viewcode-block" id="RslRlDistillationStudentTeacherCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlDistillationStudentTeacherCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the distillation student-teacher networks.</span>
+
+<span class="sd">    For rsl-rl &gt;= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;StudentTeacher&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is StudentTeacher.&quot;&quot;&quot;</span>
+
+    <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the student policy.&quot;&quot;&quot;</span>
+
+    <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
+
+    <span class="n">student_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the student network.&quot;&quot;&quot;</span>
+
+    <span class="n">teacher_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the teacher network.&quot;&quot;&quot;</span>
+
+    <span class="n">student_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the student network.&quot;&quot;&quot;</span>
+
+    <span class="n">teacher_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the teacher network.&quot;&quot;&quot;</span>
+
+    <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The activation function for the student and teacher networks.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="RslRlDistillationStudentTeacherRecurrentCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlDistillationStudentTeacherRecurrentCfg</span><span class="p">(</span><span class="n">RslRlDistillationStudentTeacherCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the distillation student-teacher recurrent networks.</span>
+
+<span class="sd">    For rsl-rl &gt;= 4.0.0, this configuration is deprecated. Please use `RslRlRNNModelCfg` instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;StudentTeacherRecurrent&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is StudentTeacherRecurrent.&quot;&quot;&quot;</span>
+
+    <span class="n">rnn_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of the RNN network. Either &quot;lstm&quot; or &quot;gru&quot;.&quot;&quot;&quot;</span>
+
+    <span class="n">rnn_hidden_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimension of the RNN network.&quot;&quot;&quot;</span>
+
+    <span class="n">rnn_num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of layers of the RNN network.&quot;&quot;&quot;</span>
+
+    <span class="n">teacher_recurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the teacher network is recurrent too.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -787,7 +804,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 06, 2026.
+  Last updated on Mar 07, 2026.
   <br/>
 </p>
   </div>
