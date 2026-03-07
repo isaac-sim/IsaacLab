@@ -13,6 +13,11 @@ on:
       - 'docker/**'
       - 'tools/**'
       - '.github/**'
+    branches:
+      - main
+      - develop
+      - 'release/**'
+      - 'feature/isaacsim-6-0'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
