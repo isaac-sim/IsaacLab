@@ -59,7 +59,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
+        include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_environments_newton.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
 
     - name: Copy Test Results from IsaacLab Tasks Container
       run: |
@@ -120,7 +120,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
+        include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py,test_shadow_hand_vision_presets.py"
 
     - name: Copy Test Results from IsaacLab Tasks 2 Container
       run: |
