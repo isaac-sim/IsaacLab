@@ -62,7 +62,7 @@ jobs:
       with:
         test-path: "tools"
         result-file: "isaaclab-tasks-report.xml"
-        container-name: "isaac-lab-tasks-test-$$"
+        container-name: "isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
@@ -71,7 +71,7 @@ jobs:
     - name: Copy Test Results from IsaacLab Tasks Container
       if: always()
       run: |
-        CONTAINER_NAME="isaac-lab-tasks-test-$$"
+        CONTAINER_NAME="isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from IsaacLab Tasks container..."
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
@@ -128,7 +128,7 @@ jobs:
       with:
         test-path: "tools"
         result-file: "isaaclab-tasks-2-report.xml"
-        container-name: "isaac-lab-tasks-2-test-$$"
+        container-name: "isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
@@ -137,7 +137,7 @@ jobs:
     - name: Copy Test Results from IsaacLab Tasks 2 Container
       if: always()
       run: |
-        CONTAINER_NAME="isaac-lab-tasks-2-test-$$"
+        CONTAINER_NAME="isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from IsaacLab Tasks 2 container..."
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-2-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks 2 container"
@@ -194,7 +194,7 @@ jobs:
       with:
         test-path: "tools"
         result-file: "general-tests-report.xml"
-        container-name: "isaac-lab-general-test-$$"
+        container-name: "isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
@@ -202,7 +202,7 @@ jobs:
     - name: Copy Test Results from General Tests Container
       if: always()
       run: |
-        CONTAINER_NAME="isaac-lab-general-test-$$"
+        CONTAINER_NAME="isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from General Tests container..."
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
@@ -260,7 +260,7 @@ jobs:
       with:
         test-path: "tools"
         result-file: "curobo-tests-report.xml"
-        container-name: "isaac-lab-curobo-test-$$"
+        container-name: "isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
         pytest-options: ""
         filter-pattern: ""
@@ -269,7 +269,7 @@ jobs:
     - name: Copy Test Results from cuRobo Container
       if: always()
       run: |
-        CONTAINER_NAME="isaac-lab-curobo-test-$$"
+        CONTAINER_NAME="isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from cuRobo container..."
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/curobo-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
