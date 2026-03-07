@@ -31,10 +31,9 @@ env:
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
-  test-isaaclab-tasks:
+  build:
     runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    continue-on-error: true
+    timeout-minutes: 120
 
     steps:
     - name: Checkout Code
@@ -49,6 +48,38 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+  build-curobo:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image (cuRobo)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: 'docker/Dockerfile.curobo'
+
+  test-isaaclab-tasks:
+    needs: [build]
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -93,6 +124,7 @@ jobs:
         fi
 
   test-isaaclab-tasks-2:
+    needs: [build]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -103,13 +135,6 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
-
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
     - name: Run IsaacLab Tasks Tests 2
       uses: ./.github/actions/run-tests
@@ -154,6 +179,7 @@ jobs:
         fi
 
   test-general:
+    needs: [build]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
 
@@ -163,13 +189,6 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
-
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
     - name: Run General Tests
       id: run-general-tests
@@ -214,6 +233,7 @@ jobs:
         fi
 
   test-curobo:
+    needs: [build-curobo]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -224,14 +244,6 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
-
-    - name: Build Docker Image (cuRobo)
-      uses: ./.github/actions/docker-build
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: 'docker/Dockerfile.curobo'
 
     - name: Run cuRobo and SkillGen Tests
       uses: ./.github/actions/run-tests
