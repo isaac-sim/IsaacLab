@@ -282,7 +282,6 @@ class NewtonVisualizer(BaseVisualizer):
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
-                ("headless_fallback_no_viewer", self._headless_no_viewer),
             ],
         )
         self._is_initialized = True
