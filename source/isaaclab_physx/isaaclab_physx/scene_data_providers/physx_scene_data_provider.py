@@ -89,7 +89,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                     max_env_id = max(max_env_id, int(match.group(1)))
         return max_env_id + 1 if max_env_id >= 0 else 0
 
-    def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
+    def __init__(self, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
 
         self._simulation_context = simulation_context

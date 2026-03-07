@@ -30,7 +30,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
     Newton backend already owns the authoritative model and state.
     """
 
-    def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
+    def __init__(self, stage, simulation_context) -> None:
         self._simulation_context = simulation_context
         self._stage = stage
         self._metadata = {"physics_backend": "newton"}

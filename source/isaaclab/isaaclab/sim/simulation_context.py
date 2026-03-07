@@ -485,7 +485,7 @@ class SimulationContext:
             requires_newton_model=requires_newton_model,
             requires_usd_stage=requires_usd_stage,
         )
-        self.initialize_scene_data_provider(visualizer_cfgs)
+        self.initialize_scene_data_provider()
         self._visualizers = []
 
         for cfg in visualizer_cfgs:
@@ -507,9 +507,9 @@ class SimulationContext:
                 close_provider()
             self._scene_data_provider = None
 
-    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> BaseSceneDataProvider:
+    def initialize_scene_data_provider(self) -> BaseSceneDataProvider:
         if self._scene_data_provider is None:
-            self._scene_data_provider = SceneDataProvider(visualizer_cfgs, self.stage, self)
+            self._scene_data_provider = SceneDataProvider(self.stage, self)
         return self._scene_data_provider
 
     def set_newton_visualizer_artifact(
