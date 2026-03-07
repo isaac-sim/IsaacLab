@@ -68,18 +68,6 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
 
-    - name: Copy Test Results from IsaacLab Tasks Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from IsaacLab Tasks container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
-
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4
       if: always()
@@ -137,18 +125,6 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
 
-    - name: Copy Test Results from IsaacLab Tasks 2 Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from IsaacLab Tasks 2 container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks 2 container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
-
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4
       if: always()
@@ -204,18 +180,6 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
-
-    - name: Copy Test Results from General Tests Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from General Tests container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
 
     - name: Upload General Test Results
       uses: actions/upload-artifact@v4
@@ -274,18 +238,6 @@ jobs:
         pytest-options: ""
         filter-pattern: ""
         curobo-only: "true"
-
-    - name: Copy Test Results from cuRobo Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from cuRobo container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
 
     - name: Upload cuRobo Test Results
       uses: actions/upload-artifact@v4
