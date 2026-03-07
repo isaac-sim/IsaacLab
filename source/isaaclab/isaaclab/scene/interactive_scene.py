@@ -184,6 +184,10 @@ class InteractiveScene:
         requires_newton_model, requires_usd_stage, requirement_reasons = self._resolve_scene_data_requirements(
             requested_viz_types
         )
+        self.sim.set_scene_data_requirements(
+            requires_newton_model=requires_newton_model,
+            requires_usd_stage=requires_usd_stage,
+        )
         if "physx" in self.physics_backend and requires_newton_model:
             visualizer_clone_fn = self._create_newton_visualizer_clone_fn()
             if visualizer_clone_fn is None:

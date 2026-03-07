@@ -18,6 +18,9 @@ class RerunVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
 
+    requires_newton_model: bool = True
+    """Internal requirement flag; do not override in user configs."""
+
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""
 

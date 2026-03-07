@@ -26,8 +26,6 @@ if TYPE_CHECKING:
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
-    requires_usd_stage = True
-
     def __init__(self, cfg: KitVisualizerCfg):
         super().__init__(cfg)
         self.cfg: KitVisualizerCfg = cfg

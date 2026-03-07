@@ -108,8 +108,6 @@ class NewtonViewerRerun(ViewerRerun):
 class RerunVisualizer(BaseVisualizer):
     """Rerun visualizer for Isaac Lab."""
 
-    requires_newton_model = True
-
     def __init__(self, cfg: RerunVisualizerCfg):
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg

@@ -29,6 +29,12 @@ class Visualizer(FactoryBase, BaseVisualizer):
         "rerun": "RerunVisualizer",
         "viser": "ViserVisualizer",
     }
+    _cfg_class_names = {
+        "kit": "KitVisualizerCfg",
+        "newton": "NewtonVisualizerCfg",
+        "rerun": "RerunVisualizerCfg",
+        "viser": "ViserVisualizerCfg",
+    }
 
     @classmethod
     def _get_backend(cls, cfg, *args, **kwargs) -> str:
@@ -67,6 +73,26 @@ class Visualizer(FactoryBase, BaseVisualizer):
             return None
 
     @classmethod
+    def _resolve_cfg_class_for_type(cls, visualizer_type: str) -> type | None:
+        """Resolve visualizer cfg class for a visualizer type."""
+        if visualizer_type not in _VISUALIZER_TYPES:
+            return None
+        module_name = cls._get_module_name(visualizer_type)
+        class_name = cls._cfg_class_names.get(visualizer_type)
+        if class_name is None:
+            return None
+        try:
+            module = importlib.import_module(module_name)
+            return getattr(module, class_name)
+        except Exception as exc:
+            logger.debug(
+                "[Visualizer] Failed to resolve config class for type '%s': %s",
+                visualizer_type,
+                exc,
+            )
+            return None
+
+    @classmethod
     def get_requirements_for_type(cls, visualizer_type: str) -> tuple[bool, bool]:
         """Return (requires_newton_model, requires_usd_stage) for a visualizer type."""
         if visualizer_type not in _VISUALIZER_TYPES:
@@ -74,16 +100,16 @@ class Visualizer(FactoryBase, BaseVisualizer):
                 f"Visualizer type '{visualizer_type}' is not registered. Valid types: "
                 f"{', '.join(repr(k) for k in _VISUALIZER_TYPES)}."
             )
-        impl_class = cls._resolve_impl_class_for_type(visualizer_type)
-        if impl_class is None:
+        cfg_class = cls._resolve_cfg_class_for_type(visualizer_type)
+        if cfg_class is None:
             logger.debug(
-                "[Visualizer] Using default requirements (False, False) for type '%s' because implementation could not "
+                "[Visualizer] Using default requirements (False, False) for type '%s' because config class could not "
                 "be imported.",
                 visualizer_type,
             )
             return False, False
-        return bool(getattr(impl_class, "requires_newton_model", False)), bool(
-            getattr(impl_class, "requires_usd_stage", False)
+        return bool(getattr(cfg_class, "requires_newton_model", False)), bool(
+            getattr(cfg_class, "requires_usd_stage", False)
         )
 
     def __new__(cls, cfg, *args, **kwargs) -> BaseVisualizer:

@@ -24,6 +24,12 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
+    requires_newton_model: bool = True
+    """Internal requirement flag; do not override in user configs."""
+
+    requires_usd_stage: bool = True
+    """Internal requirement flag; do not override in user configs."""
+
     simple_shading_mode: bool = True
     """Whether to use simple shading mode (default: True).
 

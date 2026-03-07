@@ -156,6 +156,10 @@ class SimulationContext:
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
         self._newton_visualizer_artifact: dict[str, Any] | None = None
+        self._scene_data_requirements: dict[str, bool] = {
+            "requires_newton_model": False,
+            "requires_usd_stage": False,
+        }
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -473,6 +477,19 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
+        # Default requirement resolution from visualizer cfgs only.
+        # InteractiveScene may later override this with renderer-aware requirements
+        # before provider initialization.
+        requires_newton_model = False
+        requires_usd_stage = False
+        for cfg in visualizer_cfgs:
+            requires_newton_model |= bool(getattr(cfg, "requires_newton_model", False))
+            requires_usd_stage |= bool(getattr(cfg, "requires_usd_stage", False))
+
+        self.set_scene_data_requirements(
+            requires_newton_model=requires_newton_model,
+            requires_usd_stage=requires_usd_stage,
+        )
         self.initialize_scene_data_provider(visualizer_cfgs)
         self._visualizers = []
 
@@ -516,6 +533,17 @@ class SimulationContext:
             "articulation_paths": articulation_paths,
             "num_envs": num_envs,
         }
+
+    def set_scene_data_requirements(self, requires_newton_model: bool, requires_usd_stage: bool) -> None:
+        """Store resolved scene-data requirements for provider initialization/update."""
+        self._scene_data_requirements = {
+            "requires_newton_model": bool(requires_newton_model),
+            "requires_usd_stage": bool(requires_usd_stage),
+        }
+
+    def get_scene_data_requirements(self) -> dict[str, bool]:
+        """Return resolved scene-data requirements for providers."""
+        return dict(self._scene_data_requirements)
 
     def get_newton_visualizer_artifact(self) -> dict[str, Any] | None:
         """Return prebuilt Newton visualizer artifact, if available."""

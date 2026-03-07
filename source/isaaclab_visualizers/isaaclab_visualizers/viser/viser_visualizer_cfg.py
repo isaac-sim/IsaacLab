@@ -18,6 +18,9 @@ class ViserVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "viser"
     """Type identifier for Viser visualizer."""
 
+    requires_newton_model: bool = True
+    """Internal requirement flag; do not override in user configs."""
+
     port: int = 8080
     """Port of the local viser web server."""
 
