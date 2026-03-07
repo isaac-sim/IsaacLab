@@ -164,4 +164,3 @@ following tutorial where we will learn how to add assets to the stage.
 
 .. _`Isaac Sim Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 .. _carb: https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/index.html
-.. _`physics scene`: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html#physics-scene

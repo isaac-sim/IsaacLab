@@ -122,6 +122,6 @@ After the stop time is reached, a file will be saved to:
 
 
 .. _Stage Recorder: https://docs.omniverse.nvidia.com/extensions/latest/ext_animation_stage-recorder.html
-.. _Fabric: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html
+.. _Fabric: https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/sim_performance_optimization_handbook.html
 .. _Omniverse Launcher: https://docs.omniverse.nvidia.com/launcher/latest/index.html
 .. _tutorial on layering in Omniverse: https://www.youtube.com/watch?v=LTwmNkSDh-c&ab_channel=NVIDIAOmniverse
