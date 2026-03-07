@@ -12,6 +12,9 @@ on:
       - main
       - 'release/**'
       - feature/isaacsim-6-0
+  push:
+    branches:
+      - '**'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
