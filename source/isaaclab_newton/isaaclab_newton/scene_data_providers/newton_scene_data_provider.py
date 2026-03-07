@@ -31,8 +31,6 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
     """
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
-        from isaaclab.visualizers.visualizer import Visualizer
-
         self._simulation_context = simulation_context
         self._stage = stage
         self._metadata = {"physics_backend": "newton"}
@@ -40,13 +38,12 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._warned_once: set[str] = set()
         # Only sync Newton -> USD when a USD-stage-based visualizer is active.
         # When both sim and rendering are Newton-based, they use Newton state directly.
-        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
-        self._needs_usd_sync = False
-        self._needs_newton_sync = False
-        for viz_type in sorted(v for v in viz_types if v):
-            needs_newton, needs_usd = Visualizer.get_requirements_for_type(viz_type)
-            self._needs_newton_sync |= needs_newton
-            self._needs_usd_sync |= needs_usd
+        requirements = {}
+        get_requirements = getattr(self._simulation_context, "get_scene_data_requirements", None)
+        if callable(get_requirements):
+            requirements = get_requirements()
+        self._needs_newton_sync = bool(requirements.get("requires_newton_model", False))
+        self._needs_usd_sync = bool(requirements.get("requires_usd_stage", False))
 
     def _warn_once(self, key: str, message: str, *args) -> None:
         if key in self._warned_once:

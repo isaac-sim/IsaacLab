@@ -13,3 +13,9 @@ class RendererCfg:
     """Configuration for a renderer."""
 
     renderer_type: str = "default"
+
+    requires_newton_model: bool = False
+    """Internal requirement flag for scene-data setup; avoid overriding in user configs."""
+
+    requires_usd_stage: bool = False
+    """Internal requirement flag for scene-data setup; avoid overriding in user configs."""

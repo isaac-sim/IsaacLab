@@ -29,6 +29,11 @@ class Renderer(FactoryBase, BaseRenderer):
         "newton": "NewtonWarpRenderer",
         "ov": "OVRTXRenderer",
     }
+    _backend_cfg_class_names = {
+        "physx": "IsaacRtxRendererCfg",
+        "newton": "NewtonWarpRendererCfg",
+        "ov": "OVRTXRendererCfg",
+    }
 
     @classmethod
     def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
@@ -57,18 +62,38 @@ class Renderer(FactoryBase, BaseRenderer):
             return None
 
     @classmethod
+    def _resolve_cfg_class_for_renderer_type(cls, renderer_type: str) -> type | None:
+        """Resolve backend renderer cfg class for a renderer type."""
+        backend = _RENDERER_TYPE_TO_BACKEND.get(renderer_type, "physx")
+        module_name = cls._get_module_name(backend)
+        class_name = cls._backend_cfg_class_names.get(backend)
+        if class_name is None:
+            return None
+        try:
+            module = importlib.import_module(module_name)
+            return getattr(module, class_name)
+        except Exception as exc:
+            logger.debug(
+                "[Renderer] Failed to resolve config class for renderer '%s' (backend '%s'): %s",
+                renderer_type,
+                backend,
+                exc,
+            )
+            return None
+
+    @classmethod
     def get_requirements_for_type(cls, renderer_type: str) -> tuple[bool, bool]:
         """Return (requires_newton_model, requires_usd_stage) for a renderer type."""
-        impl_class = cls._resolve_impl_class_for_renderer_type(renderer_type)
-        if impl_class is None:
+        cfg_class = cls._resolve_cfg_class_for_renderer_type(renderer_type)
+        if cfg_class is None:
             logger.debug(
-                "[Renderer] Using default requirements (False, False) for renderer '%s' because backend "
-                "implementation could not be imported.",
+                "[Renderer] Using default requirements (False, False) for renderer '%s' because backend config "
+                "class could not be imported.",
                 renderer_type,
             )
             return False, False
-        return bool(getattr(impl_class, "requires_newton_model", False)), bool(
-            getattr(impl_class, "requires_usd_stage", False)
+        return bool(getattr(cfg_class, "requires_newton_model", False)), bool(
+            getattr(cfg_class, "requires_usd_stage", False)
         )
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:

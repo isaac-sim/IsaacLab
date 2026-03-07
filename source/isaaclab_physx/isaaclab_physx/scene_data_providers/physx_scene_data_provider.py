@@ -8,10 +8,7 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
-import sys
-import time
 from collections import deque
 from typing import Any
 
@@ -108,16 +105,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
-        from isaaclab.visualizers.visualizer import Visualizer
-
-        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
-        self._needs_newton_sync = False
-        self._needs_usd_stage = False
-        for viz_type in sorted(v for v in viz_types if v):
-            needs_newton, needs_usd = Visualizer.get_requirements_for_type(viz_type)
-            self._needs_newton_sync |= needs_newton
-            self._needs_usd_stage |= needs_usd
-        self._profile_newton_vis_build = os.getenv("ISAACLAB_PROFILE_NEWTON_VIS_BUILD", "0") == "1"
+        requirements = {}
+        get_requirements = getattr(self._simulation_context, "get_scene_data_requirements", None)
+        if callable(get_requirements):
+            requirements = get_requirements()
+        self._needs_newton_sync = bool(requirements.get("requires_newton_model", False))
+        self._needs_usd_stage = bool(requirements.get("requires_usd_stage", False))
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -195,8 +188,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _try_use_prebuilt_newton_artifact(self) -> bool:
         """Use scene-time prebuilt Newton visualizer artifact when available."""
-        if os.getenv("ISAACLAB_NEWTON_VIS_USE_PREBUILT", "1") == "0":
-            return False
         getter = getattr(self._simulation_context, "get_newton_visualizer_artifact", None)
         if not callable(getter):
             return False
@@ -232,11 +223,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _build_newton_model_from_usd(self) -> None:
         """Build Newton model from USD and cache body/articulation paths."""
-        start_t = time.perf_counter()
-        build_source = "usd_fallback"
+        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
+        # is complete for full and partial visualization model-build paths.
         try:
             if self._try_use_prebuilt_newton_artifact():
-                build_source = "prebuilt_cloner_artifact"
                 return
             from newton import ModelBuilder
 
@@ -281,18 +271,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._rigid_body_paths = []
             self._articulation_paths = []
             self._num_envs_at_last_newton_build = None
-        finally:
-            if self._profile_newton_vis_build:
-                elapsed_ms = (time.perf_counter() - start_t) * 1000.0
-                msg = (
-                    "[PhysxSceneDataProvider] Newton model build "
-                    f"source={build_source} num_envs={self.get_num_envs()} "
-                    f"elapsed_ms={elapsed_ms:.2f}"
-                )
-                print(msg, file=sys.stderr, flush=True)
 
     def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
         """Build Newton model/state for a subset of envs."""
+        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
+        # is complete for full and partial visualization model-build paths.
         try:
             from newton import ModelBuilder
 
