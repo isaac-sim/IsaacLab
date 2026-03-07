@@ -39,7 +39,7 @@ jobs:
   # first run and build incrementally on subsequent runs.
 
   build-base-image:
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 60
     outputs:
       ecr-image-tag: ${{ steps.tags.outputs.ecr_image_tag }}
@@ -85,7 +85,7 @@ jobs:
         ecr-write-cache-tag: ${{ steps.tags.outputs.ecr_cache_tag }}
 
   build-curobo-image:
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 90
     outputs:
       ecr-image-tag: ${{ steps.tags.outputs.ecr_image_tag }}
@@ -133,7 +133,7 @@ jobs:
 
   test-isaaclab-tasks:
     needs: [build-base-image]
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
     continue-on-error: true
 
@@ -198,7 +198,7 @@ jobs:
 
   test-isaaclab-tasks-2:
     needs: [build-base-image]
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
     continue-on-error: true
 
@@ -263,7 +263,7 @@ jobs:
 
   test-general:
     needs: [build-base-image]
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
 
     steps:
@@ -327,7 +327,7 @@ jobs:
 
   test-curobo:
     needs: [build-curobo-image]
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 120
     continue-on-error: true
 
