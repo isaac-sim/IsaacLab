@@ -168,7 +168,7 @@ jobs:
 
   combine-compat-results:
     needs: [test-isaaclab-tasks-compat, test-general-compat]
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     if: always()
 
     steps:
@@ -219,7 +219,7 @@ jobs:
 
   notify-compatibility-status:
     needs: [setup-versions, combine-compat-results]
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     if: always()
 
     steps:
