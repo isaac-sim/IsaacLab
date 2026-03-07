@@ -5,10 +5,10 @@
 # Set ISAACLAB_PROFILE_NEWTON_VIS_BUILD=1 to emit timing; this script sets it.
 #
 # Usage:
-#   ./scripts/benchmarks/run_newton_vis_loading_benchmark.sh [--num_envs N] [--isaaclab path]
+#   ./scripts/mtrepte/run_newton_vis_loading_benchmark.sh [--num_envs N] [--isaaclab path]
 #
 # Example:
-#   ./scripts/benchmarks/run_newton_vis_loading_benchmark.sh --num_envs 4096
+#   ./scripts/mtrepte/run_newton_vis_loading_benchmark.sh --num_envs 4096
 
 set -e
 
@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-BENCH_PY_REL="scripts/benchmarks/run_newton_vis_loading_benchmark.py"
+BENCH_PY_REL="scripts/mtrepte/run_newton_vis_loading_benchmark.py"
 BENCH_PY_ABS="${ROOT_DIR}/${BENCH_PY_REL}"
 if [[ ! -f "$BENCH_PY_ABS" ]]; then
   echo "Benchmark script not found: $BENCH_PY_ABS" >&2
