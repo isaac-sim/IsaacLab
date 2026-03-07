@@ -161,7 +161,7 @@ def set_state_velocities_func(
 def get_link_velocity_in_com_frame_func(
     link_velocity_w: wp.spatial_vectorf,
     link_pose_w: wp.transformf,
-    body_com_pose_b: wp.transformf,
+    body_com_pos_b: wp.vec3f,
 ):
     """Compute COM velocity from link velocity by accounting for the COM offset.
 
@@ -171,7 +171,7 @@ def get_link_velocity_in_com_frame_func(
     Args:
         link_velocity_w: Link spatial velocity in world frame (angular, linear).
         link_pose_w: Link pose in world frame.
-        body_com_pose_b: COM pose in body (link) frame.
+        body_com_pos_b: COM position in body (link) frame.
 
     Returns:
         COM spatial velocity in world frame (angular, linear).
@@ -180,7 +180,7 @@ def get_link_velocity_in_com_frame_func(
         wp.spatial_top(link_velocity_w)
         + wp.cross(
             wp.spatial_bottom(link_velocity_w),
-            wp.quat_rotate(wp.transform_get_rotation(link_pose_w), wp.transform_get_translation(body_com_pose_b)),
+            wp.quat_rotate(wp.transform_get_rotation(link_pose_w), body_com_pos_b),
         ),
         wp.spatial_bottom(link_velocity_w),
     )
@@ -189,28 +189,24 @@ def get_link_velocity_in_com_frame_func(
 @wp.func
 def get_com_pose_in_link_frame_func(
     com_pose_w: wp.transformf,
-    com_pose_b: wp.transformf,
+    com_pos_b: wp.vec3f,
 ):
     """Compute link pose in world frame from COM pose by inverting the body-frame COM offset.
 
     This is the inverse of ``get_com_pose_from_link_pose_func``. Given the COM pose in
-    world frame and the COM offset in body frame, it recovers the link pose in world frame.
+    world frame and the COM position offset in body frame, it recovers the link pose in
+    world frame. Newton COM always has identity orientation, so only position is needed.
 
     Args:
         com_pose_w: COM pose in world frame.
-        com_pose_b: COM pose in body (link) frame.
+        com_pos_b: COM position in body (link) frame.
 
     Returns:
         Link pose in world frame.
     """
-    T2 = wp.transform(
-        wp.quat_rotate(
-            wp.quat_inverse(wp.transform_get_rotation(com_pose_b)), -wp.transform_get_translation(com_pose_b)
-        ),
-        wp.quat_inverse(wp.transform_get_rotation(com_pose_b)),
-    )
-    link_pose_w = com_pose_w * T2
-    return link_pose_w
+    com_rot_w = wp.transform_get_rotation(com_pose_w)
+    link_pos_w = wp.transform_get_translation(com_pose_w) - wp.quat_rotate(com_rot_w, com_pos_b)
+    return wp.transform(link_pos_w, com_rot_w)
 
 
 """
@@ -535,7 +531,7 @@ def set_root_link_pose_to_sim_mask(
 @wp.kernel
 def set_root_com_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
-    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     env_ids: wp.array(dtype=wp.int32),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
@@ -551,7 +547,7 @@ def set_root_com_pose_to_sim_index(
 
     Args:
         data: Input array of root COM poses. Shape is (num_selected_envs,).
-        body_com_pose_b: Input array of body COM poses in body frame. Shape is
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is
             (num_envs, num_bodies). Only the first body (index 0) is used for the root.
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         root_com_pose_w: Output array where root COM poses are written. Shape is (num_envs,).
@@ -570,7 +566,7 @@ def set_root_com_pose_to_sim_index(
         root_com_state_w[env_ids[i]] = set_state_transforms_func(root_com_state_w[env_ids[i]], data[i])
     # Get the com pose in the link frame
     root_link_pose_w[env_ids[i]] = get_com_pose_in_link_frame_func(
-        root_com_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
+        root_com_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
     )
     if root_link_state_w:
         root_link_state_w[env_ids[i]] = set_state_transforms_func(
@@ -583,7 +579,7 @@ def set_root_com_pose_to_sim_index(
 @wp.kernel
 def set_root_com_pose_to_sim_mask(
     data: wp.array(dtype=wp.transformf),
-    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     env_mask: wp.array(dtype=wp.bool),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
@@ -599,7 +595,7 @@ def set_root_com_pose_to_sim_mask(
 
     Args:
         data: Input array of root COM poses. Shape is (num_instances,).
-        body_com_pose_b: Input array of body COM poses in body frame. Shape is
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is
             (num_envs, num_bodies). Only the first body (index 0) is used for the root.
         env_mask: Input array of environment mask. Shape is (num_instances,).
         root_com_pose_w: Output array where root COM poses are written. Shape is (num_envs,).
@@ -618,7 +614,7 @@ def set_root_com_pose_to_sim_mask(
         if root_com_state_w:
             root_com_state_w[i] = set_state_transforms_func(root_com_state_w[i], data[i])
         # Get the com pose in the link frame
-        root_link_pose_w[i] = get_com_pose_in_link_frame_func(root_com_pose_w[i], body_com_pose_b[i, 0])
+        root_link_pose_w[i] = get_com_pose_in_link_frame_func(root_com_pose_w[i], body_com_pos_b[i, 0])
         if root_link_state_w:
             root_link_state_w[i] = set_state_transforms_func(root_link_state_w[i], root_link_pose_w[i])
         if root_state_w:
@@ -707,7 +703,7 @@ def set_root_com_velocity_to_sim_mask(
 @wp.kernel
 def set_root_link_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
-    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     link_pose_w: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     num_bodies: wp.int32,
@@ -726,7 +722,7 @@ def set_root_link_velocity_to_sim_index(
 
     Args:
         data: Input array of root link spatial velocities. Shape is (num_selected_envs,).
-        body_com_pose_b: Input array of body COM poses in body frame. Shape is
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is
             (num_envs, num_bodies). Only the first body (index 0) is used for the root.
         link_pose_w: Input array of root link poses in world frame. Shape is (num_envs,).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
@@ -750,7 +746,7 @@ def set_root_link_velocity_to_sim_index(
         root_link_state_w[env_ids[i]] = set_state_velocities_func(root_link_state_w[env_ids[i]], data[i])
     # Get the link velocity in the com frame
     root_com_velocity_w[env_ids[i]] = get_link_velocity_in_com_frame_func(
-        root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
+        root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
     )
     if root_com_state_w:
         root_com_state_w[env_ids[i]] = set_state_velocities_func(
@@ -766,7 +762,7 @@ def set_root_link_velocity_to_sim_index(
 @wp.kernel
 def set_root_link_velocity_to_sim_mask(
     data: wp.array(dtype=wp.spatial_vectorf),
-    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     link_pose_w: wp.array(dtype=wp.transformf),
     env_mask: wp.array(dtype=wp.bool),
     num_bodies: wp.int32,
@@ -785,7 +781,7 @@ def set_root_link_velocity_to_sim_mask(
 
     Args:
         data: Input array of root link spatial velocities. Shape is (num_instances,).
-        body_com_pose_b: Input array of body COM poses in body frame. Shape is
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is
             (num_envs, num_bodies). Only the first body (index 0) is used for the root.
         link_pose_w: Input array of root link poses in world frame. Shape is (num_envs,).
         env_mask: Input array of environment mask. Shape is (num_instances,).
@@ -810,7 +806,7 @@ def set_root_link_velocity_to_sim_mask(
             root_link_state_w[i] = set_state_velocities_func(root_link_state_w[i], data[i])
         # Get the link velocity in the com frame
         root_com_velocity_w[i] = get_link_velocity_in_com_frame_func(
-            root_link_velocity_w[i], link_pose_w[i], body_com_pose_b[i, 0]
+            root_link_velocity_w[i], link_pose_w[i], body_com_pos_b[i, 0]
         )
         if root_com_state_w:
             root_com_state_w[i] = set_state_velocities_func(root_com_state_w[i], root_com_velocity_w[i])
@@ -880,7 +876,7 @@ def set_body_link_pose_to_sim(
 @wp.kernel
 def set_body_com_pose_to_sim(
     data: wp.array2d(dtype=wp.transformf),
-    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     env_ids: wp.array(dtype=wp.int32),
     body_ids: wp.array(dtype=wp.int32),
     from_mask: bool,
@@ -899,7 +895,7 @@ def set_body_com_pose_to_sim(
     Args:
         data: Input array of body COM poses. Shape is (num_envs, num_bodies) or
             (num_selected_envs, num_selected_bodies) depending on from_mask.
-        body_com_pose_b: Input array of body COM poses in body frame. Shape is
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is
             (num_envs, num_bodies).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         body_ids: Input array of body indices to write to. Shape is (num_selected_bodies,).
@@ -930,7 +926,7 @@ def set_body_com_pose_to_sim(
             )
     # Get the link pose from com pose
     body_link_pose_w[env_ids[i], body_ids[j]] = get_com_pose_in_link_frame_func(
-        body_com_pose_w[env_ids[i], body_ids[j]], body_com_pose_b[env_ids[i], body_ids[j]]
+        body_com_pose_w[env_ids[i], body_ids[j]], body_com_pos_b[env_ids[i], body_ids[j]]
     )
     if body_link_state_w:
         body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
@@ -1002,7 +998,7 @@ def set_body_com_velocity_to_sim(
 @wp.kernel
 def set_body_link_velocity_to_sim(
     data: wp.array2d(dtype=wp.spatial_vectorf),
-    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     body_ids: wp.array(dtype=wp.int32),
@@ -1023,7 +1019,7 @@ def set_body_link_velocity_to_sim(
     Args:
         data: Input array of body link spatial velocities. Shape is (num_envs, num_bodies)
             or (num_selected_envs, num_selected_bodies) depending on from_mask.
-        body_com_pose_b: Input array of body COM poses in body frame. Shape is
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is
             (num_envs, num_bodies).
         body_link_pose_w: Input array of body link poses in world frame. Shape is
             (num_envs, num_bodies).
@@ -1060,7 +1056,7 @@ def set_body_link_velocity_to_sim(
     body_com_velocity_w[env_ids[i], body_ids[j]] = get_link_velocity_in_com_frame_func(
         body_link_velocity_w[env_ids[i], body_ids[j]],
         body_link_pose_w[env_ids[i], body_ids[j]],
-        body_com_pose_b[env_ids[i], body_ids[j]],
+        body_com_pos_b[env_ids[i], body_ids[j]],
     )
     if body_com_state_w:
         body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
@@ -1385,16 +1381,16 @@ def make_dummy_body_com_pose_b(
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
 ):
-    """Make a dummy body COM pose in body frame.
+    """Make a body COM pose from position by appending an identity quaternion.
 
-    This kernel makes a dummy body COM pose in body frame.
+    Needed by the ``body_com_pose_b`` property to match the base API that returns
+    ``wp.transformf`` (pos + quat).
 
     Args:
         body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
         body_com_pose_b: Output array where body COM poses are written. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
-    # Concatenate the position and a unit quaternion
     body_com_pose_b[i, j] = wp.transformf(body_com_pos_b[i, j], wp.quatf(0.0, 0.0, 0.0, 1.0))
 
 

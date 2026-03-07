@@ -14,8 +14,6 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.kit.app
-
 from isaaclab.assets.articulation.articulation import Articulation
 
 if TYPE_CHECKING:
@@ -76,6 +74,8 @@ class ViewportCameraController:
             self.update_view_to_world()
 
         # subscribe to post update event so that camera view can be updated at each rendering step
+        import omni.kit.app
+
         app_interface = omni.kit.app.get_app_interface()
         app_event_stream = app_interface.get_post_update_event_stream()
         self._viewport_camera_update_handle = app_event_stream.create_subscription_to_pop(
