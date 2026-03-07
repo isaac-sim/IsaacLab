@@ -21,7 +21,8 @@ on:
       - 'feature/isaacsim-6-0'
     paths:
       - 'docs/**'
-      - '**.md'
+      - '**/*.md'
+      - '**/*.rst'
       - '.github/workflows/check-links.yml'
   # Allow manual trigger
   workflow_dispatch:
@@ -42,9 +43,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 1
+        fetch-depth: 2
+        filter: tree:0
+
+    - name: Check if latest commit touched documentation
+      id: check_docs
+      run: |
+        # In a pull_request, HEAD is a merge commit. HEAD^2 is the PR branch's head commit.
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          TARGET_COMMIT="HEAD^2"
+        else
+          TARGET_COMMIT="HEAD"
+        fi
+        
+        # Get the files changed in the specific commit
+        CHANGED=$(git log -1 --name-only --format="" $TARGET_COMMIT || true)
+        echo "Files changed in the latest commit:"
+        echo "$CHANGED"
+        
+        # Check against doc file types and doc paths
+        if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|\.github/workflows/'; then
+          echo "Documentation or workflow files changed. Proceeding..."
+          echo "run_job=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "No documentation files changed in this specific commit. Skipping."
+          echo "run_job=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Restore lychee cache
+      if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
       uses: actions/cache@v4
       with:
         path: .lycheecache
@@ -52,6 +79,7 @@ jobs:
         restore-keys: cache-lychee-
 
     - name: Run Link Checker
+      if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
       uses: lycheeverse/lychee-action@v2
       with:
         # Check all markdown files and documentation
@@ -95,7 +123,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Print results to logs
-      if: always()
+      if: always() && (steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
       run: |
         echo "========================================"
         echo "Link Checker Results:"
