@@ -10,9 +10,9 @@ Use --task to load a different env (e.g. Isaac-Cartpole-v0, Isaac-Lift-Cube-Fran
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/benchmarks/run_newton_vis_loading_benchmark.py \\
+    ./isaaclab.sh -p scripts/mtrepte/run_newton_vis_loading_benchmark.py \
       --headless --visualizer newton --num_envs 4096
-    ./isaaclab.sh -p scripts/benchmarks/run_newton_vis_loading_benchmark.py \\
+    ./isaaclab.sh -p scripts/mtrepte/run_newton_vis_loading_benchmark.py \
       --headless --visualizer newton --task Isaac-Lift-Cube-Franka-v0 --num_envs 64
 """
 
