@@ -92,6 +92,13 @@ jobs:
           --exclude 'user@'
           --exclude 'helm\.ngc\.nvidia\.com'
           --exclude 'slurm\.schedmd\.com'
+          --exclude 'docs\.omniverse\.nvidia\.com'
+          --exclude 'graphics\.pixar\.com'
+          --exclude 'openpbs\.org'
+          --exclude 'docutils\.sourceforge\.io'
+          --exclude 'huggingface\.co/datasets/nvidia/PhysicalAI-Robotics-NuRec'
+          --exclude 'huggingface\.co/nvidia/COMPASS'
+          --exclude 'huggingface\.co/nvidia/X-Mobility'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20

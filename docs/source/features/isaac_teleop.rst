@@ -446,7 +446,7 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `Retargeting Engine README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/retargeting_engine/python/retargeters/README.md>`_
+See the `Retargeting Engine README <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine/python/retargeters>`_
 and `Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_ for details.
 
 
