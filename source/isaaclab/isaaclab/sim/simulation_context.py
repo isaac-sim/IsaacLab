@@ -427,13 +427,8 @@ class SimulationContext:
                 cfg.max_worlds = max_worlds_override
 
     def resolve_visualizer_types(self) -> list[str]:
-        """Resolve visualizer types from config or CLI settings."""
-        visualizer_cfgs = self.cfg.visualizer_cfgs
-        if visualizer_cfgs is None:
-            return self._get_cli_visualizer_types()
-
-        if not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
+        """Resolve effective visualizer types with CLI overrides applied."""
+        visualizer_cfgs = self._resolve_visualizer_cfgs()
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
