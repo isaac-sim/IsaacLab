@@ -225,7 +225,10 @@ class DirectMARLEnv(gym.Env):
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        import sys
+
+        if not sys.is_finalizing():
+            self.close()
 
     """
     Properties.

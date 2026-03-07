@@ -38,7 +38,7 @@ class ReachPhysicsCfg(PresetCfg):
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     newton: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=20,
+            njmax=30,
             nconmax=20,
             ls_iterations=20,
             cone="pyramidal",
