@@ -29,7 +29,7 @@ env:
 
 jobs:
   build-and-push-images:
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-int]
     timeout-minutes: 180
     environment:
       name: postmerge-production

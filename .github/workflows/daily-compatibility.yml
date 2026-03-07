@@ -53,7 +53,7 @@ jobs:
 
   test-isaaclab-tasks-compat:
     needs: setup-versions
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-int]
     timeout-minutes: 180
     continue-on-error: true
     strategy:
@@ -111,7 +111,7 @@ jobs:
 
   test-general-compat:
     needs: setup-versions
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-int]
     timeout-minutes: 180
     strategy:
       matrix:
@@ -168,7 +168,7 @@ jobs:
 
   combine-compat-results:
     needs: [test-isaaclab-tasks-compat, test-general-compat]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-int]
     if: always()
 
     steps:
@@ -217,7 +217,7 @@ jobs:
 
   notify-compatibility-status:
     needs: [setup-versions, combine-compat-results]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-int]
     if: always()
 
     steps:
