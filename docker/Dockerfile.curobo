@@ -91,6 +91,7 @@ ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 
 # copy files necessary for installing Isaac Lab and its dependencies
 # tris way we minimize the chance of cache invalidation on file edits
+COPY ../isaaclab.* ../environment.yml ../pyproject.toml ${ISAACLAB_PATH}/
 COPY ../tools/ ${ISAACLAB_PATH}/tools/
 COPY ../source/ ${ISAACLAB_PATH}/source/
 
@@ -178,6 +179,8 @@ COPY ../apps/ ${ISAACLAB_PATH}/apps/
 COPY ../docker/ ${ISAACLAB_PATH}/docker/
 COPY ../docs/ ${ISAACLAB_PATH}/docs/
 COPY ../scripts/ ${ISAACLAB_PATH}/scripts/
+# copy rest of the root-level files
+COPY ../*.md ../VERSION ../CITATION.cff ../LICENSE* ${ISAACLAB_PATH}/
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
