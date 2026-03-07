@@ -5,13 +5,7 @@
 
 name: Build and Test
 
-on:
-  pull_request:
-    branches:
-      - develop
-      - main
-      - 'release/**'
-      - feature/isaacsim-6-0
+on: [push, pull_request]
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
