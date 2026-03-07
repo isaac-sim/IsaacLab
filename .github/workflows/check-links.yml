@@ -49,20 +49,20 @@ jobs:
     - name: Check if latest commit touched documentation
       id: check_docs
       run: |
-        # In a pull_request, HEAD is a merge commit. HEAD^2 is the PR branch's head commit.
+        # Get the files changed in this PR/commit
+        # For PRs: diff between base (HEAD^1) and PR tip (HEAD^2). Both are available
+        # with fetch-depth: 2, avoiding the "all files" problem that occurs when
+        # git log --name-only has no parent to compare against in a shallow clone.
         if [ "${{ github.event_name }}" == "pull_request" ]; then
-          TARGET_COMMIT="HEAD^2"
+          CHANGED=$(git diff --name-only HEAD^1 HEAD^2 || true)
         else
-          TARGET_COMMIT="HEAD"
+          CHANGED=$(git diff --name-only HEAD^1 HEAD || true)
         fi
-        
-        # Get the files changed in the specific commit
-        CHANGED=$(git log -1 --name-only --format="" $TARGET_COMMIT || true)
-        echo "Files changed in the latest commit:"
+        echo "Files changed:"
         echo "$CHANGED"
         
         # Check against doc file types and doc paths
-        if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|\.github/workflows/'; then
+        if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|\.github/workflows/check-links\.yml'; then
           echo "Documentation or workflow files changed. Proceeding..."
           echo "run_job=true" >> "$GITHUB_OUTPUT"
         else
