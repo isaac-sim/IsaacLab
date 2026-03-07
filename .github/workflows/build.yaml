@@ -39,7 +39,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Build Docker Image
@@ -57,7 +57,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Build Docker Image (cuRobo)
@@ -78,8 +78,10 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        lfs: true
+        fetch-depth: 1
+        lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -133,8 +135,10 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        lfs: true
+        fetch-depth: 1
+        lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Run IsaacLab Tasks Tests 2
       uses: ./.github/actions/run-tests
@@ -187,8 +191,10 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        lfs: true
+        fetch-depth: 1
+        lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Run General Tests
       id: run-general-tests
@@ -242,8 +248,10 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        lfs: true
+        fetch-depth: 1
+        lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Run cuRobo and SkillGen Tests
       uses: ./.github/actions/run-tests
@@ -296,8 +304,10 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Create Reports Directory
       run: |

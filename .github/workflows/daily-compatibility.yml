@@ -74,7 +74,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Build Docker Image
@@ -130,9 +130,9 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Build Docker Image
@@ -176,10 +176,12 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Create Reports Directory
       run: |
@@ -225,10 +227,12 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Create Compatibility Report
       run: |
