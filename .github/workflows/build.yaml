@@ -73,6 +73,10 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: 'docker/Dockerfile.curobo'
 
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
   test-isaaclab-tasks:
     needs: [build]
     runs-on: [self-hosted, int-gpu]
