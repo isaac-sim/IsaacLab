@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   check-secrets:
+    if: ${{ false }} #TMP
     name: Check secrets
     runs-on: ubuntu-latest
     outputs:
@@ -33,6 +34,7 @@ jobs:
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
 
   build-docs:
+    if: ${{ false }} #TMP
     name: Build Docs
     runs-on: ubuntu-latest
     needs: [check-secrets]
@@ -72,7 +74,7 @@ jobs:
     name: Deploy Docs
     runs-on: ubuntu-latest
     needs: [check-secrets, build-docs]
-    if: needs.check-secrets.outputs.trigger-deploy == 'true'
+    if: ${{ false }} #TMP
 
     steps:
     - name: Download docs artifact

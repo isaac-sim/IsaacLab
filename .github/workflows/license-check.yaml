@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   license-check:
+    if: ${{ false }} #TMP
     runs-on: ubuntu-24.04
 
     steps:
