@@ -93,7 +93,6 @@ jobs:
           --exclude 'user@'
           --exclude 'helm\.ngc\.nvidia\.com'
           --exclude 'slurm\.schedmd\.com'
-          --exclude 'docs\.omniverse\.nvidia\.com'
           --exclude 'graphics\.pixar\.com'
           --exclude 'openpbs\.org'
           --exclude 'docutils\.sourceforge\.io'
