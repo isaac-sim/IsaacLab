@@ -117,6 +117,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             needs_newton, needs_usd = Visualizer.get_requirements_for_type(viz_type)
             self._needs_newton_sync |= needs_newton
             self._needs_usd_stage |= needs_usd
+        self._profile_newton_vis_build = os.getenv("ISAACLAB_PROFILE_NEWTON_VIS_BUILD", "0") == "1"
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -281,19 +282,22 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._articulation_paths = []
             self._num_envs_at_last_newton_build = None
         finally:
-            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
-            msg = (
-                "[PhysxSceneDataProvider] Newton model build "
-                f"source={build_source} num_envs={self.get_num_envs()} "
-                f"elapsed_ms={elapsed_ms:.2f}"
-            )
-            print(msg, file=sys.stderr, flush=True)
+            if self._profile_newton_vis_build:
+                elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+                msg = (
+                    "[PhysxSceneDataProvider] Newton model build "
+                    f"source={build_source} num_envs={self.get_num_envs()} "
+                    f"elapsed_ms={elapsed_ms:.2f}"
+                )
+                print(msg, file=sys.stderr, flush=True)
 
     def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
         """Build Newton model/state for a subset of envs."""
         try:
             from newton import ModelBuilder
 
+            # TODO(mtrepte): Add cloner-based filtered prebuild here (mapping/env_filter_ids)
+            # so partial visualization can avoid per-env USD traversal for filtered subsets.
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
