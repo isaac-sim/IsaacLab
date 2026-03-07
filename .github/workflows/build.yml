@@ -51,6 +51,11 @@ jobs:
         fetch-depth: 0
         lfs: true
 
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
     - name: Compute ECR image and cache tags
       id: tags
       run: |
@@ -87,6 +92,11 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
+
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
     - name: Compute ECR image and cache tags
       id: tags
@@ -127,6 +137,11 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
+
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
     - name: Pull Base Docker Image from ECR
       run: docker pull ${{ needs.build-base-image.outputs.ecr-image-tag }}
@@ -186,6 +201,11 @@ jobs:
         fetch-depth: 0
         lfs: true
 
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
+
     - name: Pull Base Docker Image from ECR
       run: docker pull ${{ needs.build-base-image.outputs.ecr-image-tag }}
 
@@ -242,6 +262,11 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
+
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
     - name: Pull Base Docker Image from ECR
       run: docker pull ${{ needs.build-base-image.outputs.ecr-image-tag }}
@@ -300,6 +325,11 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
+
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region us-west-2 \
+          | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
     - name: Pull cuRobo Docker Image from ECR
       run: docker pull ${{ needs.build-curobo-image.outputs.ecr-image-tag }}
