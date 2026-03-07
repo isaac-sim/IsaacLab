@@ -68,7 +68,7 @@ To use it:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]   
+      ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
 
 Configuring the python interpreter
 ----------------------------------
