@@ -160,22 +160,25 @@ def main():
         obs = env.reset()
         timestep = 0
         # simulate environment
-        while True:
-            start_time = time.time()
-            with torch.inference_mode():
-                actions, _ = agent.predict(obs, deterministic=True)
-                obs, _, _, _ = env.step(actions)
-            if args_cli.video:
-                timestep += 1
-                if timestep == args_cli.video_length:
-                    break
+        try:
+            while True:
+                start_time = time.time()
+                with torch.inference_mode():
+                    actions, _ = agent.predict(obs, deterministic=True)
+                    obs, _, _, _ = env.step(actions)
+                if args_cli.video:
+                    timestep += 1
+                    if timestep == args_cli.video_length:
+                        break
 
-            sleep_time = dt - (time.time() - start_time)
-            if args_cli.real_time and sleep_time > 0:
-                time.sleep(sleep_time)
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
-        # close the simulator
-        env.close()
+            # close the simulator
+            env.close()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

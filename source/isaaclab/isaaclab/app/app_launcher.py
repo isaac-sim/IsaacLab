@@ -32,6 +32,9 @@ from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_
 # import logger
 logger = logging.getLogger(__name__)
 
+# Suppress noisy debug-level websocket frame logs from the Kit LiveSync server
+logging.getLogger("websockets").setLevel(logging.WARNING)
+
 
 class ExplicitAction(argparse.Action):
     """Custom action to track if an argument was explicitly passed by the user."""

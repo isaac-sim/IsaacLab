@@ -145,7 +145,7 @@ class UrdfConverter(AssetConverterBase):
                 "convex_hull": "Convex Hull",
                 "convex_decomposition": "Convex Decomposition",
             }
-            collision_type = collision_type_map.get(cfg.collider_type, "Convex Hull")
+            collision_type = collision_type_map.get(cfg.collision_type, "Convex Hull")
             importer_utils.collision_from_visuals(stage, collision_type)
 
         importer_utils.enable_self_collision(stage, cfg.self_collision)
