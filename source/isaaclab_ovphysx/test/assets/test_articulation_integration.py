@@ -358,6 +358,43 @@ class TestReset:
             f"Delta from default: {delta_env1}"
         )
 
+    def test_reset_preserves_joint_command_buffers(self, single_art_sim):
+        """Reset should not clear user-owned joint command buffers."""
+        _, art = single_art_sim
+
+        pos_target = np.array([[0.25, -0.50]], dtype=np.float32)
+        vel_target = np.array([[1.25, -1.50]], dtype=np.float32)
+        effort_target = np.array([[3.00, -4.50]], dtype=np.float32)
+
+        art.set_joint_position_target_index(target=wp.from_numpy(pos_target, dtype=wp.float32, device=DEVICE))
+        art.set_joint_velocity_target_index(target=wp.from_numpy(vel_target, dtype=wp.float32, device=DEVICE))
+        art.set_joint_effort_target_index(target=wp.from_numpy(effort_target, dtype=wp.float32, device=DEVICE))
+
+        pos_before = art.data.joint_pos_target.numpy().copy()
+        vel_before = art.data.joint_vel_target.numpy().copy()
+        effort_before = art.data.joint_effort_target.numpy().copy()
+
+        art.reset()
+
+        np.testing.assert_allclose(
+            art.data.joint_pos_target.numpy(),
+            pos_before,
+            atol=0.0,
+            err_msg="Reset should not clear joint position targets.",
+        )
+        np.testing.assert_allclose(
+            art.data.joint_vel_target.numpy(),
+            vel_before,
+            atol=0.0,
+            err_msg="Reset should not clear joint velocity targets.",
+        )
+        np.testing.assert_allclose(
+            art.data.joint_effort_target.numpy(),
+            effort_before,
+            atol=0.0,
+            err_msg="Reset should not clear joint effort targets.",
+        )
+
 
 # ======================================================================
 # State read/write

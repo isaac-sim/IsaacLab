@@ -32,7 +32,7 @@ ovphysx.bootstrap()
 _sys.modules.update(_hidden_pxr)
 del _hidden_pxr
 
-CARTPOLE_USD = os.path.join(os.path.dirname(__file__), "..", "data", "cartpole.usda")
+CARTPOLE_USD = os.path.join(os.path.dirname(__file__), "..", "data", "cartpole.usda")  # ../data relative to test/physics/
 DT = 1.0 / 120.0
 
 

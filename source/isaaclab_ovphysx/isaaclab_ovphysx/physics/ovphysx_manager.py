@@ -170,46 +170,9 @@ class OvPhysxManager(PhysicsManager):
             gpu_index = 0
             ovphysx_device = "cpu"
 
-        # Configure GPU dynamics on the PhysicsScene prim before export.
-        # Without this, PhysX defaults to CPU broadphase even when
-        # ovphysx is created with device="gpu".
-        # We write the apiSchemas list entry and attributes directly because
-        # the PhysxSchema USD plugin may not be loaded in standalone mode.
-        from pxr import Sdf
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid() and ovphysx_device == "gpu":
-            schemas = Sdf.TokenListOp()
-            current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-            items = list(current.prependedItems) if current.prependedItems else []
-            if "PhysxSceneAPI" not in items:
-                items.append("PhysxSceneAPI")
-            schemas.prependedItems = items
-            scene_prim.SetMetadata("apiSchemas", schemas)
-            scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
-            scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
-            # Apply GPU buffer capacities from cfg.  PhysX defaults (1024 for aggregate
-            # pairs) are far too small for multi-env articulated simulations and produce
-            # "needs to increase ... capacity" errors with missed interactions.
-            cfg = PhysicsManager._cfg
-            if cfg is not None:
-                scene_prim.CreateAttribute(
-                    "physxScene:gpuMaxRigidContactCount", Sdf.ValueTypeNames.UInt
-                ).Set(cfg.gpu_max_rigid_contact_count)
-                scene_prim.CreateAttribute(
-                    "physxScene:gpuMaxRigidPatchCount", Sdf.ValueTypeNames.UInt
-                ).Set(cfg.gpu_max_rigid_patch_count)
-                scene_prim.CreateAttribute(
-                    "physxScene:gpuFoundLostPairsCapacity", Sdf.ValueTypeNames.UInt
-                ).Set(cfg.gpu_found_lost_pairs_capacity)
-                scene_prim.CreateAttribute(
-                    "physxScene:gpuFoundLostAggregatePairsCapacity", Sdf.ValueTypeNames.UInt
-                ).Set(cfg.gpu_found_lost_aggregate_pairs_capacity)
-                scene_prim.CreateAttribute(
-                    "physxScene:gpuTotalAggregatePairsCapacity", Sdf.ValueTypeNames.UInt
-                ).Set(cfg.gpu_total_aggregate_pairs_capacity)
-                scene_prim.CreateAttribute(
-                    "physxScene:gpuCollisionStackSize", Sdf.ValueTypeNames.UInt
-                ).Set(cfg.gpu_collision_stack_size)
+            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg)
 
         # Export the current USD stage to a temporary file so ovphysx can load it.
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
@@ -302,3 +265,37 @@ class OvPhysxManager(PhysicsManager):
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True
+
+    @staticmethod
+    def _configure_physx_scene_prim(scene_prim, cfg) -> None:
+        """Apply PhysxSceneAPI schema and GPU dynamics attributes to a scene prim.
+
+        The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode,
+        so we write the apiSchemas list entry and scene attributes directly via
+        raw Sdf metadata manipulation instead of using the high-level USD API.
+
+        Without these attributes PhysX defaults to CPU broadphase even when
+        ovphysx is created with device="gpu".
+        """
+        from pxr import Sdf
+
+        schemas = Sdf.TokenListOp()
+        current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+        items = list(current.prependedItems) if current.prependedItems else []
+        if "PhysxSceneAPI" not in items:
+            items.append("PhysxSceneAPI")
+        schemas.prependedItems = items
+        scene_prim.SetMetadata("apiSchemas", schemas)
+        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
+        scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
+
+        if cfg is not None:
+            for attr, val in [
+                ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
+                ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
+                ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
+                ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
+                ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
+                ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
+            ]:
+                scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)

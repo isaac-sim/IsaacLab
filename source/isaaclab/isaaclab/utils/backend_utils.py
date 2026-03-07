@@ -44,11 +44,11 @@ class FactoryBase:
         from isaaclab.sim.simulation_context import SimulationContext
 
         manager_name = SimulationContext.instance().physics_manager.__name__.lower()
-        if "newton" in manager_name:
+        if manager_name.startswith("newton"):
             return "newton"
-        if "ovphysx" in manager_name:
+        if manager_name.startswith("ovphysx"):
             return "ovphysx"
-        if "physx" in manager_name:
+        if manager_name.startswith("physx"):
             return "physx"
         else:
             raise ValueError(f"Unknown physics manager: {manager_name}")

@@ -135,7 +135,10 @@ class MockTensorBinding:
         np_src = self._to_numpy(tensor).astype(np.float32)
         if indices is not None:
             idx = self._to_numpy(indices)
-            self._data[idx] = np_src
+            if np_src.shape[0] == self._data.shape[0]:
+                self._data[idx] = np_src[idx]
+            else:
+                self._data[idx] = np_src.reshape(len(idx), *self._data.shape[1:])
         elif mask is not None:
             np_mask = self._to_numpy(mask).astype(bool)
             self._data[np_mask] = np_src[np_mask]

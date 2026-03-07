@@ -90,58 +90,72 @@ class Articulation(BaseArticulation):
 
     @property
     def data(self) -> ArticulationData:
+        """Data container with simulation state for this articulation."""
         return self._data
 
     @property
     def num_instances(self) -> int:
+        """Number of articulation instances (environments)."""
         return self._num_instances
 
     @property
     def is_fixed_base(self) -> bool:
+        """Whether the articulation is a fixed-base or floating-base system."""
         return self._is_fixed_base
 
     @property
     def num_joints(self) -> int:
+        """Number of joints in the articulation."""
         return self._num_joints
 
     @property
     def num_fixed_tendons(self) -> int:
+        """Number of fixed tendons in the articulation."""
         return getattr(self, "_num_fixed_tendons", 0)
 
     @property
     def num_spatial_tendons(self) -> int:
+        """Number of spatial tendons in the articulation."""
         return getattr(self, "_num_spatial_tendons", 0)
 
     @property
     def num_bodies(self) -> int:
+        """Number of bodies (links) in the articulation."""
         return self._num_bodies
 
     @property
     def joint_names(self) -> list[str]:
+        """Ordered names of joints in the articulation."""
         return self._joint_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
+        """Ordered names of fixed tendons in the articulation."""
         return getattr(self, "_fixed_tendon_names", [])
 
     @property
     def spatial_tendon_names(self) -> list[str]:
+        """Ordered names of spatial tendons in the articulation."""
         return getattr(self, "_spatial_tendon_names", [])
 
     @property
     def body_names(self) -> list[str]:
+        """Ordered names of bodies (links) in the articulation."""
         return self._body_names
 
     @property
     def root_view(self) -> Any:
+        """Root articulation view (not available for ovphysx backend)."""
         return None
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer | None:
+        """Wrench composer for forces applied only during the current step."""
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer | None:
+        """Wrench composer for forces applied persistently every step."""
         return self._permanent_wrench_composer
 
     # ------------------------------------------------------------------
@@ -176,13 +190,6 @@ class Articulation(BaseArticulation):
             self._write_flat_tensor(TT.DOF_POSITION, self._data.default_joint_pos)
             self._write_flat_tensor(TT.DOF_VELOCITY, self._data.default_joint_vel)
 
-        # Zero out command buffers.
-        self._data._joint_pos_target.zero_()
-        self._data._joint_vel_target.zero_()
-        self._data._joint_effort_target.zero_()
-        self._data._computed_torque.zero_()
-        self._data._applied_torque.zero_()
-
     def write_data_to_sim(self) -> None:
         """Apply external wrenches, actuator model, and write commands into the simulation."""
         # Apply external wrenches (before actuators, same as PhysX backend).
@@ -207,6 +214,11 @@ class Articulation(BaseArticulation):
             effort_binding.write(self._data.applied_torque)
 
     def update(self, dt: float) -> None:
+        """Update internal data buffers after a simulation step.
+
+        Args:
+            dt: The simulation time step [s] used for finite-difference quantities.
+        """
         self._data.update(dt)
 
     # ------------------------------------------------------------------
@@ -1091,6 +1103,8 @@ class Articulation(BaseArticulation):
 
     def _get_write_scratch(self, tensor_type: int, binding) -> wp.array:
         """Return a cached GPU scratch buffer for read-modify-write."""
+        if not hasattr(self, "_write_scratch"):
+            self._write_scratch = {}
         buf = self._write_scratch.get(tensor_type)
         if buf is None:
             buf = wp.zeros(binding.shape, dtype=wp.float32, device=self._device)
