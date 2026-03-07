@@ -69,7 +69,7 @@ Configuring the simulation context
 
 When launching the simulator from a standalone script, the user has complete control over playing,
 pausing and stepping the simulator. All these operations are handled through the **simulation
-context**. It takes care of various timeline events and also configures the `physics scene`_ for
+context**. It takes care of various timeline events and also configures the physics scene for
 simulation.
 
 In Isaac Lab, the :class:`sim.SimulationContext` class inherits from Isaac Sim's
