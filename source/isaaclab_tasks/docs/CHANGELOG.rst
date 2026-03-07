@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+1.5.5 (2026-03-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``NoiseModelWithAdditiveBias`` shape mismatch in Newton environment tests.
+  :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` replaced the scene config
+  with the preset's default ``num_envs`` (e.g. 8192), overwriting the test-requested value
+  (e.g. 2). The ``_bias`` tensor was then allocated with 8192 rows while action data only
+  had 2, causing a ``RuntimeError`` on addition. The fix re-applies ``num_envs`` after
+  preset application.
+
 1.5.4 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 

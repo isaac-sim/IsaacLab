@@ -340,6 +340,10 @@ def _check_random_actions(
             # Apply the named preset to all preset wrappers in the config tree
             # (e.g. sim.physics, scene.contact_forces, ...), not just sim.physics.
             apply_named_preset(env_cfg, raw_env_cfg, physics_preset_name)
+            # Re-apply num_envs since apply_named_preset may have replaced
+            # the scene config with the preset's default num_envs.
+            if num_envs is not None:
+                env_cfg.scene.num_envs = num_envs
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:
