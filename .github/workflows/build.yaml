@@ -8,6 +8,11 @@ name: Build and Test [Staging]
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'source/**'
+      - 'docker/**'
+      - 'tools/**'
+      - '.github/**'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
