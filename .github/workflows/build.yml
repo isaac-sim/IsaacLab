@@ -56,6 +56,8 @@ jobs:
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
+    # Caching: Each branch maintains its own warm cache layer in AWS ECR,
+    # falling back to "develop"'s cache if no branch cache exists yet.
     - name: Compute ECR image and cache tags
       id: tags
       run: |
