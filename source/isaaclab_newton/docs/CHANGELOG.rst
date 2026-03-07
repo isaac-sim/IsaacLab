@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.5.2 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.body_inertia` in
+  :class:`~isaaclab_newton.assets.ArticulationData` to return a ``(num_instances, num_bodies, 9)``
+  float32 array as documented, instead of a ``(num_instances, num_bodies, 3, 3)`` array. The
+  ``(N, B, 3, 3)`` shape caused a broadcasting error in
+  :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_mass` and a dimension mismatch when the
+  ``write_body_inertia_to_buffer_*`` kernels were called via
+  :meth:`~isaaclab_newton.assets.Articulation.set_inertias_index` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_inertias_mask`. The fix creates a ``(N, B, 9)``
+  view over the same memory using explicit strides, collapsing the two contiguous trailing
+  dimensions without copying data.
+
+* Fixed ``AttributeError: 'NoneType' object has no attribute 'device'`` in
+  :meth:`~isaaclab_newton.physics.NewtonManager.step` when ``use_cuda_graph=True`` but the CUDA
+  graph was not captured (e.g., when RTX/Fabric USD sync is active). The step condition now
+  checks ``cls._graph is not None`` directly instead of repeating the capture-time heuristic.
+
 0.5.1 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 

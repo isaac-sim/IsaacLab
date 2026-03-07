@@ -31,18 +31,16 @@ class RerunVisualizerCfg(VisualizerCfg):
     """Port of the rerun gRPC server (used when serving web viewer externally)."""
 
     bind_address: str | None = "0.0.0.0"
-    """Bind host used when starting a rerun server and for display endpoint formatting.
+    """Host used for endpoint formatting and reuse checks.
 
     Notes:
-    - If an existing rerun server is already reachable on ``grpc_port``, it is reused.
+    - If an existing rerun server is reachable on ``grpc_port``, it is reused.
+    - New server startup is managed by ``newton.viewer.ViewerRerun`` via the rerun Python SDK.
     - Local browser links normalize common loopback/wildcard hosts to ``127.0.0.1``.
     """
 
     open_browser: bool = True
     """Whether to attempt opening the rerun web viewer URL in a browser."""
-
-    auto_kill_stale_rerun_process: bool = True
-    """Whether to terminate a stale rerun process blocking the web port before spawning."""
 
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
