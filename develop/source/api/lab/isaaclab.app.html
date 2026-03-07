@@ -948,7 +948,8 @@ Example usage: –kit_args “–ext-folder=/path/to/ext1 –ext-folder=/path/to
 <li><p><code class="docutils literal notranslate"><span class="pre">newton</span></code>: Use Newton visualizer.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">viser</span></code>: Use Viser visualizer.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kit</span></code>: Use Omniverse Kit visualizer.</p></li>
-<li><p>Multiple visualizers can be specified: <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">rerun</span> <span class="pre">newton</span> <span class="pre">viser</span></code></p></li>
+<li><p>Multiple visualizers can be specified as a comma-delimited list:
+<code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">rerun,newton,viser</span></code></p></li>
 <li><p>If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.</p></li>
 </ul>
 <p>Note: If visualizer configs are not defined in the simulation config, default configs will be

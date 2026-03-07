@@ -1327,8 +1327,8 @@ enable physical interaction and be set to invisible.</p>
 dataset. Some of them are captured from a humanoid-viewpoint to match the camera view of the humanoid robot.</p>
 <p>For example, when using the asset <code class="docutils literal notranslate"><span class="pre">hand_hold-voyager-babyboom</span></code>, the relevant files are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">stage.usdz</span></code>: a USDZ archive that bundles 3D Gaussian splatting (<code class="docutils literal notranslate"><span class="pre">volume.nurec</span></code>), a collision mesh (<code class="docutils literal notranslate"><span class="pre">mesh.usd</span></code>), etc.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">occupancy_map.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">occupancy_map.png</span></code>: occupancy map for path planning and navigation.</p></li>
+<li><p><a class="reference external" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/stage.usdz">stage.usdz</a>: a USDZ archive that bundles 3D Gaussian splatting (<code class="docutils literal notranslate"><span class="pre">volume.nurec</span></code>), a collision mesh (<code class="docutils literal notranslate"><span class="pre">mesh.usd</span></code>), etc.</p></li>
+<li><p><a class="reference external" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/occupancy_map.yaml">occupancy_map.yaml</a> and <a class="reference external" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/occupancy_map.png">occupancy_map.png</a>: occupancy map for path planning and navigation.</p></li>
 </ul>
 <p>Download the files and place them under <code class="docutils literal notranslate"><span class="pre">&lt;PATH_TO_USD_ASSET&gt;</span></code>.</p>
 <p>Ensure you have the manipulation dataset from the previous step. You can also download a pre-recorded
@@ -1349,7 +1349,8 @@ and place it under <code class="docutils literal notranslate"><span class="pre">
 <span class="w">    </span>--background_usd_path<span class="w"> </span>&lt;PATH_TO_USD_ASSET&gt;/stage.usdz<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--background_occupancy_yaml_file<span class="w"> </span>&lt;PATH_TO_USD_ASSET&gt;/occupancy_map.yaml<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--init_camera_view<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--randomize_placement
+<span class="w">    </span>--randomize_placement<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--high_res_video
 </pre></div>
 </div>
 <p>The key parameters are:</p>
@@ -1357,17 +1358,16 @@ and place it under <code class="docutils literal notranslate"><span class="pre">
 <li><p><code class="docutils literal notranslate"><span class="pre">--background_usd_path</span></code>: Path to the NuRec USD asset.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--background_occupancy_yaml_file</span></code>: Path to the occupancy map file.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--init_camera_view</span></code>: Set the viewport camera behind the robot at the start of episode.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--high_res_video</span></code>: An optional argument to generate a higher resolution video (540x960) for the ego-centric camera view. Default resolution is 160x256.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--high_res_video</span></code>: Generate a higher resolution video (540x960) for the ego-centric camera view.</p></li>
 </ul>
 <p>On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
-the ego-centric camera view to MP4. If you use <code class="docutils literal notranslate"><span class="pre">--high_res_video</span></code> during data generation, match the
-dimension(540x960) in the command below.</p>
+the ego-centric camera view to MP4.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/hdf5_to_mp4.py<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>--input_file<span class="w"> </span>&lt;DATASET_FOLDER&gt;/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>--output_dir<span class="w"> </span>&lt;DATASET_FOLDER&gt;/<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>--input_keys<span class="w"> </span>robot_pov_cam<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>--video_width<span class="w"> </span><span class="m">256</span><span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>--video_height<span class="w"> </span><span class="m">160</span>
+<span class="w">   </span>--video_width<span class="w"> </span><span class="m">960</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--video_height<span class="w"> </span><span class="m">540</span>
 </pre></div>
 </div>
 </section>

@@ -645,7 +645,7 @@
 <span class="c1">#########################</span>
 
 
-<span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlMLPModelCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlMLPModelCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">RslRlMLPModelCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the MLP model.&quot;&quot;&quot;</span>
 
@@ -664,14 +664,14 @@
     <span class="n">distribution_cfg</span><span class="p">:</span> <span class="n">DistributionCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the output distribution. Default is None, in which case no distribution is used.&quot;&quot;&quot;</span>
 
-    <span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlMLPModelCfg.DistributionCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">DistributionCfg</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the output distribution.&quot;&quot;&quot;</span>
 
         <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name.&quot;&quot;&quot;</span></div>
 
-    <span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlMLPModelCfg.GaussianDistributionCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.GaussianDistributionCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">GaussianDistributionCfg</span><span class="p">(</span><span class="n">DistributionCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the Gaussian output distribution.&quot;&quot;&quot;</span>
 
@@ -682,14 +682,14 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The initial standard deviation of the output distribution.&quot;&quot;&quot;</span>
 
         <span class="n">std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The parameterization type of the output distribution&#39;s standard deviation. Default is scalar.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The parameterization type of the output distribution&#39;s standard deviation. Default is scalar.&quot;&quot;&quot;</span></div>
 
-    <span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">HeteroscedasticGaussianDistributionCfg</span><span class="p">(</span><span class="n">GaussianDistributionCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the heteroscedastic Gaussian output distribution.&quot;&quot;&quot;</span>
 
         <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;HeteroscedasticGaussianDistribution&quot;</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name. Default is HeteroscedasticGaussianDistribution.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The distribution class name. Default is HeteroscedasticGaussianDistribution.&quot;&quot;&quot;</span></div>
 
     <span class="n">stochastic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the model output is stochastic.</span>
@@ -717,10 +717,10 @@
 
 <span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use</span>
 <span class="sd">    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
-<span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlRNNModelCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlRNNModelCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">RslRlRNNModelCfg</span><span class="p">(</span><span class="n">RslRlMLPModelCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for RNN model.&quot;&quot;&quot;</span>
 
@@ -734,17 +734,17 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The dimension of the RNN layers.&quot;&quot;&quot;</span>
 
     <span class="n">rnn_num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of RNN layers.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of RNN layers.&quot;&quot;&quot;</span></div>
 
 
-<span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlCNNModelCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlCNNModelCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">RslRlCNNModelCfg</span><span class="p">(</span><span class="n">RslRlMLPModelCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for CNN model.&quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;CNNModel&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is CNNModel.&quot;&quot;&quot;</span>
 
-    <span class="nd">@configclass</span>
+<div class="viewcode-block" id="RslRlCNNModelCfg.CNNCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">CNNCfg</span><span class="p">:</span>
         <span class="n">output_channels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of output channels for each convolutional layer for the CNN.&quot;&quot;&quot;</span>
@@ -774,10 +774,10 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The global pooling for the CNN.&quot;&quot;&quot;</span>
 
         <span class="n">flatten</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to flatten the output of the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to flatten the output of the CNN.&quot;&quot;&quot;</span></div>
 
     <span class="n">cnn_cfg</span><span class="p">:</span> <span class="n">CNNCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the CNN(s).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the CNN(s).&quot;&quot;&quot;</span></div>
 
 
 <span class="c1">############################</span>

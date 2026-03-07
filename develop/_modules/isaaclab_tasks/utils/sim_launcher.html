@@ -708,6 +708,9 @@
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">visualizers</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">visualizers</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="c1"># CLI now uses comma-delimited syntax: --visualizer kit,newton,rerun</span>
+        <span class="n">visualizers</span> <span class="o">=</span> <span class="p">[</span><span class="n">token</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">visualizers</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)]</span>
     <span class="k">return</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">visualizers</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()}</span>
 
 
@@ -734,7 +737,7 @@
 
 <span class="sd">    Args:</span>
 <span class="sd">        env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).</span>
-<span class="sd">        launcher_args: Optional CLI args; if ``visualizer=kit`` is set, needs_kit is True.</span>
+<span class="sd">        launcher_args: Optional CLI args; if ``--visualizer`` includes ``kit``, needs_kit is True.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        (needs_kit, has_kit_cameras, visualizer_types)</span>

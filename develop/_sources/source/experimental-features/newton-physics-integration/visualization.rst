@@ -59,8 +59,8 @@ Launch visualizers from the command line with ``--visualizer``:
 
 .. code-block:: bash
 
-    # Launch all visualizers
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit newton rerun
+    # Launch all visualizers (comma-delimited list, no spaces)
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit,newton,rerun
 
     # Launch just newton visualizer
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
@@ -238,7 +238,9 @@ Rerun Visualizer
     visualizer_cfg = RerunVisualizerCfg(
         # Server settings
         app_id="isaaclab-simulation",             # Application identifier for viewer
+        grpc_port=9876,                           # gRPC endpoint for logging SDK connection
         web_port=9090,                            # Port for local web viewer (launched in browser)
+        bind_address="0.0.0.0",                  # Endpoint host formatting/reuse checks
 
         # Camera settings
         camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
@@ -251,6 +253,10 @@ Rerun Visualizer
         # Recording
         record_to_rrd="recording.rrd",            # Path to save .rrd file (None = no recording)
     )
+
+Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no external ``rerun`` CLI process
+management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
+starting a new server, initialization fails with a clear port-conflict error.
 
 
 Performance Note

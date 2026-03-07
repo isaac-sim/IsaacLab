@@ -771,8 +771,8 @@
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Permalink to this heading">#</a></h2>
 <p>Launch visualizers from the command line with <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch all visualizers</span>
-python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>kit<span class="w"> </span>newton<span class="w"> </span>rerun
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch all visualizers (comma-delimited list, no spaces)</span>
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>kit,newton,rerun
 
 <span class="c1"># Launch just newton visualizer</span>
 python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>newton
@@ -945,7 +945,9 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
 <span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">RerunVisualizerCfg</span><span class="p">(</span>
     <span class="c1"># Server settings</span>
     <span class="n">app_id</span><span class="o">=</span><span class="s2">&quot;isaaclab-simulation&quot;</span><span class="p">,</span>             <span class="c1"># Application identifier for viewer</span>
+    <span class="n">grpc_port</span><span class="o">=</span><span class="mi">9876</span><span class="p">,</span>                           <span class="c1"># gRPC endpoint for logging SDK connection</span>
     <span class="n">web_port</span><span class="o">=</span><span class="mi">9090</span><span class="p">,</span>                            <span class="c1"># Port for local web viewer (launched in browser)</span>
+    <span class="n">bind_address</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span>                  <span class="c1"># Endpoint host formatting/reuse checks</span>
 
     <span class="c1"># Camera settings</span>
     <span class="n">camera_position</span><span class="o">=</span><span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span>         <span class="c1"># Initial camera position (x, y, z)</span>
@@ -960,6 +962,9 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
 <span class="p">)</span>
 </pre></div>
 </div>
+<p>Rerun startup uses the Python SDK through <code class="docutils literal notranslate"><span class="pre">newton.viewer.ViewerRerun</span></code> (no external <code class="docutils literal notranslate"><span class="pre">rerun</span></code> CLI process
+management). If <code class="docutils literal notranslate"><span class="pre">grpc_port</span></code> is already active, Isaac Lab reuses that server. If <code class="docutils literal notranslate"><span class="pre">web_port</span></code> is occupied while
+starting a new server, initialization fails with a clear port-conflict error.</p>
 </section>
 </section>
 <section id="performance-note">
