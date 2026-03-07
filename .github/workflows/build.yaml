@@ -8,11 +8,11 @@ name: Docker + Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
       - 'source/**'
       - 'docker/**'
       - 'tools/**'
-      - '.github/**'
+      - '.github/workflows/build.yaml'
+      - '.github/actions/**'
     branches:
       - main
       - develop
