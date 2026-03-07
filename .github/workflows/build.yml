@@ -32,7 +32,7 @@ env:
 
 jobs:
   test-isaaclab-tasks:
-    runs-on: [self-hosted, gpuint14]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
     continue-on-error: true
 
