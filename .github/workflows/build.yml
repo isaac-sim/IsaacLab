@@ -53,6 +53,8 @@ jobs:
 
     - name: Login to ECR
       run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
@@ -97,6 +99,8 @@ jobs:
 
     - name: Login to ECR
       run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
@@ -142,6 +146,8 @@ jobs:
 
     - name: Login to ECR
       run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
@@ -205,6 +211,8 @@ jobs:
 
     - name: Login to ECR
       run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
@@ -267,6 +275,8 @@ jobs:
 
     - name: Login to ECR
       run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
@@ -330,6 +340,8 @@ jobs:
 
     - name: Login to ECR
       run: |
+        mkdir -p ~/.docker
+        echo '{}' > ~/.docker/config.json
         aws ecr get-login-password --region us-west-2 \
           | docker login --username AWS --password-stdin ${{ env.ECR_CACHE_URL }}
 
