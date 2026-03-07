@@ -100,7 +100,9 @@ class Renderer(FactoryBase, BaseRenderer):
                 exc,
             )
             return False, False
-        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(getattr(cfg_obj, "requires_usd_stage", False))
+        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(
+            getattr(cfg_obj, "requires_usd_stage", False)
+        )
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""
