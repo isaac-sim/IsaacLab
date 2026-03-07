@@ -12,11 +12,12 @@ __all__ = [
     "export_policy_as_onnx",
     "handle_deprecated_rsl_rl_cfg",
     "RslRlBaseRunnerCfg",
+    "RslRlCNNModelCfg",
+    "RslRlMLPModelCfg",
     "RslRlOnPolicyRunnerCfg",
     "RslRlPpoActorCriticCfg",
     "RslRlPpoActorCriticRecurrentCfg",
     "RslRlPpoAlgorithmCfg",
-    "RslRlMLPModelCfg",
     "RslRlRNNModelCfg",
     "RslRlRndCfg",
     "RslRlSymmetryCfg",
@@ -32,11 +33,12 @@ from .distillation_cfg import (
 from .exporter import export_policy_as_jit, export_policy_as_onnx
 from .rl_cfg import (
     RslRlBaseRunnerCfg,
+    RslRlCNNModelCfg,
+    RslRlMLPModelCfg,
     RslRlOnPolicyRunnerCfg,
     RslRlPpoActorCriticCfg,
     RslRlPpoActorCriticRecurrentCfg,
     RslRlPpoAlgorithmCfg,
-    RslRlMLPModelCfg,
     RslRlRNNModelCfg,
 )
 from .rnd_cfg import RslRlRndCfg
