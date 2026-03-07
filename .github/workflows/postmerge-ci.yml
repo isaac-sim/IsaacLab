@@ -42,7 +42,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Set up QEMU

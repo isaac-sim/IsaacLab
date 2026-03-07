@@ -61,19 +61,19 @@ More specifically, when an extension is enabled, the python module specified in 
 While loading extensions into Omniverse happens automatically, using the python package
 in standalone applications requires additional steps. To simplify the build process and
 avoid the need to understand the `premake <https://premake.github.io/>`__
-build system used by Omniverse, we directly use the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
+build system used by Omniverse, we directly use the `setuptools <https://setuptools.pypa.io/en/latest/>`__
 python package to build the python module provided by the extensions. This is done by the
 ``setup.py`` file in the extension directory.
 
 .. note::
 
    The ``setup.py`` file is not required for extensions that are only loaded into Omniverse
-   using the `Extension Manager <https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_extension-manager.html>`__.
+   using the `Extension Manager <https://docs.omniverse.nvidia.com/extensions/latest/ext_extension-manager.html>`__.
 
 Lastly, the ``tests`` directory contains the unit tests for the extension. These are written
 using the `unittest <https://docs.python.org/3/library/unittest.html>`__ framework. It is
 important to note that Omniverse also provides a similar
-`testing framework <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/104.0/guide/testing_exts_python.html>`__.
+`testing framework <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/testing_exts_python.html>`__.
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.
 
@@ -81,7 +81,7 @@ Custom Extension Dependency Management
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Certain extensions may have dependencies which require the installation of additional packages before the extension
-can be used. While Python dependencies are handled by the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
+can be used. While Python dependencies are handled by the `setuptools <https://setuptools.pypa.io/en/latest/>`__
 package and specified in the ``setup.py`` file, non-Python dependencies such as `ROS <https://www.ros.org/>`__
 packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__ packages are not handled by setuptools.
 Handling these kinds of dependencies requires an additional procedure.

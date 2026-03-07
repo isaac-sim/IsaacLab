@@ -3,15 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Check Documentation Links
+name: Documentation Links
 
 on:
-  # Run on pull requests that modify documentation
+  # Run on all pull requests
   pull_request:
-    paths:
-      - 'docs/**'
-      - '**.md'
-      - '.github/workflows/check-links.yml'
   # Run on pushes to main branches
   push:
     branches:
@@ -19,10 +15,6 @@ on:
       - develop
       - 'release/**'
       - 'feature/isaacsim-6-0'
-    paths:
-      - 'docs/**'
-      - '**.md'
-      - '.github/workflows/check-links.yml'
   # Allow manual trigger
   workflow_dispatch:
   # Run weekly to catch external links that break over time
@@ -42,9 +34,32 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 2
+        filter: tree:0
+
+    - name: Check if latest commit touched documentation
+      id: check_docs
+      run: |
+        # Get the files changed by this PR/commit.
+        # For PRs: HEAD is the merge commit, HEAD^1 is the base branch tip.
+        # Diffing HEAD^1..HEAD shows exactly what the PR introduces — files only
+        # changed on the base branch (not by the PR) are identical in both and
+        # won't appear. Works for push events too (last commit vs its parent).
+        CHANGED=$(git diff --name-only HEAD^1 HEAD || true)
+        echo "Files changed:"
+        echo "$CHANGED"
+
+        # Check against doc file types and doc paths
+        if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|\.github/workflows/check-links\.yml'; then
+          echo "Documentation or workflow files changed. Proceeding..."
+          echo "run_job=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "No documentation files changed in this specific commit. Skipping."
+          echo "run_job=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Restore lychee cache
+      if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
       uses: actions/cache@v4
       with:
         path: .lycheecache
@@ -52,9 +67,11 @@ jobs:
         restore-keys: cache-lychee-
 
     - name: Run Link Checker
+      if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
       uses: lycheeverse/lychee-action@v2
       with:
         # Check all markdown files and documentation
+        # Excluded are known crawl blockers
         args: >-
           --verbose
           --no-progress
@@ -76,9 +93,17 @@ jobs:
           --exclude 'user@'
           --exclude 'helm\.ngc\.nvidia\.com'
           --exclude 'slurm\.schedmd\.com'
-          --max-retries 3
-          --retry-wait-time 5
-          --timeout 30
+          --exclude 'graphics\.pixar\.com'
+          --exclude 'openpbs\.org'
+          --exclude 'docutils\.sourceforge\.io'
+          --exclude 'huggingface\.co/datasets/nvidia/PhysicalAI-Robotics-NuRec'
+          --exclude 'huggingface\.co/nvidia/COMPASS'
+          --exclude 'huggingface\.co/nvidia/X-Mobility'
+          --exclude 'openusd\.org'
+          --max-retries 5
+          --retry-wait-time 10
+          --timeout 20
+          --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
           --accept 200,201,202,203,204,206,301,302,303,307,308,429
           --scheme https
           --scheme http
@@ -94,7 +119,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Print results to logs
-      if: always()
+      if: always() && (steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
       run: |
         echo "========================================"
         echo "Link Checker Results:"
