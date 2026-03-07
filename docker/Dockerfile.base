@@ -54,7 +54,7 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
-# copy files neccessary for installing Isaac Lab and its dependencies
+# copy files necessary for installing Isaac Lab and its dependencies
 # tris way we minimize the chance of cache invalidation on file edits
 COPY ../tools/ ${ISAACLAB_PATH}/tools/
 COPY ../source/ ${ISAACLAB_PATH}/source/
