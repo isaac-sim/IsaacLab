@@ -768,12 +768,7 @@
 
         <span class="c1"># step 3: apply optional importer features</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_from_visuals</span><span class="p">:</span>
-            <span class="n">collision_type_map</span> <span class="o">=</span> <span class="p">{</span>
-                <span class="s2">&quot;convex_hull&quot;</span><span class="p">:</span> <span class="s2">&quot;Convex Hull&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;convex_decomposition&quot;</span><span class="p">:</span> <span class="s2">&quot;Convex Decomposition&quot;</span><span class="p">,</span>
-            <span class="p">}</span>
-            <span class="n">collision_type</span> <span class="o">=</span> <span class="n">collision_type_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">collider_type</span><span class="p">,</span> <span class="s2">&quot;Convex Hull&quot;</span><span class="p">)</span>
-            <span class="n">importer_utils</span><span class="o">.</span><span class="n">collision_from_visuals</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">collision_type</span><span class="p">)</span>
+            <span class="n">importer_utils</span><span class="o">.</span><span class="n">collision_from_visuals</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_type</span><span class="p">)</span>
 
         <span class="n">importer_utils</span><span class="o">.</span><span class="n">enable_self_collision</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">self_collision</span><span class="p">)</span>
 
