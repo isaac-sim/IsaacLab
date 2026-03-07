@@ -71,6 +71,8 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
             self.device,
             self.cfg.tiled_camera.data_types,
             self.cfg.log_dir,
+            height=self.cfg.tiled_camera.height,
+            width=self.cfg.tiled_camera.width,
         )
         # hide goal cubes
         self.goal_pos[:, :] = torch.tensor([-0.2, 0.1, 0.6], device=self.device)
