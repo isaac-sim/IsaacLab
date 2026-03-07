@@ -57,7 +57,7 @@ jobs:
         CHANGED=$(git diff --name-only HEAD^1 HEAD || true)
         echo "Files changed:"
         echo "$CHANGED"
-        
+
         # Check against doc file types and doc paths
         if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|\.github/workflows/check-links\.yml'; then
           echo "Documentation or workflow files changed. Proceeding..."
