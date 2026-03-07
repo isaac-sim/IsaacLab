@@ -29,11 +29,11 @@ class Visualizer(FactoryBase, BaseVisualizer):
         "rerun": "RerunVisualizer",
         "viser": "ViserVisualizer",
     }
-    _cfg_class_names = {
-        "kit": "KitVisualizerCfg",
-        "newton": "NewtonVisualizerCfg",
-        "rerun": "RerunVisualizerCfg",
-        "viser": "ViserVisualizerCfg",
+    _cfg_import_targets = {
+        "kit": ("isaaclab_visualizers.kit.kit_visualizer_cfg", "KitVisualizerCfg"),
+        "newton": ("isaaclab_visualizers.newton.newton_visualizer_cfg", "NewtonVisualizerCfg"),
+        "rerun": ("isaaclab_visualizers.rerun.rerun_visualizer_cfg", "RerunVisualizerCfg"),
+        "viser": ("isaaclab_visualizers.viser.viser_visualizer_cfg", "ViserVisualizerCfg"),
     }
 
     @classmethod
@@ -77,10 +77,10 @@ class Visualizer(FactoryBase, BaseVisualizer):
         """Resolve visualizer cfg class for a visualizer type."""
         if visualizer_type not in _VISUALIZER_TYPES:
             return None
-        module_name = cls._get_module_name(visualizer_type)
-        class_name = cls._cfg_class_names.get(visualizer_type)
-        if class_name is None:
+        target = cls._cfg_import_targets.get(visualizer_type)
+        if target is None:
             return None
+        module_name, class_name = target
         try:
             module = importlib.import_module(module_name)
             return getattr(module, class_name)
@@ -108,9 +108,17 @@ class Visualizer(FactoryBase, BaseVisualizer):
                 visualizer_type,
             )
             return False, False
-        return bool(getattr(cfg_class, "requires_newton_model", False)), bool(
-            getattr(cfg_class, "requires_usd_stage", False)
-        )
+        try:
+            cfg_obj = cfg_class()
+        except Exception as exc:
+            logger.debug(
+                "[Visualizer] Using default requirements (False, False) for type '%s' because config could not be "
+                "instantiated: %s",
+                visualizer_type,
+                exc,
+            )
+            return False, False
+        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(getattr(cfg_obj, "requires_usd_stage", False))
 
     def __new__(cls, cfg, *args, **kwargs) -> BaseVisualizer:
         """Create a new visualizer instance based on the visualizer type."""
