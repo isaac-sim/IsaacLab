@@ -31,7 +31,7 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
-# Visualizer type names (CLI and config). App launcher stores --visualizer a b c as space-separated.
+# Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
 
 

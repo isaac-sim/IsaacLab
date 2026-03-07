@@ -11,7 +11,7 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import logging
-import shutil
+import socket
 
 import pytest
 import torch
@@ -40,6 +40,22 @@ _VIS_LOGGER_PREFIXES = (
     "isaaclab_visualizers",
     "isaaclab.sim.simulation_context",
 )
+
+
+def _find_free_tcp_port(host: str = "127.0.0.1") -> int:
+    """Ask OS for a currently free local TCP port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return int(sock.getsockname()[1])
+
+
+def _allocate_rerun_test_ports(host: str = "127.0.0.1") -> tuple[int, int]:
+    """Allocate distinct free ports for rerun web and gRPC endpoints."""
+    grpc_port = _find_free_tcp_port(host)
+    web_port = _find_free_tcp_port(host)
+    while web_port == grpc_port:
+        web_port = _find_free_tcp_port(host)
+    return web_port, grpc_port
 
 
 @configclass
@@ -81,9 +97,18 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "rerun":
         __import__("newton")
         __import__("rerun")
-        if shutil.which("rerun") is None:
-            raise RuntimeError("rerun binary not found in PATH")
-        return RerunVisualizerCfg(bind_address="127.0.0.1", open_browser=False), RerunVisualizer
+        web_port, grpc_port = _allocate_rerun_test_ports(host="127.0.0.1")
+        # Use dynamically allocated non-default ports in smoke tests to avoid collisions.
+        # TODO: Consider supporting cleanup/termination of stale rerun processes when ports are occupied.
+        return (
+            RerunVisualizerCfg(
+                bind_address="127.0.0.1",
+                open_browser=False,
+                web_port=web_port,
+                grpc_port=grpc_port,
+            ),
+            RerunVisualizer,
+        )
     return KitVisualizerCfg(), KitVisualizer
 
 
