@@ -61,7 +61,7 @@ jobs:
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
-        result-file: "isaaclab-tasks-report.xml"
+        result-file: "${{ github.job }}-report.xml"
         container-name: "isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
@@ -75,7 +75,9 @@ jobs:
         CONTAINER_NAME="isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from IsaacLab Tasks container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
+        else
+          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
         fi
 
     - name: Upload IsaacLab Tasks Test Results
@@ -83,16 +85,16 @@ jobs:
       if: always()
       with:
         name: isaaclab-tasks-test-results
-        path: reports/isaaclab-tasks-report.xml
+        path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
 
     - name: Check Test Results for Fork PRs
       if: github.event.pull_request.head.repo.full_name != github.repository
       run: |
-        if [ -f "reports/isaaclab-tasks-report.xml" ]; then
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
           # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/isaaclab-tasks-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-report.xml; then
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
@@ -128,7 +130,7 @@ jobs:
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
-        result-file: "isaaclab-tasks-2-report.xml"
+        result-file: "${{ github.job }}-report.xml"
         container-name: "isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
@@ -142,7 +144,9 @@ jobs:
         CONTAINER_NAME="isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from IsaacLab Tasks 2 container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-2-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks 2 container"
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks 2 container"
+        else
+          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
         fi
 
     - name: Upload IsaacLab Tasks 2 Test Results
@@ -150,16 +154,16 @@ jobs:
       if: always()
       with:
         name: isaaclab-tasks-2-test-results
-        path: reports/isaaclab-tasks-2-report.xml
+        path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
 
     - name: Check Test Results for Fork PRs
       if: github.event.pull_request.head.repo.full_name != github.repository
       run: |
-        if [ -f "reports/isaaclab-tasks-2-report.xml" ]; then
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
           # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/isaaclab-tasks-2-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-2-report.xml; then
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
@@ -195,7 +199,7 @@ jobs:
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
-        result-file: "general-tests-report.xml"
+        result-file: "${{ github.job }}-report.xml"
         container-name: "isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
@@ -208,7 +212,9 @@ jobs:
         CONTAINER_NAME="isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from General Tests container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
+        else
+          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
         fi
 
     - name: Upload General Test Results
@@ -216,16 +222,16 @@ jobs:
       if: always()
       with:
         name: general-test-results
-        path: reports/general-tests-report.xml
+        path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
 
     - name: Check Test Results for Fork PRs
       if: github.event.pull_request.head.repo.full_name != github.repository
       run: |
-        if [ -f "reports/general-tests-report.xml" ]; then
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
           # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/general-tests-report.xml || grep -q 'errors="[1-9]' reports/general-tests-report.xml; then
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
@@ -262,7 +268,7 @@ jobs:
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
-        result-file: "curobo-tests-report.xml"
+        result-file: "${{ github.job }}-report.xml"
         container-name: "isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
         pytest-options: ""
@@ -276,7 +282,9 @@ jobs:
         CONTAINER_NAME="isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from cuRobo container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/curobo-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
+        else
+          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
         fi
 
     - name: Upload cuRobo Test Results
@@ -284,16 +292,16 @@ jobs:
       if: always()
       with:
         name: curobo-test-results
-        path: reports/curobo-tests-report.xml
+        path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
 
     - name: Check Test Results for Fork PRs
       if: github.event.pull_request.head.repo.full_name != github.repository
       run: |
-        if [ -f "reports/curobo-tests-report.xml" ]; then
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
           # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/curobo-tests-report.xml || grep -q 'errors="[1-9]' reports/curobo-tests-report.xml; then
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
