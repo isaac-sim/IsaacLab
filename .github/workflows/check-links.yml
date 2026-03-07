@@ -35,7 +35,6 @@ concurrency:
 
 jobs:
   check-links:
-    if: ${{ false }} #TMP
     name: Check for Broken Links
     runs-on: ubuntu-latest
 
@@ -77,9 +76,10 @@ jobs:
           --exclude 'user@'
           --exclude 'helm\.ngc\.nvidia\.com'
           --exclude 'slurm\.schedmd\.com'
-          --max-retries 3
-          --retry-wait-time 5
-          --timeout 30
+          --max-retries 5
+          --retry-wait-time 10
+          --timeout 10
+          --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
           --accept 200,201,202,203,204,206,301,302,303,307,308,429
           --scheme https
           --scheme http
