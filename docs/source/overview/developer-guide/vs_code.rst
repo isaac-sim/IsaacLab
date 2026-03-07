@@ -70,6 +70,10 @@ To use it:
 
       ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
 
+3. In VS Code, select the ``Python: Debugger Attach`` configuration from the Run and Debug panel
+   and press the green play button or ``F5``. VS Code will connect to the debugpy server
+   running on ``localhost:3000``.
+
 Configuring the python interpreter
 ----------------------------------
 
