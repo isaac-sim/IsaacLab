@@ -49,15 +49,12 @@ jobs:
     - name: Check if latest commit touched documentation
       id: check_docs
       run: |
-        # Get the files changed in this PR/commit
-        # For PRs: diff between base (HEAD^1) and PR tip (HEAD^2). Both are available
-        # with fetch-depth: 2, avoiding the "all files" problem that occurs when
-        # git log --name-only has no parent to compare against in a shallow clone.
-        if [ "${{ github.event_name }}" == "pull_request" ]; then
-          CHANGED=$(git diff --name-only HEAD^1 HEAD^2 || true)
-        else
-          CHANGED=$(git diff --name-only HEAD^1 HEAD || true)
-        fi
+        # Get the files changed by this PR/commit.
+        # For PRs: HEAD is the merge commit, HEAD^1 is the base branch tip.
+        # Diffing HEAD^1..HEAD shows exactly what the PR introduces — files only
+        # changed on the base branch (not by the PR) are identical in both and
+        # won't appear. Works for push events too (last commit vs its parent).
+        CHANGED=$(git diff --name-only HEAD^1 HEAD || true)
         echo "Files changed:"
         echo "$CHANGED"
         
