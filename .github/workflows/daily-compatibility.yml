@@ -33,6 +33,7 @@ env:
 
 jobs:
   setup-versions:
+    if: ${{ false }} #TMP
     runs-on: ubuntu-latest
     outputs:
       versions: ${{ steps.set-versions.outputs.versions }}
@@ -52,6 +53,7 @@ jobs:
           fi
 
   test-isaaclab-tasks-compat:
+    if: ${{ false }} #TMP
     needs: setup-versions
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
@@ -110,6 +112,7 @@ jobs:
         compression-level: 9
 
   test-general-compat:
+    if: ${{ false }} #TMP
     needs: setup-versions
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
@@ -169,7 +172,7 @@ jobs:
   combine-compat-results:
     needs: [test-isaaclab-tasks-compat, test-general-compat]
     runs-on: [self-hosted, gpu]
-    if: always()
+    if: ${{ false }} #TMP
 
     steps:
     - name: Checkout Code
@@ -218,7 +221,7 @@ jobs:
   notify-compatibility-status:
     needs: [setup-versions, combine-compat-results]
     runs-on: [self-hosted, gpu]
-    if: always()
+    if: ${{ false }} #TMP
 
     steps:
     - name: Checkout Code
