@@ -7,11 +7,13 @@
 
 from setuptools import setup
 
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = [
+    "ovrtx>=0.2.0",
+]
 
 setup(
     name="isaaclab_ov",
-    version="0.1.0",
+    version="0.1.1",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
     url="https://github.com/isaac-sim/IsaacLab",

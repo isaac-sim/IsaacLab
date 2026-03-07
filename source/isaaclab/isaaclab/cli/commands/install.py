@@ -129,6 +129,7 @@ def _ensure_cuda_torch() -> None:
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
 VALID_ISAACLAB_SUBPACKAGES: set[str] = {
     "assets",
+    "ov",
     "physx",
     "contrib",
     "mimic",
@@ -138,6 +139,10 @@ VALID_ISAACLAB_SUBPACKAGES: set[str] = {
     "teleop",
     "visualizers",
 }
+# Extensions that require explicit opt-in (skipped by "all").
+# Users must pass the sub-package name directly, e.g. ./isaaclab.sh -i NAME
+OPT_IN_SUBPACKAGES: set[str] = {"ov"}
+
 VALID_VISUALIZER_EXTRAS: set[str] = {"all", "kit", "newton", "rerun", "viser"}
 
 # RL framework names accepted.
@@ -194,7 +199,9 @@ def _parse_visualizer_selector(token: str) -> str | None:
 
 
 def _install_isaaclab_extensions(
-    extensions: list[str] | None = None, extension_extras: dict[str, str] | None = None
+    extensions: list[str] | None = None,
+    extension_extras: dict[str, str] | None = None,
+    exclude: set[str] | None = None,
 ) -> None:
     """Install Isaac Lab extensions from the source directory.
 
@@ -203,9 +210,13 @@ def _install_isaaclab_extensions(
 
     Args:
         extensions: Optional, list of source directory names to install.
-            If ``None`` is provided, every extension found under ``source/`` is installed.
-        extension_extras: Optional mapping from extension source directory name to
-            pip extras selector (for example ``{"isaaclab_visualizers": "[rerun]"}``).
+            If ``None`` is provided, every extension found under ``source/``
+            is installed (subject to *exclude*).
+        extension_extras: Optional mapping from extension source directory
+            name to pip extras selector (e.g.
+            ``{"isaaclab_visualizers": "[rerun]"}``).
+        exclude: Optional set of source directory names to skip even when
+            *extensions* is ``None``.
     """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -219,8 +230,9 @@ def _install_isaaclab_extensions(
     for item in source_dir.iterdir():
         if not (item.is_dir() and (item / "setup.py").exists()):
             continue
-        # Skip extensions not in the requested list.
         if extensions is not None and item.name not in extensions:
+            continue
+        if exclude and item.name in exclude:
             continue
         install_items.append(item)
 
@@ -321,22 +333,29 @@ def command_install(install_type: str = "all") -> None:
     # "none"       : core isaaclab only, no RL frameworks
     # RL framework : install everything + only that RL framework (e.g. "skrl")
     # "a,b"        : core + selected sub-package directories, no RL frameworks
+    # Build the set of directory names to exclude when scanning all of source/.
+    # Opt-in packages are skipped unless the user names them explicitly.
+    opt_in_dirs = {f"isaaclab_{name}" for name in OPT_IN_SUBPACKAGES}
+
     if install_type == "all":
         extensions = None
+        exclude = opt_in_dirs
         extension_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = "all"
     elif install_type == "none":
         extensions = ["isaaclab"]
+        exclude = None
         extension_extras = {}
         framework_type = "none"
     elif install_type in VALID_RL_FRAMEWORKS:
-        # Single RL framework name: install all extensions + only that framework.
         extensions = None
+        exclude = opt_in_dirs
         extension_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
         # Parse comma-separated sub-package names into source directory names.
         extensions = ["isaaclab"]  # core is always required
+        exclude = None  # explicit selection — no exclusions
         extension_extras = {}
         for name in _split_install_items(install_type):
             visualizer_extras = _parse_visualizer_selector(name)
@@ -402,7 +421,7 @@ def command_install(install_type: str = "all") -> None:
         _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        _install_isaaclab_extensions(extensions, extension_extras)
+        _install_isaaclab_extensions(extensions, extension_extras, exclude)
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")
