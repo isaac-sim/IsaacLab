@@ -30,7 +30,7 @@ jobs:
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
       if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
-      run: echo "defined=true" >> "$GITHUB_OUTPUT"
+      run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
   build-docs:
     name: Build Docs
