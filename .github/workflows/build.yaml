@@ -50,6 +50,10 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
   build-curobo:
     runs-on: [self-hosted, int-gpu]
     timeout-minutes: 120
