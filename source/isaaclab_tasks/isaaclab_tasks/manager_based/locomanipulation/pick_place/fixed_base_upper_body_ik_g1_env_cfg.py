@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
-from isaaclab_teleop.xr_cfg import XrCfg
+from isaaclab_teleop import IsaacTeleopCfg, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -39,8 +37,10 @@ def _build_g1_upper_body_pipeline():
     via TensorReorderer.
 
     Returns:
-        OutputCombiner with a single "action" output containing the flattened
-        28D action tensor: [left_wrist(7), right_wrist(7), hand_joints(14)].
+        Tuple of (OutputCombiner, list): the pipeline with a single "action"
+        output containing the flattened 28D action tensor
+        [left_wrist(7), right_wrist(7), hand_joints(14)], and the list of
+        retargeter instances [left_se3, right_se3] for tuning UI.
     """
     from isaacteleop.retargeters import (
         Se3AbsRetargeter,
@@ -391,8 +391,10 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
             anchor_pos=(0.0, 0.0, -0.45),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
+
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_upper_body_pipeline,
+            pipeline_builder=lambda: _build_g1_upper_body_pipeline()[0],
+            # retargeters_to_tune=lambda: _build_g1_upper_body_pipeline()[1],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
