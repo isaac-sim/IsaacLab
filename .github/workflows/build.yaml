@@ -70,6 +70,7 @@ jobs:
         include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
 
     - name: Copy Test Results from IsaacLab Tasks Container
+      if: always()
       run: |
         CONTAINER_NAME="isaac-lab-tasks-test-$$"
         if docker ps -a | grep -q $CONTAINER_NAME; then
@@ -135,6 +136,7 @@ jobs:
         include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
 
     - name: Copy Test Results from IsaacLab Tasks 2 Container
+      if: always()
       run: |
         CONTAINER_NAME="isaac-lab-tasks-2-test-$$"
         if docker ps -a | grep -q $CONTAINER_NAME; then
@@ -199,6 +201,7 @@ jobs:
         filter-pattern: "not isaaclab_tasks"
 
     - name: Copy Test Results from General Tests Container
+      if: always()
       run: |
         CONTAINER_NAME="isaac-lab-general-test-$$"
         if docker ps -a | grep -q $CONTAINER_NAME; then
@@ -265,6 +268,7 @@ jobs:
         curobo-only: "true"
 
     - name: Copy Test Results from cuRobo Container
+      if: always()
       run: |
         CONTAINER_NAME="isaac-lab-curobo-test-$$"
         if docker ps -a | grep -q $CONTAINER_NAME; then
@@ -332,10 +336,12 @@ jobs:
       continue-on-error: true
 
     - name: Download General Test Results
+      if: always()
       uses: actions/download-artifact@v4
       with:
         name: general-test-results
         path: reports/
+      continue-on-error: true
 
     - name: Download cuRobo Test Results
       uses: actions/download-artifact@v4
@@ -345,6 +351,7 @@ jobs:
       continue-on-error: true
 
     - name: Combine All Test Results
+      if: always()
       uses: ./.github/actions/combine-results
       with:
         tests-dir: "reports"
