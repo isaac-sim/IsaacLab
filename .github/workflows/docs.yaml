@@ -51,12 +51,15 @@ jobs:
       working-directory: ./docs
       run: pip install -r requirements.txt
 
-    - name: Check branch docs building
+    - name: Build current version docs
       working-directory: ./docs
+      # run on non-deploy branches to build current version docs only
       if: needs.check-secrets.outputs.trigger-deploy != 'true'
       run: make current-docs
 
     - name: Generate multi-version docs
+      # run on deploy branches to create multi-version docs
+      if: needs.check-secrets.outputs.trigger-deploy == 'true'   
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow --tags
@@ -72,7 +75,8 @@ jobs:
     name: Deploy Docs
     runs-on: ubuntu-latest
     needs: [check-secrets, build-docs]
-    if: ${{ false }} #TMP
+    # deploy only on "deploy" branches
+    if: needs.check-secrets.outputs.trigger-deploy == 'true'
 
     steps:
     - name: Download docs artifact
