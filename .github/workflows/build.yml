@@ -35,7 +35,7 @@ env:
 
 jobs:
   test-isaaclab-tasks:
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, 'gpu-int']
     timeout-minutes: 180
     continue-on-error: true
 
@@ -96,7 +96,7 @@ jobs:
         fi
 
   test-isaaclab-tasks-2:
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, 'gpu-int']
     timeout-minutes: 180
     continue-on-error: true
 
@@ -157,7 +157,7 @@ jobs:
         fi
 
   test-general:
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, 'gpu-int']
     timeout-minutes: 180
 
     steps:
@@ -217,7 +217,7 @@ jobs:
         fi
 
   test-curobo:
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, 'gpu-int']
     timeout-minutes: 120
     continue-on-error: true
 
@@ -280,7 +280,7 @@ jobs:
 
   combine-results:
     needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
-    runs-on: [self-hosted, gpu-int]
+    runs-on: [self-hosted, 'gpu-int']
     if: always()
 
     steps:
