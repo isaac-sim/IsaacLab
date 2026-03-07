@@ -19,14 +19,15 @@ import torch
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
-from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation
+from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # local imports
 import cli_args  # isort: skip
@@ -85,9 +86,9 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
     exit(1)
 
 
-def main():
+@hydra_task_config(args_cli.task, args_cli.agent)
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Train with RSL-RL agent."""
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     with launch_simulation(env_cfg, args_cli):
         # override configurations with non-hydra CLI arguments
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
@@ -95,6 +96,9 @@ def main():
         agent_cfg.max_iterations = (
             args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
         )
+
+        # handle deprecated configurations
+        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
         # set the environment seed
         # note: certain randomizations occur in the environment initialization so we set the seed here
@@ -148,8 +152,6 @@ def main():
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
             env = multi_agent_to_single_agent(env)
 
         # save resume path before creating a new log_dir

@@ -6,23 +6,32 @@
 """Script to play a checkpoint if an RL agent from RSL-RL."""
 
 import argparse
+import importlib.metadata as metadata
 import os
 import sys
 import time
 
 import gymnasium as gym
 import torch
+from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
-from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 
-from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
+from isaaclab_rl.rsl_rl import (
+    RslRlBaseRunnerCfg,
+    RslRlVecEnvWrapper,
+    export_policy_as_jit,
+    export_policy_as_onnx,
+    handle_deprecated_rsl_rl_cfg,
+)
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation
+from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # local imports
 import cli_args  # isort: skip
@@ -57,10 +66,13 @@ if args_cli.video:
 
 sys.argv = [sys.argv[0]] + hydra_args
 
+# Check for installed RSL-RL version
+installed_version = metadata.version("rsl-rl-lib")
 
-def main():
+
+@hydra_task_config(args_cli.task, args_cli.agent)
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     with launch_simulation(env_cfg, args_cli):
         # grab task name for checkpoint path
         task_name = args_cli.task.split(":")[-1]
@@ -70,7 +82,11 @@ def main():
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
 
+        # handle deprecated configurations
+        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+
         # set the environment seed
+        # note: certain randomizations occur in the environment initialization so we set the seed here
         env_cfg.seed = agent_cfg.seed
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
@@ -98,8 +114,6 @@ def main():
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
             env = multi_agent_to_single_agent(env)
 
         # wrap for video recording
@@ -118,6 +132,7 @@ def main():
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+        # load previously trained model
         if agent_cfg.class_name == "OnPolicyRunner":
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         elif agent_cfg.class_name == "DistillationRunner":
@@ -129,22 +144,32 @@ def main():
         # obtain the trained policy for inference
         policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-        try:
-            policy_nn = runner.alg.policy
-        except AttributeError:
-            policy_nn = runner.alg.actor_critic
-
-        if hasattr(policy_nn, "actor_obs_normalizer"):
-            normalizer = policy_nn.actor_obs_normalizer
-        elif hasattr(policy_nn, "student_obs_normalizer"):
-            normalizer = policy_nn.student_obs_normalizer
-        else:
-            normalizer = None
-
-        # export policy to onnx/jit
+        # export the trained policy to JIT and ONNX formats
         export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-        export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
-        export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
+
+        if version.parse(installed_version) >= version.parse("4.0.0"):
+            # use the new export functions for rsl-rl >= 4.0.0
+            runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
+            runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
+            policy_nn = None  # Not needed for rsl-rl >= 4.0.0
+        else:
+            # extract the neural network for rsl-rl < 4.0.0
+            if version.parse(installed_version) >= version.parse("2.3.0"):
+                policy_nn = runner.alg.policy
+            else:
+                policy_nn = runner.alg.actor_critic
+
+            # extract the normalizer
+            if hasattr(policy_nn, "actor_obs_normalizer"):
+                normalizer = policy_nn.actor_obs_normalizer
+            elif hasattr(policy_nn, "student_obs_normalizer"):
+                normalizer = policy_nn.student_obs_normalizer
+            else:
+                normalizer = None
+
+            # export to JIT and ONNX
+            export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
+            export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
 
         dt = env.unwrapped.step_dt
 
@@ -154,10 +179,17 @@ def main():
         # simulate environment
         while True:
             start_time = time.time()
+            # run everything in inference mode
             with torch.inference_mode():
+                # agent stepping
                 actions = policy(obs)
+                # env stepping
                 obs, _, dones, _ = env.step(actions)
-                policy_nn.reset(dones)
+                # reset recurrent states for episodes that have terminated
+                if version.parse(installed_version) >= version.parse("4.0.0"):
+                    policy.reset(dones)
+                else:
+                    policy_nn.reset(dones)
             if args_cli.video:
                 timestep += 1
                 if timestep == args_cli.video_length:
