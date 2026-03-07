@@ -6,12 +6,8 @@
 name: Documentation Links
 
 on:
-  # Run on pull requests that modify documentation
+  # Run on all pull requests
   pull_request:
-    paths:
-      - 'docs/**'
-      - '**.md'
-      - '.github/workflows/check-links.yml'
   # Run on pushes to main branches
   push:
     branches:
@@ -19,11 +15,6 @@ on:
       - develop
       - 'release/**'
       - 'feature/isaacsim-6-0'
-    paths:
-      - 'docs/**'
-      - '**/*.md'
-      - '**/*.rst'
-      - '.github/workflows/check-links.yml'
   # Allow manual trigger
   workflow_dispatch:
   # Run weekly to catch external links that break over time
