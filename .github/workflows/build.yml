@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Build and Test
+name: Build and Tests
 
 on:
   pull_request:
