@@ -32,10 +32,12 @@ jobs:
       if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
-  build-docs:
-    name: Build Docs
+  build-latest-docs:
+    name: Build Latest Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type]
+    # run on non-deploy branches to build current version docs only
+    if: needs.doc-build-type.outputs.trigger-deploy != 'true'
 
     steps:
     - name: Checkout code
@@ -53,13 +55,36 @@ jobs:
 
     - name: Build current version docs
       working-directory: ./docs
-      # run on non-deploy branches to build current version docs only
-      if: needs.doc-build-type.outputs.trigger-deploy != 'true'
       run: make current-docs
 
+    - name: Upload docs artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: docs-html
+        path: ./docs/_build
+
+  build-multi-docs:
+    name: Build Multi-Version Docs
+    runs-on: ubuntu-latest
+    needs: [doc-build-type]
+    # run on deploy branches to create multi-version docs
+    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        architecture: x64
+
+    - name: Install dev requirements
+      working-directory: ./docs
+      run: pip install -r requirements.txt
+
     - name: Generate multi-version docs
-      # run on deploy branches to create multi-version docs
-      if: needs.doc-build-type.outputs.trigger-deploy == 'true'
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow --tags
@@ -74,7 +99,7 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     runs-on: ubuntu-latest
-    needs: [doc-build-type, build-docs]
+    needs: [doc-build-type, build-multi-docs]
     # deploy only on "deploy" branches
     if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
