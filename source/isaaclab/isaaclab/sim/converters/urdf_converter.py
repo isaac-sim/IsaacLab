@@ -141,12 +141,7 @@ class UrdfConverter(AssetConverterBase):
 
         # step 3: apply optional importer features
         if cfg.collision_from_visuals:
-            collision_type_map = {
-                "convex_hull": "Convex Hull",
-                "convex_decomposition": "Convex Decomposition",
-            }
-            collision_type = collision_type_map.get(cfg.collider_type, "Convex Hull")
-            importer_utils.collision_from_visuals(stage, collision_type)
+            importer_utils.collision_from_visuals(stage, cfg.collision_type)
 
         importer_utils.enable_self_collision(stage, cfg.self_collision)
 
