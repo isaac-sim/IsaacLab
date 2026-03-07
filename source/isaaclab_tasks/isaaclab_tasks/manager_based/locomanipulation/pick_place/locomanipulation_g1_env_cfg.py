@@ -3,16 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
-
-try:
-    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
-    from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -438,17 +429,16 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
         self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, -0.95),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
-            self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
-            self.xr.fixed_anchor_height = True
-            self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, -0.95),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
+        )
+        self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
+        self.xr.fixed_anchor_height = True
+        self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=_build_g1_locomanipulation_pipeline,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=_build_g1_locomanipulation_pipeline,
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )
