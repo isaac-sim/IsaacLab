@@ -179,30 +179,33 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         obs = env.get_observations()
         timestep = 0
         # simulate environment
-        while True:
-            start_time = time.time()
-            # run everything in inference mode
-            with torch.inference_mode():
-                # agent stepping
-                actions = policy(obs)
-                # env stepping
-                obs, _, dones, _ = env.step(actions)
-                # reset recurrent states for episodes that have terminated
-                if version.parse(installed_version) >= version.parse("4.0.0"):
-                    policy.reset(dones)
-                else:
-                    policy_nn.reset(dones)
-            if args_cli.video:
-                timestep += 1
-                if timestep == args_cli.video_length:
-                    break
+        try:
+            while True:
+                start_time = time.time()
+                # run everything in inference mode
+                with torch.inference_mode():
+                    # agent stepping
+                    actions = policy(obs)
+                    # env stepping
+                    obs, _, dones, _ = env.step(actions)
+                    # reset recurrent states for episodes that have terminated
+                    if version.parse(installed_version) >= version.parse("4.0.0"):
+                        policy.reset(dones)
+                    else:
+                        policy_nn.reset(dones)
+                if args_cli.video:
+                    timestep += 1
+                    if timestep == args_cli.video_length:
+                        break
 
-            sleep_time = dt - (time.time() - start_time)
-            if args_cli.real_time and sleep_time > 0:
-                time.sleep(sleep_time)
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
-        # close the simulator
-        env.close()
+            # close the simulator
+            env.close()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":
