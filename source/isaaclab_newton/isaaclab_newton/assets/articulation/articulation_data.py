@@ -64,6 +64,7 @@ class ArticulationData(BaseArticulationData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
+        self._fk_timestamp = 0.0
 
         # Convert to direction vector
         gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
@@ -109,6 +110,9 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
@@ -579,7 +583,7 @@ class ArticulationData(BaseArticulationData):
                 dim=self._num_instances,
                 inputs=[
                     self.root_com_vel_w,
-                    self.root_link_quat_w,
+                    self.root_link_pose_w,
                     self.body_com_pos_b,
                 ],
                 outputs=[
@@ -660,6 +664,9 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._fk_timestamp < self._sim_timestamp:
+            SimulationManager.forward()
+            self._fk_timestamp = self._sim_timestamp
         return self._sim_bind_body_link_pose_w
 
     @property
@@ -814,7 +821,7 @@ class ArticulationData(BaseArticulationData):
         .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
         .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
         """
-        raise NotImplementedError
+        raise NotImplementedError("Not implemented for Newton")
 
     """
     Joint state properties.
@@ -1219,14 +1226,14 @@ class ArticulationData(BaseArticulationData):
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
         # Short-hand for the number of instances, number of links, and number of joints.
-        n_view = self._root_view.count
-        n_dof = self._root_view.joint_dof_count
+        self._num_instances = self._root_view.count
+        self._num_joints = self._root_view.joint_dof_count
+        self._num_bodies = self._root_view.link_count
+        self._num_fixed_tendons = 0  # self._root_view.max_fixed_tendons
+        self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
 
         # -- root properties
-        if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
-        else:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
+        self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
         if self._sim_bind_root_com_vel_w is not None:
             if self._root_view.is_fixed_base:
@@ -1240,12 +1247,22 @@ class ArticulationData(BaseArticulationData):
         if self._sim_bind_body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        # body_inertia comes as (N, 1, L) mat33f; flatten to (N, L, 9) float32 per base class contract
+        _inertia_mat33 = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        self._sim_bind_body_inertia = _inertia_mat33.view(wp.float32).reshape(
+            (self._num_instances, self._num_bodies, 9)
+        )
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
+        try:
+            self._sim_bind_body_parent_f = self._root_view.get_attribute(
+                "body_parent_f", SimulationManager.get_state_0()
+            )[:, 0]
+        except Exception:
+            self._sim_bind_body_parent_f = None
         # -- joint properties
-        if n_dof > 0:
+        if self._num_joints > 0:
             self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
                 "joint_limit_lower", SimulationManager.get_model()
             )[:, 0]
@@ -1285,30 +1302,39 @@ class ArticulationData(BaseArticulationData):
             )[:, 0]
         else:
             # No joints (e.g., free-floating rigid body) - set bindings to empty arrays
-            self._sim_bind_joint_pos_limits_lower = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_pos_limits_upper = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_stiffness_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_damping_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_armature = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_friction_coeff = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_vel_limits_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_effort_limits_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_pos = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_vel = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_effort = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_position_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._sim_bind_joint_velocity_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_pos_limits_lower = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_pos_limits_upper = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_stiffness_sim = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_damping_sim = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_armature = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_friction_coeff = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_vel_limits_sim = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_effort_limits_sim = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_pos = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_effort = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_position_target = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_joint_velocity_target = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
-
-        # Short-hand for the number of instances, number of links, and number of joints.
-        self._num_instances = self._root_view.count
-        self._num_joints = self._root_view.joint_dof_count
-        self._num_bodies = self._root_view.link_count
-        self._num_fixed_tendons = 0  # self._root_view.max_fixed_tendons
-        self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
@@ -1410,10 +1436,8 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(
-        #     shape=(self._num_instances, self._num_joints), dtype=wp.spatial_vectorf, device=self.device
-        # )
         # Empty memory pre-allocations
+        self._body_incoming_joint_wrench_b = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None
         self._root_com_lin_vel_b = None
