@@ -71,6 +71,7 @@ jobs:
     - name: Copy Test Results from IsaacLab Tasks Container
       if: always()
       run: |
+        mkdir -pv reports/
         CONTAINER_NAME="isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from IsaacLab Tasks container..."
@@ -137,6 +138,7 @@ jobs:
     - name: Copy Test Results from IsaacLab Tasks 2 Container
       if: always()
       run: |
+        mkdir -pv reports/
         CONTAINER_NAME="isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from IsaacLab Tasks 2 container..."
@@ -202,6 +204,7 @@ jobs:
     - name: Copy Test Results from General Tests Container
       if: always()
       run: |
+        mkdir -pv reports/
         CONTAINER_NAME="isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from General Tests container..."
@@ -269,6 +272,7 @@ jobs:
     - name: Copy Test Results from cuRobo Container
       if: always()
       run: |
+        mkdir -pv reports/
         CONTAINER_NAME="isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
         if docker ps -a | grep -q $CONTAINER_NAME; then
           echo "Copying test results from cuRobo container..."
@@ -318,7 +322,7 @@ jobs:
 
     - name: Create Reports Directory
       run: |
-        mkdir -p reports
+        mkdir -pv reports
 
     - name: Download Test Results
       uses: actions/download-artifact@v4
