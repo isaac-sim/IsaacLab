@@ -13,6 +13,8 @@ on:
       - 'release/**'
       - 'feature/isaacsim-6-0'
   pull_request:
+    # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
+    # additionally, we have a check that deteremines what version of docs will be built
     types: [opened, synchronize, reopened]
 
 concurrency:
