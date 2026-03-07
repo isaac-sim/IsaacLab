@@ -159,17 +159,13 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
-                light_color = self._coerce_rgb_to_imvec4(self.renderer._light_color, imgui)
-                changed, light_color = imgui.color_edit3("Light Color", light_color)
-                self.renderer._light_color = (float(light_color.x), float(light_color.y), float(light_color.z))
-
-                sky_upper = self._coerce_rgb_to_imvec4(self.renderer.sky_upper, imgui)
-                changed, sky_upper = imgui.color_edit3("Upper Sky Color", sky_upper)
-                self.renderer.sky_upper = (float(sky_upper.x), float(sky_upper.y), float(sky_upper.z))
-
-                sky_lower = self._coerce_rgb_to_imvec4(self.renderer.sky_lower, imgui)
-                changed, sky_lower = imgui.color_edit3("Lower Sky Color", sky_lower)
-                self.renderer.sky_lower = (float(sky_lower.x), float(sky_lower.y), float(sky_lower.z))
+                # TODO: add support for ImVec4 color types
+                try:
+                    changed, self.renderer._light_color = imgui.color_edit3("Light Color", self.renderer._light_color)
+                    changed, self.renderer.sky_upper = imgui.color_edit3("Upper Sky Color", self.renderer.sky_upper)
+                    changed, self.renderer.sky_lower = imgui.color_edit3("Lower Sky Color", self.renderer.sky_lower)
+                except Exception:
+                    pass
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
@@ -192,23 +188,6 @@ class NewtonViewerGL(ViewerGL):
 
         imgui.end()
         return
-
-    @staticmethod
-    def _coerce_rgb_to_imvec4(color_value, imgui):
-        """Convert renderer color state into an ImGui-compatible ImVec4."""
-        if color_value is not None and all(hasattr(color_value, attr) for attr in ("x", "y", "z", "w")):
-            return color_value
-
-        rgb = (1.0, 1.0, 1.0)
-        if color_value is not None:
-            try:
-                values = tuple(color_value)
-                if len(values) >= 3:
-                    rgb = (float(values[0]), float(values[1]), float(values[2]))
-            except Exception:
-                pass
-
-        return imgui.ImVec4(rgb[0], rgb[1], rgb[2], 1.0)
 
 
 class NewtonVisualizer(BaseVisualizer):

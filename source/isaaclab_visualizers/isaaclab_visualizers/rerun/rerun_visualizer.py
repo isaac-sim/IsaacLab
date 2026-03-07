@@ -8,10 +8,8 @@
 from __future__ import annotations
 
 import atexit
-import contextlib
 import logging
 import socket
-import time
 import webbrowser
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -28,7 +26,6 @@ if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
 
 logger = logging.getLogger(__name__)
-_RERUN_SERVER_STARTED = False
 
 
 def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
@@ -53,76 +50,25 @@ def _normalize_host(addr: str) -> str:
     return addr
 
 
-def _wait_for_port_open(host: str, port: int, timeout_s: float = 6.0) -> bool:
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        if _is_port_open(port, host=host):
-            return True
-        time.sleep(0.1)
-    return _is_port_open(port, host=host)
-
-
-def _serve_grpc_compat(grpc_port: int) -> str:
-    """Start Rerun gRPC server using supported SDK argument names."""
-    try:
-        uri = rr.serve_grpc(grpc_port=int(grpc_port))
-    except TypeError:
-        # Backward-compatibility for older SDK versions.
-        uri = rr.serve_grpc(port=int(grpc_port))  # type: ignore[call-arg]
-    if isinstance(uri, str) and uri:
-        return uri
-    return f"rerun+http://127.0.0.1:{int(grpc_port)}/proxy"
-
-
-def _serve_web_viewer_compat(web_port: int, connect_to: str) -> None:
-    """Start Rerun web viewer server using supported SDK argument names."""
-    try:
-        rr.serve_web_viewer(web_port=int(web_port), open_browser=False, connect_to=connect_to)
-    except TypeError:
-        # Backward-compatibility for older SDK versions.
-        rr.serve_web_viewer(port=int(web_port), open_browser=False, connect_to=connect_to)  # type: ignore[call-arg]
-
-
 def _stop_managed_rerun_server() -> None:
-    global _RERUN_SERVER_STARTED
-    if not _RERUN_SERVER_STARTED:
-        return
-    with contextlib.suppress(Exception):
-        rr.rerun_shutdown()
-    _RERUN_SERVER_STARTED = False
+    return
 
 
-def _ensure_rerun_server(
-    app_id: str, bind_address: str, grpc_port: int, web_port: int, auto_kill_stale_rerun_process: bool
-) -> tuple[str, bool]:
-    """Ensure rerun server exists; return (grpc_uri, process_owned_by_this_instance)."""
-    global _RERUN_SERVER_STARTED
+def _ensure_rerun_server(app_id: str, bind_address: str, grpc_port: int, web_port: int) -> tuple[str, bool]:
+    """Resolve rerun endpoint and whether viewer should start web/grpc server."""
+    del app_id
     connect_host = _normalize_host(bind_address)
     expected_uri = f"rerun+http://{connect_host}:{int(grpc_port)}/proxy"
 
     if _is_port_open(grpc_port, host=connect_host):
-        with contextlib.suppress(Exception):
-            rr.connect_grpc(expected_uri)
+        # Reuse existing endpoint; do not create a new server here.
         return expected_uri, False
 
     if not _is_port_free(web_port, host=connect_host):
-        if auto_kill_stale_rerun_process:
-            raise RuntimeError(
-                f"Rerun web port {web_port} is in use. Automatic stale-process cleanup is not supported "
-                "in Python SDK mode; free the port or choose a different web_port."
-            )
-        raise RuntimeError(f"Rerun web port {web_port} is in use.")
+        raise RuntimeError(f"Rerun web port {web_port} is in use. Free the port or choose a different `web_port`.")
 
-    rr.init(app_id, spawn=False)
-    grpc_uri = _serve_grpc_compat(grpc_port)
-    _serve_web_viewer_compat(web_port, connect_to=grpc_uri)
-
-    if not _wait_for_port_open(connect_host, grpc_port, timeout_s=6.0):
-        _stop_managed_rerun_server()
-        raise RuntimeError(f"Timed out waiting for rerun gRPC port {connect_host}:{grpc_port}.")
-
-    _RERUN_SERVER_STARTED = True
-    return grpc_uri, True
+    # No existing gRPC server: NewtonViewerRerun should start and own it.
+    return expected_uri, True
 
 
 def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
@@ -195,28 +141,30 @@ class RerunVisualizer(BaseVisualizer):
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
         bind_address = self.cfg.bind_address or "0.0.0.0"
-        rerun_address, owns_server = _ensure_rerun_server(
+        rerun_address, start_server_in_viewer = _ensure_rerun_server(
             app_id=self.cfg.app_id,
             bind_address=bind_address,
             grpc_port=grpc_port,
             web_port=web_port,
-            auto_kill_stale_rerun_process=self.cfg.auto_kill_stale_rerun_process,
         )
-        if not owns_server:
+        if not start_server_in_viewer:
             logger.info("[RerunVisualizer] Reusing existing rerun server at %s.", rerun_address)
-        if self.cfg.open_browser:
-            _open_rerun_web_viewer(_normalize_host(bind_address), web_port, rerun_address)
 
+        viewer_address = None if start_server_in_viewer else rerun_address
         self._viewer = NewtonViewerRerun(
             app_id=self.cfg.app_id,
-            address=rerun_address,
-            serve_web_viewer=False,
+            address=viewer_address,
+            serve_web_viewer=start_server_in_viewer,
             web_port=web_port,
             grpc_port=grpc_port,
             keep_historical_data=self.cfg.keep_historical_data,
             keep_scalar_history=self.cfg.keep_scalar_history,
             record_to_rrd=self.cfg.record_to_rrd,
         )
+        if start_server_in_viewer:
+            rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
+        if self.cfg.open_browser and not start_server_in_viewer:
+            _open_rerun_web_viewer(_normalize_host(bind_address), web_port, rerun_address)
         self._viewer.set_model(self._model)
         self._apply_camera_pose(self._resolve_initial_camera_pose())
         self._viewer.up_axis = 2
@@ -237,7 +185,6 @@ class RerunVisualizer(BaseVisualizer):
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),
                 ("open_browser", self.cfg.open_browser),
-                ("auto_kill_stale_rerun_process", self.cfg.auto_kill_stale_rerun_process),
                 ("record_to_rrd", self.cfg.record_to_rrd or "<none>"),
             ],
         )
