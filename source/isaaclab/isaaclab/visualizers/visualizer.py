@@ -118,7 +118,9 @@ class Visualizer(FactoryBase, BaseVisualizer):
                 exc,
             )
             return False, False
-        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(getattr(cfg_obj, "requires_usd_stage", False))
+        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(
+            getattr(cfg_obj, "requires_usd_stage", False)
+        )
 
     def __new__(cls, cfg, *args, **kwargs) -> BaseVisualizer:
         """Create a new visualizer instance based on the visualizer type."""
