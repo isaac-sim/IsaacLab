@@ -32,7 +32,7 @@ env:
 
 jobs:
   build:
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 120
 
     steps:
@@ -50,7 +50,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
   build-curobo:
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 120
 
     steps:
@@ -70,7 +70,7 @@ jobs:
 
   test-isaaclab-tasks:
     needs: [build]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
     continue-on-error: true
 
@@ -127,7 +127,7 @@ jobs:
 
   test-isaaclab-tasks-2:
     needs: [build]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
     continue-on-error: true
 
@@ -184,7 +184,7 @@ jobs:
 
   test-general:
     needs: [build]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 180
 
     steps:
@@ -240,7 +240,7 @@ jobs:
 
   test-curobo:
     needs: [build-curobo]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     timeout-minutes: 120
     continue-on-error: true
 
@@ -297,7 +297,7 @@ jobs:
 
   combine-results:
     needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, int-gpu]
     if: always()
 
     steps:
