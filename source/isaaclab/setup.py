@@ -47,6 +47,7 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "coverage==7.6.1",
+    "debugpy>=1.8.20",
     "flatdict==4.0.0",
     "flaky",
     "packaging",

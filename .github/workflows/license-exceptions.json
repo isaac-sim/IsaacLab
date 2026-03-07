@@ -465,6 +465,16 @@
     "comment": "PSF-2.0 / OSRB"
   },
   {
+    "package": "standard-distutils",
+    "license": "Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "vhacdx",
+    "license": "UNKNOWN",
+    "comment": "BSD/MIT"
+  },
+  {
     "package": "cuda-bindings",
     "license": "LicenseRef-NVIDIA-SOFTWARE-LICENSE",
     "comment": "NVIDIA"
