@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-secrets:
-    name: Check secrets
+  doc-build-type:
+    name: Detect Doc Build Type
     runs-on: ubuntu-latest
     outputs:
       trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
@@ -35,7 +35,7 @@ jobs:
   build-docs:
     name: Build Docs
     runs-on: ubuntu-latest
-    needs: [check-secrets]
+    needs: [doc-build-type]
 
     steps:
     - name: Checkout code
@@ -54,12 +54,12 @@ jobs:
     - name: Build current version docs
       working-directory: ./docs
       # run on non-deploy branches to build current version docs only
-      if: needs.check-secrets.outputs.trigger-deploy != 'true'
+      if: needs.doc-build-type.outputs.trigger-deploy != 'true'
       run: make current-docs
 
     - name: Generate multi-version docs
       # run on deploy branches to create multi-version docs
-      if: needs.check-secrets.outputs.trigger-deploy == 'true'
+      if: needs.doc-build-type.outputs.trigger-deploy == 'true'
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow --tags
@@ -74,9 +74,9 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     runs-on: ubuntu-latest
-    needs: [check-secrets, build-docs]
+    needs: [doc-build-type, build-docs]
     # deploy only on "deploy" branches
-    if: needs.check-secrets.outputs.trigger-deploy == 'true'
+    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
     steps:
     - name: Download docs artifact
