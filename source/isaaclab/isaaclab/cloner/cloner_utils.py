@@ -56,7 +56,7 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         src_paths, dest_paths, clone_masking = make_clone_plan(src, dest, num_clones, cfg.clone_strategy, cfg.device)
 
         # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
-        # will be served as sources for usd and physx replication.
+        # will be served as sources for usd and physics replication.
         proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
         proto_mask = torch.zeros_like(clone_masking)
         proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
@@ -70,6 +70,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+            if cfg.visualizer_clone_fn is not None:
+                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 # parse env_origins directly from clone_path
                 usd_replicate(stage, *replicate_args, positions=positions)
@@ -79,6 +81,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             replicate_args = selected_src, dest_paths, world_indices, clone_masking
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+            if cfg.visualizer_clone_fn is not None:
+                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
 

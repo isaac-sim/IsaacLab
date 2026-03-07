@@ -89,7 +89,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                     max_env_id = max(max_env_id, int(match.group(1)))
         return max_env_id + 1 if max_env_id >= 0 else 0
 
-    def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
+    def __init__(self, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
 
         self._simulation_context = simulation_context
@@ -105,10 +105,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
-        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
-        # TODO: Include renderer capability checks (not just visualizer types)
-        # when computing sync requirements in SimulationContext and pass them into the provider.
-        self._needs_newton_sync = bool({"newton", "rerun", "viser"} & viz_types)
+        requirements = {}
+        get_requirements = getattr(self._simulation_context, "get_scene_data_requirements", None)
+        if callable(get_requirements):
+            requirements = get_requirements()
+        self._needs_newton_sync = bool(requirements.get("requires_newton_model", False))
+        self._needs_usd_stage = bool(requirements.get("requires_usd_stage", False))
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -172,9 +174,60 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._setup_rigid_body_view()
             self._setup_articulation_view()
 
+    def _model_body_paths(self, model) -> list[str]:
+        """Return body paths/keys from a Newton model."""
+        if model is None:
+            return []
+        return list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
+
+    def _model_articulation_paths(self, model) -> list[str]:
+        """Return articulation paths/keys from a Newton model."""
+        if model is None:
+            return []
+        return list(getattr(model, "articulation_label", None) or getattr(model, "articulation_key", []))
+
+    def _try_use_prebuilt_newton_artifact(self) -> bool:
+        """Use scene-time prebuilt Newton visualizer artifact when available."""
+        getter = getattr(self._simulation_context, "get_newton_visualizer_artifact", None)
+        if not callable(getter):
+            return False
+        artifact = getter()
+        if not artifact:
+            return False
+
+        model = artifact.get("model")
+        state = artifact.get("state")
+        if model is None or state is None:
+            return False
+
+        self._newton_model = model
+        self._newton_state = state
+        self._rigid_body_paths = list(artifact.get("rigid_body_paths", [])) or self._model_body_paths(model)
+        self._articulation_paths = list(artifact.get("articulation_paths", [])) or self._model_articulation_paths(model)
+
+        self._xform_views.clear()
+        self._view_body_index_map = {}
+        self._view_order_tensors.clear()
+        self._pose_buf_num_bodies = 0
+        self._positions_buf = None
+        self._orientations_buf = None
+        self._covered_buf = None
+        self._xform_mask_buf = None
+        self._env_id_to_body_indices = {}
+        self._num_envs_at_last_newton_build = int(artifact.get("num_envs", self.get_num_envs()))
+        self._filtered_newton_model = None
+        self._filtered_newton_state = None
+        self._filtered_env_ids_key = None
+        self._filtered_body_indices = []
+        return True
+
     def _build_newton_model_from_usd(self) -> None:
         """Build Newton model from USD and cache body/articulation paths."""
+        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
+        # is complete for full and partial visualization model-build paths.
         try:
+            if self._try_use_prebuilt_newton_artifact():
+                return
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
@@ -187,8 +240,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._newton_state = self._newton_model.state()
 
             # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_label)
-            self._articulation_paths = list(self._newton_model.articulation_label)
+            self._rigid_body_paths = self._model_body_paths(self._newton_model)
+            self._articulation_paths = self._model_articulation_paths(self._newton_model)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -221,9 +274,14 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
         """Build Newton model/state for a subset of envs."""
+        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
+        # is complete for full and partial visualization model-build paths.
         try:
             from newton import ModelBuilder
 
+            # Newton model building from USD with partial visualization does not currently use cloner,
+            # and falls back to slower USD-stage traversal. TODO: add cloner support for partial visualization,
+            # or wait until Newton model supports env filtering from a full Newton model.
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
@@ -234,7 +292,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_newton_state = self._filtered_newton_model.state()
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            filtered_paths = list(self._filtered_newton_model.body_key)
+            filtered_paths = self._model_body_paths(self._filtered_newton_model)
             self._filtered_body_indices = []
             missing = []
             for path in filtered_paths:

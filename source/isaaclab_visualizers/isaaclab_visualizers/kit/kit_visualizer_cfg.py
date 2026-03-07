@@ -16,6 +16,9 @@ class KitVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
 
+    requires_usd_stage: bool = True
+    """Internal requirement flag; do not override in user configs."""
+
     viewport_name: str | None = "Visualizer Viewport"
     """Viewport name to use. If None, uses active viewport."""
 
