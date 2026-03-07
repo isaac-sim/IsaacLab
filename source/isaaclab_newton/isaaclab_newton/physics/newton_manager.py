@@ -197,10 +197,10 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 cls._model_changes = set()
 
-        # Step simulation (graphed or not; _graph is None when RTX/Fabric sync is active)
+        # Step simulation (graphed or not; _graph is None when RTX/Fabric sync is active or on CPU)
         cfg = PhysicsManager._cfg
-        if cfg is not None and cfg.use_cuda_graph and "cuda" in PhysicsManager._device:  # type: ignore[union-attr]
-            wp.capture_launch(cls._graph)  # type: ignore[arg-type]
+        if cls._graph is not None:
+            wp.capture_launch(cls._graph)
         else:
             with wp.ScopedDevice(PhysicsManager._device):
                 cls._simulate()
