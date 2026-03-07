@@ -718,7 +718,7 @@ and records them as <strong>time-sampled data</strong>. The result is a USD file
 full scene—and matches the hierarchy of the original stage at the time of recording.
 This makes it easy to add as a sublayer for playback or rendering.</p>
 <p>This method is built into Isaac Lab’s UI through the <a class="reference internal" href="../api/lab/isaaclab.envs.ui.html#isaaclab.envs.ui.BaseEnvWindow" title="isaaclab.envs.ui.BaseEnvWindow"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEnvWindow</span></code></a>.
-However, to record the animation of a simulation, you need to disable <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html">Fabric</a> to allow reading and writing
+However, to record the animation of a simulation, you need to disable <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/usd_fabric_usdrt.html">Fabric</a> to allow reading and writing
 all the changes (such as motion and USD properties) to the USD stage.</p>
 <p>The <strong>OVD Recorder</strong> is designed for more scalable or automated workflows. It uses OmniPVD to capture simulated physics from a played stage
 and then <strong>bakes</strong> that directly into an animated USD file. It works with Fabric enabled and runs with CLI arguments.

@@ -758,24 +758,24 @@ that are loaded into Omniverse when the extension is enabled using the
 <p>While loading extensions into Omniverse happens automatically, using the python package
 in standalone applications requires additional steps. To simplify the build process and
 avoid the need to understand the <a class="reference external" href="https://premake.github.io/">premake</a>
-build system used by Omniverse, we directly use the <a class="reference external" href="https://setuptools.readthedocs.io/en/latest/">setuptools</a>
+build system used by Omniverse, we directly use the <a class="reference external" href="https://setuptools.pypa.io/en/latest/">setuptools</a>
 python package to build the python module provided by the extensions. This is done by the
 <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> file in the extension directory.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> file is not required for extensions that are only loaded into Omniverse
-using the <a class="reference external" href="https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_extension-manager.html">Extension Manager</a>.</p>
+using the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_extension-manager.html">Extension Manager</a>.</p>
 </div>
 <p>Lastly, the <code class="docutils literal notranslate"><span class="pre">tests</span></code> directory contains the unit tests for the extension. These are written
 using the <a class="reference external" href="https://docs.python.org/3/library/unittest.html">unittest</a> framework. It is
 important to note that Omniverse also provides a similar
-<a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/kit-manual/104.0/guide/testing_exts_python.html">testing framework</a>.
+<a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/testing_exts_python.html">testing framework</a>.
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.</p>
 <section id="custom-extension-dependency-management">
 <h2>Custom Extension Dependency Management<a class="headerlink" href="#custom-extension-dependency-management" title="Permalink to this heading">#</a></h2>
 <p>Certain extensions may have dependencies which require the installation of additional packages before the extension
-can be used. While Python dependencies are handled by the <a class="reference external" href="https://setuptools.readthedocs.io/en/latest/">setuptools</a>
+can be used. While Python dependencies are handled by the <a class="reference external" href="https://setuptools.pypa.io/en/latest/">setuptools</a>
 package and specified in the <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> file, non-Python dependencies such as <a class="reference external" href="https://www.ros.org/">ROS</a>
 packages or <a class="reference external" href="https://en.wikipedia.org/wiki/APT_(software)">apt</a> packages are not handled by setuptools.
 Handling these kinds of dependencies requires an additional procedure.</p>
