@@ -59,7 +59,7 @@ jobs:
 
     - name: Generate multi-version docs
       # run on deploy branches to create multi-version docs
-      if: needs.check-secrets.outputs.trigger-deploy == 'true'   
+      if: needs.check-secrets.outputs.trigger-deploy == 'true'
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow --tags
