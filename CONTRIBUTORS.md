@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
+* Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jinghuan Shang

@@ -25,6 +25,7 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -294,11 +295,11 @@ class Articulation(BaseArticulation):
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation via Newton bindings
-        wp.copy(self.data._sim_bind_joint_effort, self._joint_effort_target_sim)
+        self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
-            wp.copy(self.data._sim_bind_joint_position_target, self._joint_pos_target_sim)
-            wp.copy(self.data._sim_bind_joint_velocity_target, self._joint_vel_target_sim)
+            self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
+            self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -445,7 +446,7 @@ class Articulation(BaseArticulation):
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
 
     def write_root_link_pose_to_sim_index(
         self,
@@ -493,7 +494,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -525,8 +526,7 @@ class Articulation(BaseArticulation):
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
 
         wp.launch(
@@ -549,7 +549,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -593,7 +593,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_ids,
             ],
             outputs=[
@@ -613,7 +613,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -646,15 +646,14 @@ class Articulation(BaseArticulation):
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_mask,
             ],
             outputs=[
@@ -674,7 +673,7 @@ class Articulation(BaseArticulation):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -810,8 +809,7 @@ class Articulation(BaseArticulation):
                 Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_velocity, (env_mask,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_mask,
@@ -869,7 +867,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,
@@ -916,15 +914,14 @@ class Articulation(BaseArticulation):
                 Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_velocity, (env_mask,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_mask,
                 self.data._num_bodies,
@@ -1013,6 +1010,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1049,10 +1048,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
@@ -1067,6 +1064,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1145,10 +1144,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
         wp.launch(
             articulation_kernels.write_joint_vel_data_mask,
@@ -1248,10 +1245,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         if isinstance(stiffness, float):
             wp.launch(
                 articulation_kernels.float_data_to_buffer_with_mask,
@@ -1363,10 +1358,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         if isinstance(damping, float):
             wp.launch(
                 articulation_kernels.float_data_to_buffer_with_mask,
@@ -1489,10 +1482,8 @@ class Articulation(BaseArticulation):
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
@@ -1614,10 +1605,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         if isinstance(limits, float):
             wp.launch(
                 articulation_kernels.float_data_to_buffer_with_mask,
@@ -1735,10 +1724,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         if isinstance(limits, float):
             wp.launch(
                 articulation_kernels.float_data_to_buffer_with_mask,
@@ -1856,10 +1843,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         if isinstance(armature, float):
             wp.launch(
                 articulation_kernels.float_data_to_buffer_with_mask,
@@ -1974,10 +1959,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         if isinstance(joint_friction_coeff, float):
             wp.launch(
                 articulation_kernels.float_data_to_buffer_with_mask,
@@ -2080,10 +2063,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if body_mask is None:
-            body_mask = self._ALL_BODY_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
@@ -2171,16 +2152,15 @@ class Articulation(BaseArticulation):
             aligned with the body frame.
 
         Args:
-            coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies). In warp
-                the expected shape is (num_instances, num_bodies), with dtype wp.vec3f.
+            coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3) or
+                (num_instances, num_bodies, 7) (transformf convention — only position is used). In warp
+                the expected shape is (num_instances, num_bodies), with dtype wp.vec3f or wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if body_mask is None:
-            body_mask = self._ALL_BODY_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
@@ -2263,10 +2243,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if body_mask is None:
-            body_mask = self._ALL_BODY_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer_mask,
@@ -2349,10 +2327,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
@@ -2435,10 +2411,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
@@ -2520,10 +2494,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
@@ -3229,6 +3201,13 @@ class Articulation(BaseArticulation):
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
 
+        # Register callback to rebind simulation data after a full reset (model/state recreation).
+        self._physics_ready_handle = SimulationManager.register_callback(
+            lambda _: self._data._create_simulation_bindings(),
+            PhysicsEvent.PHYSICS_READY,
+            name=f"articulation_rebind_{self.cfg.prim_path}",
+        )
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -3243,6 +3222,13 @@ class Articulation(BaseArticulation):
         self._log_articulation_info()
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
+
+    def _clear_callbacks(self) -> None:
+        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        super()._clear_callbacks()
+        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
+            self._physics_ready_handle.deregister()
+            self._physics_ready_handle = None
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
@@ -3788,6 +3774,22 @@ class Articulation(BaseArticulation):
             return self._ALL_SPATIAL_TENDON_INDICES
         return spatial_tendon_ids
 
+    def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
+        """Resolve a mask to a warp array.
+
+        Args:
+            mask: Mask. If None, then all indices are used.
+
+        Returns:
+            A warp array of mask.
+        """
+        if mask is None:
+            return full_mask
+
+        if isinstance(mask, torch.Tensor):
+            return wp.from_torch(mask, dtype=wp.bool)
+        return mask
+
     """
     Deprecated methods.
     """
@@ -3828,8 +3830,8 @@ class Articulation(BaseArticulation):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self,
@@ -3846,8 +3848,8 @@ class Articulation(BaseArticulation):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self,
@@ -3864,8 +3866,8 @@ class Articulation(BaseArticulation):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_joint_state_to_sim(
         self,

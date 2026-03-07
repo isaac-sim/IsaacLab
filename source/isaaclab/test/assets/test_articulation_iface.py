@@ -57,6 +57,15 @@ try:
 except ImportError:
     pass
 
+try:
+    from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
+    from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
+    from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
+
+    BACKENDS.append("newton")
+except ImportError:
+    pass
+
 
 def create_physx_articulation(
     num_instances: int = 2,
@@ -166,7 +175,121 @@ def create_newton_articulation(
     num_bodies: int = 7,
     device: str = "cuda:0",
 ):
-    raise NotImplementedError("Newton articulation is not supported yet")
+    """Create a test Newton Articulation instance with mocked dependencies."""
+    import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
+
+    joint_names = [f"joint_{i}" for i in range(num_joints)]
+    body_names = [f"body_{i}" for i in range(num_bodies)]
+
+    # Create Newton mock view
+    mock_view = NewtonMockArticulationView(
+        num_instances=num_instances,
+        num_bodies=num_bodies,
+        num_joints=num_joints,
+        device=device,
+        is_fixed_base=False,
+        joint_names=joint_names,
+        body_names=body_names,
+    )
+    mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
+
+    # Mock NewtonManager (aliased as SimulationManager in Newton modules)
+    mock_model = MagicMock()
+    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_state = MagicMock()
+    mock_control = MagicMock()
+
+    mock_manager = MagicMock()
+    mock_manager.get_model.return_value = mock_model
+    mock_manager.get_state_0.return_value = mock_state
+    mock_manager.get_state_1.return_value = mock_state
+    mock_manager.get_control.return_value = mock_control
+
+    # Patch SimulationManager in the Newton data module
+    original_sim_manager = newton_data_module.SimulationManager
+    newton_data_module.SimulationManager = mock_manager
+
+    try:
+        data = NewtonArticulationData(mock_view, device)
+    finally:
+        newton_data_module.SimulationManager = original_sim_manager
+
+    # Create Articulation shell (bypass __init__)
+    articulation = object.__new__(NewtonArticulation)
+
+    articulation.cfg = ArticulationCfg(
+        prim_path="/World/Robot",
+        soft_joint_pos_limit_factor=1.0,
+        actuators={},
+    )
+
+    object.__setattr__(articulation, "_root_view", mock_view)
+    object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_data", data)
+
+    # Tendon names (Newton doesn't support tendons)
+    object.__setattr__(articulation, "_fixed_tendon_names", [])
+    object.__setattr__(articulation, "_spatial_tendon_names", [])
+    data.fixed_tendon_names = []
+    data.spatial_tendon_names = []
+
+    # Mock wrench composers
+    mock_inst_wrench = MockWrenchComposer(articulation)
+    mock_perm_wrench = MockWrenchComposer(articulation)
+    object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising AttributeError
+    object.__setattr__(articulation, "_initialize_handle", None)
+    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
+    object.__setattr__(articulation, "_prim_deletion_handle", None)
+    object.__setattr__(articulation, "_debug_vis_handle", None)
+
+    # Other required attributes
+    object.__setattr__(articulation, "actuators", {})
+    object.__setattr__(articulation, "_has_implicit_actuators", False)
+
+    # Newton uses wp.array for indices (not torch)
+    object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
+    object.__setattr__(
+        articulation, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+    )
+    object.__setattr__(
+        articulation, "_ALL_JOINT_INDICES", wp.array(np.arange(num_joints, dtype=np.int32), device=device)
+    )
+
+    # Newton uses wp.bool masks
+    object.__setattr__(articulation, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
+    object.__setattr__(articulation, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
+    object.__setattr__(articulation, "_ALL_JOINT_MASK", wp.ones((num_joints,), dtype=wp.bool, device=device))
+
+    # Tendon arrays (empty)
+    object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device))
+    object.__setattr__(articulation, "_ALL_FIXED_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
+    object.__setattr__(
+        articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device)
+    )
+    object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
+
+    # Joint targets (Newton uses warp, not torch)
+    object.__setattr__(
+        articulation,
+        "_joint_pos_target_sim",
+        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
+    )
+    object.__setattr__(
+        articulation,
+        "_joint_vel_target_sim",
+        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
+    )
+    object.__setattr__(
+        articulation,
+        "_joint_effort_target_sim",
+        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
+    )
+
+    return articulation, mock_view
 
 
 def create_mock_articulation(
@@ -689,6 +812,8 @@ class TestArticulationDataBodyState:
     @_default_dims
     @_default_devices
     def test_body_com_pose_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+        if backend == "newton":
+            pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_wp_array(
@@ -727,6 +852,8 @@ class TestArticulationDataBodyState:
     def test_body_incoming_joint_wrench_b(
         self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
     ):
+        if backend == "newton":
+            pytest.xfail("Newton does not support joint wrench reporting")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_wp_array(
@@ -831,6 +958,8 @@ class TestArticulationDataBodyState:
     @_default_dims
     @_default_devices
     def test_body_com_quat_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+        if backend == "newton":
+            pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_wp_array(
@@ -1150,12 +1279,12 @@ def _make_bad_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.ar
 
 
 def _make_env_mask(num_instances: int, device: str, partial: bool) -> wp.array | None:
-    """Create an env_mask: None for all envs, or a partial int32 mask."""
+    """Create an env_mask: None for all envs, or a partial bool mask."""
     if not partial:
         return None
-    mask_np = np.zeros(num_instances, dtype=np.int32)
-    mask_np[0] = 1
-    return wp.array(mask_np, dtype=wp.int32, device=device)
+    mask_np = np.zeros(num_instances, dtype=bool)
+    mask_np[0] = True
+    return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
 def _make_env_ids(device: str, subset: bool) -> torch.Tensor | None:
@@ -1166,11 +1295,11 @@ def _make_env_ids(device: str, subset: bool) -> torch.Tensor | None:
 
 
 def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
-    """Create an int32 warp mask with 1s at `selected` indices, 0s elsewhere."""
-    mask_np = np.zeros(total, dtype=np.int32)
+    """Create a bool warp mask with True at `selected` indices, False elsewhere."""
+    mask_np = np.zeros(total, dtype=bool)
     for i in selected:
-        mask_np[i] = 1
-    return wp.array(mask_np, dtype=wp.int32, device=device)
+        mask_np[i] = True
+    return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
 # ---------------------------------------------------------------------------
@@ -1483,6 +1612,8 @@ class TestArticulationWritersBody:
         wp_dtype,
         trailing,
     ):
+        if backend == "newton" and method_base == "set_coms":
+            pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_index")
@@ -1565,6 +1696,8 @@ class TestArticulationWritersBody:
         wp_dtype,
         trailing,
     ):
+        if backend == "newton" and method_base == "set_coms":
+            pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_mask")
@@ -1677,6 +1810,9 @@ class TestArticulationDataAliases:
 # Tendon tests — parametrize, properties, finders, data, writers
 # ---------------------------------------------------------------------------
 
+# Newton does not support tendons (always 0), so exclude it from tendon tests.
+_tendon_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "newton"], indirect=False)
+
 _tendon_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons",
     [
@@ -1690,7 +1826,7 @@ _tendon_dims = pytest.mark.parametrize(
 class TestArticulationTendonProperties:
     """Test that tendon-related articulation properties return the correct types/values."""
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_num_fixed_tendons(
@@ -1707,7 +1843,7 @@ class TestArticulationTendonProperties:
         art, _ = articulation_iface
         assert art.num_fixed_tendons == num_fixed_tendons
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_num_spatial_tendons(
@@ -1724,7 +1860,7 @@ class TestArticulationTendonProperties:
         art, _ = articulation_iface
         assert art.num_spatial_tendons == num_spatial_tendons
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_names(
@@ -1744,7 +1880,7 @@ class TestArticulationTendonProperties:
         assert len(names) == num_fixed_tendons
         assert all(isinstance(n, str) for n in names)
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_names(
@@ -1768,7 +1904,7 @@ class TestArticulationTendonProperties:
 class TestArticulationTendonFinders:
     """Test that tendon finder methods return (list[int], list[str]) tuples."""
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_find_fixed_tendons_all(
@@ -1792,7 +1928,7 @@ class TestArticulationTendonFinders:
         assert all(isinstance(i, int) for i in indices)
         assert all(isinstance(n, str) for n in names)
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_find_fixed_tendons_single(
@@ -1814,7 +1950,7 @@ class TestArticulationTendonFinders:
         assert indices == [0]
         assert names == [first]
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_find_spatial_tendons_all(
@@ -1836,7 +1972,7 @@ class TestArticulationTendonFinders:
         assert len(indices) == num_spatial_tendons
         assert len(names) == num_spatial_tendons
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_find_spatial_tendons_single(
@@ -1864,7 +2000,7 @@ class TestArticulationDataTendonState:
 
     # -- Fixed tendon data properties --
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_stiffness(
@@ -1887,7 +2023,7 @@ class TestArticulationDataTendonState:
             name="fixed_tendon_stiffness",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_damping(
@@ -1910,7 +2046,7 @@ class TestArticulationDataTendonState:
             name="fixed_tendon_damping",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_limit_stiffness(
@@ -1933,7 +2069,7 @@ class TestArticulationDataTendonState:
             name="fixed_tendon_limit_stiffness",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_rest_length(
@@ -1956,7 +2092,7 @@ class TestArticulationDataTendonState:
             name="fixed_tendon_rest_length",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_offset(
@@ -1979,7 +2115,7 @@ class TestArticulationDataTendonState:
             name="fixed_tendon_offset",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_fixed_tendon_pos_limits(
@@ -2008,7 +2144,7 @@ class TestArticulationDataTendonState:
 
     # -- Spatial tendon data properties --
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_stiffness(
@@ -2033,7 +2169,7 @@ class TestArticulationDataTendonState:
             name="spatial_tendon_stiffness",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_damping(
@@ -2058,7 +2194,7 @@ class TestArticulationDataTendonState:
             name="spatial_tendon_damping",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_limit_stiffness(
@@ -2083,7 +2219,7 @@ class TestArticulationDataTendonState:
             name="spatial_tendon_limit_stiffness",
         )
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_offset(
@@ -2129,7 +2265,7 @@ _FIXED_TENDON_METHODS = [
 class TestArticulationWritersFixedTendon:
     """Test fixed tendon writers/setters with all input combinations."""
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -2194,7 +2330,7 @@ class TestArticulationWritersFixedTendon:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_bad_data_warp((num_instances, num_fixed_tendons), device, wp_dtype)})
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -2270,7 +2406,7 @@ _SPATIAL_TENDON_METHODS = [
 class TestArticulationWritersSpatialTendon:
     """Test spatial tendon writers/setters with all input combinations."""
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -2331,7 +2467,7 @@ class TestArticulationWritersSpatialTendon:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_bad_data_warp((num_instances, num_spatial_tendons), device, wp_dtype)})
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -2400,7 +2536,7 @@ class TestArticulationWritersSpatialTendon:
 class TestArticulationWritersTendonToSim:
     """Smoke test write_*_tendon_properties_to_sim_index/mask methods."""
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_write_fixed_tendon_properties_to_sim_index(
@@ -2423,7 +2559,7 @@ class TestArticulationWritersTendonToSim:
         # subset envs
         art.write_fixed_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_write_fixed_tendon_properties_to_sim_mask(
@@ -2446,7 +2582,7 @@ class TestArticulationWritersTendonToSim:
         # partial env mask
         art.write_fixed_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_write_spatial_tendon_properties_to_sim_index(
@@ -2469,7 +2605,7 @@ class TestArticulationWritersTendonToSim:
         # subset envs
         art.write_spatial_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
 
-    @_backends
+    @_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_write_spatial_tendon_properties_to_sim_mask(

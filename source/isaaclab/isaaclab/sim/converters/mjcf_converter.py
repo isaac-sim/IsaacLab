@@ -79,6 +79,7 @@ class MjcfConverter(AssetConverterBase):
             collision_from_visuals=cfg.collision_from_visuals,
             collision_type=cfg.collision_type,
             allow_self_collision=cfg.self_collision,
+            import_scene=cfg.import_physics_scene,
         )
 
         importer = MJCFImporter(import_config)
