@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Run linters using pre-commit
+name: Run `pre-commit`
 
 on:
   pull_request:
