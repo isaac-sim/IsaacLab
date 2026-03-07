@@ -37,8 +37,8 @@ parser = argparse.ArgumentParser(description="Benchmark Newton viz loading (Phys
 parser.add_argument(
     "--task",
     type=str,
-    default="Isaac-Cartpole-v0",
-    help="Gym task name (e.g. Isaac-Cartpole-v0, Isaac-Lift-Cube-Franka-v0).",
+    default="Isaac-Velocity-Rough-Anymal-D-v0",
+    help="Gym task name (e.g. Isaac-Velocity-Rough-Anymal-D-v0, Isaac-Lift-Cube-Franka-v0).",
 )
 parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments.")
 parser.add_argument("--benchmark_steps", type=int, default=2, help="Steps before exit (reset + step to trigger SDP).")
@@ -66,7 +66,7 @@ import numpy as np
 import torch
 
 import isaaclab_tasks  # noqa: F401 -- register tasks
-from isaaclab_tasks.utils.hydra import _resolve_preset_defaults
+from isaaclab_tasks.utils.hydra import resolve_preset_defaults
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
@@ -78,7 +78,7 @@ def main():
     )
     # Resolve all PresetCfgs (e.g. VelocityEnvContactSensorCfg, physics) to concrete configs
     # so InteractiveScene sees known asset types (ContactSensorCfg, PhysxCfg, etc.).
-    env_cfg = _resolve_preset_defaults(env_cfg)
+    env_cfg = resolve_preset_defaults(env_cfg)
     # Ensure physics is a single PhysicsCfg (SimulationContext expects class_type)
     if hasattr(env_cfg.sim.physics, "physx"):
         env_cfg.sim.physics = env_cfg.sim.physics.physx
@@ -93,7 +93,8 @@ def main():
             env.reset()
         else:
             action = env.action_space.sample()
-            env.step(action if torch.is_tensor(action) else np.asarray(action))
+            action_tensor = action if torch.is_tensor(action) else torch.as_tensor(np.asarray(action))
+            env.step(action_tensor)
         step_count += 1
 
     env.close()
