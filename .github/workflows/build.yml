@@ -15,7 +15,7 @@ on:
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: biuld-and-test-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
