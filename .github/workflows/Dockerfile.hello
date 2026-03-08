@@ -1,5 +1,7 @@
 FROM ubuntu:24.04
 
+RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
+
 RUN echo "Hello from the build stage!"
 
 CMD ["bash", "-c", "echo 'Hello from the running container!'"]
