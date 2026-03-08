@@ -1,41 +1,39 @@
-name: Debug ECR Docker Build
+name: Debug ECR
 
 on:
   push:
     branches:
       - '**'
+  pull_request:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: isaaclab-debug
+  ECR_REGION: us-west-2
+  ECR_REPOSITORY: isaaclab-ci
+  IMAGE_TAG: isaaclab-ci:${{ github.sha }}
 
 jobs:
   build-and-push:
     name: Build and push to ECR
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Build and push
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ github.sha }}
+        uses: ./.github/actions/ecr-build-push-pull
+        with:
+          image-tag: ${{ env.IMAGE_TAG }}
+          isaacsim-base-image: nvcr.io/nvidian/isaac-sim
+          isaacsim-version: latest-develop
+          dockerfile-path: .github/workflows/Dockerfile.hello
+          ecr-repository: ${{ env.ECR_REPOSITORY }}
+          aws-region: ${{ env.ECR_REGION }}
+
+      - name: Run toy task in container
         run: |
-          IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG:0:7}"
-          docker build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
-          docker push "$IMAGE"
-          echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          # ACCEPT_EULA=Y required by the isaac-sim base image at startup
+          # --entrypoint sh overrides the isaac-sim entrypoint so the container exits after our command
+          docker run --rm -e ACCEPT_EULA=Y --entrypoint sh "${{ env.IMAGE_TAG }}" \
+            -c 'echo "Hello from inside the container!" && uname -a && nvidia-smi'
