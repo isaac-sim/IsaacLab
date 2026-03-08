@@ -26,7 +26,7 @@ jobs:
         run: |
           AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG:0:7}"
+          IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}"
 
           # login to ECR using a temp config dir to bypass broken credential store
           DOCKER_CONFIG=$(mktemp -d)
@@ -34,9 +34,13 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker --config "${DOCKER_CONFIG}" login --username AWS --password-stdin "${REGISTRY}"
 
-          docker --config "${DOCKER_CONFIG}" build --progress=plain -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
-          docker --config "${DOCKER_CONFIG}" push "$IMAGE"
-          echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          if docker --config "${DOCKER_CONFIG}" pull "${IMAGE}" 2>/dev/null; then
+            echo "Image already exists in ECR, skipping build." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            docker --config "${DOCKER_CONFIG}" build --progress=plain -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
+            docker --config "${DOCKER_CONFIG}" push "$IMAGE"
+            echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           echo "DOCKER_CONFIG=${DOCKER_CONFIG}" >> "$GITHUB_ENV"
