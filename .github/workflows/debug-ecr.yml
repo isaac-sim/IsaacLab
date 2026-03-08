@@ -34,7 +34,7 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker --config "${DOCKER_CONFIG}" login --username AWS --password-stdin "${REGISTRY}"
 
-          docker --config "${DOCKER_CONFIG}" build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
+          docker --config "${DOCKER_CONFIG}" build --progress=plain -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
           docker --config "${DOCKER_CONFIG}" push "$IMAGE"
           echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
 
