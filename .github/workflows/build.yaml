@@ -61,6 +61,7 @@ jobs:
         aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -86,6 +87,7 @@ jobs:
         aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-curobo
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -149,6 +151,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -211,6 +214,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -272,6 +276,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -334,6 +339,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
