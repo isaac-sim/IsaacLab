@@ -61,6 +61,10 @@ def _parse_stub(stub_file: str) -> tuple[str | None, list[str], list[str]]:
     if not needs_filter:
         return None, fallback_packages, relative_wildcards
 
+    has_imports = any(isinstance(n, ast.ImportFrom) for n in filtered_body)
+    if not has_imports:
+        return None, fallback_packages, relative_wildcards
+
     filtered = ast.Module(body=filtered_body, type_ignores=[])
     with tempfile.NamedTemporaryFile(mode="w", suffix=".pyi", delete=False) as tmp:
         tmp.write(ast.unparse(filtered))
@@ -142,33 +146,28 @@ def lazy_export(
                 __all__.append(name)
 
     # -- Build lazy fallback for absolute wildcard imports -----------------
+    _sentinel = object()
+
     if fallback_packages:
+        _resolved_pkgs: list = []
+        for _pkg_name in fallback_packages:
+            try:
+                _resolved_pkgs.append(importlib.import_module(_pkg_name))
+            except (ImportError, ModuleNotFoundError):
+                pass
 
         def _pkg_getattr(name: str):
-            for pkg in fallback_packages:
-                try:
-                    pkg_mod = importlib.import_module(pkg)
-                    if hasattr(pkg_mod, name):
-                        val = getattr(pkg_mod, name)
-                        mod.__dict__[name] = val
-                        return val
-                except (ImportError, ModuleNotFoundError):
-                    continue
+            for pkg_mod in _resolved_pkgs:
+                val = getattr(pkg_mod, name, _sentinel)
+                if val is not _sentinel:
+                    mod.__dict__[name] = val
+                    return val
             raise AttributeError(f"module {package_name!r} has no attribute {name!r}")
-
-        def _pkg_dir():
-            names: list[str] = []
-            for pkg in fallback_packages:
-                try:
-                    pkg_mod = importlib.import_module(pkg)
-                    names.extend(n for n in dir(pkg_mod) if not n.startswith("_"))
-                except (ImportError, ModuleNotFoundError):
-                    continue
-            return sorted(set(names))
 
         if has_stub:
             _stub_getattr = stub_getattr
             _stub_dir = stub_dir
+            _dir_cache: list[str] | None = None
 
             def __getattr__(name: str):
                 try:
@@ -177,15 +176,23 @@ def lazy_export(
                     return _pkg_getattr(name)
 
             def __dir__():
-                return sorted(set(_stub_dir()) | set(_pkg_dir()))
+                nonlocal _dir_cache
+                if _dir_cache is None:
+                    pkg_names = {n for p in _resolved_pkgs for n in dir(p) if not n.startswith("_")}
+                    _dir_cache = sorted(set(_stub_dir()) | pkg_names)
+                return _dir_cache
 
         else:
+            _dir_cache: list[str] | None = None
 
             def __getattr__(name: str):
                 return _pkg_getattr(name)
 
             def __dir__():
-                return _pkg_dir()
+                nonlocal _dir_cache
+                if _dir_cache is None:
+                    _dir_cache = sorted(n for p in _resolved_pkgs for n in dir(p) if not n.startswith("_"))
+                return _dir_cache
 
     elif has_stub:
         __getattr__ = stub_getattr
