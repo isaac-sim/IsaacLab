@@ -14,6 +14,7 @@ so it can diverge (Warp-first / graph-friendly) without inheriting from the stab
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
@@ -25,17 +26,21 @@ import warp as wp
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.timer import Timer
 
+from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
+from isaaclab_experimental.utils.timer import Timer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
-from .manager_based_env_warp import ManagerBasedEnvWarp, ManagerCallMode
+from .manager_based_env_warp import ManagerBasedEnvWarp
 
-# Controls per-section timing inside `step()`.
-TIMER_ENABLED_STEP = False
+DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
+"""Enable outer step() timer. Set DEBUG_TIMER_STEP=1 env var to enable."""
 
-# Controls per-section timing inside `_reset_idx`.
-TIMER_ENABLED_RESET_IDX = False
+DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
+"""Enable all fine-grained inner timers. Set DEBUG_TIMERS=1 env var to enable."""
+
+TIMER_ENABLED_STEP = DEBUG_TIMER_STEP or DEBUG_TIMERS
+TIMER_ENABLED_RESET_IDX = DEBUG_TIMERS
 
 
 class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
@@ -221,24 +226,16 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # IMPORTANT: Do NOT re-wrap/replace the `wp.array` used by captured graphs each step.
         # Instead, copy the latest actions into the persistent buffer.
         with Timer(name="action_preprocess", msg="Action preprocessing took:", enable=TIMER_ENABLED_STEP, format="us"):
-            # NOTE: keep a persistent action input buffer for graph pointer stability.
-            # IMPORTANT: Do NOT re-wrap/replace the `wp.array` used by captured graphs each step.
-            # Instead, copy the latest actions into the persistent buffer.
             assert self._action_in_wp is not None
             action_device = action.to(self.device)
             wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
 
-        with Timer(
-            name="action_manager.process_action",
-            msg="ActionManager.process_action took:",
-            enable=TIMER_ENABLED_STEP,
-            format="us",
-        ):
-            self._manager_call_switch.call_stage(
-                stage="ActionManager_process_action",
-                stable_calls=[{"fn": self.action_manager.process_action, "args": (action_device,)}],
-                warp_calls=[{"fn": self.action_manager.process_action, "kwargs": {"action": self._action_in_wp}}],
-            )
+        self._manager_call_switch.call_stage(
+            stage="ActionManager_process_action",
+            stable_calls=[{"fn": self.action_manager.process_action, "args": (action_device,)}],
+            warp_calls=[{"fn": self.action_manager.process_action, "kwargs": {"action": self._action_in_wp}}],
+            timer=TIMER_ENABLED_STEP,
+        )
 
         self.recorder_manager.record_pre_step()
 
@@ -252,28 +249,18 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            with Timer(
-                name="action_manager.apply_action",
-                msg="ActionManager.apply_action took:",
-                enable=TIMER_ENABLED_STEP,
-                format="us",
-            ):
-                self._manager_call_switch.call_stage(
-                    stage="ActionManager_apply_action",
-                    stable_calls=[{"fn": self.action_manager.apply_action}],
-                    warp_calls=[{"fn": self.action_manager.apply_action}],
-                )
-            with Timer(
-                name="scene.write_data_to_sim",
-                msg="Scene.write_data_to_sim took:",
-                enable=TIMER_ENABLED_STEP,
-                format="us",
-            ):
-                self._manager_call_switch.call_stage(
-                    stage="Scene_write_data_to_sim",
-                    stable_calls=[{"fn": self.scene.write_data_to_sim}],
-                    warp_calls=[{"fn": self.scene.write_data_to_sim}],
-                )
+            self._manager_call_switch.call_stage(
+                stage="ActionManager_apply_action",
+                stable_calls=[{"fn": self.action_manager.apply_action}],
+                warp_calls=[{"fn": self.action_manager.apply_action}],
+                timer=TIMER_ENABLED_STEP,
+            )
+            self._manager_call_switch.call_stage(
+                stage="Scene_write_data_to_sim",
+                stable_calls=[{"fn": self.scene.write_data_to_sim}],
+                warp_calls=[{"fn": self.scene.write_data_to_sim}],
+                timer=TIMER_ENABLED_STEP,
+            )
 
             # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=TIMER_ENABLED_STEP, format="us"):
@@ -299,36 +286,32 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.common_step_counter += 1  # total step (common for all envs)
 
         # -- post-processing (termination + reward) as independently configurable stages
-        with Timer(name="post_processing", msg="Termination+Reward took:", enable=TIMER_ENABLED_STEP, format="us"):
-            self._manager_call_switch.call_stage(
-                stage="TerminationManager_compute",
-                stable_calls=[{"fn": self.step_warp_termination_compute}],
-                warp_calls=[{"fn": self.step_warp_termination_compute}],
-            )
-            reward_out = self._manager_call_switch.call_stage(
-                stage="RewardManager_compute",
-                stable_calls=[{"fn": self.reward_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
-                warp_calls=[{"fn": self.reward_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
-            )
-            reward_mode = self._manager_call_switch.get_mode_for_manager("RewardManager")
-            if reward_mode == ManagerCallMode.WARP_CAPTURED:
-                self.reward_buf = self.reward_manager._reward_tensor_view
-            else:
-                self.reward_buf = reward_out
+        self._manager_call_switch.call_stage(
+            stage="TerminationManager_compute",
+            stable_calls=[{"fn": self.step_warp_termination_compute}],
+            warp_calls=[{"fn": self.step_warp_termination_compute}],
+            timer=TIMER_ENABLED_STEP,
+        )
+        reward_out = self._manager_call_switch.call_stage(
+            stage="RewardManager_compute",
+            stable_calls=[{"fn": self.reward_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
+            warp_calls=[{"fn": self.reward_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
+            timer=TIMER_ENABLED_STEP,
+        )
+        reward_mode = self._manager_call_switch.get_mode_for_manager("RewardManager")
+        if reward_mode == ManagerCallMode.WARP_CAPTURED:
+            self.reward_buf = self.reward_manager._reward_tensor_view
+        else:
+            self.reward_buf = reward_out
 
         if len(self.recorder_manager.active_terms) > 0:
             # update observations for recording if needed
-            with Timer(
-                name="observation_manager.compute",
-                msg="ObservationManager.compute took:",
-                enable=TIMER_ENABLED_STEP,
-                format="us",
-            ):
-                self._manager_call_switch.call_stage(
-                    stage="ObservationManager_compute_no_history",
-                    stable_calls=[{"fn": self.observation_manager.compute}],
-                    warp_calls=[{"fn": self.observation_manager.compute, "kwargs": {"return_cloned_output": False}}],
-                )
+            self._manager_call_switch.call_stage(
+                stage="ObservationManager_compute_no_history",
+                stable_calls=[{"fn": self.observation_manager.compute}],
+                warp_calls=[{"fn": self.observation_manager.compute, "kwargs": {"return_cloned_output": False}}],
+                timer=TIMER_ENABLED_STEP,
+            )
             self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
@@ -371,61 +354,46 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- update command
-        with Timer(
-            name="command_manager.compute",
-            msg="CommandManager.compute took:",
-            enable=TIMER_ENABLED_STEP,
-            format="us",
-        ):
-            self._manager_call_switch.call_stage(
-                stage="CommandManager_compute",
-                stable_calls=[{"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
-                warp_calls=[{"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
-            )
+        self._manager_call_switch.call_stage(
+            stage="CommandManager_compute",
+            stable_calls=[{"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
+            warp_calls=[{"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
+            timer=TIMER_ENABLED_STEP,
+        )
 
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
-            with Timer(
-                name="event_manager.apply_interval",
-                msg="EventManager.apply (interval) took:",
-                enable=TIMER_ENABLED_STEP,
-                format="us",
-            ):
-                self._manager_call_switch.call_stage(
-                    stage="EventManager_apply_interval",
-                    stable_calls=[
-                        {"fn": self.event_manager.apply, "kwargs": {"mode": "interval", "dt": float(self.step_dt)}}
-                    ],
-                    warp_calls=[
-                        {"fn": self.event_manager.apply, "kwargs": {"mode": "interval", "dt": float(self.step_dt)}}
-                    ],
-                )
+            self._manager_call_switch.call_stage(
+                stage="EventManager_apply_interval",
+                stable_calls=[
+                    {"fn": self.event_manager.apply, "kwargs": {"mode": "interval", "dt": float(self.step_dt)}}
+                ],
+                warp_calls=[
+                    {"fn": self.event_manager.apply, "kwargs": {"mode": "interval", "dt": float(self.step_dt)}}
+                ],
+                timer=TIMER_ENABLED_STEP,
+            )
 
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        with Timer(
-            name="observation_manager.compute_update_history",
-            msg="ObservationManager.compute (update_history) took:",
-            enable=TIMER_ENABLED_STEP,
-            format="us",
-        ):
-            obs_buf = self._manager_call_switch.call_stage(
-                stage="ObservationManager_compute_update_history",
-                stable_calls=[{"fn": self.observation_manager.compute, "kwargs": {"update_history": True}}],
-                warp_calls=[
-                    {
-                        "fn": self.observation_manager.compute,
-                        "kwargs": {"update_history": True, "return_cloned_output": False},
-                    }
-                ],
-            )
-            obs_mode = self._manager_call_switch.get_mode_for_manager("ObservationManager")
-            if obs_mode == ManagerCallMode.STABLE:
-                self.obs_buf = obs_buf
-            elif obs_mode == ManagerCallMode.WARP_NOT_CAPTURED:
-                self.obs_buf = clone_obs_buffer(obs_buf)
-            elif obs_mode == ManagerCallMode.WARP_CAPTURED:
-                self.obs_buf = clone_obs_buffer(self.observation_manager._obs_buffer)
+        obs_buf = self._manager_call_switch.call_stage(
+            stage="ObservationManager_compute_update_history",
+            stable_calls=[{"fn": self.observation_manager.compute, "kwargs": {"update_history": True}}],
+            warp_calls=[
+                {
+                    "fn": self.observation_manager.compute,
+                    "kwargs": {"update_history": True, "return_cloned_output": False},
+                }
+            ],
+            timer=TIMER_ENABLED_STEP,
+        )
+        obs_mode = self._manager_call_switch.get_mode_for_manager("ObservationManager")
+        if obs_mode == ManagerCallMode.STABLE:
+            self.obs_buf = obs_buf
+        elif obs_mode == ManagerCallMode.WARP_NOT_CAPTURED:
+            self.obs_buf = clone_obs_buffer(obs_buf)
+        elif obs_mode == ManagerCallMode.WARP_CAPTURED:
+            self.obs_buf = clone_obs_buffer(self.observation_manager._obs_buffer)
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
@@ -578,88 +546,70 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             format="us",
         ):
             self.curriculum_manager.compute(env_ids=env_ids)
+
         # reset the internal buffers of the scene elements
-        with Timer(
-            name="scene.reset",
-            msg="Scene.reset took:",
-            enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
-        ):
-            self._manager_call_switch.call_stage(
-                stage="Scene_reset",
-                stable_calls=[{"fn": self.scene.reset, "args": (env_ids,)}],
-                warp_calls=[{"fn": self.scene.reset, "kwargs": {"env_mask": env_mask}}],
-            )
+        self._manager_call_switch.call_stage(
+            stage="Scene_reset",
+            stable_calls=[{"fn": self.scene.reset, "args": (env_ids,)}],
+            warp_calls=[{"fn": self.scene.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
 
         if "reset" in self.event_manager.available_modes:
-            with Timer(
-                name="event_manager.prepare_reset",
-                msg="EventManager.prepare (reset) took:",
-                enable=TIMER_ENABLED_RESET_IDX,
-                format="us",
-            ):
-                self._global_env_step_count_wp.fill_(self._sim_step_counter // self.cfg.decimation)
-            with Timer(
-                name="event_manager.apply_reset",
-                msg="EventManager.apply (reset) took:",
-                enable=TIMER_ENABLED_RESET_IDX,
-                format="us",
-            ):
-                self._manager_call_switch.call_stage(
-                    stage="EventManager_apply_reset",
-                    stable_calls=[
-                        {
-                            "fn": self.event_manager.apply,
-                            "kwargs": {
-                                "mode": "reset",
-                                "env_ids": env_ids,
-                                "global_env_step_count": int(self._sim_step_counter // self.cfg.decimation),
-                            },
-                        }
-                    ],
-                    warp_calls=[
-                        {
-                            "fn": self.event_manager.apply,
-                            "kwargs": {
-                                "mode": "reset",
-                                "env_mask_wp": env_mask,
-                                "global_env_step_count": self._global_env_step_count_wp,
-                            },
-                        }
-                    ],
-                )
+            self._global_env_step_count_wp.fill_(self._sim_step_counter // self.cfg.decimation)
+            self._manager_call_switch.call_stage(
+                stage="EventManager_apply_reset",
+                stable_calls=[
+                    {
+                        "fn": self.event_manager.apply,
+                        "kwargs": {
+                            "mode": "reset",
+                            "env_ids": env_ids,
+                            "global_env_step_count": int(self._sim_step_counter // self.cfg.decimation),
+                        },
+                    }
+                ],
+                warp_calls=[
+                    {
+                        "fn": self.event_manager.apply,
+                        "kwargs": {
+                            "mode": "reset",
+                            "env_mask_wp": env_mask,
+                            "global_env_step_count": self._global_env_step_count_wp,
+                        },
+                    }
+                ],
+                timer=TIMER_ENABLED_RESET_IDX,
+            )
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
-        # -- observation manager + action + reward managers (per-manager configurable stage mode)
-        with Timer(
-            name="obs_action_reward_reset",
-            msg="Observation+Action+Reward reset took:",
-            enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
-        ):
-            obs_info = self._manager_call_switch.call_stage(
-                stage="ObservationManager_reset",
-                stable_calls=[{"fn": self.observation_manager.reset, "kwargs": {"env_ids": env_ids}}],
-                warp_calls=[{"fn": self.observation_manager.reset, "kwargs": {"env_mask": env_mask}}],
-            )
-            action_info = self._manager_call_switch.call_stage(
-                stage="ActionManager_reset",
-                stable_calls=[{"fn": self.action_manager.reset, "kwargs": {"env_ids": env_ids}}],
-                warp_calls=[{"fn": self.action_manager.reset, "kwargs": {"env_mask": env_mask}}],
-            )
-            reward_info = self._manager_call_switch.call_stage(
-                stage="RewardManager_reset",
-                stable_calls=[{"fn": self.reward_manager.reset, "kwargs": {"env_ids": env_ids}}],
-                warp_calls=[{"fn": self.reward_manager.reset, "kwargs": {"env_mask": env_mask}}],
-            )
-            if self._manager_call_switch.get_mode_for_manager("ObservationManager") == ManagerCallMode.WARP_CAPTURED:
-                obs_info = {}
-            if self._manager_call_switch.get_mode_for_manager("ActionManager") == ManagerCallMode.WARP_CAPTURED:
-                action_info = {}
-            if self._manager_call_switch.get_mode_for_manager("RewardManager") == ManagerCallMode.WARP_CAPTURED:
-                reward_info = self.reward_manager._reset_extras
+        # -- observation manager + action + reward managers
+        obs_info = self._manager_call_switch.call_stage(
+            stage="ObservationManager_reset",
+            stable_calls=[{"fn": self.observation_manager.reset, "kwargs": {"env_ids": env_ids}}],
+            warp_calls=[{"fn": self.observation_manager.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
+        action_info = self._manager_call_switch.call_stage(
+            stage="ActionManager_reset",
+            stable_calls=[{"fn": self.action_manager.reset, "kwargs": {"env_ids": env_ids}}],
+            warp_calls=[{"fn": self.action_manager.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
+        reward_info = self._manager_call_switch.call_stage(
+            stage="RewardManager_reset",
+            stable_calls=[{"fn": self.reward_manager.reset, "kwargs": {"env_ids": env_ids}}],
+            warp_calls=[{"fn": self.reward_manager.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
+        if self._manager_call_switch.get_mode_for_manager("ObservationManager") == ManagerCallMode.WARP_CAPTURED:
+            obs_info = {}
+        if self._manager_call_switch.get_mode_for_manager("ActionManager") == ManagerCallMode.WARP_CAPTURED:
+            action_info = {}
+        if self._manager_call_switch.get_mode_for_manager("RewardManager") == ManagerCallMode.WARP_CAPTURED:
+            reward_info = self.reward_manager._reset_extras
 
         # -- curriculum manager
         with Timer(
@@ -670,70 +620,49 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         ):
             curriculum_info = self.curriculum_manager.reset(env_ids=env_ids)
 
-        # -- command + event + termination managers (per-manager configurable stage mode)
-        with Timer(
-            name="command_event_termination_manager.reset",
-            msg="Command+Event+TerminationManager.reset took:",
-            enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
-        ):
-            command_info = self._manager_call_switch.call_stage(
-                stage="CommandManager_reset",
-                stable_calls=[{"fn": self.command_manager.reset, "kwargs": {"env_ids": env_ids}}],
-                warp_calls=[{"fn": self.command_manager.reset, "kwargs": {"env_mask": env_mask}}],
-            )
-            event_info = self._manager_call_switch.call_stage(
-                stage="EventManager_reset",
-                stable_calls=[{"fn": self.event_manager.reset, "kwargs": {"env_ids": env_ids}}],
-                warp_calls=[{"fn": self.event_manager.reset, "kwargs": {"env_mask": env_mask}}],
-            )
-            termination_info = self._manager_call_switch.call_stage(
-                stage="TerminationManager_reset",
-                stable_calls=[{"fn": self.termination_manager.reset, "kwargs": {"env_ids": env_ids}}],
-                warp_calls=[{"fn": self.termination_manager.reset, "kwargs": {"env_mask": env_mask}}],
-            )
-            if self._manager_call_switch.get_mode_for_manager("CommandManager") == ManagerCallMode.WARP_CAPTURED:
-                command_info = self.command_manager.reset_extras
-            if self._manager_call_switch.get_mode_for_manager("EventManager") == ManagerCallMode.WARP_CAPTURED:
-                event_info = {}
-            if self._manager_call_switch.get_mode_for_manager("TerminationManager") == ManagerCallMode.WARP_CAPTURED:
-                termination_info = self.termination_manager.episode_termination_extras
+        # -- command + event + termination managers
+        command_info = self._manager_call_switch.call_stage(
+            stage="CommandManager_reset",
+            stable_calls=[{"fn": self.command_manager.reset, "kwargs": {"env_ids": env_ids}}],
+            warp_calls=[{"fn": self.command_manager.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
+        event_info = self._manager_call_switch.call_stage(
+            stage="EventManager_reset",
+            stable_calls=[{"fn": self.event_manager.reset, "kwargs": {"env_ids": env_ids}}],
+            warp_calls=[{"fn": self.event_manager.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
+        termination_info = self._manager_call_switch.call_stage(
+            stage="TerminationManager_reset",
+            stable_calls=[{"fn": self.termination_manager.reset, "kwargs": {"env_ids": env_ids}}],
+            warp_calls=[{"fn": self.termination_manager.reset, "kwargs": {"env_mask": env_mask}}],
+            timer=TIMER_ENABLED_RESET_IDX,
+        )
+        if self._manager_call_switch.get_mode_for_manager("CommandManager") == ManagerCallMode.WARP_CAPTURED:
+            command_info = self.command_manager.reset_extras
+        if self._manager_call_switch.get_mode_for_manager("EventManager") == ManagerCallMode.WARP_CAPTURED:
+            event_info = {}
+        if self._manager_call_switch.get_mode_for_manager("TerminationManager") == ManagerCallMode.WARP_CAPTURED:
+            termination_info = self.termination_manager.episode_termination_extras
 
         # -- recorder manager
-        with Timer(
-            name="recorder_manager.reset",
-            msg="RecorderManager.reset took:",
-            enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
-        ):
-            recorder_info = self.recorder_manager.reset(env_ids=env_ids)
+        recorder_info = self.recorder_manager.reset(env_ids=env_ids)
 
         # reset the episode length buffer
-        with Timer(
-            name="episode_length_buf.reset",
-            msg="Episode length buffer reset took:",
-            enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
-        ):
-            self.episode_length_buf[env_ids] = 0
+        self.episode_length_buf[env_ids] = 0
 
-        # aggregate logging info at the end (order-sensitive; avoid dict mutation inside captured stages)
-        with Timer(
-            name="extras_log.aggregate",
-            msg="extras['log'] aggregation took:",
-            enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+        # aggregate logging info
+        log: dict[str, Any] = {}
+        for info in (
+            obs_info,
+            action_info,
+            reward_info,
+            curriculum_info,
+            command_info,
+            event_info,
+            termination_info,
+            recorder_info,
         ):
-            log: dict[str, Any] = {}
-            for info in (
-                obs_info,
-                action_info,
-                reward_info,
-                curriculum_info,
-                command_info,
-                event_info,
-                termination_info,
-                recorder_info,
-            ):
-                log.update(info)
-            self.extras["log"] = log
+            log.update(info)
+        self.extras["log"] = log

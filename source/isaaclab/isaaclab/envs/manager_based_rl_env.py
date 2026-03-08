@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
@@ -22,11 +23,14 @@ from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
-# Controls per-section timing inside `step()`.
-TIMER_ENABLED_STEP = False
+DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
+"""Enable outer step() timer. Set DEBUG_TIMER_STEP=1 env var to enable."""
 
-# Controls per-section timing inside `_reset_idx`.
-TIMER_ENABLED_RESET_IDX = False
+DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
+"""Enable all fine-grained inner timers. Set DEBUG_TIMERS=1 env var to enable."""
+
+TIMER_ENABLED_STEP = DEBUG_TIMER_STEP or DEBUG_TIMERS
+TIMER_ENABLED_RESET_IDX = DEBUG_TIMERS
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -157,7 +161,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
-    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
+    @Timer(name="env_step", msg="Step took:", enable=True, time_unit="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -182,14 +186,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="action_preprocess",
             msg="Action preprocessing took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             action_device = action.to(self.device)
         with Timer(
             name="action_manager.process_action",
             msg="ActionManager.process_action took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             self.action_manager.process_action(action_device)
 
@@ -207,7 +211,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="action_manager.apply_action",
                 msg="ActionManager.apply_action took:",
                 enable=TIMER_ENABLED_STEP,
-                format="us",
+                time_unit="us",
             ):
                 self.action_manager.apply_action()
             # set actions into simulator
@@ -215,11 +219,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="scene.write_data_to_sim",
                 msg="Scene.write_data_to_sim took:",
                 enable=TIMER_ENABLED_STEP,
-                format="us",
+                time_unit="us",
             ):
                 self.scene.write_data_to_sim()
             # simulate
-            with Timer(name="simulate", msg="Newton simulation step took:", enable=TIMER_ENABLED_STEP, format="us"):
+            with Timer(name="simulate", msg="Newton simulation step took:", enable=TIMER_ENABLED_STEP, time_unit="us"):
                 self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
@@ -232,7 +236,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="scene.update",
                 msg="Scene.update took:",
                 enable=TIMER_ENABLED_STEP,
-                format="us",
+                time_unit="us",
             ):
                 self.scene.update(dt=self.physics_dt)
 
@@ -246,7 +250,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="termination_manager.compute",
             msg="TerminationManager.compute took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             self.reset_buf = self.termination_manager.compute()
             self.reset_terminated = self.termination_manager.terminated
@@ -257,7 +261,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="reward_manager.compute",
             msg="RewardManager.compute took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
@@ -267,7 +271,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="observation_manager.compute",
                 msg="ObservationManager.compute took:",
                 enable=TIMER_ENABLED_STEP,
-                format="us",
+                time_unit="us",
             ):
                 self.obs_buf = self.observation_manager.compute()
             self.recorder_manager.record_post_step()
@@ -277,7 +281,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="reset_selection",
             msg="Reset selection took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
@@ -288,7 +292,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="reset_idx",
                 msg="Reset idx took:",
                 enable=TIMER_ENABLED_STEP,
-                format="us",
+                time_unit="us",
             ):
                 self._reset_idx(reset_env_ids)
 
@@ -305,7 +309,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="command_manager.compute",
             msg="CommandManager.compute took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             self.command_manager.compute(dt=self.step_dt)
 
@@ -315,7 +319,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="event_manager.apply_interval",
                 msg="EventManager.apply (interval) took:",
                 enable=TIMER_ENABLED_STEP,
-                format="us",
+                time_unit="us",
             ):
                 self.event_manager.apply(mode="interval", dt=self.step_dt)
 
@@ -325,7 +329,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="observation_manager.compute_update_history",
             msg="ObservationManager.compute (update_history) took:",
             enable=TIMER_ENABLED_STEP,
-            format="us",
+            time_unit="us",
         ):
             self.obs_buf = self.observation_manager.compute(update_history=True)
 
@@ -449,7 +453,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="curriculum_manager.compute_reset",
             msg="CurriculumManager.compute (reset) took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
@@ -457,7 +461,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="scene.reset",
             msg="Scene.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             self.scene.reset(env_ids)
         # apply events such as randomizations for environments that need a reset
@@ -467,7 +471,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 name="event_manager.apply_reset",
                 msg="EventManager.apply (reset) took:",
                 enable=TIMER_ENABLED_RESET_IDX,
-                format="us",
+                time_unit="us",
             ):
                 self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
@@ -480,7 +484,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="observation_manager.reset",
             msg="ObservationManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.observation_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -489,7 +493,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="action_manager.reset",
             msg="ActionManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.action_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -498,7 +502,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="reward_manager.reset",
             msg="RewardManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.reward_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -507,7 +511,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="curriculum_manager.reset",
             msg="CurriculumManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.curriculum_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -516,7 +520,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="command_manager.reset",
             msg="CommandManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.command_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -525,7 +529,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="event_manager.reset",
             msg="EventManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -534,7 +538,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="termination_manager.reset",
             msg="TerminationManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.termination_manager.reset(env_ids)
         self.extras["log"].update(info)
@@ -543,7 +547,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             name="recorder_manager.reset",
             msg="RecorderManager.reset took:",
             enable=TIMER_ENABLED_RESET_IDX,
-            format="us",
+            time_unit="us",
         ):
             info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)

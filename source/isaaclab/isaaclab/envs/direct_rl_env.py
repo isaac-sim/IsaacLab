@@ -8,6 +8,7 @@ from __future__ import annotations
 import inspect
 import logging
 import math
+import os
 import warnings
 import weakref
 from abc import abstractmethod
@@ -39,6 +40,12 @@ if has_kit():
 
 # import logger
 logger = logging.getLogger(__name__)
+
+DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
+"""Enable outer step() timer. Set DEBUG_TIMER_STEP=1 env var to enable."""
+
+DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
+"""Enable all fine-grained inner timers. Set DEBUG_TIMERS=1 env var to enable."""
 
 
 class DirectRLEnv(gym.Env):
@@ -335,6 +342,7 @@ class DirectRLEnv(gym.Env):
         # return observations
         return self._get_observations(), self.extras
 
+    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS, time_unit="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 

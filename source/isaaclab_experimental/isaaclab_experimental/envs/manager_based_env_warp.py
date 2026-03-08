@@ -15,12 +15,10 @@ Behavior is intended to match the stable environment initially.
 # import builtins
 import contextlib
 import importlib
-import json
 import logging
 import warnings
 from collections.abc import Sequence
 from copy import deepcopy
-from enum import IntEnum
 from typing import Any
 
 import torch
@@ -30,13 +28,14 @@ from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
 from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
-from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
 
+from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
+from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
+from isaaclab_experimental.utils.timer import Timer
 from isaaclab_experimental.utils.warp import resolve_1d_mask
 
 # import logger
@@ -52,145 +51,6 @@ def initialize_rng_state(
 ):
     env_id = wp.tid()
     state[env_id] = wp.rand_init(seed, wp.int32(env_id))
-
-
-class ManagerCallMode(IntEnum):
-    """Execution mode for manager stage calls."""
-
-    STABLE = 0
-    WARP_NOT_CAPTURED = 1
-    WARP_CAPTURED = 2
-
-
-class ManagerCallSwitch:
-    """Per-manager call switch for stable/warp/captured execution."""
-
-    DEFAULT_CONFIG: dict[str, int] = {"default": 2}
-    DEFAULT_KEY = "default"
-    MANAGER_NAMES: tuple[str, ...] = (
-        "ActionManager",
-        "ObservationManager",
-        "EventManager",
-        "RecorderManager",
-        "CommandManager",
-        "TerminationManager",
-        "RewardManager",
-        "CurriculumManager",
-    )
-    # FIXME: Scene_write_data_to_sim calls articulation._apply_actuator_model which
-    #  uses wp.to_torch + torch indexing — not capture-safe on this branch.
-    #  Cap Scene stages to WARP_NOT_CAPTURED until the articulation layer is capture-ready.
-    MAX_MODE_OVERRIDES: dict[str, int] = {"Scene": ManagerCallMode.WARP_NOT_CAPTURED}
-
-    def __init__(self, cfg_source: str | None = None):
-        self._wp_graphs: dict[str, Any] = {}
-        self._cfg = self._load_cfg(cfg_source)
-        print("[INFO] ManagerCallSwitch configuration:")
-        print(f"  - {self.DEFAULT_KEY}: {self._cfg[self.DEFAULT_KEY]}")
-        for manager_name in self.MANAGER_NAMES:
-            print(f"  - {manager_name}: {int(self.get_mode_for_manager(manager_name))}")
-
-    def invalidate_graphs(self) -> None:
-        """Invalidate cached capture graphs."""
-        self._wp_graphs.clear()
-
-    def call_stage(
-        self,
-        *,
-        stage: str,
-        stable_calls: Sequence[dict[str, Any]],
-        warp_calls: Sequence[dict[str, Any]],
-    ) -> Any:
-        """Run the stage according to configured mode."""
-        manager_name = self._manager_name_from_stage(stage)
-        mode = self.get_mode_for_manager(manager_name)
-        if mode == ManagerCallMode.STABLE:
-            return self._run_calls(stable_calls)
-        if mode == ManagerCallMode.WARP_NOT_CAPTURED:
-            return self._run_calls(warp_calls)
-        self._wp_capture_or_launch(stage=stage, calls=warp_calls)
-        return None
-
-    def _manager_name_from_stage(self, stage: str) -> str:
-        if "_" not in stage:
-            raise ValueError(f"Invalid stage '{stage}'. Expected '{{manager_name}}_{{function_name}}'.")
-        return stage.split("_", 1)[0]
-
-    def get_mode_for_manager(self, manager_name: str) -> ManagerCallMode:
-        default_key = next(iter(self.DEFAULT_CONFIG))
-        mode_value = self._cfg.get(manager_name, self._cfg[default_key])
-        return ManagerCallMode(mode_value)
-
-    def resolve_manager_class(self, manager_name: str) -> type:
-        module_name = (
-            "isaaclab.managers"
-            if self.get_mode_for_manager(manager_name) == ManagerCallMode.STABLE
-            else "isaaclab_experimental.managers"
-        )
-        module = importlib.import_module(module_name)
-        if not hasattr(module, manager_name):
-            raise AttributeError(f"Manager '{manager_name}' not found in module '{module_name}'.")
-        return getattr(module, manager_name)
-
-    def _run_calls(self, calls: Sequence[dict[str, Any]]) -> Any:
-        result = None
-        for spec in calls:
-            fn = spec["fn"]
-            fn_args = spec.get("args", ())
-            fn_kwargs = spec.get("kwargs", {})
-            result = fn(*fn_args, **fn_kwargs)
-        return result
-
-    def _wp_capture_or_launch(self, stage: str, calls: Sequence[dict[str, Any]]) -> None:
-        """Capture Warp CUDA graph for a stage on first call, then replay."""
-        graph = self._wp_graphs.get(stage)
-        if graph is None:
-            with wp.ScopedCapture() as capture:
-                for spec in calls:
-                    fn = spec["fn"]
-                    fn_args = spec.get("args", ())
-                    fn_kwargs = spec.get("kwargs", {})
-                    fn(*fn_args, **fn_kwargs)
-            graph = capture.graph
-            self._wp_graphs[stage] = graph
-        wp.capture_launch(graph)
-
-    def _load_cfg(self, cfg_source: str | None) -> dict[str, int]:
-        if cfg_source is not None and not isinstance(cfg_source, str):
-            raise TypeError(f"cfg_source must be a string or None, got: {type(cfg_source)}")
-        if cfg_source is None or cfg_source.strip() == "":
-            return dict(self.DEFAULT_CONFIG)
-
-        parsed = json.loads(cfg_source)
-        if not isinstance(parsed, dict):
-            raise TypeError("manager_call_config must decode to a dict.")
-
-        cfg = dict(parsed)
-        if self.DEFAULT_KEY not in cfg:
-            cfg[self.DEFAULT_KEY] = self.DEFAULT_CONFIG[self.DEFAULT_KEY]
-
-        # validation
-        for manager_name, mode_value in cfg.items():
-            if not isinstance(mode_value, int):
-                raise TypeError(
-                    f"manager_call_config value for '{manager_name}' must be int (0/1/2), got: {type(mode_value)}"
-                )
-            try:
-                ManagerCallMode(mode_value)
-            except ValueError as exc:
-                raise ValueError(
-                    f"Invalid manager_call_config value for '{manager_name}': {mode_value}. Expected 0/1/2."
-                ) from exc
-
-        # Apply MAX_MODE_OVERRIDES: bake caps into the resolved config so
-        # get_mode_for_manager never needs per-call branching.
-        default_mode = cfg[self.DEFAULT_KEY]
-        for name, max_mode in self.MAX_MODE_OVERRIDES.items():
-            resolved = cfg.get(name, default_mode)
-            if resolved > max_mode:
-                cfg[name] = max_mode
-
-        return cfg
 
 
 class ManagerBasedEnvWarp:
