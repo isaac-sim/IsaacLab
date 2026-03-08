@@ -300,7 +300,9 @@ def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
         try:
             result = run_command(
                 [sys.executable, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if result.returncode == 0:
                 python_exe = sys.executable
@@ -341,7 +343,9 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
             # Check if isaacsim-rl is installed.
             result = run_command(
                 [python_exe, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if result.returncode == 0:
                 # Helper to print env var.

@@ -147,7 +147,9 @@ class CameraCfg(SensorBaseCfg):
 
     """
 
-    renderer_cfg: RendererCfg = field(default_factory=lambda: __import__(
-        "isaaclab_physx.renderers", fromlist=["IsaacRtxRendererCfg"]
-    ).IsaacRtxRendererCfg())
+    renderer_cfg: RendererCfg = field(
+        default_factory=lambda: __import__(
+            "isaaclab_physx.renderers", fromlist=["IsaacRtxRendererCfg"]
+        ).IsaacRtxRendererCfg()
+    )
     """Renderer configuration for camera sensor."""
