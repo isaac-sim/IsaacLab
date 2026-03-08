@@ -507,7 +507,7 @@ def command_setup_conda(env_name: str) -> None:
     # Check if pip package isaacsim-rl is installed.
     pip_package_missing = True
     result = run_command(
-        [sys.executable, "-m", "pip", "show", "isaacsim-rl"],
+        [sys.executable, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -598,28 +598,24 @@ def command_setup_uv(env_name: str) -> None:
     # Check if already in a uv environment - use precise pattern matching.
     # (In Python we check environments differently or assume env_name is new).
 
-    # Check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip.
+    # Check if _isaac_sim symlink exists and isaacsim-rl is not installed.
     if not (ISAACLAB_ROOT / "_isaac_sim").is_symlink():
-        # Check pip list for isaacsim-rl - simple subprocess fallback.
         try:
             result = run_command(
-                [sys.executable, "-m", "pip", "show", "isaacsim-rl"],
+                [sys.executable, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            if result.returncode == 0:
-                # Installed.
-                pass
-        except Exception:
-            # Not installed, symlink missing.
-            if not (ISAACLAB_ROOT / "_isaac_sim").exists():
+            if result.returncode != 0 and not (ISAACLAB_ROOT / "_isaac_sim").exists():
                 print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
                 print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
                 print(
                     "\tIf you are using a binary installation of Isaac Sim, please ensure "
-                    + "the symlink is created before setting up the conda environment."
+                    + "the symlink is created before setting up the uv environment."
                 )
+        except Exception:
+            pass
 
     env_path = ISAACLAB_ROOT / env_name
 
