@@ -37,3 +37,5 @@ jobs:
           docker --config "${DOCKER_CONFIG}" build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
           docker --config "${DOCKER_CONFIG}" push "$IMAGE"
           echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+
+          docker pull nvcr.io/nvidian/isaac-sim:latest-develop
