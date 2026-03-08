@@ -28,10 +28,6 @@ jobs:
           REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG:0:7}"
 
-          # login to ECR
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-            docker login --username AWS --password-stdin "${REGISTRY}"
-
           docker build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
           docker push "$IMAGE"
           echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
