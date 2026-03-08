@@ -118,8 +118,9 @@ runs:
         # Set up buildx builder with docker-container driver (required for registry cache export).
         BUILDER_NAME="ci-builder-${{ github.run_id }}-${{ github.job }}"
 
-        # Create builder
-        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}"
+        # Create builder (or fall back to reusing existing one on workflow re-runs)
+        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
+          || docker buildx use "${BUILDER_NAME}"
 
         echo "🟢 Building ${IMAGE_TAG}..."
         docker buildx build --load "${BUILD_ARGS[@]}" .
