@@ -113,6 +113,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         ecr-repository: ${{ env.ECR_REPOSITORY }}
         aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -174,6 +175,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         ecr-repository: ${{ env.ECR_REPOSITORY }}
         aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests 2
       uses: ./.github/actions/run-tests
@@ -234,6 +236,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         ecr-repository: ${{ env.ECR_REPOSITORY }}
         aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Run General Tests
       id: run-general-tests
@@ -295,6 +298,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         ecr-repository: ${{ env.ECR_REPOSITORY }}
         aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-curobo
 
     - name: Run cuRobo and SkillGen Tests
       uses: ./.github/actions/run-tests
