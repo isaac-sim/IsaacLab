@@ -96,6 +96,7 @@ runs:
 
         BUILD_ARGS=(
           --progress=plain
+          --platform linux/amd64
           -f "${{ inputs.dockerfile-path }}"
           --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
           --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"
