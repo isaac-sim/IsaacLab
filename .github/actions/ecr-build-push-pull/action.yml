@@ -44,11 +44,6 @@ runs:
         ECR_REPOSITORY="${{ inputs.ecr-repository }}"
         AWS_REGION="${{ inputs.aws-region }}"
 
-        # Warn if aws-region was not explicitly provided
-        if [ -z "${{ inputs.aws-region }}" ]; then
-          echo "🟠 aws-region not set, using default: ${{ inputs.aws-region }}. For best performance, set aws-region to match your runner's EC2 region."
-        fi
-
         if [ -z "${ECR_REPOSITORY}" ]; then
           echo "🟠 ecr-repository not set, skipping ECR login/push/pull. Building locally only."
         else
