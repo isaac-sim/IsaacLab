@@ -1,0 +1,41 @@
+name: Debug ECR Docker Build
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: isaaclab-debug
+
+jobs:
+  build-and-push:
+    name: Build and push to ECR
+    runs-on: [self-hosted, int-gpu]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG:0:7}"
+          docker build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"

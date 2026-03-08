@@ -1,0 +1,5 @@
+FROM ubuntu:24.04
+
+RUN echo "Hello from the build stage!"
+
+CMD ["bash", "-c", "echo 'Hello from the running container!'"]
