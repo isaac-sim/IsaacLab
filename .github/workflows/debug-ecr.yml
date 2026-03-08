@@ -36,16 +36,18 @@ jobs:
 
           CACHE_IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:cache"
 
+          # try pulling image from ECR first
           if docker --config "${DOCKER_CONFIG}" pull "${IMAGE}" 2>/dev/null; then
-            echo "Image already exists in ECR, skipping build." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "[INFO] Image already exists in ECR, skipping build."
           else
+            echo "[INFO] Building and pushing image to ECR..."
             DOCKER_BUILDKIT=1 docker --config "${DOCKER_CONFIG}" build --progress=plain \
               -f .github/workflows/Dockerfile.hello \
               --cache-from "type=registry,ref=${CACHE_IMAGE}" \
               --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max" \
               -t "$IMAGE" .
             docker --config "${DOCKER_CONFIG}" push "$IMAGE"
-            echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+            echo "[INFO] Pushed to ECR: $IMAGE"
           fi
 
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
@@ -53,5 +55,5 @@ jobs:
 
       - name: Run toy task in container
         run: |
-          docker --config "${DOCKER_CONFIG}" run --rm "${IMAGE}" \
+          docker --config "${DOCKER_CONFIG}" run --rm -e ACCEPT_EULA=Y "${IMAGE}" \
             sh -c 'echo "Hello from inside the container!" && uname -a && python3 --version'
