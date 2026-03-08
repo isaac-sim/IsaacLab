@@ -55,7 +55,7 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
     fi
 
 # copy files necessary for installing Isaac Lab and its dependencies
-# tris way we minimize the chance of cache invalidation on file edits
+# this way we minimize the chance of cache invalidation on file edits
 COPY ../isaaclab.* ../environment.yml ../pyproject.toml ${ISAACLAB_PATH}/
 COPY ../tools/ ${ISAACLAB_PATH}/tools/
 COPY ../source/ ${ISAACLAB_PATH}/source/

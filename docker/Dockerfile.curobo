@@ -90,7 +90,7 @@ ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 
 # copy files necessary for installing Isaac Lab and its dependencies
-# tris way we minimize the chance of cache invalidation on file edits
+# this way we minimize the chance of cache invalidation on file edits
 COPY ../isaaclab.* ../environment.yml ../pyproject.toml ${ISAACLAB_PATH}/
 COPY ../tools/ ${ISAACLAB_PATH}/tools/
 COPY ../source/ ${ISAACLAB_PATH}/source/
