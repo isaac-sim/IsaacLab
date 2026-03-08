@@ -278,8 +278,7 @@ class NewtonVisualizer(BaseVisualizer):
             import imgui_bundle  # noqa: F401
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "Newton visualizer requires 'imgui-bundle' for rendering. "
-                "Install with: uv pip install imgui-bundle"
+                "Newton visualizer requires 'imgui-bundle' for rendering. Install with: uv pip install imgui-bundle"
             )
 
         self._scene_data_provider = scene_data_provider

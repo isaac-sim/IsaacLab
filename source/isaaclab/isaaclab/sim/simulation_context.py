@@ -371,7 +371,7 @@ class SimulationContext:
                     raise ValueError(
                         f"Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                        f"Install a visualizer with: uv pip install -e \"source/isaaclab_visualizers[<type>]\""
+                        f'Install a visualizer with: uv pip install -e "source/isaaclab_visualizers[<type>]"'
                     )
                 mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
@@ -380,13 +380,12 @@ class SimulationContext:
                 if "isaaclab_visualizers" in str(exc):
                     raise ImportError(
                         f"Visualizer '{viz_type}' was requested but 'isaaclab_visualizers' is not installed. "
-                        f"Install with: uv pip install -e \"source/isaaclab_visualizers[{viz_type}]\""
+                        f'Install with: uv pip install -e "source/isaaclab_visualizers[{viz_type}]"'
                     ) from exc
-                else:
-                    raise ImportError(
-                        f"Failed to load visualizer '{viz_type}': {exc}. "
-                        f"Install with: uv pip install -e \"source/isaaclab_visualizers[{viz_type}]\""
-                    ) from exc
+                raise ImportError(
+                    f"Failed to load visualizer '{viz_type}': {exc}. "
+                    f'Install with: uv pip install -e "source/isaaclab_visualizers[{viz_type}]"'
+                ) from exc
         return default_configs
 
     def _get_cli_visualizer_types(self) -> list[str]:

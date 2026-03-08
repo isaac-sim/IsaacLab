@@ -101,9 +101,7 @@ def _ensure_cuda_torch() -> None:
         check=False,
     )
 
-    run_command(
-        pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"]
-    )
+    run_command(pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"])
 
 
 # Isaac Sim install settings.
@@ -119,9 +117,10 @@ def _install_isaacsim() -> None:
 
     # Check if already installed.
     result = run_command(
-        [python_exe, "-c",
-         "from importlib.metadata import version; print(version('isaacsim'))"],
-        capture_output=True, text=True, check=False,
+        [python_exe, "-c", "from importlib.metadata import version; print(version('isaacsim'))"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode == 0:
         installed_ver = result.stdout.strip()
@@ -137,11 +136,14 @@ def _install_isaacsim() -> None:
         extra_flags = ["--index-strategy", "unsafe-best-match"]
 
     run_command(
-        pip_cmd + [
+        pip_cmd
+        + [
             "install",
             f"isaacsim[{ISAACSIM_EXTRAS}]{ISAACSIM_VERSION_SPEC}",
-            "--extra-index-url", NVIDIA_INDEX_URL,
-        ] + extra_flags
+            "--extra-index-url",
+            NVIDIA_INDEX_URL,
+        ]
+        + extra_flags
     )
 
 
