@@ -67,6 +67,7 @@ runs:
           # registry auths (e.g. nvcr.io), then strip credsStore/credHelpers.
           #
           DOCKER_CONFIG_DIR=$(mktemp -d)
+          trap 'rm -rf "${DOCKER_CONFIG_DIR}"' EXIT
           if [ -f "${HOME}/.docker/config.json" ]; then
             python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
           else
