@@ -109,8 +109,12 @@ runs:
           )
         fi
 
+        # Set up buildx builder with docker-container driver (required for registry cache export)
+        docker buildx create --use --driver docker-container --name ci-builder 2>/dev/null \
+          || docker buildx use ci-builder
+
         echo "🟢 Building ${IMAGE_TAG}..."
-        DOCKER_BUILDKIT=1 docker build "${BUILD_ARGS[@]}" .
+        docker buildx build --load "${BUILD_ARGS[@]}" .
 
         echo "🟢 Build completed for ${IMAGE_TAG}, pushing to ECR..."
 
