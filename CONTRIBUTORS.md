@@ -72,6 +72,7 @@ Guidelines for modifications:
 * Felipe Mohr
 * Felix Yu
 * Gary Lvov
+* George Nehma
 * Giulio Romualdi
 * Grzegorz Malczyk
 * Haoran Zhou
