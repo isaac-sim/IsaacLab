@@ -411,7 +411,12 @@ def apply_overrides(
 
     def _apply_node(sec: str, path: str, node):
         """Replace a config node at the given section/path, handling root (path='')."""
-        node_dict = node.to_dict() if hasattr(node, "to_dict") else dict(node)
+        if node is None:
+            node_dict = None
+        elif hasattr(node, "to_dict"):
+            node_dict = node.to_dict()
+        else:
+            node_dict = dict(node)
         if path == "":
             cfgs[sec] = node
             hydra_cfg[sec] = node_dict
