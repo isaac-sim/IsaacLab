@@ -92,6 +92,16 @@ runs:
           fi
         fi
 
+        # Log into nvcr.io so the Dockerfile can pull nvcr.io base images.
+        # Credential is written into the temp config dir when ECR is enabled,
+        # and into the default config when it is not.
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "🟢 Logging into nvcr.io..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+        else
+          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
+        fi
+
         # Build the image
 
         BUILD_ARGS=(
