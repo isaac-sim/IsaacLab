@@ -223,6 +223,14 @@ class NewtonVisualizer(BaseVisualizer):
         if scene_data_provider is None:
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
+        # Check required dependency before attempting to create the viewer.
+        try:
+            import imgui_bundle  # noqa: F401
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Newton visualizer requires 'imgui-bundle' for rendering. Install with: uv pip install imgui-bundle"
+            )
+
         self._scene_data_provider = scene_data_provider
         metadata = scene_data_provider.get_metadata()
         self._env_ids = self._compute_visualized_env_ids()

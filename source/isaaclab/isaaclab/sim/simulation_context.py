@@ -352,31 +352,24 @@ class SimulationContext:
         for viz_type in requested_visualizers:
             try:
                 if viz_type not in _VISUALIZER_TYPES:
-                    logger.warning(
-                        f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
-                        f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
+                    raise ValueError(
+                        f"Unknown visualizer type '{viz_type}' requested. "
+                        f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
+                        f'Install a visualizer with: uv pip install -e "source/isaaclab_visualizers[<type>]"'
                     )
-                    continue
                 mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
                 default_configs.append(cfg_cls())
             except (ImportError, ModuleNotFoundError) as exc:
-                # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
-                    logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
-                        "Install with: pip install isaaclab_visualizers[%s]",
-                        viz_type,
-                        viz_type,
-                    )
-                else:
-                    logger.error(
-                        "[SimulationContext] Failed to create default config for visualizer '%s': %s",
-                        viz_type,
-                        exc,
-                    )
-            except Exception as exc:
-                logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
+                    raise ImportError(
+                        f"Visualizer '{viz_type}' was requested but 'isaaclab_visualizers' is not installed. "
+                        f'Install with: uv pip install -e "source/isaaclab_visualizers[{viz_type}]"'
+                    ) from exc
+                raise ImportError(
+                    f"Failed to load visualizer '{viz_type}': {exc}. "
+                    f'Install with: uv pip install -e "source/isaaclab_visualizers[{viz_type}]"'
+                ) from exc
         return default_configs
 
     def _get_cli_visualizer_types(self) -> list[str]:
@@ -475,12 +468,19 @@ class SimulationContext:
         self.initialize_scene_data_provider(visualizer_cfgs)
         self._visualizers = []
 
+        cli_requested = set(self._get_cli_visualizer_types())
+
         for cfg in visualizer_cfgs:
             try:
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
             except Exception as exc:
+                if getattr(cfg, "visualizer_type", None) in cli_requested:
+                    raise RuntimeError(
+                        f"Failed to initialize explicitly requested visualizer '{cfg.visualizer_type}': {exc}. "
+                        f"You may need to install missing dependencies (e.g. uv pip install imgui-bundle)."
+                    ) from exc
                 logger.exception(
                     "Failed to initialize visualizer '%s' (%s): %s",
                     cfg.visualizer_type,
