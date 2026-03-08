@@ -43,6 +43,12 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
         # Dynamically generate action_scale_joint_space based on action_space
         self.action_scale_joint_space = [self.joint_action_scale] * self.action_space
 
+        # Extract initial joint positions from robot configuration
+        # Convert joint_pos dict to list in the order specified by arm_joint_names
+        self.initial_joint_pos = [
+            self.scene.robot.init_state.joint_pos[joint_name] for joint_name in self.arm_joint_names
+        ]
+
         # Override robot initial pose for ROS inference (fixed pose, no randomization)
         # Note: The policy is trained to work with respect to the UR robot's 'base' frame
         # (rotated 180° around Z from base_link), not the base_link frame (USD origin).
@@ -135,6 +141,12 @@ class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
 
         # Dynamically generate action_scale_joint_space based on action_space
         self.action_scale_joint_space = [self.joint_action_scale] * self.action_space
+
+        # Extract initial joint positions from robot configuration
+        # Convert joint_pos dict to list in the order specified by arm_joint_names
+        self.initial_joint_pos = [
+            self.scene.robot.init_state.joint_pos[joint_name] for joint_name in self.arm_joint_names
+        ]
 
         # Override robot initial pose for ROS inference (fixed pose, no randomization)
         # Note: The policy is trained to work with respect to the UR robot's 'base' frame

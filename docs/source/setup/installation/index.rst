@@ -80,7 +80,7 @@ Other notable limitations with respect to Isaac Lab include...
 #. `SkillGen <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html>`_ is not supported out of the box. This
    is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which are not validated for use with DGX spark.
 
-#. Extended reality teleoperation tools such as `OpenXR <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/api/lab/isaaclab.devices.html#openxr>`_ is not supported. This is due
+#. Extended reality teleoperation tools such as `OpenXR <https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.devices.html#openxr>`_ is not supported. This is due
    to encoding performance limitations that have not yet been fully investigated.
 
 #. SKRL training with `JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ has not been explicitly validated or tested in Isaac Lab on the DGX Spark.

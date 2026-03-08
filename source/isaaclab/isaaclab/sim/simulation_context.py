@@ -710,6 +710,9 @@ class SimulationContext(_SimulationContext):
         self.carb_settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # hide the Simulation Settings window
         self.carb_settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        self.carb_settings.set_bool("/physics/visualizationSimulationOutput", False)
+        # set fabric enabled flag
+        self.carb_settings.set_bool("/physics/fabricEnabled", self.cfg.use_fabric)
 
     def _apply_render_settings_from_cfg(self):  # noqa: C901
         """Sets rtx settings specified in the RenderCfg."""

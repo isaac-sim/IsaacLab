@@ -36,6 +36,7 @@ PER_TEST_TIMEOUTS = {
     "test_rl_games_wrapper.py": 500,
     "test_skrl_wrapper.py": 500,
     "test_rsl_rl_wrapper.py": 500,
+    "test_sb3_wrapper.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

@@ -23,6 +23,13 @@ Comprehensive support for multirotor vehicles (drones, quadcopters, hexacopters,
 
 See the [Multirotor Systems](#multirotor-systems-detailed) section below for detailed documentation.
 
+### TacSL Tactile Sensor
+
+Support for tactile sensor from [Akinola et al., 2025](https://arxiv.org/abs/2408.06506).
+It uses the Taxim model from [Si et al., 2022](https://arxiv.org/abs/2109.04027) to render the tactile images.
+
+See the [TacSL Tactile Sensor](#tacsl-tactile-sensor-detailed) section below for detailed documentation.
+
 ## Extension Structure
 
 The extension follows Isaac Lab's standard package structure:
@@ -36,6 +43,8 @@ isaaclab_contrib/
 │   └── multirotor/         # Multirotor asset implementation
 ├── mdp/                    # MDP components for RL
 │   └── actions/            # Action terms
+├── sensors/                # Contributed sensor classes
+│   └── tacsl_sensor/       # TacSL tactile sensor implementation
 └── utils/                  # Utility functions and types
 ```
 
@@ -48,6 +57,7 @@ The `isaaclab_contrib` package is included with Isaac Lab. To use contributed co
 from isaaclab_contrib.assets import Multirotor, MultirotorCfg
 from isaaclab_contrib.actuators import Thruster, ThrusterCfg
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
+from isaaclab_contrib.sensors import VisuoTactileSensor, VisuoTactileSensorCfg
 ```
 
 ---
@@ -55,6 +65,8 @@ from isaaclab_contrib.mdp.actions import ThrustActionCfg
 ## Multirotor Systems (Detailed)
 
 This section provides detailed documentation for the multirotor contribution, which enables simulation and control of multirotor aerial vehicles in Isaac Lab.
+
+<details>
 
 ### Features
 
@@ -83,8 +95,6 @@ The multirotor system includes:
   - Flexible preprocessing (scaling, offsetting, clipping)
   - Automatic hover thrust offset computation
   - Integrates with Isaac Lab's MDP framework for RL tasks
-
-<details>
 
 ### Quick Start
 
@@ -203,6 +213,259 @@ A complete demonstration of quadcopter simulation is available:
 ```bash
 # Run quadcopter demo
 ./isaaclab.sh -p scripts/demos/quadcopter.py
+```
+
+## TacSL Tactile Sensor (Detailed)
+
+This section provides detailed documentation for the TacSL tactile sensor contribution, which enables GPU-based simulation of vision-based tactile sensors in Isaac Lab. The implementation is based on the TacSL framework from [Akinola et al., 2025](https://arxiv.org/abs/2408.06506) and uses the Taxim model from [Si et al., 2022](https://arxiv.org/abs/2109.04027) for rendering tactile images.
+
+<details>
+
+### Features
+
+The TacSL tactile sensor system includes:
+
+#### Sensor Capabilities
+
+- **`VisuoTactileSensor`**: A specialized sensor class that simulates vision-based tactile sensors with elastomer deformation
+  - **Camera-based RGB sensing**: Renders realistic tactile images showing surface deformation and contact patterns
+  - **Force field sensing**: Computes per-taxel normal and shear forces for contact-rich manipulation
+  - **GPU-accelerated rendering**: Leverages GPU for efficient tactile image generation
+  - **SDF-based contact detection**: Uses signed distance fields for accurate geometry-elastomer interaction
+
+#### Configuration Options
+
+- **Elastomer Properties**:
+  - Configurable tactile array size (rows × columns of taxels)
+  - Adjustable tactile margin for sensor boundaries
+  - Compliant contact parameters (stiffness, damping)
+
+- **Physics Parameters**:
+  - Normal contact stiffness: Controls elastomer compression response
+  - Tangential stiffness: Models lateral resistance to sliding
+  - Friction coefficient: Defines surface friction properties
+
+- **Visualization & Debug**:
+  - Trimesh visualization of tactile contact points
+  - SDF closest point visualization
+  - Debug rendering of sensor point cloud
+
+### Quick Start
+
+#### Creating a Tactile Sensor
+
+```python
+import isaaclab.sim as sim_utils
+from isaaclab.sensors import TiledCameraCfg
+
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
+
+from isaaclab_assets.sensors import GELSIGHT_R15_CFG
+
+# Define tactile sensor configuration
+tactile_sensor_cfg = VisuoTactileSensorCfg(
+    prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
+    history_length=0,
+    debug_vis=False,
+
+    # Sensor rendering configuration
+    render_cfg=GELSIGHT_R15_CFG,  # Use GelSight R15 sensor parameters
+
+    # Enable RGB and/or force field sensing
+    enable_camera_tactile=True,    # RGB tactile images
+    enable_force_field=True,        # Force field data
+
+    # Elastomer configuration
+    tactile_array_size=(20, 25),   # 20×25 taxel array
+    tactile_margin=0.003,           # 3mm sensor margin
+
+    # Contact object configuration
+    contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
+
+    # Force field physics parameters
+    normal_contact_stiffness=1.0,   # Normal stiffness (N/mm)
+    friction_coefficient=2.0,        # Surface friction
+    tangential_stiffness=0.1,        # Tangential stiffness
+
+    # Camera configuration (must match render_cfg dimensions)
+    camera_cfg=TiledCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
+        height=GELSIGHT_R15_CFG.image_height,
+        width=GELSIGHT_R15_CFG.image_width,
+        data_types=["distance_to_image_plane"],
+        spawn=None,  # Camera already exists in USD
+    ),
+)
+```
+
+#### Setting Up the Robot Asset with Compliant Contact
+
+```python
+from isaaclab.assets import ArticulationCfg
+
+robot_cfg = ArticulationCfg(
+    prim_path="{ENV_REGEX_NS}/Robot",
+    spawn=sim_utils.UsdFileWithCompliantContactCfg(
+        usd_path="path/to/gelsight_finger.usd",
+
+        # Compliant contact parameters for elastomer
+        compliant_contact_stiffness=100.0,    # Elastomer stiffness
+        compliant_contact_damping=10.0,       # Elastomer damping
+        physics_material_prim_path="elastomer",  # Prim with compliant contact
+
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=True,
+            max_depenetration_velocity=5.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=12,
+            solver_velocity_iteration_count=1,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            contact_offset=0.001,
+            rest_offset=-0.0005,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.5),
+    ),
+    actuators={},
+)
+```
+
+#### Accessing Tactile Data
+
+```python
+# In your simulation loop
+scene.update(sim_dt)
+
+# Access tactile sensor data
+tactile_data = scene["tactile_sensor"].data
+
+# RGB tactile image (if enabled)
+if tactile_data.tactile_rgb_image is not None:
+    rgb_images = tactile_data.tactile_rgb_image  # Shape: (num_envs, height, width, 3)
+
+# Force field data (if enabled)
+if tactile_data.tactile_normal_force is not None:
+    normal_forces = tactile_data.tactile_normal_force  # Shape: (num_envs * rows * cols,)
+    shear_forces = tactile_data.tactile_shear_force    # Shape: (num_envs * rows * cols, 2)
+
+    # Reshape to tactile array dimensions
+    num_envs = scene.num_envs
+    rows, cols = scene["tactile_sensor"].cfg.tactile_array_size
+    normal_forces = normal_forces.view(num_envs, rows, cols)
+    shear_forces = shear_forces.view(num_envs, rows, cols, 2)
+```
+
+### Key Concepts
+
+#### Sensor Modalities
+
+The TacSL sensor supports two complementary sensing modalities:
+
+1. **Camera-Based RGB Sensing** (`enable_camera_tactile=True`):
+   - Uses depth information from a camera inside the elastomer
+   - Renders realistic tactile images showing contact patterns and deformation
+   - Employs the Taxim rendering model for physically-based appearance
+   - Outputs RGB images that mimic real GelSight/DIGIT sensors
+
+2. **Force Field Sensing** (`enable_force_field=True`):
+   - Computes forces at each taxel (tactile element) in the array
+   - Provides normal forces (compression) and shear forces (tangential)
+   - Uses SDF-based contact detection with contact objects
+   - Enables direct force-based manipulation strategies
+
+#### Compliant Contact Model
+
+The sensor uses PhysX compliant contact for realistic elastomer deformation:
+
+- **Compliant Contact Stiffness**: Controls how much the elastomer compresses under load (higher = stiffer)
+- **Compliant Contact Damping**: Controls energy dissipation during contact (affects bounce/settling)
+- **Physics Material**: Specified prim (e.g., "elastomer") that has compliant contact enabled
+
+This allows the elastomer surface to deform realistically when contacting objects, which is essential for accurate tactile sensing.
+
+#### Tactile Array Configuration
+
+The sensor discretizes the elastomer surface into a grid of taxels:
+
+```
+tactile_array_size = (rows, cols)  # e.g., (20, 25) = 500 taxels
+```
+
+- Each taxel corresponds to a point on the elastomer surface
+- Forces are computed per-taxel for force field sensing
+- The tactile_margin parameter defines the boundary region to exclude from sensing
+- Higher resolution (more taxels) provides finer spatial detail but increases computation
+
+#### SDF-Based Contact Detection
+
+For force field sensing, the sensor uses Signed Distance Fields (SDFs):
+
+- Contact objects must have SDF collision meshes
+- SDF provides distance and gradient information for force computation
+- **Note**: Simple shape primitives (cubes, spheres spawned via `CuboidCfg`) cannot generate SDFs
+- Use USD mesh assets for contact objects when force field sensing is required
+
+#### Sensor Rendering Pipeline
+
+The RGB tactile rendering follows this pipeline:
+
+1. **Initial Render**: Captures the reference state (no contact)
+2. **Depth Capture**: Camera measures depth to elastomer surface during contact
+3. **Deformation Computation**: Compares current depth to reference depth
+4. **Taxim Rendering**: Generates RGB image based on deformation field
+5. **Output**: Realistic tactile image showing contact geometry and patterns
+
+#### Physics Simulation Parameters
+
+For accurate tactile sensing, configure PhysX parameters:
+
+```python
+sim_cfg = sim_utils.SimulationCfg(
+    dt=0.005,  # 5ms timestep for stable contact simulation
+    physx=sim_utils.PhysxCfg(
+        gpu_collision_stack_size=2**30,  # Increase for contact-rich scenarios
+    ),
+)
+```
+
+Also ensure high solver iteration counts for the robot:
+
+```python
+solver_position_iteration_count=12  # Higher = more accurate contact resolution
+solver_velocity_iteration_count=1
+```
+
+### Performance Considerations
+
+- **GPU Acceleration**: Tactile rendering is GPU-accelerated for efficiency
+- **Multiple Sensors**: Can simulate multiple tactile sensors across parallel environments
+- **Timing Analysis**: Use `sensor.get_timing_summary()` to profile rendering performance
+- **SDF Computation**: Initial SDF generation may take time for complex meshes
+
+</details>
+
+### Demo Script
+
+A complete demonstration of TacSL tactile sensor is available:
+
+```bash
+# Run TacSL tactile sensor demo with RGB and force field sensing
+./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py \
+    --use_tactile_rgb \
+    --use_tactile_ff \
+    --num_envs 16 \
+    --contact_object_type nut
+
+# Save visualization data
+./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py \
+    --use_tactile_rgb \
+    --use_tactile_ff \
+    --save_viz \
+    --save_viz_dir tactile_output
 ```
 
 ---
