@@ -54,8 +54,9 @@ Guidelines for modifications:
 * Brayden Zhang
 * Brian Bingham
 * Brian McCann
-* Cameron Upright
+* Caelan Garrett
 * Calvin Yu
+* Cameron Upright
 * Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
