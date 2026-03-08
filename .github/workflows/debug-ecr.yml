@@ -38,4 +38,10 @@ jobs:
           docker --config "${DOCKER_CONFIG}" push "$IMAGE"
           echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
 
-          docker pull nvcr.io/nvidian/isaac-sim:latest-develop
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          echo "DOCKER_CONFIG=${DOCKER_CONFIG}" >> "$GITHUB_ENV"
+
+      - name: Run toy task in container
+        run: |
+          docker --config "${DOCKER_CONFIG}" run --rm "${IMAGE}" \
+            sh -c 'echo "Hello from inside the container!" && uname -a && python3 --version'
