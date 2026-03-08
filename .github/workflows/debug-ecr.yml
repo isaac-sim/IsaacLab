@@ -20,17 +20,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        # AWS creds are picked from OS env by the amazon-ecr-login action
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Build and push
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           TAG: ${{ github.sha }}
         run: |
+          REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG:0:7}"
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+            docker login --username AWS --password-stdin "${REGISTRY}"
           docker build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
           docker push "$IMAGE"
           echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
