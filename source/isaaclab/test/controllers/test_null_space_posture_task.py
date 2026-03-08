@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import pinocchio as pin
 import pytest
+from pink import solve_ik
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
@@ -257,9 +258,6 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         error = null_space_task.compute_error(robot_configuration)
 
         # Only controlled joints should have non-zero error
-        # Joint indices:
-        # waist_yaw_joint=0, waist_pitch_joint=1, waist_roll_joint=2, left_shoulder_pitch_joint=3,
-        # left_shoulder_roll_joint=4, etc.
         expected_error = np.zeros(num_joints)
         for i in joint_indexes:
             expected_error[i] = current_config[i]
@@ -337,8 +335,183 @@ class TestNullSpacePostureTaskSimplifiedRobot:
             ee_velocity_right = jacobian_right_hand @ null_space_velocity
 
             assert np.allclose(ee_velocity_left, np.zeros(6), atol=1e-7), (
-                f"Left hand velocity not zero: {ee_velocity_left}"
+                "Left hand velocity not zero:\n",
+                f"{ee_velocity_left}",
             )
             assert np.allclose(ee_velocity_right, np.zeros(6), atol=1e-7), (
-                f"Right hand velocity not zero: {ee_velocity_right}"
+                "Right hand velocity not zero:\n",
+                f"{ee_velocity_right}",
+            )
+
+    def test_solve_ik_with_null_space_posture_task(self, robot_configuration, num_joints):
+        """Test that solve_ik solution projected through frame Jacobians is close to zero.
+
+        This test sets up tasks similar to the G1 upper body IK controller configuration:
+        - FrameTasks for left and right hands at the robot's initial pose
+        - NullSpacePostureTask with target posture offset by 1 radian from current configuration
+
+        The IK solver should produce joint velocities that move toward the posture target
+        while keeping the end-effector velocities close to zero (since frame tasks are already
+        at their target poses).
+        """
+        # Define frame names for left and right hands
+        left_hand_frame = "left_hand_pitch_link"
+        right_hand_frame = "right_hand_pitch_link"
+
+        # Define controlled joints similar to pink_controller_cfg.py
+        controlled_joints = [
+            "left_shoulder_pitch_joint",
+            "left_shoulder_roll_joint",
+            "left_shoulder_yaw_joint",
+            "left_elbow_joint",
+            "right_shoulder_pitch_joint",
+            "right_shoulder_roll_joint",
+            "right_shoulder_yaw_joint",
+            "right_elbow_joint",
+            "waist_yaw_joint",
+            "waist_pitch_joint",
+            "waist_roll_joint",
+        ]
+
+        # Start from zero configuration (robot's initial pose)
+        robot_configuration.q = np.zeros(num_joints)
+
+        # Create FrameTasks at the initial pose (similar to LocalFrameTask in pink_controller_cfg.py)
+        left_hand_task = FrameTask(
+            left_hand_frame,
+            position_cost=8.0,
+            orientation_cost=2.0,
+            lm_damping=10.0,
+            gain=0.5,
+        )
+        right_hand_task = FrameTask(
+            right_hand_frame,
+            position_cost=8.0,
+            orientation_cost=2.0,
+            lm_damping=10.0,
+            gain=0.5,
+        )
+
+        # Set frame task targets to current pose (so they should have zero error)
+        left_hand_task.set_target_from_configuration(robot_configuration)
+        right_hand_task.set_target_from_configuration(robot_configuration)
+
+        # Create NullSpacePostureTask with target posture offset by 1 radian
+        null_space_task = NullSpacePostureTask(
+            cost=0.5,
+            lm_damping=1.0,
+            gain=0.1,
+            controlled_frames=[left_hand_frame, right_hand_frame],
+            controlled_joints=controlled_joints,
+        )
+
+        # Set target posture to 1 radian for each joint (offset from current zero configuration)
+        target_posture = np.ones(num_joints) * 1.0
+        null_space_task.set_target(target_posture)
+
+        # Collect all tasks
+        tasks = [left_hand_task, right_hand_task, null_space_task]
+
+        # Solve IK - should produce velocities that move toward posture target
+        # while keeping frame positions stable
+        dt = 0.01  # 10ms timestep
+        velocity = solve_ik(robot_configuration, tasks, dt, solver="daqp")
+
+        # Get Jacobians for both frame tasks
+        jacobian_left_hand = robot_configuration.get_frame_jacobian(left_hand_frame)
+        jacobian_right_hand = robot_configuration.get_frame_jacobian(right_hand_frame)
+
+        # Compute end-effector velocities from the solution
+        ee_velocity_left = jacobian_left_hand @ velocity
+        ee_velocity_right = jacobian_right_hand @ velocity
+
+        # The end-effector velocities should be close to zero since frame tasks
+        # are already at their target poses
+        assert np.allclose(ee_velocity_left, np.zeros(6), atol=1e-5), (
+            "Left hand end-effector velocity not close to zero:\n",
+            f"{ee_velocity_left}\nMax component: {np.max(np.abs(ee_velocity_left))}",
+        )
+        assert np.allclose(ee_velocity_right, np.zeros(6), atol=1e-5), (
+            "Right hand end-effector velocity not close to zero:\n",
+            f"{ee_velocity_right}\nMax component: {np.max(np.abs(ee_velocity_right))}",
+        )
+
+    def test_solve_ik_with_different_posture_offsets(self, robot_configuration, num_joints):
+        """Test solve_ik with various posture offsets to verify consistent null space behavior.
+
+        This test verifies that regardless of the posture target offset magnitude,
+        the IK solution always keeps end-effector velocities close to zero when
+        frame tasks are at their target poses.
+        """
+        left_hand_frame = "left_hand_pitch_link"
+        right_hand_frame = "right_hand_pitch_link"
+
+        controlled_joints = [
+            "left_shoulder_pitch_joint",
+            "left_shoulder_roll_joint",
+            "left_shoulder_yaw_joint",
+            "right_shoulder_pitch_joint",
+            "right_shoulder_roll_joint",
+            "right_shoulder_yaw_joint",
+            "waist_yaw_joint",
+            "waist_pitch_joint",
+            "waist_roll_joint",
+        ]
+
+        # Test with different posture offsets
+        posture_offsets = [0.1, 0.5, 1.0]
+
+        for offset in posture_offsets:
+            # Reset to zero configuration
+            robot_configuration.q = np.zeros(num_joints)
+
+            # Create FrameTasks at current pose
+            left_hand_task = FrameTask(
+                left_hand_frame,
+                position_cost=8.0,
+                orientation_cost=2.0,
+                lm_damping=10.0,
+                gain=0.5,
+            )
+            right_hand_task = FrameTask(
+                right_hand_frame,
+                position_cost=8.0,
+                orientation_cost=2.0,
+                lm_damping=10.0,
+                gain=0.5,
+            )
+
+            left_hand_task.set_target_from_configuration(robot_configuration)
+            right_hand_task.set_target_from_configuration(robot_configuration)
+
+            # Create NullSpacePostureTask with varying offset
+            null_space_task = NullSpacePostureTask(
+                cost=0.5,
+                lm_damping=1.0,
+                gain=0.1,
+                controlled_frames=[left_hand_frame, right_hand_frame],
+                controlled_joints=controlled_joints,
+            )
+            target_posture = np.ones(num_joints) * offset
+            null_space_task.set_target(target_posture)
+
+            tasks = [left_hand_task, right_hand_task, null_space_task]
+
+            # Solve IK
+            dt = 0.01
+            velocity = solve_ik(robot_configuration, tasks, dt, solver="daqp")
+
+            # Get Jacobians and compute end-effector velocities
+            jacobian_left_hand = robot_configuration.get_frame_jacobian(left_hand_frame)
+            jacobian_right_hand = robot_configuration.get_frame_jacobian(right_hand_frame)
+
+            ee_velocity_left = jacobian_left_hand @ velocity
+            ee_velocity_right = jacobian_right_hand @ velocity
+
+            # End-effector velocities should remain close to zero
+            assert np.allclose(ee_velocity_left, np.zeros(6), atol=1e-5), (
+                f"Offset {offset}: Left hand velocity not zero: {ee_velocity_left}"
+            )
+            assert np.allclose(ee_velocity_right, np.zeros(6), atol=1e-5), (
+                f"Offset {offset}: Right hand velocity not zero: {ee_velocity_right}"
             )
