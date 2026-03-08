@@ -34,10 +34,16 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker --config "${DOCKER_CONFIG}" login --username AWS --password-stdin "${REGISTRY}"
 
+          CACHE_IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:cache"
+
           if docker --config "${DOCKER_CONFIG}" pull "${IMAGE}" 2>/dev/null; then
             echo "Image already exists in ECR, skipping build." | tee -a "$GITHUB_STEP_SUMMARY"
           else
-            docker --config "${DOCKER_CONFIG}" build --progress=plain -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
+            DOCKER_BUILDKIT=1 docker --config "${DOCKER_CONFIG}" build --progress=plain \
+              -f .github/workflows/Dockerfile.hello \
+              --cache-from "type=registry,ref=${CACHE_IMAGE}" \
+              --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max" \
+              -t "$IMAGE" .
             docker --config "${DOCKER_CONFIG}" push "$IMAGE"
             echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
           fi
