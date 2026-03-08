@@ -386,7 +386,8 @@ class randomize_rigid_body_mass(ManagerTermBase):
         masses = torch.clamp(masses, min=min_mass)  # ensure masses are positive
 
         # set the mass into the physics simulation
-        self.asset.set_masses_index(masses=masses, env_ids=env_ids)
+        # note: backends expect partial data of shape (len(env_ids), len(body_ids))
+        self.asset.set_masses_index(masses=masses[env_ids[:, None], body_ids], env_ids=env_ids)
 
         # recompute inertia tensors if needed
         if recompute_inertia:
@@ -398,7 +399,8 @@ class randomize_rigid_body_mass(ManagerTermBase):
             # inertia has shape: (num_envs, num_bodies, 9) for all assets
             inertias[env_ids[:, None], body_ids] = self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
             # set the inertia tensors into the physics simulation
-            self.asset.set_inertias_index(inertias=inertias, env_ids=env_ids)
+            # note: backends expect partial data of shape (len(env_ids), len(body_ids), 9)
+            self.asset.set_inertias_index(inertias=inertias[env_ids[:, None], body_ids], env_ids=env_ids)
 
 
 def randomize_rigid_body_com(
