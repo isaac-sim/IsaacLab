@@ -14,7 +14,7 @@ env:
 jobs:
   build-and-push:
     name: Build and push to ECR
-    runs-on: [self-hosted, int-gpu]
+    runs-on: [self-hosted, gpu]
 
     steps:
       - name: Checkout
