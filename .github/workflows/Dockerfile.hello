@@ -1,0 +1,5 @@
+FROM nvcr.io/nvidian/isaac-sim:latest-develop
+
+RUN echo "Hello from the build stage!"
+
+CMD ["bash", "-c", "echo 'Hello from the running container!'"]

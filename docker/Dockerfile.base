@@ -40,10 +40,10 @@ USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
-    cmake \
-    git \
     libglib2.0-0 \
     ncurses-term \
+    cmake \
+    git \
     wget
 
 # Install packages needed to build imgui-bundle on arm64 as no prebuilt pip wheel is provided
@@ -54,8 +54,11 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
-# Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
-COPY ../ ${ISAACLAB_PATH}
+# copy files necessary for installing Isaac Lab and its dependencies
+# tris way we minimize the chance of cache invalidation on file edits
+COPY ../isaaclab.* ../environment.yml ../pyproject.toml ${ISAACLAB_PATH}/
+COPY ../tools/ ${ISAACLAB_PATH}/tools/
+COPY ../source/ ${ISAACLAB_PATH}/source/
 
 # Fix the line endings for the shell scripts (Windows git may add \r)
 RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
@@ -115,6 +118,14 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
     echo "shopt -s histappend" >> /root/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
+
+# copy the rest of the files that aren't needed for installation
+COPY ../apps/ ${ISAACLAB_PATH}/apps/
+COPY ../docker/ ${ISAACLAB_PATH}/docker/
+COPY ../docs/ ${ISAACLAB_PATH}/docs/
+COPY ../scripts/ ${ISAACLAB_PATH}/scripts/
+# copy rest of the root-level files
+COPY ../*.md ../VERSION ../CITATION.cff ../LICENSE* ${ISAACLAB_PATH}/
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
