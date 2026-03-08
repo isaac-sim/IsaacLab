@@ -557,3 +557,62 @@ def concat_joint_pos_limits_lower_and_upper(
     """
     i, j = wp.tid()
     joint_pos_limits[i, j] = wp.vec2f(joint_pos_limits_lower[i, j], joint_pos_limits_upper[i, j])
+
+
+@wp.kernel
+def offset_indices(
+    indices: wp.array(dtype=wp.int32),
+    offset: int,
+    result: wp.array(dtype=wp.int32),
+):
+    """Add a scalar offset to each element of an index array.
+
+    Args:
+        indices: Input index array.
+        offset: Scalar value to add to each element.
+        result: Output array of offset indices.
+    """
+    i = wp.tid()
+    result[i] = indices[i] + offset
+
+
+@wp.kernel
+def gather_indices(
+    indices: wp.array(dtype=wp.int32),
+    source: wp.array(dtype=wp.int32),
+    result: wp.array(dtype=wp.int32),
+):
+    """Gather values from source using indices as a lookup.
+
+    Args:
+        indices: Array of lookup positions into source.
+        source: Array to gather from.
+        result: Output array where result[i] = source[indices[i]].
+    """
+    i = wp.tid()
+    result[i] = source[indices[i]]
+
+
+@wp.kernel
+def write_passive_damping(
+    dof_rels: wp.array(dtype=wp.int32),
+    damping_values: wp.array(dtype=wp.float32),
+    layout_offset: int,
+    stride_between_worlds: int,
+    dof_passive_damping: wp.array(dtype=wp.float32),
+):
+    """Write per-joint passive damping to all instances in the flat dof_passive_damping array.
+
+    Launched with dim=(num_instances, num_actuator_joints).
+
+    Args:
+        dof_rels: Relative DOF index for each actuator joint (relative to layout_offset).
+            Shape is (num_actuator_joints,).
+        damping_values: Damping value for each actuator joint. Shape is (num_actuator_joints,).
+        layout_offset: Flat-array offset for instance 0's first DOF in this view.
+        stride_between_worlds: Flat-array stride between consecutive instances.
+        dof_passive_damping: Output flat array of passive DOF damping values for the Newton model.
+    """
+    world, pos = wp.tid()
+    dof_global = layout_offset + world * stride_between_worlds + dof_rels[pos]
+    dof_passive_damping[dof_global] = damping_values[pos]
