@@ -117,3 +117,36 @@ def stand_still_joint_deviation_l1(
     command = env.command_manager.get_command(command_name)
     # Penalize motion when command is nearly zero.
     return mdp.joint_deviation_l1(env, asset_cfg) * (torch.norm(command[:, :2], dim=1) < command_threshold)
+
+
+def joint_pos_limit_custom(
+    env: ManagerBasedRLEnv,
+    upper_limit: float,
+    lower_limit: float | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize joint positions exceeding custom limits.
+
+    This function penalizes joint positions that exceed custom upper/lower limits,
+    independent of the asset's configured soft limits.
+
+    Args:
+        env: The learning environment.
+        upper_limit: Upper position limit in radians.
+        lower_limit: Lower position limit in radians. If None, uses -upper_limit.
+        asset_cfg: The asset configuration with joint names/ids to check.
+
+    Returns:
+        Penalty value (sum of violations) per environment.
+    """
+    if lower_limit is None:
+        lower_limit = -upper_limit
+
+    asset = env.scene[asset_cfg.name]
+    joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
+
+    # Compute violations
+    over_upper = (joint_pos - upper_limit).clip(min=0.0)
+    under_lower = (lower_limit - joint_pos).clip(min=0.0)
+
+    return torch.sum(over_upper + under_lower, dim=1)
