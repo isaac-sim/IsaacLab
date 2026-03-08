@@ -78,10 +78,12 @@ runs:
           export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
 
           # Login to ECR registry with token provided by aws cli
+          echo "🟢 Logging into ECR registry..."
           aws ecr get-login-password --region "${AWS_REGION}" | \
             docker login --username AWS --password-stdin "${REGISTRY}"
 
           # Try pulling the exact image from ECR to skip the build
+          echo "🟢 Checking for existing image ${ECR_IMAGE} in ECR..."
           if docker pull "${ECR_IMAGE}" 2>/dev/null; then
             echo "🟢 Image found in ECR, pulled: ${ECR_IMAGE}"
             docker tag "${ECR_IMAGE}" "${IMAGE_TAG}"
@@ -114,6 +116,8 @@ runs:
         
         echo "🟢 Building ${IMAGE_TAG}..."
         DOCKER_BUILDKIT=1 docker build "${BUILD_ARGS[@]}" .
+
+        echo "🟢 Build completed for ${IMAGE_TAG}, pushing to ECR..."
 
         if [ -n "${ECR_REPOSITORY}" ]; then
           docker push "${ECR_IMAGE}"
