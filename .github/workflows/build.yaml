@@ -67,7 +67,6 @@ jobs:
   build-curobo:
     name: Build cuRobo Docker image
     runs-on: [self-hosted, gpu]
-    needs: build
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
