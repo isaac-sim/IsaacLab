@@ -24,36 +24,51 @@ jobs:
         env:
           TAG: ${{ github.sha }}
         run: |
+          # Get AWS account ID from the runner's IAM instance profile cause we lack AWS_ACCOUNT_ID
           AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
           REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}"
 
-          # login to ECR using a temp config dir to bypass broken credential store
+          # The runner's credential storeseems to be broken ("not implemented") on runers, 
+          # So we use a temp config dir with credsStore disabled. We copy existing config
+          # first to preserve nvcr.io auth, then clear credsStore/credHelpers.
+
           DOCKER_CONFIG=$(mktemp -d)
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG}/config.json"
+          if [ -f "${HOME}/.docker/config.json" ]; then
+            python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG}/config.json','w'))"
+          else
+            echo '{"credsStore":""}' > "${DOCKER_CONFIG}/config.json"
+          fi
+
+          # Pipe password via stdin to avoid touching the credential store (not allowed in CLI)
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker --config "${DOCKER_CONFIG}" login --username AWS --password-stdin "${REGISTRY}"
 
+          # Cache image to use for layer caching. Weird.
           CACHE_IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:cache"
 
-          # try pulling image from ECR first
+          # Skip build if this commit's image already exists in ECR
           if docker --config "${DOCKER_CONFIG}" pull "${IMAGE}" 2>/dev/null; then
-            echo "[INFO] Image already exists in ECR, skipping build."
+            echo "🟢 Image already exists in ECR, pulled it! Skipping build."
           else
-            echo "[INFO] Building and pushing image to ECR..."
+            echo "🟢 Image not found in ECR, building and pushing it to ECR..."
+            # DOCKER_BUILDKIT=1 required for type=registry cache
             DOCKER_BUILDKIT=1 docker --config "${DOCKER_CONFIG}" build --progress=plain \
               -f .github/workflows/Dockerfile.hello \
               --cache-from "type=registry,ref=${CACHE_IMAGE}" \
               --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max" \
               -t "$IMAGE" .
             docker --config "${DOCKER_CONFIG}" push "$IMAGE"
-            echo "[INFO] Pushed to ECR: $IMAGE"
+            echo "🟢 Pushed image $IMAGE to ECR"
           fi
 
+          # Export to GITHUB_ENV so the next step can reference them
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           echo "DOCKER_CONFIG=${DOCKER_CONFIG}" >> "$GITHUB_ENV"
 
       - name: Run toy task in container
         run: |
+          # ACCEPT_EULA=Y required by the isaac-sim base image at startup
           docker --config "${DOCKER_CONFIG}" run --rm -e ACCEPT_EULA=Y "${IMAGE}" \
             sh -c 'echo "Hello from inside the container!" && uname -a && python3 --version'
