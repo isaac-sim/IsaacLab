@@ -84,12 +84,14 @@ runs:
 
           # Try pulling the exact image from ECR to skip the build
           echo "🟢 Checking for existing image ${ECR_IMAGE} in ECR..."
-          if docker pull "${ECR_IMAGE}" 2>/dev/null; then
+          PULL_OUTPUT=$(docker pull "${ECR_IMAGE}" 2>&1) && {
             echo "🟢 Image found in ECR, pulled: ${ECR_IMAGE}"
             docker tag "${ECR_IMAGE}" "${IMAGE_TAG}"
             echo "🟢 Tagged as: ${IMAGE_TAG} — skipping build."
             exit 0
-          fi
+          } || {
+            echo "🟠 Image not pulled (will build instead): ${PULL_OUTPUT}"
+          }
         fi
 
         # Log into nvcr.io so the Dockerfile can pull nvcr.io base images.
