@@ -59,6 +59,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         ecr-repository: ${{ env.ECR_REPOSITORY }}
         aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Clean up stale Docker images
       if: always()
@@ -83,6 +84,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         ecr-repository: ${{ env.ECR_REPOSITORY }}
         aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-curobo
 
     - name: Clean up stale Docker images
       if: always()

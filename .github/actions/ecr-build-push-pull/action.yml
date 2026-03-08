@@ -27,6 +27,11 @@ inputs:
     description: 'ECR repository name. If omitted, ECR push/pull/cache is skipped and the image is always built.'
     required: false
     default: ''
+  cache-tag:
+    description: >
+      Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
+    required: false
+    default: 'cache'
   aws-region:
     description: >
       AWS region (e.g. us-west-2, etc).
@@ -55,7 +60,7 @@ runs:
           # (colons/slashes not valid in ECR tags)
           ECR_TAG=$(echo "${IMAGE_TAG}" | tr ':/' '--')
           ECR_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${ECR_TAG}"
-          CACHE_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:cache"
+          CACHE_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${{ inputs.cache-tag }}"
 
           # The runner's credential store is broken ("not implemented"), so use a temp config dir
           # with credsStore disabled. Copy existing ~/.docker/config.json first to preserve other
