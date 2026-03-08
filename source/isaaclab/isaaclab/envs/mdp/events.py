@@ -387,7 +387,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
 
         # set the mass into the physics simulation
         # note: backends expect partial data of shape (len(env_ids), len(body_ids))
-        self.asset.set_masses_index(masses=masses[env_ids[:, None], body_ids], env_ids=env_ids)
+        self.asset.set_masses_index(masses=masses[env_ids[:, None], body_ids], body_ids=body_ids, env_ids=env_ids)
 
         # recompute inertia tensors if needed
         if recompute_inertia:
@@ -400,7 +400,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
             inertias[env_ids[:, None], body_ids] = self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
             # set the inertia tensors into the physics simulation
             # note: backends expect partial data of shape (len(env_ids), len(body_ids), 9)
-            self.asset.set_inertias_index(inertias=inertias[env_ids[:, None], body_ids], env_ids=env_ids)
+            self.asset.set_inertias_index(
+                inertias=inertias[env_ids[:, None], body_ids], body_ids=body_ids, env_ids=env_ids
+            )
 
 
 def randomize_rigid_body_com(
