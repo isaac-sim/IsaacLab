@@ -113,7 +113,7 @@ runs:
             -t "${ECR_IMAGE}"
           )
         fi
-        
+
         echo "🟢 Building ${IMAGE_TAG}..."
         DOCKER_BUILDKIT=1 docker build "${BUILD_ARGS[@]}" .
 
