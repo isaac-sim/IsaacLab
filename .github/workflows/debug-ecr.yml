@@ -70,5 +70,6 @@ jobs:
       - name: Run toy task in container
         run: |
           # ACCEPT_EULA=Y required by the isaac-sim base image at startup
-          docker --config "${DOCKER_CONFIG}" run --rm -e ACCEPT_EULA=Y "${IMAGE}" \
-            sh -c 'echo "Hello from inside the container!" && uname -a && python3 --version'
+          # --entrypoint sh overrides the isaac-sim entrypoint so the container exits after our command
+          docker --config "${DOCKER_CONFIG}" run --rm -e ACCEPT_EULA=Y --entrypoint sh "${IMAGE}" \
+            -c 'echo "Hello from inside the container!" && uname -a && python3 --version'
