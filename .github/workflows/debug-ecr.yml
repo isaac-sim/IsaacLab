@@ -28,6 +28,12 @@ jobs:
           REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE="${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG:0:7}"
 
-          docker build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
-          docker push "$IMAGE"
+          # login to ECR using a temp config dir to bypass broken credential store
+          DOCKER_CONFIG=$(mktemp -d)
+          echo '{"credsStore":""}' > "${DOCKER_CONFIG}/config.json"
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+            docker --config "${DOCKER_CONFIG}" login --username AWS --password-stdin "${REGISTRY}"
+
+          docker --config "${DOCKER_CONFIG}" build -f .github/workflows/Dockerfile.hello -t "$IMAGE" .
+          docker --config "${DOCKER_CONFIG}" push "$IMAGE"
           echo "Pushed: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
