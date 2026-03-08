@@ -36,12 +36,65 @@ env:
   ISAACSIM_BASE_IMAGE: nvcr.io/nvidian/isaac-sim #${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' #${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  ECR_REPOSITORY: isaaclab-ci
+  ECR_REGION: us-west-2
 
 jobs:
+  build:
+    name: Build base Docker image
+    runs-on: [self-hosted, gpu]
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build and push to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
+  build-curobo:
+    name: Build cuRobo Docker image
+    runs-on: [self-hosted, gpu]
+    needs: build
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build and push to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.curobo
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
+
   test-isaaclab-tasks:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
+    needs: build
 
     steps:
     - name: Checkout Code
@@ -50,12 +103,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -99,6 +155,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
+    needs: build
 
     steps:
     - name: Checkout Code
@@ -107,12 +164,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
 
     - name: Run IsaacLab Tasks Tests 2
       uses: ./.github/actions/run-tests
@@ -155,6 +215,7 @@ jobs:
   test-general:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    needs: build
 
     steps:
     - name: Checkout Code
@@ -163,12 +224,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
 
     - name: Run General Tests
       id: run-general-tests
@@ -212,6 +276,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
+    needs: build-curobo
 
     steps:
     - name: Checkout Code
@@ -220,13 +285,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image (cuRobo)
-      uses: ./.github/actions/docker-build
+    - name: Pull cuRobo image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: 'docker/Dockerfile.curobo'
+        dockerfile-path: docker/Dockerfile.curobo
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
 
     - name: Run cuRobo and SkillGen Tests
       uses: ./.github/actions/run-tests
@@ -267,7 +334,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   combine-results:
-    needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
+    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
     runs-on: ubuntu-latest
     if: always()
 
