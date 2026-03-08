@@ -29,9 +29,7 @@ class AntPhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             njmax=38,
             nconmax=15,
-            ls_iterations=20,
             cone="pyramidal",
-            ls_parallel=True,
             integrator="implicitfast",
             impratio=1,
         ),

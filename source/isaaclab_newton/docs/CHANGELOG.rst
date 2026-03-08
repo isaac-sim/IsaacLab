@@ -23,6 +23,7 @@ Fixed
   graph was not captured (e.g., when RTX/Fabric USD sync is active). The step condition now
   checks ``cls._graph is not None`` directly instead of repeating the capture-time heuristic.
 
+
 0.5.1 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 

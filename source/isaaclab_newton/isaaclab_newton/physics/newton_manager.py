@@ -105,6 +105,14 @@ class NewtonManager(PhysicsManager):
         """
         super().initialize(sim_context)
 
+        # Normalize "cuda" -> "cuda:<id>" so torch.cuda.set_device() gets an explicit
+        # device index. PhysxManager does the same via /physics/cudaDevice setting.
+        device = PhysicsManager._device
+        if "cuda" in device and ":" not in device:
+            cuda_device = sim_context.get_setting("/physics/cudaDevice")
+            device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
+            PhysicsManager._device = f"cuda:{device_id}"
+
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
         if sim is not None:
@@ -230,6 +238,20 @@ class NewtonManager(PhysicsManager):
             List of registered views (e.g., NewtonArticulationView instances).
         """
         return cls._views
+
+    @classmethod
+    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
+        """Set the gravity vector in the Newton simulation at runtime.
+
+        Updates the stored gravity vector and applies it to the model if it has
+        already been finalized.
+
+        Args:
+            gravity: Gravity vector [m/s^2], shape (3,).
+        """
+        cls._gravity_vector = gravity
+        if cls._model is not None:
+            cls._model.set_gravity(gravity)
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:

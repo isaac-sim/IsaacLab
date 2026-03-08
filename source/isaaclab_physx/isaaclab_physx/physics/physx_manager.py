@@ -322,6 +322,15 @@ class PhysxManager(PhysicsManager):
         return cls._view
 
     @classmethod
+    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
+        """Set the gravity vector in the PhysX simulation at runtime.
+
+        Args:
+            gravity: Gravity vector [m/s^2], shape (3,).
+        """
+        cls._view.set_gravity(carb.Float3(*gravity))
+
+    @classmethod
     def get_physics_sim_device(cls) -> str:
         """Get the physics simulation device (Isaac Sim compatibility alias)."""
         return PhysicsManager.get_device()

@@ -29,8 +29,6 @@ class HumanoidPhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
             nconmax=25,
-            ls_iterations=15,
-            ls_parallel=True,
             cone="pyramidal",
             update_data_interval=2,
             integrator="implicitfast",
