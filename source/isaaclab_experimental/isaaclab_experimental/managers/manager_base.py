@@ -3,22 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base classes for managers (experimental).
+
+This file is a local copy of :mod:`isaaclab.managers.manager_base` placed under
+``isaaclab_experimental`` so it can evolve independently for Warp-first / graph-friendly
+pipelines.
+
+Key differences from the stable version:
+- :meth:`ManagerTermBase.reset` is **mask-based** (preferred for capture-friendly subset operations).
+"""
+
 from __future__ import annotations
 
+import contextlib
 import copy
 import inspect
 import logging
-import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import warp as wp
+
 import isaaclab.utils.string as string_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
+
+# import omni.timeline
+
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -91,12 +105,12 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Resets the manager term.
+    def reset(self, env_mask: wp.array | None = None) -> None:
+        """Resets the manager term (mask-based).
 
         Args:
-            env_ids: The environment ids. Defaults to None, in which case
-                all environments are considered.
+            env_mask: Boolean mask of shape (num_envs,) indicating which envs to reset.
+                If None, all envs are considered.
         """
         pass
 
@@ -153,25 +167,24 @@ class ManagerBase(ABC):
         self._is_scene_entities_resolved = self._env.sim.is_playing()
 
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
-        # entities configuration. this is needed for cases where the manager is created after the
-        # simulation, but before the simulation is playing.
-        if not self._env.sim.is_playing():
-            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
-            # is called. The order is set to 20 to allow asset/sensor initialization to complete before the
-            # scene entities are resolved. Those have the order 10.
-
-            physics_mgr_cls = self._env.sim.physics_manager
-            obj_ref = weakref.proxy(self)
-
-            self._resolve_terms_handle = physics_mgr_cls.register_callback(
-                lambda payload: PhysicsManager.safe_callback_invoke(
-                    obj_ref._resolve_terms_callback, None, physics_manager=physics_mgr_cls
-                ),
-                PhysicsEvent.PHYSICS_READY,
-                order=20,
-            )
-        else:
-            self._resolve_terms_handle = None
+        # entities configuration. this is needed for cases where the manager is created after the simulation
+        # but before the simulation is playing.
+        # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
+        #   callback and resolve the scene entities directly inside `_prepare_terms`.
+        # if not self._env.sim.is_playing():
+        #     # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
+        #     # is called
+        #     # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
+        #     # are resolved. Those have the order 10.
+        #     timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        #     self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        #         int(omni.timeline.TimelineEventType.PLAY),
+        #         lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
+        #         order=20,
+        #     )
+        # else:
+        #     self._resolve_terms_handle = None
+        self._resolve_terms_handle = None
 
         # parse config to create terms information
         if self.cfg:
@@ -179,9 +192,13 @@ class ManagerBase(ABC):
 
     def __del__(self):
         """Delete the manager."""
-        if self._resolve_terms_handle is not None:
-            self._resolve_terms_handle.deregister()
-            self._resolve_terms_handle = None
+        # Suppress errors during Python shutdown
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                if getattr(self, "_resolve_terms_handle", None):
+                    self._resolve_terms_handle.unsubscribe()
+                self._resolve_terms_handle = None
 
     """
     Properties.
@@ -207,7 +224,7 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
 
         Args:

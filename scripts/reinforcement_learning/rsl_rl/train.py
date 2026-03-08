@@ -6,6 +6,7 @@
 """Script to train RL agent with RSL-RL."""
 
 import argparse
+import contextlib
 import importlib.metadata as metadata
 import logging
 import os
@@ -35,6 +36,8 @@ import cli_args  # isort: skip
 logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 RSL_RL_VERSION = "3.0.1"
 
@@ -61,6 +64,12 @@ parser.add_argument(
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
+)
+parser.add_argument(
+    "--manager_call_config",
+    type=str,
+    default=None,
+    help='Manager mode JSON only: \'{"RewardManager": 0, "ActionManager": 2, "default": 2}\'.',
 )
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
@@ -138,6 +147,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the IO descriptors export flag if requested
         if isinstance(env_cfg, ManagerBasedRLEnvCfg):
             env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+            # experimental manager-based Warp env reads this runtime switch from env cfg
+            env_cfg.manager_call_config = args_cli.manager_call_config
         else:
             logger.warning(
                 "IO descriptors are only supported for manager based RL environments."

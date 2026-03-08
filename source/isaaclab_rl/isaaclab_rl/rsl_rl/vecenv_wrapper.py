@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -16,6 +17,9 @@ if TYPE_CHECKING:
         DirectRLEnv,
         ManagerBasedRLEnv,
     )
+
+    with contextlib.suppress(ImportError):
+        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 
 class RslRlVecEnvWrapper(VecEnv):
@@ -47,9 +51,25 @@ class RslRlVecEnvWrapper(VecEnv):
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv
 
-        if not isinstance(env.unwrapped, (ManagerBasedRLEnv, ManagerBasedEnv, DirectRLEnv)):
+        try:
+            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
+        except ImportError:
+            DirectRLEnvWarp = None
+            ManagerBasedEnvWarp = None
+            ManagerBasedRLEnvWarp = None
+
+        allowed_types = (ManagerBasedRLEnv, ManagerBasedEnv, DirectRLEnv)
+        if DirectRLEnvWarp is not None:
+            allowed_types += (DirectRLEnvWarp,)
+        if ManagerBasedEnvWarp is not None:
+            allowed_types += (ManagerBasedEnvWarp,)
+        if ManagerBasedRLEnvWarp is not None:
+            allowed_types += (ManagerBasedRLEnvWarp,)
+
+        if not isinstance(env.unwrapped, allowed_types):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
                 f" {type(env)}"
             )
 
@@ -112,7 +132,7 @@ class RslRlVecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.

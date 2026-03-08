@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import logging
 import math
 import os
-import warnings
 import weakref
 from abc import abstractmethod
-from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
@@ -20,35 +19,61 @@ import gymnasium as gym
 import numpy as np
 import torch
 
+# import omni.kit.app
+# import omni.log
+# import omni.physx
+import warp as wp
+
+from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
+from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
+
+# from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
+from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
-from .common import VecEnvObs, VecEnvStepReturn
-from .direct_rl_env_cfg import DirectRLEnvCfg
-from .ui import ViewportCameraController
+from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
+from isaaclab_experimental.utils.timer import Timer
+from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+
 from .utils.spaces import sample_space, spec_to_gym_space
 
-if has_kit():
-    import omni.kit.app
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
+
 
 # import logger
 logger = logging.getLogger(__name__)
 
 DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
-"""Enable outer step() timer. Set DEBUG_TIMER_STEP=1 env var to enable."""
+"""Enable outer step() timer only. Set DEBUG_TIMER_STEP=1 env var to enable."""
 
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
-"""Enable all fine-grained inner timers. Set DEBUG_TIMERS=1 env var to enable."""
+"""Enable all fine-grained inner timers (adds wp.synchronize per sub-phase). Set DEBUG_TIMERS=1 env var to enable."""
 
 
-class DirectRLEnv(gym.Env):
+@wp.kernel
+def zero_mask_int32(
+    mask: wp.array(dtype=wp.bool),
+    data: wp.array(dtype=wp.int32),
+):
+    env_index = wp.tid()
+    if mask[env_index]:
+        data[env_index] = 0
+
+
+@wp.kernel
+def add_to_env(
+    data: wp.array(dtype=wp.int32),
+    value: wp.int32,
+):
+    env_index = wp.tid()
+    data[env_index] += value
+
+
+class DirectRLEnvWarp(gym.Env):
     """The superclass for the direct workflow to design environments.
 
     This class implements the core functionality for reinforcement learning (RL)
@@ -68,7 +93,6 @@ class DirectRLEnv(gym.Env):
         For vectorized environments, it is recommended to **only** call the :meth:`reset`
         method once before the first call to :meth:`step`, i.e. after the environment is created.
         After that, the :meth:`step` function handles the reset of terminated sub-environments.
-        This is because the simulator does not support resetting individual sub-environments
         in a vectorized environment.
 
     """
@@ -77,6 +101,7 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -94,9 +119,6 @@ class DirectRLEnv(gym.Env):
         """
         # check that the config is valid
         cfg.validate()
-        # Resolve any preset-wrapper fields to their default variant so that downstream
-        # scene/physics setup receives concrete cfg objects rather than multi-backend selectors.
-        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -140,19 +162,20 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = InteractiveSceneWarp(self.cfg.scene)
                 self._setup_scene()
+                # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        # Initialize when GUI is available OR when visualizers are active (headless rendering)
-        # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
-        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-        if self.sim.has_gui or has_visualizers:
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
+        has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
+        offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
+        if has_gui or offscreen_render:
+            # self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
+            self.viewport_camera_controller = None
         else:
             self.viewport_camera_controller = None
 
@@ -169,7 +192,8 @@ class DirectRLEnv(gym.Env):
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        # if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+        #     print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
@@ -177,8 +201,8 @@ class DirectRLEnv(gym.Env):
                 self.sim.reset()
             # update scene to pre populate data buffers for assets and sensors.
             # this is needed for the observation manager to get valid tensors for initialization.
-            # this shouldn't cause an issue since later on, users do a reset over all the environments
-            # so the lazy buffers would be reset.
+            # this shouldn't cause an issue since later on, users do a reset over all the
+            # environments so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
@@ -189,7 +213,7 @@ class DirectRLEnv(gym.Env):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
+        if bool(self.sim.settings.get("/isaaclab/visualizer")) and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -204,10 +228,22 @@ class DirectRLEnv(gym.Env):
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
-        self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-        self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
-        self.reset_time_outs = torch.zeros_like(self.reset_terminated)
-        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
+        self._episode_length_buf_wp = wp.zeros(self.num_envs, dtype=wp.int32, device=self.device)
+        self.episode_length_buf = wp.to_torch(self._episode_length_buf_wp)
+        self.reset_terminated = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self.reset_time_outs = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self.reset_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self._ALL_ENV_MASK = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
+
+        # Expected bindings:
+        self.torch_obs_buf: torch.Tensor = None
+        self.torch_reward_buf: torch.Tensor = None
+        self.torch_reset_terminated: torch.Tensor = None
+        self.torch_reset_time_outs: torch.Tensor = None
+        self.torch_episode_length_buf: torch.Tensor = None
+
+        # Warp CUDA graph cache for capture-or-replay
+        self._graph_cache = WarpGraphCache()
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -233,30 +269,17 @@ class DirectRLEnv(gym.Env):
         # set the framerate of the gym video recorder wrapper so that the playback speed of the produced
         # video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
-        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        # show deprecation message for rerender_on_reset
-        if self.cfg.rerender_on_reset:
-            msg = (
-                "\033[93m\033[1m[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
-                " DirectRLEnvCfg.num_rerenders_on_reset instead.\033[0m"
-            )
-            warnings.warn(
-                msg,
-                FutureWarning,
-                stacklevel=2,
-            )
-            if self.cfg.num_rerenders_on_reset == 0:
-                self.cfg.num_rerenders_on_reset = 1
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
     def __del__(self):
         """Cleanup for the environment."""
-        import sys
-
-        if not sys.is_finalizing():
-            self.close()
+        # Suppress errors during Python shutdown to avoid noisy tracebacks
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                self.close()
 
     """
     Properties.
@@ -324,28 +347,24 @@ class DirectRLEnv(gym.Env):
             self.seed(seed)
 
         # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
-        self._reset_idx(indices)
+        self._reset_idx(self._ALL_ENV_MASK)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
-        self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
-            for _ in range(self.cfg.num_rerenders_on_reset):
-                self.sim.render()
+        if hasattr(self.sim, "has_rtx_sensors") and self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
 
-        if self.cfg.wait_for_textures and self.has_rtx_sensors:
-            # Wait for assets to finish loading (PhysX-specific)
-            if hasattr(self.sim.physics_manager, "assets_loading"):
-                while self.sim.physics_manager.assets_loading():
-                    self.sim.render()
+        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        #     while SimulationManager.assets_loading():
+        #         self.sim.render()
 
         # return observations
-        return self._get_observations(), self.extras
+        self._get_observations()
+        return {"policy": self.torch_obs_buf.clone()}, self.extras
 
-    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS, time_unit="us")
+    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS)
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 
@@ -370,68 +389,122 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
             action = self._action_noise_model(action)
 
-        # process actions
-        self._pre_physics_step(action)
+        # process actions, #TODO pass the torch tensor directly.
+        with Timer(name="pre_physics", msg="Pre-physics step took:", enable=DEBUG_TIMERS):
+            self._pre_physics_step(
+                wp.from_torch(action)
+            )  # Creates a tensor and discards it. Not graphable unless training loop reuses the same pointer.
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.sim.is_rendering
+        # note: checked here once to avoid multiple checks within the loop
+        _has_rtx = hasattr(self.sim, "has_rtx_sensors") and self.sim.has_rtx_sensors()
+        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or _has_rtx
 
         # perform physics stepping
-        for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
-            # set actions into buffers
-            self._apply_action()
-            # set actions into simulator
-            self.scene.write_data_to_sim()
-            # simulate
-            self.sim.step(render=False)
-            # render between steps only if the GUI or an RTX sensor needs it
-            # note: we assume the render interval to be the shortest accepted rendering interval.
-            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
-            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
-            # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+        with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):
+            for _ in range(self.cfg.decimation):
+                self._sim_step_counter += 1
+                # set actions into buffers
+                # simulate
+                with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
+                    self._graph_cache.capture_or_replay("action", self.step_warp_action)
 
-        # post-step:
-        # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
+                # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
+                # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
+                with Timer(name="write_data_to_sim_loop", msg="Write data to sim (loop) took:", enable=DEBUG_TIMERS):
+                    self.scene.write_data_to_sim()
+
+                with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMERS):
+                    self.sim.step(render=False)
+                # render between steps only if the GUI or an RTX sensor needs it
+                # note: we assume the render interval to be the shortest accepted rendering interval.
+                #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                    self.sim.render()
+                # update buffers at sim dt
+                with Timer(name="scene_update", msg="Scene update took:", enable=DEBUG_TIMERS):
+                    self.scene.update(dt=self.physics_dt)
+
         self.common_step_counter += 1  # total step (common for all envs)
+        with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
+            self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
+        # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
+        with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
+            self.scene.write_data_to_sim()
+        with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
+            self._graph_cache.capture_or_replay("end_post", self._step_warp_end_post)
 
-        self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
-        self.reset_buf = self.reset_terminated | self.reset_time_outs
-        self.reward_buf = self._get_rewards()
+        # Visualization hook — runs after CUDA graph scope. Override in subclass
+        # to update markers or other non-graphable visual elements.
+        with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMERS):
+            self._post_step_visualize()
+
+        # return observations, rewards, resets and extras
+        return (
+            {"policy": self.torch_obs_buf.clone()},
+            self.torch_reward_buf,
+            self.torch_reset_terminated,
+            self.torch_reset_time_outs,
+            self.extras,
+        )
+
+    def _post_step_visualize(self) -> None:
+        """Hook for updating visualization markers after CUDA graph scope.
+
+        Override in subclass to update markers or other non-graphable visual
+        elements (e.g., those requiring wp.to_torch + .cpu().numpy()).
+        This runs every step, outside any CUDA graph capture.
+        """
+        pass
+
+    def step_warp_action(self) -> None:
+        self._apply_action()
+        # Note: scene.write_data_to_sim() is called separately outside the CUDA graph
+        # capture scope because it invokes _apply_actuator_model() which uses torch
+        # arithmetic (wp.to_torch + torch ops). This would cause a CUDA stream crossing
+        # error during graph capture. Moving it outside is safe since it runs every step.
+
+    def _step_warp_end_pre(self) -> None:
+        """Capturable portion before write_data_to_sim (pure warp kernels)."""
+        wp.launch(
+            add_to_env,
+            dim=self.num_envs,
+            inputs=[
+                self._episode_length_buf_wp,
+                1,
+            ],
+        )
+        self._get_dones()
+        self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
-        if len(reset_env_ids) > 0:
-            self._reset_idx(reset_env_ids)
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
-                for _ in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
+        self._reset_idx(mask=self.reset_buf)
 
+    def _step_warp_end_post(self) -> None:
+        """Capturable portion after write_data_to_sim (pure warp kernels)."""
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        # if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+        #    self.sim.render()
+
+        # TODO We could split it out.
         # post-step: step interval event
-        if self.cfg.events:
-            if "interval" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="interval", dt=self.step_dt)
+        # if self.cfg.events:
+        #    if "interval" in self.event_manager.available_modes:
+        #        self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # update observations
-        self.obs_buf = self._get_observations()
+        self._get_observations()
 
         # add observation noise
         # note: we apply no noise to the state space (since it is used for critic networks)
-        if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
-
-        # return observations, rewards, resets and extras
-        return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+        # if self.cfg.observation_noise_model:
+        #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
     @staticmethod
     def seed(seed: int = -1) -> int:
@@ -459,7 +532,7 @@ class DirectRLEnv(gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -476,18 +549,27 @@ class DirectRLEnv(gym.Env):
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
-        # if we have rtx sensors, we do not need to render again since step already rendered
-        if not self.has_rtx_sensors and not recompute:
+        # if we have rtx sensors, we do not need to render again sim
+        if not (hasattr(self.sim, "has_rtx_sensors") and self.sim.has_rtx_sensors()) and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if not self.sim.has_gui and not self.sim.has_offscreen_render:
+            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
+            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
+            # Rendering is possible if we have GUI or offscreen rendering enabled
+            can_render = has_gui or offscreen_render
+
+            if not can_render:
+                render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
-                    " If running headless, make sure --enable_cameras is set."
+                    f"Cannot render '{self.render_mode}' when the simulation render mode is"
+                    f" '{render_mode_name}'. Please set the simulation render mode"
+                    " to:'PARTIAL_RENDERING' or"
+                    " 'FULL_RENDERING'. If running headless, make"
+                    " sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):
@@ -518,9 +600,6 @@ class DirectRLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
-            # Stop simulation first to allow physics to clean up properly
-            self.sim.stop()
-
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -529,6 +608,15 @@ class DirectRLEnv(gym.Env):
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
 
+            # # clear callbacks and instance
+            # if float(".".join(get_version()[2])) >= 5:
+            #     if self.cfg.sim.create_stage_in_memory:
+            #         # detach physx stage
+            #         omni.physx.get_physx_simulation_interface().detach_stage()
+            #         self.sim.stop()
+            #         self.sim.clear()
+
+            # self.sim.clear_all_callbacks()
             self.sim.clear_instance()
 
             # destroy the window
@@ -558,6 +646,8 @@ class DirectRLEnv(gym.Env):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
+            import omni.kit.app
+
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 app_interface = omni.kit.app.get_app_interface()
@@ -612,28 +702,38 @@ class DirectRLEnv(gym.Env):
         # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
         self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
-        """Reset environments based on specified indices.
+    def _reset_idx(self, mask: wp.array | None = None):
+        """Reset environments based on a boolean mask.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            mask: Boolean mask indicating which environments to reset.
+                Shape is (num_envs,). If None, all environments are reset.
         """
-        self.scene.reset(env_ids)
+        if mask is None:
+            mask = self._ALL_ENV_MASK
+        self.scene.reset(env_ids=None, env_mask=mask)
 
         # apply events such as randomization for environments that need a reset
-        if self.cfg.events:
-            if "reset" in self.event_manager.available_modes:
-                env_step_count = self._sim_step_counter // self.cfg.decimation
-                self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+        # if self.cfg.events:
+        #    if "reset" in self.event_manager.available_modes:
+        #        env_step_count = self._sim_step_counter // self.cfg.decimation
+        #        self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # reset noise models
-        if self.cfg.action_noise_model:
-            self._action_noise_model.reset(env_ids)
-        if self.cfg.observation_noise_model:
-            self._observation_noise_model.reset(env_ids)
+        # if self.cfg.action_noise_model:
+        #    self._action_noise_model.reset(env_ids)
+        # if self.cfg.observation_noise_model:
+        #    self._observation_noise_model.reset(env_ids)
 
         # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
+        wp.launch(
+            zero_mask_int32,
+            dim=self.num_envs,
+            inputs=[
+                mask,
+                self._episode_length_buf_wp,
+            ],
+        )
 
     """
     Implementation-specific functions.
@@ -652,7 +752,7 @@ class DirectRLEnv(gym.Env):
         pass
 
     @abstractmethod
-    def _pre_physics_step(self, actions: torch.Tensor):
+    def _pre_physics_step(self, actions: wp.array) -> None:
         """Pre-process actions before stepping through the physics.
 
         This function is responsible for pre-processing the actions before stepping through the physics.
@@ -664,20 +764,19 @@ class DirectRLEnv(gym.Env):
         raise NotImplementedError(f"Please implement the '_pre_physics_step' method for {self.__class__.__name__}.")
 
     @abstractmethod
-    def _apply_action(self):
+    def _apply_action(self) -> None:
         """Apply actions to the simulator.
 
         This function is responsible for applying the actions to the simulator. It is called at each
-        physics time-step.
+        physics time-step. Must be pure warp (no torch ops) to be CUDA graph capturable.
         """
         raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.")
 
     @abstractmethod
-    def _get_observations(self) -> VecEnvObs:
-        """Compute and return the observations for the environment.
+    def _get_observations(self) -> None:
+        """Compute the observations for the environment.
 
-        Returns:
-            The observations for the environment.
+        Writes results into the observation buffers (e.g., ``self.obs_buf``).
         """
         raise NotImplementedError(f"Please implement the '_get_observations' method for {self.__class__.__name__}.")
 
@@ -694,21 +793,18 @@ class DirectRLEnv(gym.Env):
         return None  # noqa: R501
 
     @abstractmethod
-    def _get_rewards(self) -> torch.Tensor:
-        """Compute and return the rewards for the environment.
+    def _get_rewards(self) -> None:
+        """Compute the rewards for the environment.
 
-        Returns:
-            The rewards for the environment. Shape is (num_envs,).
+        Writes results into the reward buffer (e.g., ``self.reward_buf``).
         """
         raise NotImplementedError(f"Please implement the '_get_rewards' method for {self.__class__.__name__}.")
 
     @abstractmethod
-    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute and return the done flags for the environment.
+    def _get_dones(self) -> None:
+        """Compute the done flags for the environment.
 
-        Returns:
-            A tuple containing the done flags for termination and time-out.
-            Shape of individual tensors is (num_envs,).
+        Writes results into the done buffers (e.g., ``self.reset_terminated``, ``self.reset_time_outs``).
         """
         raise NotImplementedError(f"Please implement the '_get_dones' method for {self.__class__.__name__}.")
 
