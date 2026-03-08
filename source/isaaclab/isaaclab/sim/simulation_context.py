@@ -334,6 +334,19 @@ class SimulationContext:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
 
+    def set_gravity(self, gravity: tuple[float, float, float]) -> None:
+        """Set the gravity vector at runtime.
+
+        Updates :attr:`cfg.gravity` to keep the configuration in sync, then
+        applies the change to the active physics backend via
+        :meth:`~isaaclab.physics.PhysicsManager.set_gravity`.
+
+        Args:
+            gravity: Gravity vector [m/s^2], shape (3,).
+        """
+        self.cfg.gravity = gravity
+        self.physics_manager.set_gravity(gravity)
+
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types.
 

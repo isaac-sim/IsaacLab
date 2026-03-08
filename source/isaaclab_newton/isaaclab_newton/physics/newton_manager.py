@@ -240,6 +240,20 @@ class NewtonManager(PhysicsManager):
         return cls._views
 
     @classmethod
+    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
+        """Set the gravity vector in the Newton simulation at runtime.
+
+        Updates the stored gravity vector and applies it to the model if it has
+        already been finalized.
+
+        Args:
+            gravity: Gravity vector [m/s^2], shape (3,).
+        """
+        cls._gravity_vector = gravity
+        if cls._model is not None:
+            cls._model.set_gravity(gravity)
+
+    @classmethod
     def is_fabric_enabled(cls) -> bool:
         """Check if fabric interface is enabled (not applicable for Newton)."""
         return False

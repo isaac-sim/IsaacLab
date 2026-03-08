@@ -541,12 +541,8 @@ def randomize_physics_scene_gravity(
     # unbatch the gravity tensor into a list
     gravity = gravity[0].tolist()
 
-    # set the gravity into the physics simulation (local: carb/physx only available with Kit)
-    import carb  # noqa: PLC0415
-    import omni.physics.tensors.impl.api as physx  # noqa: PLC0415
-
-    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
-    physics_sim_view.set_gravity(carb.Float3(*gravity))
+    # set the gravity into the physics simulation
+    env.sim.set_gravity(tuple(gravity))
 
 
 class randomize_actuator_gains(ManagerTermBase):
