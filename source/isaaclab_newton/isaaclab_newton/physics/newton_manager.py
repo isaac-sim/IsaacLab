@@ -13,14 +13,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
-
-from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 
 from ..cloner.contact_filter import build_contact_sensor
 

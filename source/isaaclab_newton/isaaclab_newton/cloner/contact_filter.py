@@ -26,9 +26,8 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton.sensors import SensorContact as NewtonContactSensor
-
 from newton import Model
+from newton.sensors import SensorContact as NewtonContactSensor
 
 logger = logging.getLogger(__name__)
 
