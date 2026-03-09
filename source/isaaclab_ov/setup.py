@@ -8,7 +8,7 @@
 from setuptools import setup
 
 INSTALL_REQUIRES = [
-    "ovrtx>=0.2.0",
+    "ovrtx>=0.2.0,<0.3.0",
 ]
 
 setup(
