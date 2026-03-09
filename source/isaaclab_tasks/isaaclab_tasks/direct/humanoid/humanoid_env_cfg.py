@@ -72,7 +72,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    
+
     physx_joint_gears: list = [
         67.5000,  # lower_waist
         67.5000,  # lower_waist
