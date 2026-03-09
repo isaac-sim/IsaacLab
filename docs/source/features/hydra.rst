@@ -237,6 +237,32 @@ discovers ``PresetCfg`` subclasses and converts their fields into a presets dict
     python train.py --task=Isaac-Reach-Franka-v0 \
         env.sim.physics=newton
 
+The ``default`` field can be set to ``None`` to make an optional feature that is disabled unless
+explicitly selected on the command line:
+
+.. code-block:: python
+
+    @configclass
+    class CameraPresetCfg(PresetCfg):
+        default = None
+        small: CameraCfg = CameraCfg(width=64, height=64)
+        large: CameraCfg = CameraCfg(width=256, height=256)
+
+    @configclass
+    class SceneCfg:
+        camera: CameraPresetCfg = CameraPresetCfg()
+
+When no CLI argument is given, ``camera`` resolves to ``None`` (no camera):
+
+.. code-block:: bash
+
+    # camera is None — no camera overhead
+    python train.py --task=Isaac-Reach-Franka-v0
+
+    # activate camera with the "large" preset
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.scene.camera=large
+
 
 Using Presets
 ^^^^^^^^^^^^^

@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
 """Self-contained tests for Hydra configuration utilities.
 
 These tests verify the REPLACE-only preset system without depending on
@@ -654,6 +645,46 @@ def test_root_presetcfg_resolve_defaults():
     assert resolved.sensor.data_types == ["rgb"]
     assert isinstance(resolved.sensor.renderer, RendererACfg)
     assert resolved.sensor.renderer.backend == "rtx"
+
+
+@configclass
+class OptionalFeatureCfg:
+    buffer_size: int = 200
+    export_path: str = "."
+
+
+@configclass
+class OptionalFeaturePresetCfg(PresetCfg):
+    default = None
+    enabled: OptionalFeatureCfg = OptionalFeatureCfg()
+
+
+@configclass
+class EnvWithOptionalFeatureCfg:
+    decimation: int = 4
+    optional_feature: OptionalFeaturePresetCfg = OptionalFeaturePresetCfg()
+
+
+def test_presetcfg_none_default_auto_applies():
+    """PresetCfg with default=None auto-applies None without crashing."""
+    env_cfg = EnvWithOptionalFeatureCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
+    assert env_cfg.optional_feature is None
+
+
+def test_presetcfg_none_default_cli_selects_enabled():
+    """PresetCfg with default=None can be overridden to a real config via CLI."""
+    env_cfg = EnvWithOptionalFeatureCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    sel = [("env", "optional_feature", "enabled")]
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [], presets)
+    assert isinstance(env_cfg.optional_feature, OptionalFeatureCfg)
+    assert env_cfg.optional_feature.buffer_size == 200
 
 
 def test_root_presetcfg_global_depth_resolves_nested():
