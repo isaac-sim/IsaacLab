@@ -47,7 +47,7 @@ runs:
         IMAGE_TAG="${{ inputs.image-tag }}"
 
         # Prefer explicit input; fall back to ECR_CACHE_URL env var; then SSM
-        
+
         ECR_URL="${{ inputs.ecr-url }}"
 
         if [ -z "${ECR_URL}" ]; then
