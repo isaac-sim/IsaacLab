@@ -322,6 +322,7 @@ class NavigationAction(ThrustAction):
         self._lc = self.cfg.controller_cfg.class_type(
             cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
         )
+
         # Log warning if not using velocity controller
         from isaaclab_contrib.controllers import LeeVelControllerCfg
 
@@ -330,6 +331,10 @@ class NavigationAction(ThrustAction):
                 "Navigation task tuned for velocity control. "
                 "Consider using velocity controller for better performance or retune reward function."
             )
+
+        # Cache allocation matrix and its pseudo-inverse (static for this asset/config)
+        self._allocation_matrix = self._asset.allocation_matrix
+        self._allocation_pinv = torch.linalg.pinv(self._allocation_matrix)
 
         # Add buffer to store velocity commands for observations)
         self._commands = torch.zeros(self.num_envs, 4, device=self.device)
@@ -391,7 +396,7 @@ class NavigationAction(ThrustAction):
         wrench_command = self._lc.compute(processed_actions)
 
         # Convert wrench to thrust commands using allocation matrix
-        thrust_commands = (torch.pinverse(self._asset.allocation_matrix) @ wrench_command.T).T
+        thrust_commands = wrench_command @ self._allocation_pinv.T
 
         # Apply thrust commands using thruster IDs
         self._asset.set_thrust_target(thrust_commands, thruster_ids=self._thruster_ids)

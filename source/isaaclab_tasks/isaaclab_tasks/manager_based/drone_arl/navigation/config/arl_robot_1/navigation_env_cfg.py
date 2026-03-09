@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import math
 from dataclasses import MISSING
 
@@ -24,12 +25,14 @@ from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_camera_cfg import MultiMe
 from isaaclab.sensors.ray_caster.patterns import PinholeCameraPatternCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_contrib.assets import MultirotorCfg
 from isaaclab_contrib.controllers import LeeVelControllerCfg
 
 import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
+
+logging.getLogger("isaaclab.sensors.ray_caster.multi_mesh_ray_caster").setLevel(logging.WARNING)
 
 ##
 # Pre-defined configs
@@ -206,7 +209,7 @@ class EventCfg:
     )
 
     reset_obstacles = EventTerm(
-        func=mdp.events.reset_obstacles_with_individual_ranges,
+        func=mdp.reset_obstacles_with_individual_ranges,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object_collection"),
