@@ -191,25 +191,6 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
-<<<<<<< HEAD
-                def _to_imvec4(color):
-                    if hasattr(color, "x"):
-                        return color
-                    return imgui.ImVec4(float(color[0]), float(color[1]), float(color[2]), 1.0)
-
-                def _from_imvec4(color):
-                    return (float(color.x), float(color.y), float(color.z))
-
-                changed, c = imgui.color_edit3("Light Color", _to_imvec4(self.renderer._light_color))
-                if changed:
-                    self.renderer._light_color = _from_imvec4(c)
-                changed, c = imgui.color_edit3("Upper Sky Color", _to_imvec4(self.renderer.sky_upper))
-                if changed:
-                    self.renderer.sky_upper = _from_imvec4(c)
-                changed, c = imgui.color_edit3("Lower Sky Color", _to_imvec4(self.renderer.sky_lower))
-                if changed:
-                    self.renderer.sky_lower = _from_imvec4(c)
-=======
                 try:
                     changed, self.renderer._light_color = self._color_edit3_compat(
                         imgui, "Light Color", self.renderer._light_color
@@ -222,7 +203,6 @@ class NewtonViewerGL(ViewerGL):
                     )
                 except Exception as exc:
                     logger.debug("[NewtonVisualizer] Rendering color controls failed: %s", exc)
->>>>>>> ede33f6105e (fix)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
