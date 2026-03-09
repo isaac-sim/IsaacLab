@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.1 (2026-03-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ovrtx>=0.2.0,<0.3.0`` as a declared dependency, installable from the
+  public NVIDIA package index (``pypi.nvidia.com``).
+* Added ``ov`` to the list of valid sub-packages for selective installation via
+  ``./isaaclab.sh -i ov``.
+
 0.1.0 (2026-03-04)
 ~~~~~~~~~~~~~~~~~~
 

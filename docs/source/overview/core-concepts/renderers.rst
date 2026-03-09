@@ -46,6 +46,26 @@ Core concepts
      # Lazily loads ovrtx when instantiated; may fail if isaaclab_ov / ovrtx is not installed
      renderer: BaseRenderer = Renderer(OVRTXRendererCfg())
 
+Installing the OVRTX renderer
+------------------------------
+
+The OVRTX renderer is provided by the ``isaaclab_ov`` extension and requires the
+`ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package (hosted on
+``pypi.nvidia.com``).
+
+Install via the Isaac Lab CLI:
+
+.. code-block:: bash
+
+   # Install isaaclab_ov (and its ovrtx dependency) alongside the core package
+   ./isaaclab.sh -i ov
+
+Or install manually with pip:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://pypi.nvidia.com -e source/isaaclab_ov
+
 - **Opaque render data**: The render data object returned by :meth:`~isaaclab.renderers.BaseRenderer.create_render_data` is passed to
   subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it
   via get/set attributes is an anti-pattern and breaks the API contract.
