@@ -153,10 +153,10 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
-        # -- command manager
-        self.command_manager = self._manager_call_switch.resolve_manager_class("CommandManager")(
-            self.cfg.commands, self
-        )
+        # -- command manager (stable impl — not routed through ManagerCallSwitch)
+        from isaaclab.managers import CommandManager
+
+        self.command_manager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
 
         # call the parent class to load the managers for observations and actions.
@@ -240,7 +240,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         with Timer(
             name="action_preprocess", msg="Action preprocessing took:", enable=TIMER_ENABLED_STEP, time_unit="us"
         ):
-            assert self._action_in_wp is not None
+            if self._action_in_wp is None:
+                raise RuntimeError("Action buffer not initialized. Call reset() before step().")
             action_device = action.to(self.device)
             wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
 
@@ -357,11 +358,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- update command
-        self._manager_call_switch.call_stage(
-            stage="CommandManager_compute",
-            warp_call={"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}},
-            timer=TIMER_ENABLED_STEP,
-        )
+        self.command_manager.compute(dt=float(self.step_dt))
 
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
@@ -587,11 +584,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             curriculum_info = self.curriculum_manager.reset(env_ids=env_ids)
 
         # -- command + event + termination managers
-        command_info = self._manager_call_switch.call_stage(
-            stage="CommandManager_reset",
-            warp_call={"fn": self.command_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=TIMER_ENABLED_RESET_IDX,
-        )
+        command_info = self.command_manager.reset(env_ids=env_ids)
         event_info = self._manager_call_switch.call_stage(
             stage="EventManager_reset",
             warp_call={"fn": self.event_manager.reset, "kwargs": {"env_mask": env_mask}},
