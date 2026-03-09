@@ -8,6 +8,9 @@
 import argparse
 import sys
 
+import gymnasium as gym
+import torch
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
 
@@ -32,8 +35,6 @@ MAX_STEPS = 100
 
 def main():
     """Zero actions agent with Isaac Lab environment."""
-    import gymnasium as gym
-    import torch
 
     torch.manual_seed(42)
 

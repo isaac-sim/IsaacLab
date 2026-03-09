@@ -8,6 +8,9 @@
 import argparse
 import sys
 
+import gymnasium as gym
+import torch
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
 
@@ -31,8 +34,6 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 def main():
     """Random actions agent with Isaac Lab environment."""
-    import gymnasium as gym
-    import torch
 
     # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
