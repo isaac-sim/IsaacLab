@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.5.10 (2026-03-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored :func:`~isaaclab.utils.module.lazy_export` to infer fallback packages
+  and relative wildcard re-exports from the ``.pyi`` stub, making the stub the
+  single source of truth. The ``packages`` argument is deprecated.
+
+
 4.5.9 (2026-03-08)
 ~~~~~~~~~~~~~~~~~~
 
