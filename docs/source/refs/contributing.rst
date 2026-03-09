@@ -401,7 +401,14 @@ checkers and IDEs full visibility into the re-exported symbols.
 **Relative wildcard re-exports** — the stub can also use ``from .submodule import *``
 to eagerly export all public names from a local submodule. This is resolved at
 import time (not lazily) and is useful when a submodule's public API is large or
-changes frequently:
+changes frequently.
+
+.. note::
+
+   Relative wildcard re-exports bypass lazy loading and eagerly import every public
+   name from the submodule at package init time. In general, we advise against using
+   them unless absolutely necessary. Prefer listing explicit named imports in the stub
+   so that the public API surface is clear, reviewable, and remains lazily loaded.
 
 .. code:: python
 
