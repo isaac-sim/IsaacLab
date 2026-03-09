@@ -25,9 +25,12 @@ inputs:
     required: false
   ecr-url:
     description: >
-      Full ECR repository URL (e.g. "1234567.dkr.ecr.us-west-2.amazonaws.com/reponame").
-      If not provided, falls back to the ECR_CACHE_URL environment variable.
-      If ECR_CACHE_URL is not set either, ECR push/pull/cache is skipped, image built locally.
+      ECR repository URL (e.g. "123456789.dkr.ecr.us-west-2.amazonaws.com/my-repo").
+      Resolved in the following order:
+      1. ecr-url input, if provided.
+      2. ECR_CACHE_URL environment variable on the runner.
+      3. SSM parameter /github-runner/<instance-id>/ecr-cache-url.
+      4. If still empty, ECR cache is skipped and the image is built locally.
     required: false
     default: ''
   cache-tag:
@@ -43,17 +46,36 @@ runs:
       run: |
         IMAGE_TAG="${{ inputs.image-tag }}"
 
-        # Prefer explicit input; fall back to runner env var
+        # Prefer explicit input; fall back to ECR_CACHE_URL env var; then SSM
+        
         ECR_URL="${{ inputs.ecr-url }}"
+
         if [ -z "${ECR_URL}" ]; then
           ECR_URL="${ECR_CACHE_URL:-}"
           if [ -n "${ECR_URL}" ]; then
-            echo "🟢 ecr-url not set, falling back to ECR_CACHE_URL: ${ECR_URL}"
+            echo "🟢 ecr-url input not set, using ECR_CACHE_URL env var: ${ECR_URL}"
           fi
         fi
 
         if [ -z "${ECR_URL}" ]; then
-          echo "🟠 ecr-url not set and ECR_CACHE_URL not available, skipping ECR login/push/pull. Building locally."
+          echo "🟢 ECR_CACHE_URL env var not set, trying SSM..."
+          INSTANCE_ID=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id) || true
+          if [ -n "${INSTANCE_ID}" ]; then
+            ECR_URL=$(aws ssm get-parameter \
+              --name "/github-runner/${INSTANCE_ID}/ecr-cache-url" \
+              --query 'Parameter.Value' --output text 2>/dev/null) || ECR_URL=""
+            if [ -n "${ECR_URL}" ]; then
+              echo "🟢 Resolved ECR URL from SSM (/github-runner/${INSTANCE_ID}/ecr-cache-url): ${ECR_URL}"
+            else
+              echo "🟢 SSM parameter not found for instance ${INSTANCE_ID}"
+            fi
+          else
+            echo "🟢 Not running on EC2 or Instance Metadata Service is unavailable, skipping SSM lookup"
+          fi
+        fi
+
+        if [ -z "${ECR_URL}" ]; then
+          echo "🟠 ECR URL cannot be resolved. Building locally."
         else
           # Derive registry host and AWS region from the URL
           REGISTRY=$(echo "${ECR_URL}" | cut -d'/' -f1)
@@ -94,7 +116,8 @@ runs:
             echo "🟢 Tagged as: ${IMAGE_TAG} — skipping build."
             exit 0
           } || {
-            echo "🟠 Image not pulled (will build instead): ${PULL_OUTPUT}"
+            echo "🟠 Image can't be pulled from ECR, will build locally."
+            echo "${PULL_OUTPUT}" | sed 's/^/    /'
           }
         fi
 
