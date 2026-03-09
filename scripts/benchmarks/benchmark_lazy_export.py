@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import builtins
+import importlib
 import io
 import statistics
 import sys
@@ -98,7 +99,7 @@ def benchmark(
                 warnings.simplefilter("ignore")
                 try:
                     t0 = time.perf_counter_ns()
-                    import isaaclab_tasks  # noqa: F811
+                    importlib.import_module("isaaclab_tasks")
                     t1 = time.perf_counter_ns()
                     load_cfg_from_registry(task, "env_cfg_entry_point")
                     t2 = time.perf_counter_ns()

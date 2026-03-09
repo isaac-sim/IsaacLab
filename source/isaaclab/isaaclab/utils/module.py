@@ -61,10 +61,6 @@ def _parse_stub(stub_file: str) -> tuple[str | None, list[str], list[str]]:
     if not needs_filter:
         return None, fallback_packages, relative_wildcards
 
-    has_imports = any(isinstance(n, ast.ImportFrom) for n in filtered_body)
-    if not has_imports:
-        return None, fallback_packages, relative_wildcards
-
     filtered = ast.Module(body=filtered_body, type_ignores=[])
     with tempfile.NamedTemporaryFile(mode="w", suffix=".pyi", delete=False) as tmp:
         tmp.write(ast.unparse(filtered))
