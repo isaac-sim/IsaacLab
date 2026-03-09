@@ -51,9 +51,10 @@ runs:
         ECR_URL="${{ inputs.ecr-url }}"
 
         if [ -z "${ECR_URL}" ]; then
+          echo "🟢 ecr-url input not set, trying ECR_CACHE_URL env var..."
           ECR_URL="${ECR_CACHE_URL:-}"
           if [ -n "${ECR_URL}" ]; then
-            echo "🟢 ecr-url input not set, using ECR_CACHE_URL env var: ${ECR_URL}"
+            echo "🟢 Using ECR_CACHE_URL env var: ${ECR_URL}"
           fi
         fi
 
