@@ -81,6 +81,17 @@ class ObjectCfg(PresetCfg):
 
 
 @configclass
+class TableCfg(PresetCfg):
+    physx = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/table",
+        spawn=TABLE_SPAWN_CFG,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
+    newton = None
+    default = physx
+
+
+@configclass
 class SceneCfg(InteractiveSceneCfg):
     """Dexsuite Scene for multi-objects Lifting"""
 
@@ -95,11 +106,7 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     # table
-    # table: RigidObjectCfg = RigidObjectCfg(
-    #     prim_path="/World/envs/env_.*/table",
-    #     spawn=TABLE_SPAWN_CFG,
-    #     init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
-    # )
+    table: TableCfg = TableCfg()
 
     # plane
     plane = AssetBaseCfg(
@@ -300,16 +307,6 @@ class EventCfg:
             },
         )
         default = physx
-
-    # reset_table = EventTerm(
-    #     func=mdp.reset_root_state_uniform,
-    #     mode="reset",
-    #     params={
-    #         "pose_range": {"x": [-0.05, 0.05], "y": [-0.05, 0.05], "z": [0.0, 0.0]},
-    #         "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-    #         "asset_cfg": SceneEntityCfg("table"),
-    #     },
-    # )
 
     reset_object = EventTerm(
         func=mdp.reset_root_state_uniform,

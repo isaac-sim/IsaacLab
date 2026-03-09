@@ -66,7 +66,10 @@ class ObjectUniformPoseCommand(CommandTerm):
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.object: RigidObject = env.scene[cfg.object_name]
-        # self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
+        if cfg.success_vis_asset_name in env.scene.keys():
+            self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
+        else:
+            self.success_vis_asset = None
 
         # create buffers
         # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
@@ -124,9 +127,10 @@ class ObjectUniformPoseCommand(CommandTerm):
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
             success_id &= self.metrics["orientation_error"] < 0.5
-        # self.success_visualizer.visualize(
-        #     wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
-        # )
+        if self.success_vis_asset is not None:
+            self.success_visualizer.visualize(
+                wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
+            )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
