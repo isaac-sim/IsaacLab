@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.3 (2026-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``TypeError: 'NoneType' object is not iterable`` in
+  :func:`~isaaclab_tasks.utils.hydra.apply_overrides` when a preset value is
+  ``None`` (e.g. ``default = None`` in a :class:`~isaaclab_tasks.utils.PresetCfg`).
+
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 
