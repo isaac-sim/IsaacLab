@@ -462,10 +462,6 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
             gpu_total_aggregate_pairs_capacity=2**25,
         )
 
-        if self.curriculum is not None:
-            self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
-            self.curriculum.adr.params["rot_tol"] = self.rewards.success.params["rot_std"] / 2
-
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
     """Dexsuite lift task definition"""
@@ -476,7 +472,6 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
         self.commands.object_pose.position_only = True
         if self.curriculum is not None:
             self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
-            self.curriculum.adr.params["rot_tol"] = None  # make adr not tracking orientation
 
 
 class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
