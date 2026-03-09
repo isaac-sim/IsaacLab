@@ -23,21 +23,17 @@ inputs:
     description: 'Path to Dockerfile, relative to the repository root'
     default: 'docker/Dockerfile.base'
     required: false
-  ecr-repository:
-    description: 'ECR repository name. If omitted, ECR push/pull/cache is skipped and the image is always built.'
+  ecr-url:
+    description: >
+      Full ECR repository URL (e.g. "1234567.dkr.ecr.us-west-2.amazonaws.com/reponame").
+      If not provided, falls back to the ECR_CACHE_URL environment variable.
+      If ECR_CACHE_URL is not set either, ECR push/pull/cache is skipped, image built locally.
     required: false
     default: ''
   cache-tag:
-    description: >
-      Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
+    description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
-  aws-region:
-    description: >
-      AWS region (e.g. us-west-2, etc).
-      For best performance, should match the runner EC2 region.
-    required: false
-    default: 'us-west-2'
 
 runs:
   using: composite
@@ -46,21 +42,28 @@ runs:
       shell: bash
       run: |
         IMAGE_TAG="${{ inputs.image-tag }}"
-        ECR_REPOSITORY="${{ inputs.ecr-repository }}"
-        AWS_REGION="${{ inputs.aws-region }}"
 
-        if [ -z "${ECR_REPOSITORY}" ]; then
-          echo "🟠 ecr-repository not set, skipping ECR login/push/pull. Building locally only."
+        # Prefer explicit input; fall back to runner env var
+        ECR_URL="${{ inputs.ecr-url }}"
+        if [ -z "${ECR_URL}" ]; then
+          ECR_URL="${ECR_CACHE_URL:-}"
+          if [ -n "${ECR_URL}" ]; then
+            echo "🟢 ecr-url not set, falling back to ECR_CACHE_URL: ${ECR_URL}"
+          fi
+        fi
+
+        if [ -z "${ECR_URL}" ]; then
+          echo "🟠 ecr-url not set and ECR_CACHE_URL not available, skipping ECR login/push/pull. Building locally."
         else
-          # Get AWS account ID from the runner's IAM instance profile
-          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          # Derive registry host and AWS region from the URL
+          REGISTRY=$(echo "${ECR_URL}" | cut -d'/' -f1)
+          AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
 
           # Derive ECR image tag by slugifying the local image-tag
           # (colons/slashes not valid in ECR tags)
           ECR_TAG=$(echo "${IMAGE_TAG}" | tr ':/' '--')
-          ECR_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${ECR_TAG}"
-          CACHE_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${{ inputs.cache-tag }}"
+          ECR_IMAGE="${ECR_URL}:${ECR_TAG}"
+          CACHE_IMAGE="${ECR_URL}:${{ inputs.cache-tag }}"
 
           # The runner's credential store is broken ("not implemented"), so use a temp config dir
           # with credsStore disabled. Copy existing ~/.docker/config.json first to preserve other
@@ -120,7 +123,7 @@ runs:
         )
 
         # Add ECR layer caching
-        if [ -n "${ECR_REPOSITORY}" ]; then
+        if [ -n "${ECR_URL}" ]; then
           BUILD_ARGS+=(
             --cache-from "type=registry,ref=${CACHE_IMAGE}"
             --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max"
@@ -143,7 +146,7 @@ runs:
 
         echo "🟢 Build completed for ${IMAGE_TAG}, pushing to ECR..."
 
-        if [ -n "${ECR_REPOSITORY}" ]; then
+        if [ -n "${ECR_URL}" ]; then
           docker push "${ECR_IMAGE}"
           echo "🟢 Pushed ${ECR_IMAGE} to ECR"
         fi
