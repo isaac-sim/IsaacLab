@@ -172,13 +172,8 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "shopt -s histappend" >> /root/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
 
-# copy the rest of the files that aren't needed for installation
-COPY ../apps/ ${ISAACLAB_PATH}/apps/
-COPY ../docker/ ${ISAACLAB_PATH}/docker/
-COPY ../docs/ ${ISAACLAB_PATH}/docs/
-COPY ../scripts/ ${ISAACLAB_PATH}/scripts/
-# copy rest of the root-level files
-COPY ../*.md ../VERSION ../CITATION.cff ../LICENSE* ${ISAACLAB_PATH}/
+# copy the rest of the files
+COPY ../ ${ISAACLAB_PATH}/
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
