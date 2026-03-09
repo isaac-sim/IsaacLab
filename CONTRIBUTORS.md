@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
+* Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jinghuan Shang
@@ -131,6 +132,7 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Paul Reeves
 * Peter Du
 * Philipp Reist
 * Pulkit Goyal

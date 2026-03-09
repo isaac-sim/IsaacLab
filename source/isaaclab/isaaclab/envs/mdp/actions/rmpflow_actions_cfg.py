@@ -45,9 +45,6 @@ class RMPFlowActionCfg(ActionTermCfg):
 
     controller: RmpFlowControllerCfg = MISSING
 
-    articulation_prim_expr: str = MISSING  # The expression to find the articulation prim paths.
-    """The configuration for the RMPFlow controller."""
-
     use_relative_mode: bool = False
     """
     Defaults to False.

@@ -23,6 +23,7 @@ from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -86,6 +87,9 @@ class DirectRLEnv(gym.Env):
         """
         # check that the config is valid
         cfg.validate()
+        # Resolve any preset-wrapper fields to their default variant so that downstream
+        # scene/physics setup receives concrete cfg objects rather than multi-backend selectors.
+        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -137,7 +141,10 @@ class DirectRLEnv(gym.Env):
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.has_gui:
+        # Initialize when GUI is available OR when visualizers are active (headless rendering)
+        # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
+        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
+        if self.sim.has_gui or has_visualizers:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -239,7 +246,10 @@ class DirectRLEnv(gym.Env):
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        import sys
+
+        if not sys.is_finalizing():
+            self.close()
 
     """
     Properties.

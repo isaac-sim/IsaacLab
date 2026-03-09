@@ -81,6 +81,9 @@ def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> se
         return set()
     if not visualizers:
         return set()
+    if isinstance(visualizers, str):
+        # CLI now uses comma-delimited syntax: --visualizer kit,newton,rerun
+        visualizers = [token.strip() for token in visualizers.split(",")]
     return {str(v).strip().lower() for v in visualizers if str(v).strip()}
 
 
@@ -96,6 +99,30 @@ def _is_kit_camera(node) -> bool:
     return True
 
 
+def compute_kit_requirements(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None = None,
+) -> tuple[bool, bool, set[str]]:
+    """Compute whether Kit is needed and related flags.
+
+    Uses the same logic as :func:`launch_simulation` to decide whether Isaac Sim
+    Kit must be launched.
+
+    Args:
+        env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
+        launcher_args: Optional CLI args; if ``--visualizer`` includes ``kit``, needs_kit is True.
+
+    Returns:
+        (needs_kit, has_kit_cameras, visualizer_types)
+    """
+    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
+    needs_kit = has_kit_cameras or not is_newton
+    visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in visualizer_types:
+        needs_kit = True
+    return needs_kit, has_kit_cameras, visualizer_types
+
+
 @contextmanager
 def launch_simulation(
     env_cfg,
@@ -107,20 +134,16 @@ def launch_simulation(
     * Auto-enables ``enable_cameras`` when the scene contains camera sensors
       that use a Kit renderer (not Newton).
     * For Kit-based backends, launches ``AppLauncher`` and calls ``app.close()`` on exit.
-    * For kitless backends (e.g. Newton), this is a no-op.
+    * For kitless backends (e.g. Newton with Newton Warp renderer only), this is a no-op.
+    * For Newton Physics + RTX Renderer (with Kit cameras): Kit is launched
+      so that RTX can run; Newton syncs its state to the USD stage each step for rendering.
 
     Example::
 
         with launch_simulation(env_cfg, args_cli):
             main()
     """
-    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
-    needs_kit = not is_newton
-
-    # If the Kit visualizer is explicitly requested, Kit must launch even for Newton physics.
-    visualizer_types = _get_visualizer_types(launcher_args)
-    if "kit" in visualizer_types:
-        needs_kit = True
+    needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
 
     if needs_kit and has_kit_cameras:
         if isinstance(launcher_args, argparse.Namespace):
@@ -135,6 +158,21 @@ def launch_simulation(
     close_fn: Any = None
 
     if needs_kit:
+        # check if Isaac Sim is installed
+        import importlib.util
+
+        if importlib.util.find_spec("omni.kit") is None:
+            logger.error(
+                "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
+                "\n"
+                "  This environment requires Isaac Sim and Omniverse Kit.\n"
+                "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
+                "\n"
+                "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
+                "\n"
+                "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+            )
+            raise SystemExit(1)
         from isaaclab.app import AppLauncher
 
         app_launcher = AppLauncher(launcher_args)
@@ -145,7 +183,8 @@ def launch_simulation(
         # SimulationContext._get_cli_visualizer_types() can find it.
         from isaaclab.app.settings_manager import get_settings_manager
 
-        get_settings_manager().set_string("/isaaclab/visualizer", " ".join(sorted(visualizer_types)))
+        visualizer_str = " ".join(sorted(visualizer_types))
+        get_settings_manager().set_string("/isaaclab/visualizer/types", visualizer_str)
 
     try:
         yield

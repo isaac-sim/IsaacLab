@@ -181,16 +181,19 @@ class RMPFlowAction(ActionTerm):
         joint_pos = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
-            joint_pos_des, joint_vel_des = self._rmpflow_controller.compute()
+            joint_pos_des, joint_vel_des = self._rmpflow_controller.compute(
+                wp.to_torch(self._asset.data.joint_pos), wp.to_torch(self._asset.data.joint_vel)
+            )
         else:
             joint_pos_des = joint_pos.clone()
+            joint_vel_des = torch.zeros_like(joint_pos_des)
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
         self._asset.set_joint_velocity_target_index(target=joint_vel_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
-        self._rmpflow_controller.initialize(self.cfg.articulation_prim_expr)
+        self._rmpflow_controller.initialize(self.num_envs, list(self._asset.joint_names))
 
     """
     Helper functions.

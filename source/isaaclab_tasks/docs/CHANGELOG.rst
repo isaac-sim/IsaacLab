@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+1.5.3 (2026-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``TypeError: 'NoneType' object is not iterable`` in
+  :func:`~isaaclab_tasks.utils.hydra.apply_overrides` when a preset value is
+  ``None`` (e.g. ``default = None`` in a :class:`~isaaclab_tasks.utils.PresetCfg`).
+
+1.5.2 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.sim_launcher.compute_kit_requirements` to expose the Kit
+  decision logic for testing (e.g. preset resolution: ``presets=newton,ovrtx_renderer`` →
+  ``needs_kit=False``).
+
+* Added :file:`test_preset_kit_decision.py` — beginner-friendly unit tests that verify
+  preset resolution and Kit decision.
+
 1.5.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 

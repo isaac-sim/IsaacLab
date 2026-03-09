@@ -4,18 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-import logging
-
 from isaaclab_physx.assets import SurfaceGripperCfg
-
-try:
-    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
-    from isaaclab_teleop import IsaacTeleopCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -48,15 +38,15 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
     a GripperRetargeter for pinch-based gripper control from hand tracking data.
     All outputs are flattened into a single 8D action tensor via TensorReorderer.
     """
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-    from isaacteleop.retargeting_engine.retargeters import (
+    from isaacteleop.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
         Se3AbsRetargeter,
         Se3RetargeterConfig,
         TensorReorderer,
     )
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
     controllers = ControllersSource(name="controllers")
@@ -334,13 +324,11 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # IsaacTeleop-based teleoperation pipeline (left hand)
-        if _TELEOP_AVAILABLE:
-            pipeline = _build_se3_abs_gripper_pipeline(hand_side="left")
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )
 
 
 @configclass
@@ -377,10 +365,8 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
         # IsaacTeleop-based teleoperation pipeline (right hand)
-        if _TELEOP_AVAILABLE:
-            pipeline = _build_se3_abs_gripper_pipeline(hand_side="right")
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: pipeline,
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )

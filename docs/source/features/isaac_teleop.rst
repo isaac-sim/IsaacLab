@@ -221,7 +221,7 @@ manipulator (from ``stack_ik_abs_env_cfg.py``):
    def _build_franka_stack_pipeline():
        from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
        from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-       from isaacteleop.retargeting_engine.retargeters import (
+       from isaacteleop.retargeters import (
            GripperRetargeter, GripperRetargeterConfig,
            Se3AbsRetargeter, Se3RetargeterConfig,
            TensorReorderer,
@@ -446,7 +446,7 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `Retargeting Engine README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/retargeting_engine/python/retargeters/README.md>`_
+See the `Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_
 and `Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_ for details.
 
 

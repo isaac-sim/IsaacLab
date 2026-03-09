@@ -25,13 +25,15 @@ from typing import Any, Literal
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+    from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# Suppress noisy debug-level websocket frame logs from the Kit LiveSync server
+logging.getLogger("websockets").setLevel(logging.WARNING)
 
 
 class ExplicitAction(argparse.Action):
@@ -42,6 +44,35 @@ class ExplicitAction(argparse.Action):
         setattr(namespace, self.dest, values)
         # Set a flag indicating the parameter was explicitly passed
         setattr(namespace, f"{self.dest}_explicit", True)
+
+
+def _parse_visualizer_csv(value: str) -> list[str]:
+    """Parse visualizer list from a single comma-delimited CLI token."""
+    valid = {"kit", "newton", "rerun", "viser"}
+    token = (value or "").strip()
+    if not token:
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --visualizer kit,newton."
+        )
+    if " " in token:
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: spaces are not allowed. "
+            "Use a comma-separated list without spaces, e.g. --visualizer kit,newton,rerun,viser."
+        )
+
+    names = [item.strip().lower() for item in token.split(",")]
+    if any(not name for name in names):
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: empty visualizer entry detected. "
+            "Use a comma-separated list without empty items."
+        )
+    invalid = [name for name in names if name not in valid]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
+        )
+    # De-duplicate while preserving order.
+    return list(dict.fromkeys(names))
 
 
 class AppLauncher:
@@ -119,6 +150,7 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+        self._visualizer_max_worlds: int | None  # Optional max worlds override for Newton-based visualizers
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -236,6 +268,24 @@ class AppLauncher:
 
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
+          - ``rerun``: Use Rerun visualizer.
+          - ``newton``: Use Newton visualizer.
+          - ``viser``: Use Viser visualizer.
+          - ``kit``: Use Omniverse Kit visualizer.
+          - Multiple visualizers can be specified as a comma-delimited list:
+            ``--visualizer rerun,newton,viser``
+          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
+
+          Note: If visualizer configs are not defined in the simulation config, default configs will be
+          automatically created with all default parameters.
+          If --headless is specified, it takes precedence and NO visualizers will be initialized.
+          When kit visualizer is specified, the app will launch in non-headless mode automatically.
+          When only non-GUI visualizers (rerun, newton, viser) are specified, headless mode is auto-enabled.
+
+        * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
+          rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
+          config default.
+
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
         """
@@ -309,10 +359,9 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--visualizer",
-            type=str,
-            nargs="+",
+            type=_parse_visualizer_csv,
             default=None,
-            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
+            help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -379,6 +428,15 @@ class AppLauncher:
                 " exceeded, then the animation is not recorded."
             ),
         )
+        arg_group.add_argument(
+            "--visualizer_max_worlds",
+            type=int,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["visualizer_max_worlds"][1],
+            help=(
+                "Optional global max worlds override for Newton-based visualizers (newton/rerun/viser). "
+                "If omitted, visualizer config defaults are used."
+            ),
+        )
         # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
@@ -399,6 +457,7 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
+        "visualizer_max_worlds": ([int, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -939,13 +998,23 @@ class AppLauncher:
         settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
-        """Store visualizer selection in settings."""
+        """Store visualizer selection and max-worlds override in settings."""
         visualizers = launcher_args.get("visualizer")
-        if not visualizers:
-            return
+        visualizer_max_worlds = launcher_args.get("visualizer_max_worlds")
+
+        if visualizer_max_worlds is not None and visualizer_max_worlds < 0:
+            raise ValueError(
+                f"Invalid value for --visualizer_max_worlds: {visualizer_max_worlds}. Expected non-negative int."
+            )
+
         with contextlib.suppress(Exception):
-            visualizer_str = " ".join(visualizers)
-            get_settings_manager().set_string("/isaaclab/visualizer", visualizer_str)
+            visualizer_str = " ".join(visualizers) if visualizers else ""
+            get_settings_manager().set_string("/isaaclab/visualizer/types", visualizer_str)
+            # Store as int setting where -1 means "use per-visualizer defaults".
+            if visualizer_max_worlds is None:
+                get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", -1)
+            else:
+                get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""

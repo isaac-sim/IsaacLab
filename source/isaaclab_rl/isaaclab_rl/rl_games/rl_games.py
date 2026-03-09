@@ -43,10 +43,13 @@ import torch
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg, VecEnvObs
+from isaaclab.envs import VecEnvObs
 
 if TYPE_CHECKING:
-    from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+    from isaaclab.envs import (
+        DirectRLEnv,
+        ManagerBasedRLEnv,
+    )
 
 """
 Vectorized environment wrapper.
@@ -112,7 +115,10 @@ class RlGamesVecEnvWrapper(IVecEnv):
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped.cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
+        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
+        from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+
+        if not isinstance(env.unwrapped, (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

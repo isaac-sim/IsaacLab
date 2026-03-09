@@ -31,7 +31,7 @@ cameras_enabled = true
 # Note: This path was adapted to be respective to the kit-exe file location
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
-app.name = "Isaac Lab"
+app.name = "IsaacLab"
 app.version = "3.0.0"
 
 ### FSD
@@ -108,13 +108,6 @@ metricsAssembler.changeListenerEnabled = false
 
 # explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
 app.extensions.excluded = ["omni.kit.pip_archive"]
-
-[settings.exts."omni.kit.registry.nucleus"]
-registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/${kit_version_short}/shared" },
-    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
-    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
-]
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import newton
 import torch
@@ -24,8 +24,8 @@ from isaaclab.visualizers import VisualizerCfg
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
+    from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors import SensorBase
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +149,11 @@ class NewtonWarpRenderer(BaseRenderer):
     def __init__(self, cfg: NewtonWarpRendererCfg):
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
 
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """No-op for Newton Warp - uses Newton scene directly without stage export.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+        pass
+
     def create_render_data(self, sensor: SensorBase) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
@@ -197,5 +202,5 @@ class NewtonWarpRenderer(BaseRenderer):
         if render_data:
             render_data.sensor = None
 
-    def get_scene_data_provider(self) -> SceneDataProvider:
+    def get_scene_data_provider(self) -> BaseSceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

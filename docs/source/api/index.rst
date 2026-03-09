@@ -21,6 +21,7 @@ The following modules are available in the ``isaaclab`` extension:
    envs
    managers
    markers
+   renderers
    scene
    sensors
    sim

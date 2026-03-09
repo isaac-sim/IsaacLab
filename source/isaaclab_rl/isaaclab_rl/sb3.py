@@ -29,8 +29,6 @@ from stable_baselines3.common.preprocessing import is_image_space, is_image_spac
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
-
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
@@ -149,7 +147,10 @@ class Sb3VecEnvWrapper(VecEnv):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped.cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
+        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
+        from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+
+        if not isinstance(env.unwrapped, (ManagerBasedRLEnv, DirectRLEnv)):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

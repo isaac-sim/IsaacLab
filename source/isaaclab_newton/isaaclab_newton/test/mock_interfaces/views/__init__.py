@@ -5,8 +5,9 @@
 
 """Mock Newton views."""
 
-from .mock_articulation_view import MockNewtonArticulationView
+from .mock_articulation_view import MockNewtonArticulationView, MockNewtonCollectionView
 
 __all__ = [
     "MockNewtonArticulationView",
+    "MockNewtonCollectionView",
 ]

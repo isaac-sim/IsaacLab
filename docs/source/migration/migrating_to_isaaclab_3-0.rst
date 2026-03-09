@@ -1276,7 +1276,7 @@ Import Changes
    * - ``from isaaclab.devices import RetargeterBase``
      - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
    * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
-     - ``from isaacteleop.retargeting_engine.retargeters import Se3AbsRetargeter``
+     - ``from isaacteleop.retargeters import Se3AbsRetargeter``
 
 
 Environment Configuration Changes
@@ -1317,7 +1317,7 @@ field with ``IsaacTeleopCfg`` and a pipeline builder callable.
    def _build_pipeline():
        from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
        from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-       from isaacteleop.retargeting_engine.retargeters import (
+       from isaacteleop.retargeters import (
            GripperRetargeter, GripperRetargeterConfig,
            Se3AbsRetargeter, Se3RetargeterConfig, TensorReorderer,
        )

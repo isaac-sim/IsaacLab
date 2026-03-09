@@ -35,7 +35,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 # separately here so they execute in their own test session.
 
 
-@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize(
     "task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False, teleop_envs=True)
 )
