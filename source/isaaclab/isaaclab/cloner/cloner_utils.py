@@ -27,6 +27,10 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
     ``num_clones`` environments (random or modulo), and then performs USD and/or PhysX replication
     according to the flags in ``cfg``.
 
+    When :attr:`~TemplateCloneCfg.asset_env_masks` is set, assets are only
+    cloned to their assigned environments, enabling heterogeneous multi-task
+    scenes where different subsets of environments contain different objects.
+
     Args:
         stage: The USD stage to author into.
         num_clones: Number of environments to clone to (typically equals ``cfg.num_clones``).
@@ -55,6 +59,12 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
 
         src_paths, dest_paths, clone_masking = make_clone_plan(src, dest, num_clones, cfg.clone_strategy, cfg.device)
 
+        # Apply per-asset env masks to restrict which envs each asset is cloned to.
+        asset_env_masks = cfg.asset_env_masks
+        has_partial_cloning = bool(asset_env_masks)
+        if has_partial_cloning and asset_env_masks is not None:
+            _apply_asset_env_masks(src_paths, clone_masking, asset_env_masks, num_clones)
+
         # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
         # will be served as sources for usd and physx replication.
         proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
@@ -64,8 +74,9 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         stage.GetPrimAtPath(cfg.template_root).SetActive(False)
         get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
         positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
-        # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
-        if torch.all(proto_idx == 0):
+        # If all prototypes map to env_0 and no partial cloning, clone whole env_0 to all envs;
+        # otherwise clone per-object to respect per-asset env masks.
+        if torch.all(proto_idx == 0) and not has_partial_cloning:
             mapping = clone_masking.new_ones(1, num_clones)
             replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
@@ -81,6 +92,34 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
+
+
+def _apply_asset_env_masks(
+    src_paths: list[str],
+    clone_masking: torch.Tensor,
+    asset_env_masks: dict[str, list[int]],
+    num_clones: int,
+) -> None:
+    """Zero out ``clone_masking`` columns for envs excluded by per-asset masks.
+
+    For each row in *clone_masking* whose prototype root matches an entry in
+    *asset_env_masks*, only the listed environment columns are kept; all others
+    are set to ``False``.  Rows whose prototype root has no entry are left
+    untouched (cloned to all envs).
+
+    Args:
+        src_paths: Flattened prototype prim paths (one per masking row).
+        clone_masking: Boolean tensor ``[num_src, num_clones]`` modified **in-place**.
+        asset_env_masks: Maps template asset path to list of target env indices.
+        num_clones: Total number of environments.
+    """
+    for row_idx, src_path in enumerate(src_paths):
+        proto_root = "/".join(src_path.split("/")[:-1])
+        if proto_root in asset_env_masks:
+            allowed = asset_env_masks[proto_root]
+            env_filter = torch.zeros(num_clones, dtype=torch.bool, device=clone_masking.device)
+            env_filter[torch.tensor(allowed, dtype=torch.long, device=clone_masking.device)] = True
+            clone_masking[row_idx] &= env_filter
 
 
 def make_clone_plan(

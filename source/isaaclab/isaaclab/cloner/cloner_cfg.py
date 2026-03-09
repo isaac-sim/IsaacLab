@@ -81,3 +81,14 @@ class TemplateCloneCfg:
 
     clone_in_fabric: bool = False
     """Enable/disable cloning in fabric for PhysX replication. Default is False."""
+
+    asset_env_masks: dict[str, list[int]] | None = None
+    """Per-asset environment filter for selective cloning.
+
+    Maps template asset paths (e.g. ``"/World/template/Object"``) to the list
+    of environment indices the asset should be cloned into.  Assets not present
+    in this dict are cloned into **all** environments.
+
+    This is populated automatically by :class:`~isaaclab.scene.InteractiveScene`
+    from :attr:`~isaaclab.assets.AssetBaseCfg.assigned_env_ids`.
+    """

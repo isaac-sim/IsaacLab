@@ -90,6 +90,13 @@ class AssetBase(ABC):
             # asset should exist at run time
             check_path = self.cfg.prim_path
 
+        # resolve assigned env ids for selective cloning
+        ids = getattr(self.cfg, "assigned_env_ids", None)
+        self._assigned_env_ids: tuple[int, ...] = tuple(ids) if ids else ()
+        self._is_heterogeneous: bool = len(self._assigned_env_ids) > 0
+        # pre-built global→local lookup for _filter_env_ids (lazily moved to device on first use)
+        self._env_id_lookup: torch.Tensor | None = None
+
         # register various callback functions
         self._register_callbacks()
 
@@ -130,6 +137,19 @@ class AssetBase(ABC):
         return self._device
 
     @property
+    def is_heterogeneous(self) -> bool:
+        """Whether the asset covers only a subset of environments."""
+        return self._is_heterogeneous
+
+    @property
+    def assigned_envs(self) -> tuple[int, ...]:
+        """Global environment indices this asset is assigned to.
+
+        Empty tuple when the asset exists in all environments.
+        """
+        return self._assigned_env_ids
+
+    @property
     @abstractmethod
     def data(self) -> Any:
         """Data related to the asset."""
@@ -145,6 +165,40 @@ class AssetBase(ABC):
     """
     Operations.
     """
+
+    def _filter_env_ids(self, global_env_ids: torch.Tensor) -> torch.Tensor:
+        """Map global environment indices to local (asset-internal) indices.
+
+        When the asset only exists in a subset of environments
+        (:attr:`is_heterogeneous` is ``True``), callers pass *global* env
+        indices but the underlying physics view is indexed *locally*
+        (0 .. ``num_instances - 1``).  This method filters out env indices
+        that do not belong to this asset and returns the corresponding local
+        indices.
+
+        When the asset is not heterogeneous the input is returned unchanged.
+
+        Args:
+            global_env_ids: Global environment indices.
+
+        Returns:
+            Local environment indices corresponding to this asset's view.
+        """
+        if not self._is_heterogeneous:
+            return global_env_ids
+        lookup = self._get_env_id_lookup(global_env_ids.device)
+        max_id = lookup.shape[0] - 1
+        clamped = global_env_ids.clamp(max=max_id)
+        valid = (global_env_ids <= max_id) & (lookup[clamped] >= 0)
+        return lookup[global_env_ids[valid]]
+
+    def _get_env_id_lookup(self, device: torch.device | str) -> torch.Tensor:
+        """Return the cached global→local env-id lookup table, building it on first call."""
+        if self._env_id_lookup is None or self._env_id_lookup.device != torch.device(device):
+            assigned = torch.tensor(self._assigned_env_ids, device=device, dtype=torch.long)
+            self._env_id_lookup = torch.full((int(assigned.max().item()) + 1,), -1, dtype=torch.long, device=device)
+            self._env_id_lookup[assigned] = torch.arange(len(assigned), device=device)
+        return self._env_id_lookup
 
     def set_visibility(self, visible: bool, env_ids: Sequence[int] | None = None):
         """Set the visibility of the prims corresponding to the asset.

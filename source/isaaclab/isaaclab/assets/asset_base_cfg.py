@@ -66,6 +66,14 @@ class AssetBaseCfg:
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose."""
 
+    assigned_env_ids: list[int] | None = None
+    """If set, the asset is only cloned into these environments.
+
+    When ``None`` (default), the asset is cloned into every environment.
+    Use this for heterogeneous multi-task scenes where per-task objects
+    should only exist in a subset of environments.
+    """
+
     collision_group: Literal[0, -1] = 0
     """Collision group of the asset. Defaults to ``0``.
 

@@ -666,6 +666,9 @@ class InteractiveScene:
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()
+        # per-asset env masks for selective cloning (populated below)
+        if self.cloner_cfg.asset_env_masks is None:
+            self.cloner_cfg.asset_env_masks = {}
         # Process non-sensor entities before sensors so that asset prims exist in the template
         # when sensors (e.g. cameras attached to robot links) need to spawn under them.
         all_items = [
@@ -699,6 +702,10 @@ class InteractiveScene:
                         asset_cfg.spawn.spawn_path = self._resolve_sensor_template_spawn_path(template_base, proto_id)
                     else:
                         asset_cfg.spawn.spawn_path = f"{template_base}/{proto_id}_.*"
+                    # record per-asset env mask for selective cloning
+                    env_ids = getattr(asset_cfg, "assigned_env_ids", None)
+                    if env_ids is not None:
+                        self.cloner_cfg.asset_env_masks[template_base] = list(env_ids)
                 else:
                     # No cloning - spawn directly at prim_path
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path

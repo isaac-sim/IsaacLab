@@ -161,8 +161,11 @@ class SurfaceGripper(AssetBase):
         Args:
             states: A tensor/array of floats representing the gripper command.
             env_ids: Environment indices. Defaults to None (all environments).
+                In heterogeneous mode, global indices are filtered to the managed subset.
             full_data: Whether ``states`` is indexed by ``env_ids`` (True) or is compact (False).
         """
+        if self.is_heterogeneous:
+            env_ids = self._filter_env_ids_wp(env_ids)
         if env_ids is None:
             env_ids = self._ALL_INDICES
         if full_data:
@@ -225,8 +228,11 @@ class SurfaceGripper(AssetBase):
             shear_force_limit: The shear force limit. Shape (num_envs,) or (len(env_ids),).
             retry_interval: The retry interval. Shape (num_envs,) or (len(env_ids),).
             env_ids: Environment indices. Defaults to None (all environments).
+                In heterogeneous mode, global indices are filtered to the managed subset.
             full_data: Whether input arrays are indexed by ``env_ids`` (True) or compact (False).
         """
+        if self.is_heterogeneous:
+            env_ids = self._filter_env_ids_wp(env_ids)
         if env_ids is None:
             env_ids = self._ALL_INDICES
 
@@ -373,7 +379,10 @@ class SurfaceGripper(AssetBase):
 
         Args:
             env_ids: Environment indices. Defaults to None (all environments).
+                In heterogeneous mode, global indices are filtered to the managed subset.
         """
+        if self.is_heterogeneous:
+            env_ids = self._filter_env_ids_wp(env_ids)
         if env_ids is None:
             env_ids = self._ALL_INDICES
 
@@ -567,6 +576,31 @@ class SurfaceGripper(AssetBase):
     Helper functions.
     """
 
+    def _filter_env_ids_wp(self, env_ids: wp.array | None = None) -> wp.array:
+        """Filter global env indices to the managed subset (warp array variant).
+
+        Uses the same ``clamp + lookup`` strategy as
+        :meth:`~isaaclab.assets.AssetBase._filter_env_ids`.
+        Accepts and returns ``wp.array`` to match the ``_index`` method
+        signatures.
+
+        Args:
+            env_ids: Global env indices as a warp int32 array, or None
+                (meaning all managed environments).
+
+        Returns:
+            Filtered local indices as a warp int32 array.
+        """
+        if env_ids is None:
+            return None
+        env_ids_t = wp.to_torch(env_ids).long()
+        lookup = self._get_env_id_lookup(env_ids_t.device)
+        max_id = lookup.shape[0] - 1
+        clamped = env_ids_t.clamp(max=max_id)
+        valid = (env_ids_t <= max_id) & (lookup[clamped] >= 0)
+        local_ids = lookup[env_ids_t[valid]].to(torch.int32)
+        return wp.from_torch(local_ids.contiguous(), dtype=wp.int32)
+
     def _resolve_env_ids(self, env_ids) -> wp.array:
         """Resolve environment indices to a warp array.
 
@@ -577,7 +611,7 @@ class SurfaceGripper(AssetBase):
             A warp array of int32 indices.
         """
         if env_ids is None or env_ids == slice(None):
-            return self._ALL_INDICES
+            return None
         elif isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         elif isinstance(env_ids, torch.Tensor):
