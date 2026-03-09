@@ -65,9 +65,6 @@ class ActionTerm(ManagerTermBase):
         self.set_debug_vis(self.cfg.debug_vis)
         # resolve assigned environment indices from the underlying asset
         self._assigned_envs = getattr(self._asset, "assigned_envs", self._assigned_envs)
-        self._assigned_envs_to_local_indices = {
-            global_idx: local_idx for local_idx, global_idx in enumerate(self._assigned_envs)
-        }
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
@@ -403,8 +400,9 @@ class ActionManager(ManagerBase):
                 term_actions = action[list(term_assigned_envs), idx : idx + term.action_dim]
             term.process_actions(term_actions)
             idx += term.action_dim
-            if idx >= self.total_action_dim:
-                idx -= self.total_action_dim
+        assert idx == self.total_action_dim, (
+            f"Action index mismatch after dispatching: {idx} != {self.total_action_dim}"
+        )
 
     def apply_action(self) -> None:
         """Applies the actions to the environment/simulation.

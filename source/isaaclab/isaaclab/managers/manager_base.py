@@ -70,7 +70,6 @@ class ManagerTermBase(ABC):
         self.cfg = cfg
         self._env = env
         self._assigned_envs: tuple[int, ...] = ()
-        self._assigned_envs_to_local_indices: dict[int, int] = {}
         self._env_id_lookup: torch.Tensor | None = None
 
     """
@@ -140,11 +139,6 @@ class ManagerTermBase(ABC):
     def assigned_envs(self) -> tuple[int, ...]:
         """Global environment indices handled by this term."""
         return self._assigned_envs
-
-    @property
-    def assigned_envs_to_local_indices(self) -> dict[int, int]:
-        """Map of global environment indices to local indices."""
-        return self._assigned_envs_to_local_indices
 
     @property
     def is_heterogeneous(self) -> bool:
