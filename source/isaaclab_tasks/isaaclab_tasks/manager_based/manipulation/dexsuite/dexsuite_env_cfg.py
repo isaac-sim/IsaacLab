@@ -169,7 +169,6 @@ class ObservationsCfg:
         object_quat_b = ObsTerm(func=mdp.object_quat_b, noise=Unoise(n_min=-0.0, n_max=0.0))
         target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
-        # timeout = ObsTerm(func=mdp.time_left)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -454,10 +453,10 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 2  # 50 Hz
 
         # *single-goal setup
-        self.commands.object_pose.resampling_time_range = (10.0, 10.0)
+        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.position_only = False
-        self.episode_length_s = 4.0
-        self.is_finite_horizon = True
+        self.episode_length_s = 6.0
+        self.is_finite_horizon = False
 
         # simulation settings
         self.sim.dt = 1 / 120
@@ -492,7 +491,6 @@ class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.debug_vis = True
         self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
 
@@ -502,7 +500,6 @@ class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.debug_vis = True
         self.commands.object_pose.position_only = True
         self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
