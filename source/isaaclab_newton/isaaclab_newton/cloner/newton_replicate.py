@@ -8,11 +8,11 @@ from __future__ import annotations
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
+from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
-from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 
 def newton_replicate(
