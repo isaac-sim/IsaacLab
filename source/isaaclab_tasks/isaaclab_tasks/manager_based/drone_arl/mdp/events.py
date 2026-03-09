@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import RigidObjectCollection
 from isaaclab.managers import SceneEntityCfg
 
 from .curriculums import get_obstacle_curriculum_term
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObjectCollection
     from isaaclab.envs import ManagerBasedRLEnv
 
 

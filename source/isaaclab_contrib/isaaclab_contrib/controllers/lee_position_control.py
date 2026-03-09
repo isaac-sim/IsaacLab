@@ -63,12 +63,19 @@ class LeePosController(LeeControllerBase):
         """
         self.wrench_command_b.zero_()
 
+        root_quat_w, root_ang_vel_b, root_lin_vel_w = self._root_state_tensors()
+        root_pos_w = self._to_torch(self.robot.data.root_pos_w)
+
         # Compute acceleration from position error
-        acc = self._compute_acceleration(setpoint_position=command[:, :3])
+        acc = self._compute_acceleration(
+            setpoint_position=command[:, :3],
+            root_pos_w=root_pos_w,
+            root_lin_vel_w=root_lin_vel_w,
+        )
         forces_w = (acc - self.gravity) * self.mass.view(-1, 1)
 
         # Project forces to body z-axis for thrust command
-        body_z_w = math_utils.matrix_from_quat(self.robot.data.root_quat_w)[:, :, 2]
+        body_z_w = math_utils.matrix_from_quat(root_quat_w)[:, :, 2]
         self.wrench_command_b[:, 2] = torch.sum(forces_w * body_z_w, dim=1)
 
         # Get current yaw and compute desired orientation
@@ -81,8 +88,8 @@ class LeePosController(LeeControllerBase):
         self.wrench_command_b[:, 3:6] = compute_body_torque(
             desired_quat,
             desired_angvel_b,
-            self.robot.data.root_quat_w,
-            self.robot.data.root_ang_vel_b,
+            root_quat_w,
+            root_ang_vel_b,
             self.robot_inertia,
             self.K_rot_current,
             self.K_angvel_current,
@@ -109,7 +116,9 @@ class LeePosController(LeeControllerBase):
             self.device,
         )
 
-    def _compute_acceleration(self, setpoint_position: torch.Tensor) -> torch.Tensor:
+    def _compute_acceleration(
+        self, setpoint_position: torch.Tensor, root_pos_w: torch.Tensor, root_lin_vel_w: torch.Tensor
+    ) -> torch.Tensor:
         """Compute desired acceleration from position error.
 
         Args:
@@ -118,8 +127,8 @@ class LeePosController(LeeControllerBase):
         Returns:
             (num_envs, 3) desired acceleration in body frame.
         """
-        position_error = setpoint_position - self.robot.data.root_pos_w
+        position_error = setpoint_position - root_pos_w
         # Compute velocity error for position controller
-        velocity_error = -self.robot.data.root_lin_vel_w
+        velocity_error = -root_lin_vel_w
 
         return self.K_vel_current * velocity_error + self.K_pos_current * position_error

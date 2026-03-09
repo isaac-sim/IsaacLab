@@ -61,16 +61,21 @@ class LeeVelController(LeeControllerBase):
         """
         self.wrench_command_b.zero_()
 
+        root_quat_w, root_ang_vel_b, root_lin_vel_w = self._root_state_tensors()
+
         # Compute acceleration from velocity tracking
-        acc = self._compute_acceleration(setpoint_velocity=command[:, :3])
+        acc = self._compute_acceleration(
+            setpoint_velocity=command[:, :3], root_quat_w=root_quat_w, root_lin_vel_w=root_lin_vel_w
+        )
+
         forces_w = (acc - self.gravity) * self.mass.view(-1, 1)
 
         # Project forces to body z-axis for thrust command
-        body_z_w = math_utils.matrix_from_quat(self.robot.data.root_quat_w)[:, :, 2]
+        body_z_w = math_utils.matrix_from_quat(root_quat_w)[:, :, 2]
         self.wrench_command_b[:, 2] = torch.sum(forces_w * body_z_w, dim=1)
 
         # Compute desired orientation from force direction and yaw setpoint
-        roll, pitch, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)
+        roll, pitch, yaw = math_utils.euler_xyz_from_quat(root_quat_w)
         desired_quat = compute_desired_orientation(forces_w, yaw, self.rotation_matrix_buffer)
 
         # Compute desired angular velocity in body frame from yaw rate command
@@ -80,8 +85,8 @@ class LeeVelController(LeeControllerBase):
         self.wrench_command_b[:, 3:6] = compute_body_torque(
             desired_quat,
             desired_angvel_b,
-            self.robot.data.root_quat_w,
-            self.robot.data.root_ang_vel_b,
+            root_quat_w,
+            root_ang_vel_b,
             self.robot_inertia,
             self.K_rot_current,
             self.K_angvel_current,
@@ -105,7 +110,9 @@ class LeeVelController(LeeControllerBase):
             self.device,
         )
 
-    def _compute_acceleration(self, setpoint_velocity: torch.Tensor) -> torch.Tensor:
+    def _compute_acceleration(
+        self, setpoint_velocity: torch.Tensor, root_quat_w: torch.Tensor, root_lin_vel_w: torch.Tensor
+    ) -> torch.Tensor:
         """Compute desired acceleration from velocity tracking error.
 
         Args:
@@ -115,12 +122,12 @@ class LeeVelController(LeeControllerBase):
             (num_envs, 3) desired acceleration in body frame.
         """
         # Get yaw-only orientation (vehicle frame)
-        _, _, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)
+        _, _, yaw = math_utils.euler_xyz_from_quat(root_quat_w)
         vehicle_quat = math_utils.quat_from_euler_xyz(torch.zeros_like(yaw), torch.zeros_like(yaw), yaw)
 
         # Transform setpoint from body to world frame
         setpoint_velocity_w = math_utils.quat_apply(vehicle_quat, setpoint_velocity)
 
         # Compute velocity error and acceleration command
-        velocity_error = setpoint_velocity_w - self.robot.data.root_lin_vel_w
+        velocity_error = setpoint_velocity_w - root_lin_vel_w
         return self.K_vel_current * velocity_error

@@ -59,15 +59,17 @@ class LeeAccController(LeeControllerBase):
         """
         self.wrench_command_b.zero_()
 
+        root_quat_w, root_ang_vel_b, _ = self._root_state_tensors()
+
         # Use command directly as acceleration setpoint
         forces_w = (command[:, :3] - self.gravity) * self.mass.view(-1, 1)
 
         # Project forces to body z-axis for thrust command
-        body_z_w = math_utils.matrix_from_quat(self.robot.data.root_quat_w)[:, :, 2]
+        body_z_w = math_utils.matrix_from_quat(root_quat_w)[:, :, 2]
         self.wrench_command_b[:, 2] = torch.sum(forces_w * body_z_w, dim=1)
 
         # Get current yaw and compute desired orientation
-        roll, pitch, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)
+        roll, pitch, yaw = math_utils.euler_xyz_from_quat(root_quat_w)
         desired_quat = compute_desired_orientation(forces_w, yaw, self.rotation_matrix_buffer)
 
         # Compute desired angular velocity in body frame from yaw rate command
@@ -77,8 +79,8 @@ class LeeAccController(LeeControllerBase):
         self.wrench_command_b[:, 3:6] = compute_body_torque(
             desired_quat,
             desired_angvel_b,
-            self.robot.data.root_quat_w,
-            self.robot.data.root_ang_vel_b,
+            root_quat_w,
+            root_ang_vel_b,
             self.robot_inertia,
             self.K_rot_current,
             self.K_angvel_current,

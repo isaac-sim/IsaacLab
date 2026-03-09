@@ -2,6 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
 
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
@@ -10,7 +11,9 @@ from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .thrust_actions import ThrustAction
+    from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
+
+    from .thrust_actions import NavigationAction, ThrustAction
 
 
 @configclass
@@ -72,7 +75,7 @@ class ThrustActionCfg(ActionTermCfg):
         - :class:`~isaaclab.managers.ActionTermCfg`: Base action term configuration
     """
 
-    class_type: type["ThrustAction"] | str = "{DIR}.thrust_actions:ThrustAction"
+    class_type: type[ThrustAction] | str = "{DIR}.thrust_actions:ThrustAction"
 
     asset_name: str = MISSING
     """Name or regex expression of the asset that the action will be mapped to.
@@ -188,7 +191,7 @@ class NavigationActionCfg(ThrustActionCfg):
     See :class:`NavigationAction` for more details.
     """
 
-    class_type: type[ActionTerm] = thrust_actions.NavigationAction
+    class_type: type[NavigationAction] | str = "{DIR}.thrust_actions:NavigationAction"
 
     controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = MISSING
     """The configuration for the Lee velocity controller."""

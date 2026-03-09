@@ -10,9 +10,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+
+from isaaclab_contrib.utils.math import aggregate_inertia_about_robot_com
 
 if TYPE_CHECKING:
     from isaaclab.assets import Multirotor
@@ -41,16 +44,24 @@ class LeeControllerBase:
         self.device = device
         self.num_envs = num_envs
 
+        root_quat_w = self._to_torch(self.robot.data.root_link_quat_w)
+        body_link_pos_w = self._to_torch(self.robot.data.body_link_pos_w)
+        root_pos_w = self._to_torch(self.robot.data.root_pos_w)
+        body_com_pos_b = self._to_torch(self.robot.data.body_com_pos_b)
+        body_com_quat_b = self._to_torch(self.robot.data.body_com_quat_b)
+        body_link_quat_w = self._to_torch(self.robot.data.body_link_quat_w)
+
         # Aggregate mass and inertia about the robot COM for all bodies
-        root_quat_exp = self.robot.data.root_link_quat_w.unsqueeze(1).expand(num_envs, self.robot.num_bodies, 4)
-        body_link_pos_delta = self.robot.data.body_link_pos_w - self.robot.data.root_pos_w.unsqueeze(1)
-        self.mass, self.robot_inertia, _ = math_utils.aggregate_inertia_about_robot_com(
-            self.robot.root_physx_view.get_inertias().to(device),
-            self.robot.root_physx_view.get_inv_masses().to(device),
-            self.robot.data.body_com_pos_b,
-            self.robot.data.body_com_quat_b,
+        root_quat_exp = root_quat_w.unsqueeze(1).expand(num_envs, self.robot.num_bodies, 4)
+        body_link_pos_delta = body_link_pos_w - root_pos_w.unsqueeze(1)
+
+        self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(
+            self._to_torch(self.robot.root_physx_view.get_inertias()),
+            self._to_torch(self.robot.root_physx_view.get_inv_masses()),
+            body_com_pos_b,
+            body_com_quat_b,
             math_utils.quat_apply_inverse(root_quat_exp, body_link_pos_delta),
-            math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), self.robot.data.body_link_quat_w),
+            math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), body_link_quat_w),
         )
         # Get gravity from simulation context
         sim = sim_utils.SimulationContext.instance()
@@ -60,6 +71,19 @@ class LeeControllerBase:
         # Buffers
         self.wrench_command_b = torch.zeros((num_envs, 6), device=device)  # [fx, fy, fz, tx, ty, tz]
         self.rotation_matrix_buffer = torch.zeros((num_envs, 3, 3), device=device)
+
+    def _to_torch(self, x):
+        """Convert warp array to torch tensor on controller device; no-op for torch tensors."""
+        if torch.is_tensor(x):
+            return x.to(self.device)
+        return wp.to_torch(x).to(self.device)
+
+    def _root_state_tensors(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Fetch root state once per control step."""
+        root_quat_w = self._to_torch(self.robot.data.root_quat_w)
+        root_ang_vel_b = self._to_torch(self.robot.data.root_ang_vel_b)
+        root_lin_vel_w = self._to_torch(self.robot.data.root_lin_vel_w)
+        return root_quat_w, root_ang_vel_b, root_lin_vel_w
 
     def reset(self):
         """Reset controller state for all environments."""

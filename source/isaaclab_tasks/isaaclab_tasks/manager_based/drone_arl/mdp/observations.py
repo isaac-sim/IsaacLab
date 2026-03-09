@@ -18,12 +18,16 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
+    from isaaclab.sensors.camera.camera import Camera
+    from isaaclab.sensors.camera.tiled_camera import TiledCamera
+    from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
+    from isaaclab.sensors.ray_caster.ray_caster_camera import RayCasterCamera
 
     from isaaclab_contrib.assets import Multirotor
 
