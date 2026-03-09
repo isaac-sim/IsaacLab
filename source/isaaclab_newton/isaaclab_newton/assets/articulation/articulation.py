@@ -17,7 +17,6 @@ import numpy as np
 import torch
 import warp as wp
 from newton import JointType
-from newton import Model as NewtonModel
 from newton.selection import ArticulationView
 from newton.solvers import SolverNotifyFlags
 from prettytable import PrettyTable
@@ -3382,11 +3381,6 @@ class Articulation(BaseArticulation):
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
-                # write_joint_damping_to_sim_index updates joint_target_kd, which only applies
-                # to joints with an existing velocity actuator (VELOCITY or POSITION_VELOCITY mode).
-                # For joints in EFFORT or NONE mode, passive damping must be written to
-                # model.mujoco.dof_passive_damping so the MuJoCo solver can apply it.
-                self._write_passive_damping_to_mujoco(actuator.damping, actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
@@ -3483,92 +3477,6 @@ class Articulation(BaseArticulation):
                         t.add_row([actuator_group_str, property_str, *fmt])
                         group_count += 1
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
-
-    def _write_passive_damping_to_mujoco(
-        self,
-        damping: torch.Tensor | wp.array | float,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None,
-    ) -> None:
-        """Write passive joint damping to the MuJoCo solver's dof_passive_damping array.
-
-        :meth:`write_joint_damping_to_sim_index` updates ``joint_target_kd``, which only takes
-        effect for joints that have a velocity actuator (VELOCITY or POSITION_VELOCITY drive mode).
-        For joints in EFFORT or NONE mode (no velocity actuator is created), the MuJoCo solver
-        reads passive joint damping from ``model.mujoco.dof_passive_damping`` instead.
-        This method writes the damping value to that array so it is applied during simulation.
-
-        .. note::
-            This method assumes each selected joint contributes exactly one DOF (i.e., revolute or
-            prismatic joints). Multi-DOF joints (e.g., spherical) are not supported.
-
-        Args:
-            damping: Joint damping [N·m·s/rad or N·s/m]. Scalar or shape (num_instances, num_joints).
-            joint_ids: Joint indices. If None, all joints are used.
-        """
-        model = SimulationManager.get_model()
-        mujoco_attrs = getattr(model, "mujoco", None)
-        if mujoco_attrs is None:
-            return
-        dof_passive_damping = getattr(mujoco_attrs, "dof_passive_damping", None)
-        if dof_passive_damping is None:
-            return
-
-        # Get the JOINT_DOF frequency layout to map view-local joint indices to flat DOF indices.
-        # layout.offset: first DOF index for this view's joints (instance 0).
-        # layout.stride_between_worlds: DOF stride between instances in the flat array.
-        # layout.slice / layout.indices: maps view-local joint position -> relative DOF (from offset).
-        layout = self._root_view.frequency_layouts.get(NewtonModel.AttributeFrequency.JOINT_DOF)
-        if layout is None:
-            return
-
-        # Resolve joint IDs; ensure it's a Warp array throughout.
-        resolved = self._resolve_joint_ids(joint_ids)
-        if not isinstance(resolved, wp.array):
-            resolved = wp.from_torch(resolved.to(torch.int32).contiguous())
-        num_joints = resolved.shape[0]
-        if num_joints == 0:
-            return
-
-        # Compute the relative DOF index for each actuator joint (relative to layout.offset).
-        # Contiguous: dof_rel = layout.slice.start + joint_id.
-        # Non-contiguous: dof_rel = layout.indices[joint_id] (gather).
-        dof_rels = wp.empty((num_joints,), dtype=wp.int32, device=self.device)
-        if layout.is_contiguous:
-            wp.launch(
-                articulation_kernels.offset_indices,
-                dim=num_joints,
-                inputs=[resolved, layout.slice.start],
-                outputs=[dof_rels],
-                device=self.device,
-            )
-        else:
-            wp.launch(
-                articulation_kernels.gather_indices,
-                dim=num_joints,
-                inputs=[resolved, layout.indices],
-                outputs=[dof_rels],
-                device=self.device,
-            )
-
-        # Build a Warp array of damping values (one per actuator joint, same for all instances).
-        if isinstance(damping, (int, float)):
-            damping_wp = wp.full((num_joints,), float(damping), dtype=wp.float32, device=self.device)
-        elif isinstance(damping, wp.array):
-            damping_wp = wp.from_torch(wp.to_torch(damping)[0].contiguous(), dtype=wp.float32)
-        else:
-            damping_wp = wp.from_torch(damping[0].contiguous(), dtype=wp.float32)
-
-        # Write damping to all instances via a Warp kernel.
-        # dof_passive_damping is per-instance: flat index = layout.offset + w * stride + dof_rel.
-        stride = layout.stride_between_worlds
-        num_worlds = self.num_instances if stride > 0 else 1
-        wp.launch(
-            articulation_kernels.write_passive_damping,
-            dim=(num_worlds, num_joints),
-            inputs=[dof_rels, damping_wp, layout.offset, stride],
-            outputs=[dof_passive_damping],
-            device=self.device,
-        )
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
