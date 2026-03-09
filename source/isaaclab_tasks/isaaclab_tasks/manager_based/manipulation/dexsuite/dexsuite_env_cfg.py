@@ -81,17 +81,6 @@ class ObjectCfg(PresetCfg):
 
 
 @configclass
-class TableCfg(PresetCfg):
-    physx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/table",
-        spawn=TABLE_SPAWN_CFG,
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    newton = None
-    default = physx
-
-
-@configclass
 class SceneCfg(InteractiveSceneCfg):
     """Dexsuite Scene for multi-objects Lifting"""
 
