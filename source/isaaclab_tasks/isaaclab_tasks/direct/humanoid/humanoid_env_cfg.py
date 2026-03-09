@@ -72,7 +72,8 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    joint_gears: list = [
+    
+    physx_joint_gears: list = [
         67.5000,  # lower_waist
         67.5000,  # lower_waist
         67.5000,  # right_upper_arm
@@ -95,6 +96,33 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         22.5,  # left_foot
         22.5,  # left_foot
     ]
+    newton_joint_gears: list = [
+        67.5000,  # left_upper_arm
+        67.5000,  # left_upper_arm
+        45.0000,  # left_lower_arm
+        67.5000,  # lower_waist
+        67.5000,  # lower_waist
+        67.5000,  # pelvis
+        45.0000,  # left_thigh: x
+        135.0000,  # left_thigh: y
+        45.0000,  # left_thigh: z
+        90.0000,  # left_knee
+        22.5,  # left_foot
+        22.5,  # left_foot
+        45.0000,  # right_thigh: x
+        135.0000,  # right_thigh: y
+        45.0000,  # right_thigh: z
+        90.0000,  # right_knee
+        22.5,  # right_foot
+        22.5,  # right_foot
+        67.5000,  # right_upper_arm
+        67.5000,  # right_upper_arm
+        45.0000,  # right_lower_arm
+    ]
+    joint_gears = {
+        "physx": physx_joint_gears,
+        "newton": newton_joint_gears,
+    }
 
     heading_weight: float = 0.5
     up_weight: float = 0.1
