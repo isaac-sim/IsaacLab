@@ -1,0 +1,151 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'ECR Build-Push-Pull'
+description: >
+  Builds a Docker image and pushes it to ECR, using ECR as the layer cache.
+  If the image already exists in ECR (same tag), pulls it instead of building.
+  Drop-in replacement for docker-build/action.yml with ECR-backed caching.
+
+inputs:
+  image-tag:
+    description: 'Tag for the Docker image (e.g. my-image:latest).'
+    required: true
+  isaacsim-base-image:
+    description: 'IsaacSim base image (passed as ISAACSIM_BASE_IMAGE_ARG build-arg).'
+    required: true
+  isaacsim-version:
+    description: 'IsaacSim version (passed as ISAACSIM_VERSION_ARG build-arg).'
+    required: true
+  dockerfile-path:
+    description: 'Path to Dockerfile, relative to the repository root'
+    default: 'docker/Dockerfile.base'
+    required: false
+  ecr-repository:
+    description: 'ECR repository name. If omitted, ECR push/pull/cache is skipped and the image is always built.'
+    required: false
+    default: ''
+  cache-tag:
+    description: >
+      Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
+    required: false
+    default: 'cache'
+  aws-region:
+    description: >
+      AWS region (e.g. us-west-2, etc).
+      For best performance, should match the runner EC2 region.
+    required: false
+    default: 'us-west-2'
+
+runs:
+  using: composite
+  steps:
+    - name: ECR Build, Push, Pull
+      shell: bash
+      run: |
+        IMAGE_TAG="${{ inputs.image-tag }}"
+        ECR_REPOSITORY="${{ inputs.ecr-repository }}"
+        AWS_REGION="${{ inputs.aws-region }}"
+
+        if [ -z "${ECR_REPOSITORY}" ]; then
+          echo "🟠 ecr-repository not set, skipping ECR login/push/pull. Building locally only."
+        else
+          # Get AWS account ID from the runner's IAM instance profile
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          # Derive ECR image tag by slugifying the local image-tag
+          # (colons/slashes not valid in ECR tags)
+          ECR_TAG=$(echo "${IMAGE_TAG}" | tr ':/' '--')
+          ECR_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${ECR_TAG}"
+          CACHE_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${{ inputs.cache-tag }}"
+
+          # The runner's credential store is broken ("not implemented"), so use a temp config dir
+          # with credsStore disabled. Copy existing ~/.docker/config.json first to preserve other
+          # registry auths (e.g. nvcr.io), then strip credsStore/credHelpers.
+          #
+          DOCKER_CONFIG_DIR=$(mktemp -d)
+          trap 'rm -rf "${DOCKER_CONFIG_DIR}"' EXIT
+          if [ -f "${HOME}/.docker/config.json" ]; then
+            python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
+          else
+            echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+          fi
+          #
+          # Export so all subsequent docker calls in this job inherit it
+          echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+          export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+          # Login to ECR registry with token provided by aws cli
+          echo "🟢 Logging into ECR registry..."
+          aws ecr get-login-password --region "${AWS_REGION}" | \
+            docker login --username AWS --password-stdin "${REGISTRY}"
+
+          # Try pulling the exact image from ECR to skip the build
+          echo "🟢 Checking for existing image ${ECR_IMAGE} in ECR..."
+          PULL_OUTPUT=$(docker pull "${ECR_IMAGE}" 2>&1) && {
+            echo "🟢 Image found in ECR, pulled: ${ECR_IMAGE}"
+            docker tag "${ECR_IMAGE}" "${IMAGE_TAG}"
+            echo "🟢 Tagged as: ${IMAGE_TAG} — skipping build."
+            exit 0
+          } || {
+            echo "🟠 Image not pulled (will build instead): ${PULL_OUTPUT}"
+          }
+        fi
+
+        # Log into nvcr.io so the Dockerfile can pull nvcr.io base images.
+        # Credential is written into the temp config dir when ECR is enabled,
+        # and into the default config when it is not.
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "🟢 Logging into nvcr.io..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+        else
+          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
+        fi
+
+        # Build the image
+
+        BUILD_ARGS=(
+          --progress=plain
+          --platform linux/amd64
+          -f "${{ inputs.dockerfile-path }}"
+          --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
+          --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"
+          --build-arg "ISAACSIM_ROOT_PATH_ARG=/isaac-sim"
+          --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab"
+          --build-arg "DOCKER_USER_HOME_ARG=/root"
+          -t "${IMAGE_TAG}"
+        )
+
+        # Add ECR layer caching
+        if [ -n "${ECR_REPOSITORY}" ]; then
+          BUILD_ARGS+=(
+            --cache-from "type=registry,ref=${CACHE_IMAGE}"
+            --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max"
+            -t "${ECR_IMAGE}"
+          )
+        fi
+
+        # Set up buildx builder with docker-container driver (required for registry cache export).
+        BUILDER_NAME="ci-builder-${{ github.run_id }}-${{ github.job }}"
+
+        # Create builder (or fall back to reusing existing one on workflow re-runs)
+        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
+          || docker buildx use "${BUILDER_NAME}"
+
+        echo "🟢 Building ${IMAGE_TAG}..."
+        docker buildx build --load "${BUILD_ARGS[@]}" .
+
+        # Clean up builder
+        docker buildx rm "${BUILDER_NAME}" || true
+
+        echo "🟢 Build completed for ${IMAGE_TAG}, pushing to ECR..."
+
+        if [ -n "${ECR_REPOSITORY}" ]; then
+          docker push "${ECR_IMAGE}"
+          echo "🟢 Pushed ${ECR_IMAGE} to ECR"
+        fi
+
+        echo "🟢 Image ${IMAGE_TAG} is ready!"

@@ -36,12 +36,68 @@ env:
   ISAACSIM_BASE_IMAGE: nvcr.io/nvidian/isaac-sim #${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' #${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  ECR_REPOSITORY: isaaclab-ci
+  ECR_REGION: us-west-2
 
 jobs:
+  build:
+    name: Build base Docker image
+    runs-on: [self-hosted, gpu]
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build and push to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
+
+    # ECR images must be pruned with a lifecycle policy.
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
+  build-curobo:
+    name: Build cuRobo Docker image
+    runs-on: [self-hosted, gpu]
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build and push to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.curobo
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-curobo
+
+    # ECR images must be pruned with a lifecycle policy.
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
+
   test-isaaclab-tasks:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
+    needs: build
 
     steps:
     - name: Checkout Code
@@ -50,12 +106,16 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -67,18 +127,6 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
-
-    - name: Copy Test Results from IsaacLab Tasks Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-tasks-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from IsaacLab Tasks container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
 
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4
@@ -103,6 +151,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -111,6 +160,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
+    needs: build
 
     steps:
     - name: Checkout Code
@@ -119,12 +169,16 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests 2
       uses: ./.github/actions/run-tests
@@ -136,18 +190,6 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
-
-    - name: Copy Test Results from IsaacLab Tasks 2 Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from IsaacLab Tasks 2 container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks 2 container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
 
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4
@@ -172,6 +214,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -179,6 +222,7 @@ jobs:
   test-general:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    needs: build
 
     steps:
     - name: Checkout Code
@@ -187,12 +231,16 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-base
 
     - name: Run General Tests
       id: run-general-tests
@@ -204,18 +252,6 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
-
-    - name: Copy Test Results from General Tests Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from General Tests container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
 
     - name: Upload General Test Results
       uses: actions/upload-artifact@v4
@@ -240,6 +276,7 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
@@ -248,6 +285,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
+    needs: build-curobo
 
     steps:
     - name: Checkout Code
@@ -256,13 +294,16 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    - name: Build Docker Image (cuRobo)
-      uses: ./.github/actions/docker-build
+    - name: Pull cuRobo image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: 'docker/Dockerfile.curobo'
+        dockerfile-path: docker/Dockerfile.curobo
+        ecr-repository: ${{ env.ECR_REPOSITORY }}
+        aws-region: ${{ env.ECR_REGION }}
+        cache-tag: cache-curobo
 
     - name: Run cuRobo and SkillGen Tests
       uses: ./.github/actions/run-tests
@@ -274,18 +315,6 @@ jobs:
         pytest-options: ""
         filter-pattern: ""
         curobo-only: "true"
-
-    - name: Copy Test Results from cuRobo Container
-      if: always()
-      run: |
-        mkdir -pv reports/
-        CONTAINER_NAME="isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying test results from cuRobo container..."
-          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/${{ github.job }}-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
-        else
-          echo "[ERROR] No container $CONTAINER_NAME found! Skipping copying of test results."
-        fi
 
     - name: Upload cuRobo Test Results
       uses: actions/upload-artifact@v4
@@ -310,12 +339,13 @@ jobs:
           exit 1
         fi
 
+    # ECR images must be pruned with a lifecycle policy.
     - name: Clean up stale Docker images
       if: always()
       run: docker image prune -f --filter "until=24h" || true
 
   combine-results:
-    needs: [test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
+    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
     runs-on: ubuntu-latest
     if: always()
 
