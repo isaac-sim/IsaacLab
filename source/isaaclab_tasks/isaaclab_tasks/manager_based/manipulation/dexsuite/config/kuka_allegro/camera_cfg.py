@@ -14,6 +14,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
@@ -32,6 +33,7 @@ BASE_CAMERA_CFG = TiledCameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
+    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 WRIST_CAMERA_CFG = TiledCameraCfg(
@@ -45,6 +47,7 @@ WRIST_CAMERA_CFG = TiledCameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
+    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 
