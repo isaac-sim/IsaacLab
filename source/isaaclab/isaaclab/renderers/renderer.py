@@ -15,6 +15,7 @@ from .renderer_cfg import RendererCfg
 # This is mapping of where backends live in the isaaclab_<backend> package.
 _RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton", "ovrtx": "ov"}
 
+
 class Renderer(FactoryBase, BaseRenderer):
     """Factory for creating renderer instances."""
 

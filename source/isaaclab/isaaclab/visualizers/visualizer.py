@@ -14,6 +14,7 @@ from .base_visualizer import BaseVisualizer
 # Visualizer types; each loads from isaaclab_visualizers.<type> for minimal deps.
 _VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 
+
 class Visualizer(FactoryBase, BaseVisualizer):
     """Factory for creating visualizer instances."""
 
