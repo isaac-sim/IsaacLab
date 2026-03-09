@@ -32,8 +32,14 @@ def _build_builder_from_mapping(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
+    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+
     builder = ModelBuilder(up_axis=up_axis)
-    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
+    stage_info = builder.add_usd(
+        stage,
+        ignore_paths=["/World/envs"] + sources,
+        schema_resolvers=schema_resolvers,
+    )
 
     # Build one local prototype per source. These are added into each world according to mapping.
     protos: dict[str, ModelBuilder] = {}
@@ -41,13 +47,14 @@ def _build_builder_from_mapping(
         p = ModelBuilder(up_axis=up_axis)
         if register_custom_attributes:
             solvers.SolverMuJoCo.register_custom_attributes(p)
-        inverse_env_xform = get_inverse_env_xform(stage, src_path)
+        inverse_env_xform = _get_inverse_env_xform(stage, src_path)
         p.add_usd(
             stage,
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
             xform=inverse_env_xform,
+            schema_resolvers=schema_resolvers,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
@@ -153,7 +160,7 @@ def newton_visualizer_prebuild(
     return model, state
 
 
-def get_inverse_env_xform(stage, src_path: str):
+def _get_inverse_env_xform(stage: Usd.Stage, src_path: str):
     """Get the inverse transform of src_path to convert world→local."""
     xform_cache = UsdGeom.XformCache()
     world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(src_path))
