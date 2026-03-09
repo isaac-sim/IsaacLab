@@ -1,33 +1,59 @@
 Changelog
 ---------
 
-1.5.3 (2026-03-06)
+1.5.3 (2026-03-09)
 ~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :file:`test/test_environments_newton.py` — an end-to-end CI test that auto-discovers
+  all environments with a ``newton`` physics preset and runs 100 random-action steps against each.
+
+* Added :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` helper that walks the full
+  configuration tree and applies a named preset (e.g. ``'newton'``) to every preset-wrapper
+  field, replacing the default-resolved value. This enables Newton preset overrides for all
+  scene fields (e.g. ``scene.contact_forces``) when running tests outside the Hydra pipeline.
+
+* Added Newton physics presets and compatibility fixes to locomotion, reach, Franka cabinet,
+  allegro-hand, and shadow-hand environments: replaced unsupported ``ls_iterations`` /
+  ``ls_parallel`` solver fields with Newton-compatible settings, and added a per-preset
+  :class:`~isaaclab_tasks.manager_based.manipulation.reach.reach_env_cfg.TableCfg` using box
+  geometry instead of a USD asset for Newton compatibility.
+
+* Added :class:`~isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg.CabinetSimCfg`
+  preset to the cabinet environment, replacing the physics-only preset with a full simulation
+  config preset so the Newton backend can run at a finer timestep (``dt=1/600``) while PhysX
+  keeps its default (``dt=1/60``).
+
+* Added backend-specific ``joint_gears`` to ant and humanoid direct environments. Newton and
+  PhysX joint orderings differ, so each backend now has its own gear ratio list resolved at
+  env init.
 
 Fixed
 ^^^^^
 
-* Fixed Newton locomotion test failures caused by :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset`
-  only applying the named preset to ``sim.physics``. The new public helper now walks the entire config
-  tree and replaces every preset-wrapper field (both new-style :class:`~isaaclab_tasks.utils.PresetCfg`
-  subclasses and old-style ``presets``-dict wrappers) with the named variant, so ``scene.contact_forces``
-  is correctly set to the Newton contact sensor when running with ``physics_preset_name='newton'``.
+* Fixed :class:`~isaaclab.envs.mdp.noise.NoiseModelWithAdditiveBias` shape mismatch in Newton
+  environment tests. :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` previously
+  replaced ``scene`` with the preset's default ``num_envs`` (e.g. 8192), overwriting the
+  test-requested value (e.g. 2). The ``_bias`` tensor was then allocated with 8192 rows while
+  action data only had 2, causing a ``RuntimeError`` on addition. The fix re-applies the
+  caller's ``num_envs`` after preset application.
 
-* Fixed ``NoiseModelWithAdditiveBias`` shape mismatch in Newton environment tests.
-  :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` replaced the scene config
-  with the preset's default ``num_envs`` (e.g. 8192), overwriting the test-requested value
-  (e.g. 2). The ``_bias`` tensor was then allocated with 8192 rows while action data only
-  had 2, causing a ``RuntimeError`` on addition. The fix re-applies ``num_envs`` after
-  preset application.
+* Fixed in-hand manipulation goal orientation: the quaternion imaginary-component clamping used
+  the wrong slice (``[1:4]`` instead of ``[0:3]``), causing incorrect goal distance computation
+  in the Newton preset.
+
+* Fixed Franka cabinet direct-env initialization orientation.
 
 Changed
 ^^^^^^^
 
 * Renamed ``EventCfg`` to :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.NewtonEventCfg`
-  in the Shadow Hand env config. The new name makes explicit that this preset covers only Newton-compatible
-  randomizations (joint gains, joint position limits, object mass, gravity). Material and fixed-tendon
-  randomization remain exclusively in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`
-  and are therefore absent from the Newton preset of :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ShadowHandEventCfg`.
+  in the Shadow Hand env config. The new name makes explicit that this preset covers only
+  Newton-compatible randomizations (joint gains, joint position limits, object mass, gravity).
+  Material and fixed-tendon randomization remain exclusively in
+  :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`.
 
 
 1.5.2 (2026-03-05)

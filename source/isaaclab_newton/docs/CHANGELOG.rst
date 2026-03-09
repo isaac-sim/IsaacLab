@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.3 (2026-03-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.set_gravity` class method to support
+  runtime gravity updates, enabling :class:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`
+  with the Newton backend.
+
+
 0.5.2 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 

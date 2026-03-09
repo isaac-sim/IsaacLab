@@ -129,6 +129,7 @@ def _ensure_cuda_torch() -> None:
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
 VALID_ISAACLAB_SUBPACKAGES: set[str] = {
     "assets",
+    "ovrtx",
     "physx",
     "contrib",
     "mimic",
@@ -138,6 +139,14 @@ VALID_ISAACLAB_SUBPACKAGES: set[str] = {
     "teleop",
     "visualizers",
 }
+# Sub-packages that are always installed but with --no-deps when install_type is "all",
+# so they are importable (e.g. for config types) without pulling in optional heavy deps.
+INSTALL_NO_DEPS_SUBPACKAGES: set[str] = {"ov"}
+
+# -i ovrtx installs this dependency only (isaaclab_ov is already installed with --no-deps).
+# Keep in sync with isaaclab_ov/setup.py INSTALL_REQUIRES.
+OVRTX_PIP_SPEC: str = "ovrtx>=0.2.0,<0.3.0"
+
 VALID_VISUALIZER_EXTRAS: set[str] = {"all", "kit", "newton", "rerun", "viser"}
 
 # RL framework names accepted.
@@ -194,7 +203,9 @@ def _parse_visualizer_selector(token: str) -> str | None:
 
 
 def _install_isaaclab_extensions(
-    extensions: list[str] | None = None, extension_extras: dict[str, str] | None = None
+    extensions: list[str] | None = None,
+    extension_extras: dict[str, str] | None = None,
+    exclude: set[str] | None = None,
 ) -> None:
     """Install Isaac Lab extensions from the source directory.
 
@@ -203,9 +214,13 @@ def _install_isaaclab_extensions(
 
     Args:
         extensions: Optional, list of source directory names to install.
-            If ``None`` is provided, every extension found under ``source/`` is installed.
-        extension_extras: Optional mapping from extension source directory name to
-            pip extras selector (for example ``{"isaaclab_visualizers": "[rerun]"}``).
+            If ``None`` is provided, every extension found under ``source/``
+            is installed (subject to *exclude*).
+        extension_extras: Optional mapping from extension source directory
+            name to pip extras selector (e.g.
+            ``{"isaaclab_visualizers": "[rerun]"}``).
+        exclude: Optional set of source directory names to skip even when
+            *extensions* is ``None``.
     """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -219,8 +234,9 @@ def _install_isaaclab_extensions(
     for item in source_dir.iterdir():
         if not (item.is_dir() and (item / "setup.py").exists()):
             continue
-        # Skip extensions not in the requested list.
         if extensions is not None and item.name not in extensions:
+            continue
+        if exclude and item.name in exclude:
             continue
         install_items.append(item)
 
@@ -240,6 +256,36 @@ def _install_isaaclab_extensions(
                 "install",
                 "--editable",
                 install_target,
+            ]
+        )
+
+
+def _install_ovrtx_dependency() -> None:
+    """Install the ovrtx dependency (for use with isaaclab_ov)."""
+    python_exe = extract_python_exe()
+    print_info("Installing ovrtx dependency for isaaclab_ov...")
+    run_command([python_exe, "-m", "pip", "install", OVRTX_PIP_SPEC])
+
+
+def _install_no_deps_extensions() -> None:
+    """Install extensions listed in INSTALL_NO_DEPS_SUBPACKAGES with --no-deps."""
+    python_exe = extract_python_exe()
+    source_dir = ISAACLAB_ROOT / "source"
+    for short_name in INSTALL_NO_DEPS_SUBPACKAGES:
+        pkg_name = f"isaaclab_{short_name}"
+        pkg_path = source_dir / pkg_name
+        if not (pkg_path.is_dir() and (pkg_path / "setup.py").exists()):
+            continue
+        print_info(f"Installing {pkg_name} (no dependencies) for importability...")
+        run_command(
+            [
+                python_exe,
+                "-m",
+                "pip",
+                "install",
+                "--editable",
+                str(pkg_path),
+                "--no-deps",
             ]
         )
 
@@ -317,26 +363,33 @@ def command_install(install_type: str = "all") -> None:
     print_info(f"Python executable: {python_exe}")
 
     # Decide which source directories (source/isaaclab/*) to install.
-    # "all"        : install everything + all RL frameworks
+    # "all"        : install everything + all RL frameworks (no-deps extensions installed separately with --no-deps)
     # "none"       : core isaaclab only, no RL frameworks
     # RL framework : install everything + only that RL framework (e.g. "skrl")
     # "a,b"        : core + selected sub-package directories, no RL frameworks
+    # Extensions in INSTALL_NO_DEPS_SUBPACKAGES are excluded from the main loop and installed with --no-deps.
+    no_deps_dirs = {f"isaaclab_{name}" for name in INSTALL_NO_DEPS_SUBPACKAGES}
+    install_ovrtx = False
+
     if install_type == "all":
         extensions = None
+        exclude = no_deps_dirs
         extension_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = "all"
     elif install_type == "none":
         extensions = ["isaaclab"]
+        exclude = None
         extension_extras = {}
         framework_type = "none"
     elif install_type in VALID_RL_FRAMEWORKS:
-        # Single RL framework name: install all extensions + only that framework.
         extensions = None
+        exclude = no_deps_dirs
         extension_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
         # Parse comma-separated sub-package names into source directory names.
         extensions = ["isaaclab"]  # core is always required
+        exclude = None  # explicit selection — no exclusions
         extension_extras = {}
         for name in _split_install_items(install_type):
             visualizer_extras = _parse_visualizer_selector(name)
@@ -346,7 +399,9 @@ def command_install(install_type: str = "all") -> None:
                 extension_extras["isaaclab_visualizers"] = visualizer_extras
                 continue
             if name in VALID_ISAACLAB_SUBPACKAGES:
-                if name == "visualizers":
+                if name == "ovrtx":
+                    install_ovrtx = True  # install ovrtx dependency only; isaaclab_ov already present
+                elif name == "visualizers":
                     if "isaaclab_visualizers" not in extensions:
                         extensions.append("isaaclab_visualizers")
                     extension_extras["isaaclab_visualizers"] = "[all]"
@@ -402,7 +457,16 @@ def command_install(install_type: str = "all") -> None:
         _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        _install_isaaclab_extensions(extensions, extension_extras)
+        _install_isaaclab_extensions(extensions, extension_extras, exclude)
+
+        # Install no-deps extensions (e.g. isaaclab_ov) with --no-deps so they are
+        # importable without pulling in optional deps like ovrtx.
+        if install_type == "all" or install_type in VALID_RL_FRAMEWORKS:
+            _install_no_deps_extensions()
+
+        # Install ovrtx when user requested -i ovrtx (the specific dependency for isaaclab_ov).
+        if install_ovrtx:
+            _install_ovrtx_dependency()
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")
