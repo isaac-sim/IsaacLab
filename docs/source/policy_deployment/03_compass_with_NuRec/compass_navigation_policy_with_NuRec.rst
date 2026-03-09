@@ -10,7 +10,7 @@ Setup
 
 .. note::
 
-   This tutorial is for Linux only and is intended for Isaac Lab 3.0.0 and Isaac Sim 6.0.0.
+   This tutorial is for **Ubuntu 22.04** and the **OVX with RTX platform**. It is intended for Isaac Lab 3.0.0 and Isaac Sim 6.0.0.
 
 Create a Workspace
 ~~~~~~~~~~~~~~~~~~
@@ -27,19 +27,26 @@ Terminal 1 — Isaac Lab & Isaac Sim Installation
 
 Follow these steps in your first terminal to install Isaac Sim and Isaac Lab.
 
-1. Install Isaac Sim 6.0 by following the `Isaac Sim Installation Guide`_.
-   For testing, you may use the `Isaac Sim 6.0 Alpha Release`_.
+1. Install Isaac Sim 6.0. The supported installation methods are:
+
+   - **pip install** (recommended): Follow the `Isaac Sim pip Installation Guide`_.
+   - **Binary download**: Download the pre-built binary from the `Isaac Sim Installation Guide`_.
 
 2. Clone the Isaac Lab repository and check out the ``v3.0`` tag (or the ``develop`` branch for testing):
 
 .. code-block:: bash
 
-    git clone git@github.com:isaac-sim/IsaacLab.git
+    git clone https://github.com/isaac-sim/IsaacLab.git
     cd IsaacLab
     git fetch origin
     git checkout v3.0
 
 3. Set the required environment variables:
+
+.. note::
+
+   This step is only required if Isaac Sim was installed via the **binary download**.
+   If you installed Isaac Sim via ``pip``, these variables are not needed.
 
 .. code-block:: bash
 
@@ -96,7 +103,7 @@ Open a second terminal and follow these steps to install the COMPASS repository.
 
 .. code-block:: bash
 
-    git clone git@github.com:NVlabs/COMPASS.git
+    git clone https://github.com/NVlabs/COMPASS.git
     cd COMPASS
     git fetch
     git checkout samc/support_nurec_assets_isaaclab_3.0
@@ -127,6 +134,17 @@ Open a second terminal and follow these steps to install the COMPASS repository.
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install -e exts/mobility_es
     cd -
 
+Testing the Setup
+~~~~~~~~~~~~~~~~~
+
+Run the following command from the ``COMPASS`` directory to verify the setup:
+
+.. code-block:: bash
+
+    cd compass/rl_env
+    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
+    cd -
+
 Downloading Assets & Checkpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -153,6 +171,7 @@ The dataset provides several environments. For COMPASS, download the environment
 
 .. code-block:: bash
 
+    .. Ensure that you are in compass root directory
     compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/
 
 For example, for the Galileo environment:
@@ -190,15 +209,6 @@ For example, for the Galileo environment:
         - Living room in NVIDIA Endeavor building
         - Yes
 
-Testing the Setup
-~~~~~~~~~~~~~~~~~
-
-Run the following command from the ``COMPASS`` directory to verify the setup:
-
-.. code-block:: bash
-
-    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
-
 Training the Policy
 -------------------
 
@@ -216,7 +226,7 @@ This configuration includes optimized settings for Real2Sim environments:
 Training the Residual RL Specialist
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Execute the following command from the ``COMPASS`` directory to train a residual RL specialist policy for NuRec Real2Sim environments.
+Execute the following command from the ``COMPASS`` directory (Terminal 2) to train a residual RL specialist policy for NuRec Real2Sim environments.
 
 .. code-block:: bash
 
