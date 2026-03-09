@@ -10,21 +10,21 @@ import warp as wp
 from newton import ModelBuilder, solvers
 from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd, UsdGeom
+from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
 
 
-def _build_builder_from_mapping(
+def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: list[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
-    positions: torch.Tensor | None,
-    quaternions: torch.Tensor | None,
-    up_axis: str,
-    simplify_meshes: bool,
-    register_custom_attributes: bool,
+    positions: torch.Tensor | None = None,
+    quaternions: torch.Tensor | None = None,
+    up_axis: str = "Z",
+    simplify_meshes: bool = True,
+    register_custom_attributes: bool = True,
 ) -> tuple[ModelBuilder, object]:
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
@@ -41,19 +41,19 @@ def _build_builder_from_mapping(
         schema_resolvers=schema_resolvers,
     )
 
-    # Build one local prototype per source. These are added into each world according to mapping.
+    # The prototype is built from env_0 in absolute world coordinates.
+    # add_builder xforms are deltas from env_0 so positions don't get double-counted.
+    env0_pos = positions[0]
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
         if register_custom_attributes:
             solvers.SolverMuJoCo.register_custom_attributes(p)
-        inverse_env_xform = _get_inverse_env_xform(stage, src_path)
         p.add_usd(
             stage,
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
-            xform=inverse_env_xform,
             schema_resolvers=schema_resolvers,
         )
         if simplify_meshes:
@@ -63,10 +63,11 @@ def _build_builder_from_mapping(
     # Newton world IDs are sequential by begin_world/end_world order.
     for col, _env_id in enumerate(env_ids.tolist()):
         builder.begin_world()
+        delta_pos = (positions[col] - env0_pos).tolist()
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             builder.add_builder(
                 protos[sources[row]],
-                xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
+                xform=wp.transform(delta_pos, quaternions[col].tolist()),
             )
         builder.end_world()
 
@@ -108,7 +109,7 @@ def newton_physics_replicate(
     simplify_meshes: bool = True,
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
-    builder, stage_info = _build_builder_from_mapping(
+    builder, stage_info = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
         env_ids=env_ids,
@@ -143,7 +144,7 @@ def newton_visualizer_prebuild(
     Unlike :func:`newton_physics_replicate`, this path does not mutate ``NewtonManager`` and is intended
     for prebuilding visualizer-only artifacts that can be consumed by scene data providers.
     """
-    builder, _ = _build_builder_from_mapping(
+    builder, _ = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
         env_ids=env_ids,
@@ -158,26 +159,3 @@ def newton_visualizer_prebuild(
     model = builder.finalize(device=device)
     state = model.state()
     return model, state
-
-
-def _get_inverse_env_xform(stage: Usd.Stage, src_path: str):
-    """Get the inverse transform of src_path to convert world→local."""
-    xform_cache = UsdGeom.XformCache()
-    world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(src_path))
-
-    # Get the inverse of the world transform
-    inv_xform = world_xform.GetInverse()
-
-    # Extract translation and rotation from inverse
-    inv_translation = inv_xform.ExtractTranslation()
-    inv_rotation = inv_xform.ExtractRotationQuat()
-
-    inv_pos = (inv_translation[0], inv_translation[1], inv_translation[2])
-    inv_quat = (
-        inv_rotation.GetImaginary()[0],
-        inv_rotation.GetImaginary()[1],
-        inv_rotation.GetImaginary()[2],
-        inv_rotation.GetReal(),
-    )
-
-    return wp.transform(inv_pos, inv_quat)

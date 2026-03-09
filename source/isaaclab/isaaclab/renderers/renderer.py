@@ -7,10 +7,6 @@
 
 from __future__ import annotations
 
-import importlib
-import logging
-
-from isaaclab.physics.scene_data_requirements import requirement_for_renderer_type
 from isaaclab.utils.backend_utils import FactoryBase
 
 from .base_renderer import BaseRenderer
@@ -18,9 +14,6 @@ from .renderer_cfg import RendererCfg
 
 # This is mapping of where backends live in the isaaclab_<backend> package.
 _RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton", "ovrtx": "ov"}
-
-logger = logging.getLogger(__name__)
-
 
 class Renderer(FactoryBase, BaseRenderer):
     """Factory for creating renderer instances."""
@@ -34,34 +27,6 @@ class Renderer(FactoryBase, BaseRenderer):
     @classmethod
     def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
         return _RENDERER_TYPE_TO_BACKEND.get(cfg.renderer_type, "physx")
-
-    @classmethod
-    def _resolve_impl_class_for_renderer_type(cls, renderer_type: str) -> type[BaseRenderer] | None:
-        """Resolve backend renderer class for a renderer type."""
-        backend = _RENDERER_TYPE_TO_BACKEND.get(renderer_type, "physx")
-        if backend in cls._registry:
-            return cls._registry[backend]
-        module_name = cls._get_module_name(backend)
-        class_name = cls._backend_class_names.get(backend, cls.__name__)
-        try:
-            module = importlib.import_module(module_name)
-            module_class = getattr(module, class_name)
-            cls.register(backend, module_class)
-            return module_class
-        except Exception as exc:
-            logger.debug(
-                "[Renderer] Failed to resolve implementation class for renderer '%s' (backend '%s'): %s",
-                renderer_type,
-                backend,
-                exc,
-            )
-            return None
-
-    @classmethod
-    def get_requirements_for_type(cls, renderer_type: str) -> tuple[bool, bool]:
-        """Return (requires_newton_model, requires_usd_stage) for a renderer type."""
-        requirement = requirement_for_renderer_type(renderer_type)
-        return requirement.requires_newton_model, requirement.requires_usd_stage
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""

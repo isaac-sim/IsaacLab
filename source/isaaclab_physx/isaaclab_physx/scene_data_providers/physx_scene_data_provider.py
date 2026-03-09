@@ -277,8 +277,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             from newton import ModelBuilder
 
             # Newton model building from USD with partial visualization does not currently use cloner,
-            # and falls back to slower USD-stage traversal. TODO: add cloner support for partial visualization,
-            # or wait until Newton model supports env filtering from a full Newton model.
+            # and falls back to slower USD-stage traversal.
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
