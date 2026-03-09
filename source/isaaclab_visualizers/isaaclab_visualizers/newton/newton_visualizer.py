@@ -40,6 +40,7 @@ class NewtonViewerGL(ViewerGL):
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
+        self._color_edit3_accepts_sequence: bool | None = None
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -101,6 +102,37 @@ class NewtonViewerGL(ViewerGL):
         imgui.end()
         return None
 
+    def _coerce_color3(self, color) -> tuple[float, float, float]:
+        """Normalize color values from imgui/renderer into an RGB tuple."""
+        if hasattr(color, "x") and hasattr(color, "y") and hasattr(color, "z"):
+            return (float(color.x), float(color.y), float(color.z))
+        return (float(color[0]), float(color[1]), float(color[2]))
+
+    def _color_edit3_compat(self, imgui, label: str, color):
+        """
+        # Handle imgui.color_edit3 API differences between bindings.
+        # Some require a Sequence[float], others accept vector-like objects.
+        # This method tries both approaches, caching the one that works to avoid repeated exceptions.
+        # NOTE: This is a compatibility workaround, perhaps we can address the issue more directly.
+        """
+        color_tuple = self._coerce_color3(color)
+        sequence_color = [color_tuple[0], color_tuple[1], color_tuple[2]]
+        if self._color_edit3_accepts_sequence is not False:
+            try:
+                changed, edited = imgui.color_edit3(label, sequence_color)
+                self._color_edit3_accepts_sequence = True
+                return changed, self._coerce_color3(edited)
+            except TypeError:
+                self._color_edit3_accepts_sequence = False
+
+        try:
+            imvec4 = imgui.ImVec4(sequence_color[0], sequence_color[1], sequence_color[2], 1.0)
+            changed, edited = imgui.color_edit3(label, imvec4)
+            return changed, self._coerce_color3(edited)
+        except Exception as exc:
+            logger.debug("[NewtonVisualizer] color_edit3 failed for '%s': %s", label, exc)
+            return False, color_tuple
+
     def _render_left_panel(self):
         """Override the left panel to remove the base pause checkbox."""
         import newton as nt
@@ -159,6 +191,7 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
+<<<<<<< HEAD
                 def _to_imvec4(color):
                     if hasattr(color, "x"):
                         return color
@@ -176,6 +209,20 @@ class NewtonViewerGL(ViewerGL):
                 changed, c = imgui.color_edit3("Lower Sky Color", _to_imvec4(self.renderer.sky_lower))
                 if changed:
                     self.renderer.sky_lower = _from_imvec4(c)
+=======
+                try:
+                    changed, self.renderer._light_color = self._color_edit3_compat(
+                        imgui, "Light Color", self.renderer._light_color
+                    )
+                    changed, self.renderer.sky_upper = self._color_edit3_compat(
+                        imgui, "Upper Sky Color", self.renderer.sky_upper
+                    )
+                    changed, self.renderer.sky_lower = self._color_edit3_compat(
+                        imgui, "Lower Sky Color", self.renderer.sky_lower
+                    )
+                except Exception as exc:
+                    logger.debug("[NewtonVisualizer] Rendering color controls failed: %s", exc)
+>>>>>>> ede33f6105e (fix)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
@@ -342,7 +389,7 @@ class NewtonVisualizer(BaseVisualizer):
                 self._viewer.end_frame()
             else:
                 self._viewer._update()
-        except RuntimeError as exc:
+        except Exception as exc:
             logger.debug("[NewtonVisualizer] Viewer update failed: %s", exc)
 
     def close(self) -> None:
