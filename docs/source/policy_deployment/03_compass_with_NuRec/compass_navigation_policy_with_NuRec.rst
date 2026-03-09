@@ -393,7 +393,6 @@ For NuRec Real2Sim environments:
 .. _Isaac Lab Installation Guide: https://isaac-sim.github.io/IsaacLab/v2.0.0/source/setup/installation/index.html
 .. _Isaac Sim Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html
 .. _Isaac Sim pip Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_python.html
-.. _Isaac Sim 6.0 Alpha Release: https://developer.nvidia.com/isaac/sim
 .. _COMPASS Repository: https://github.com/NVlabs/COMPASS
 .. _COMPASS ROS2 Deployment Guide: https://github.com/NVlabs/COMPASS/tree/main/ros2_deployment
 .. _PhysicalAI-Robotics-NuRec dataset: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec
