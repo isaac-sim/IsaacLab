@@ -7,15 +7,16 @@ Changelog
 Added
 ^^^^^
 
-* Added ``contact_filter`` module and ``build_contact_sensor()`` to centralize
-  contact sensor pattern resolution and replicated-kernel construction.
-
-* Added contact sensor and contact filter test suites with shared physics utilities.
+* Added contact sensor support via :class:`newton.sensors.SensorContact` with
+  Isaac Lab pattern conversion (``.*`` to fnmatch, USD path normalization)
+  inlined in :meth:`~isaaclab_newton.physics.NewtonManager.add_contact_sensor`.
 
 Changed
 ^^^^^^^
 
-* Refactored ``NewtonManager.add_contact_sensor`` to delegate to ``build_contact_sensor``.
+* Changed :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensor` to
+  flatten Newton's per-world nested ``sensing_objs`` and ``counterparts``
+  attributes.
 
 Fixed
 ^^^^^
