@@ -720,9 +720,17 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
         _inertia_mat33 = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = _inertia_mat33.view(wp.float32).reshape(
-            (self._num_instances, self._num_bodies, 9)
-        )
+        if _inertia_mat33.ptr is not None and _inertia_mat33.ndim == 4:
+            self._sim_bind_body_inertia = wp.array(
+                ptr=_inertia_mat33.ptr,
+                dtype=wp.float32,
+                shape=(_inertia_mat33.shape[0], _inertia_mat33.shape[1], 9),
+                strides=(_inertia_mat33.strides[0], _inertia_mat33.strides[1], _inertia_mat33.strides[3]),
+                device=_inertia_mat33.device,
+                copy=False,
+            )
+        else:
+            self._sim_bind_body_inertia = _inertia_mat33
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
@@ -834,16 +842,17 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((transform.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches transform.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(transform.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the position part of the transform.
         if not transform.is_contiguous:
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+            # Launch the right kernel based on the shape of the transform array.
+            if len(transform.shape) > 1:
                 wp.launch(
                     shared_kernels.split_transform_to_pos_2d,
-                    dim=source.shape,
+                    dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
                     device=self.device,
@@ -851,7 +860,7 @@ class RigidObjectData(BaseRigidObjectData):
             else:
                 wp.launch(
                     shared_kernels.split_transform_to_pos_1d,
-                    dim=source.shape,
+                    dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
                     device=self.device,
@@ -880,16 +889,17 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((transform.shape[0], 4), dtype=wp.quatf, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches transform.shape since each element is quatf (already contains 4 floats)
+                source = wp.zeros(transform.shape, dtype=wp.quatf, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the quaternion part of the transform.
         if not transform.is_contiguous:
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+            # Launch the right kernel based on the shape of the transform array.
+            if len(transform.shape) > 1:
                 wp.launch(
                     shared_kernels.split_transform_to_quat_2d,
-                    dim=source.shape,
+                    dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
                     device=self.device,
@@ -897,7 +907,7 @@ class RigidObjectData(BaseRigidObjectData):
             else:
                 wp.launch(
                     shared_kernels.split_transform_to_quat_1d,
-                    dim=source.shape,
+                    dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
                     device=self.device,
@@ -929,16 +939,17 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((spatial_vector.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the top part of the spatial vector.
         if not spatial_vector.is_contiguous:
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+            # Launch the right kernel based on the shape of the spatial_vector array.
+            if len(spatial_vector.shape) > 1:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_top_2d,
-                    dim=source.shape,
+                    dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
                     device=self.device,
@@ -946,7 +957,7 @@ class RigidObjectData(BaseRigidObjectData):
             else:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_top_1d,
-                    dim=source.shape,
+                    dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
                     device=self.device,
@@ -978,16 +989,17 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((spatial_vector.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the bottom part of the spatial vector.
         if not spatial_vector.is_contiguous:
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+            # Launch the right kernel based on the shape of the spatial_vector array.
+            if len(spatial_vector.shape) > 1:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_bottom_2d,
-                    dim=source.shape,
+                    dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
                     device=self.device,
@@ -995,7 +1007,7 @@ class RigidObjectData(BaseRigidObjectData):
             else:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_bottom_1d,
-                    dim=source.shape,
+                    dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
                     device=self.device,

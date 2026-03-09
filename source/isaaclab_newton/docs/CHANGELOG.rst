@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.3 (2026-03-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab_newton.assets.RigidObjectData.body_inertia` to return a
+  ``(num_instances, num_bodies, 9)`` float32 strided view, matching the articulation fix in 0.5.2.
+
+* Fixed non-contiguous array handling in ``RigidObjectData`` position, quaternion, and
+  spatial-vector extraction helpers. The ``source`` buffer shape and kernel dispatch ``dim``
+  now use the input array's shape instead of the (possibly uninitialized) output shape.
+
 0.5.2 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
