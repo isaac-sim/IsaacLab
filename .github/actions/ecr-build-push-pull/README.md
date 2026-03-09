@@ -34,8 +34,8 @@ The IAM role must have at minimum:
 - uses: ./.github/actions/ecr-build-push-pull
   with:
     image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-    isaacsim-base-image: nvcr.io/nvidian/isaac-sim
-    isaacsim-version: latest-develop
+    isaacsim-base-image: nvcr.io/nvidia/isaac-sim
+    isaacsim-version: 6.0.0
     dockerfile-path: docker/Dockerfile.base
     ecr-repository: isaaclab-ci
     aws-region: us-west-2
