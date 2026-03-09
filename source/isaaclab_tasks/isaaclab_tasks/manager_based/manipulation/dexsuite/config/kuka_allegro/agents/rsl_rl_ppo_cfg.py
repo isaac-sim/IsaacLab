@@ -23,6 +23,13 @@ STATE_POLICY_CFG = RslRlMLPModelCfg(
     activation="elu",
 )
 
+
+STATE_CRITIC_CFG = RslRlMLPModelCfg(
+    obs_normalization=True,
+    hidden_dims=[512, 256, 128],
+    activation="elu",
+)
+
 CNN_POLICY_CFG = RslRlCNNModelCfg(
     obs_normalization=True,
     hidden_dims=[512, 256, 128],
@@ -73,7 +80,7 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         experiment_name="dexsuite_kuka_allegro",
         obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},
         actor=STATE_POLICY_CFG,
-        critic=STATE_POLICY_CFG,
+        critic=STATE_CRITIC_CFG,
         algorithm=ALGO_CFG,
     )
 
@@ -81,7 +88,7 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         experiment_name="dexsuite_kuka_allegro_single_camera",
         obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
         actor=CNN_POLICY_CFG,
-        critic=STATE_POLICY_CFG,
+        critic=STATE_CRITIC_CFG,
         algorithm=ALGO_CFG.replace(num_mini_batches=16),
     )
 
@@ -92,6 +99,6 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
             "critic": ["policy", "proprio", "perception"],
         },
         actor=CNN_POLICY_CFG,
-        critic=STATE_POLICY_CFG,
+        critic=STATE_CRITIC_CFG,
         algorithm=ALGO_CFG.replace(num_mini_batches=16),
     )

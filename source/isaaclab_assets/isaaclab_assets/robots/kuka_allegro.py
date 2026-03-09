@@ -108,6 +108,9 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
                 "ring_joint_(0|1|2|3)": 0.01,
                 "thumb_joint_(0|1|2|3)": 0.01,
             },
+            armature={
+                ".*": 0.01,
+            }
         ),
     },
     soft_joint_pos_limit_factor=1.0,
