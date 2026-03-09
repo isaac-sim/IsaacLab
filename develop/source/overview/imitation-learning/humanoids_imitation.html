@@ -1085,6 +1085,7 @@ This demonstration shows how to train a G1 robot to perform pick and place tasks
 <p>To collect demonstrations:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-PickPlace-Locomanipulation-G1-Abs-v0<span class="w"> </span><span class="se">\</span>
 --dataset_file<span class="w"> </span>./datasets/dataset_g1_locomanip.hdf5<span class="w"> </span><span class="se">\</span>
 --num_demos<span class="w"> </span><span class="m">5</span>
@@ -1097,6 +1098,7 @@ This demonstration shows how to train a G1 robot to perform pick and place tasks
 <p>You can replay the collected demonstrations by running:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/replay_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-PickPlace-Locomanipulation-G1-Abs-v0<span class="w"> </span><span class="se">\</span>
 --dataset_file<span class="w"> </span>./datasets/dataset_g1_locomanip.hdf5
 </pre></div>
@@ -1104,6 +1106,7 @@ This demonstration shows how to train a G1 robot to perform pick and place tasks
 <p>To annotate the demonstrations:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/annotate_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-Locomanipulation-G1-Abs-Mimic-v0<span class="w"> </span><span class="se">\</span>
 --input_file<span class="w"> </span>./datasets/dataset_g1_locomanip.hdf5<span class="w"> </span><span class="se">\</span>
 --output_file<span class="w"> </span>./datasets/dataset_annotated_g1_locomanip.hdf5
@@ -1134,6 +1137,7 @@ Place the file under <code class="docutils literal notranslate"><span class="pre
 <p>Visualize the trained policy performance:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-PickPlace-Locomanipulation-G1-Abs-v0<span class="w"> </span><span class="se">\</span>
 --num_rollouts<span class="w"> </span><span class="m">50</span><span class="w"> </span><span class="se">\</span>
 --horizon<span class="w"> </span><span class="m">400</span><span class="w"> </span><span class="se">\</span>

@@ -690,6 +690,7 @@
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-overview">Architecture Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-concepts">Core concepts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-the-ovrtx-renderer">Installing the OVRTX renderer</a></li>
 </ul>
             </nav>
         </div>
@@ -742,6 +743,23 @@ if the backend is not installed.</p>
 </pre></div>
 </div>
 </li>
+</ul>
+</section>
+<section id="installing-the-ovrtx-renderer">
+<h2>Installing the OVRTX renderer<a class="headerlink" href="#installing-the-ovrtx-renderer" title="Permalink to this heading">#</a></h2>
+<p>The OVRTX renderer is provided by the <code class="docutils literal notranslate"><span class="pre">isaaclab_ov</span></code> extension and requires the
+<a class="reference external" href="https://github.com/NVIDIA-Omniverse/ovrtx">ovrtx</a> package (hosted on
+<code class="docutils literal notranslate"><span class="pre">pypi.nvidia.com</span></code>).</p>
+<p>Install via the Isaac Lab CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install isaaclab_ov (and its ovrtx dependency) alongside the core package</span>
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>ov
+</pre></div>
+</div>
+<p>Or install manually with pip:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com<span class="w"> </span>-e<span class="w"> </span>source/isaaclab_ov
+</pre></div>
+</div>
+<ul class="simple">
 <li><p><strong>Opaque render data</strong>: The render data object returned by <a class="reference internal" href="../../api/lab/isaaclab.renderers.html#isaaclab.renderers.BaseRenderer.create_render_data" title="isaaclab.renderers.BaseRenderer.create_render_data"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create_render_data()</span></code></a> is passed to
 subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it
 via get/set attributes is an anti-pattern and breaks the API contract.</p></li>
@@ -801,6 +819,7 @@ via get/set attributes is an anti-pattern and breaks the API contract.</p></li>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-overview">Architecture Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-concepts">Core concepts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-the-ovrtx-renderer">Installing the OVRTX renderer</a></li>
 </ul>
   </nav></div>
 
