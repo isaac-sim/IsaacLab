@@ -121,36 +121,7 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/render/rtx_sensors", True)
-
-        # This is only introduced in isaac sim 6.0
-        if has_kit():
-            isaac_sim_version = get_isaac_sim_version()
-            if isaac_sim_version.major >= 6:
-                # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
-                needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
-                if not needs_color_render:
-                    settings.set_bool("/rtx/sdg/force/disableColorRender", True)
-
-                # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-                if settings.get("/isaaclab/has_gui"):
-                    settings.set_bool("/rtx/sdg/force/disableColorRender", False)
-            else:
-                if "albedo" in self.cfg.data_types:
-                    logger.warning(
-                        "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                    )
-                if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-                    logger.warning(
-                        "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
-                        " will be ignored."
-                    )
-
-        # Set simple shading mode (if requested) before rendering
-        simple_shading_mode = self._resolve_simple_shading_mode()
-        if simple_shading_mode is not None:
-            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+        get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -443,8 +414,19 @@ class Camera(SensorBase):
                 " rendering."
             )
 
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+            configure_isaac_rtx_settings,
+            resolve_simple_shading_mode,
+        )
+
         import omni.replicator.core as rep
         from omni.syntheticdata.scripts.SyntheticData import SyntheticData
+
+        configure_isaac_rtx_settings(self.cfg.data_types)
+
+        simple_shading_mode = resolve_simple_shading_mode(self.cfg.data_types)
+        if simple_shading_mode is not None:
+            get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # Initialize parent class
         super()._initialize_impl()
@@ -785,19 +767,6 @@ class Camera(SensorBase):
 
         # return the data and info
         return data, info
-
-    def _resolve_simple_shading_mode(self) -> int | None:
-        """Resolve the requested simple shading mode from data types."""
-        requested = [data_type for data_type in self.cfg.data_types if data_type in self.SIMPLE_SHADING_MODES]
-        if not requested:
-            return None
-        if len(requested) > 1:
-            logger.warning(
-                "Multiple simple shading modes requested (%s). Using '%s' only.",
-                requested,
-                requested[0],
-            )
-        return self.SIMPLE_SHADING_MODES[requested[0]]
 
     """
     Internal simulation callbacks.
