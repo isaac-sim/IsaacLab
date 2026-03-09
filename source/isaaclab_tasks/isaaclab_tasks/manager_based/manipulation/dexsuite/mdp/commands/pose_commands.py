@@ -66,7 +66,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.object: RigidObject = env.scene[cfg.object_name]
-        self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
+        # self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
 
         # create buffers
         # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
@@ -124,9 +124,9 @@ class ObjectUniformPoseCommand(CommandTerm):
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
             success_id &= self.metrics["orientation_error"] < 0.5
-        self.success_visualizer.visualize(
-            wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
-        )
+        # self.success_visualizer.visualize(
+        #     wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
+        # )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
@@ -173,12 +173,15 @@ class ObjectUniformPoseCommand(CommandTerm):
             # -- goal pose
             self.goal_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
             # -- current object pose
-            self.curr_visualizer.visualize(self.object.data.root_pos_w, self.object.data.root_quat_w)
+            obj_pos = wp.to_torch(self.object.data.root_pos_w)
+            obj_quat = wp.to_torch(self.object.data.root_quat_w)
+            self.curr_visualizer.visualize(obj_pos, obj_quat)
         else:
-            distance = torch.linalg.norm(self.pose_command_w[:, :3] - wp.to_torch(self.object.data.root_pos_w), dim=1)
+            obj_pos = wp.to_torch(self.object.data.root_pos_w)
+            distance = torch.linalg.norm(self.pose_command_w[:, :3] - obj_pos, dim=1)
             success_id = (distance < 0.05).int()
             # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.
             # -- goal position
             self.goal_visualizer.visualize(self.pose_command_w[:, :3], marker_indices=success_id + 1)
             # -- current object position
-            self.curr_visualizer.visualize(self.object.data.root_pos_w, marker_indices=success_id + 1)
+            self.curr_visualizer.visualize(obj_pos, marker_indices=success_id + 1)

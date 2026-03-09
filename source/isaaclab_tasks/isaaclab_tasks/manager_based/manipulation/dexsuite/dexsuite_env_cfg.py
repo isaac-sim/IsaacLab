@@ -23,6 +23,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
+from isaaclab_tasks.utils import PresetCfg
+
 from . import mdp
 from .adr_curriculum import CurriculumCfg
 
@@ -36,6 +38,49 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 
 
 @configclass
+class ObjectCfg(PresetCfg):
+    shapes = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            CuboidCfg(size=(0.05, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            SphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            SphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.04, height=0.01, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.04, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.025, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.01, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            ConeCfg(radius=0.05, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            ConeCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+        ],
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=0,
+            disable_gravity=False,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+    )
+    cube = sim_utils.CuboidCfg(
+        size=(0.05, 0.1, 0.1),
+        physics_material=RigidBodyMaterialCfg(static_friction=0.5),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=0,
+            disable_gravity=False,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+    )
+    default = shapes
+
+
+@configclass
 class SceneCfg(InteractiveSceneCfg):
     """Dexsuite Scene for multi-objects Lifting"""
 
@@ -45,42 +90,16 @@ class SceneCfg(InteractiveSceneCfg):
     # object
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                CuboidCfg(size=(0.05, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                SphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                SphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.04, height=0.01, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.04, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.025, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.01, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                ConeCfg(radius=0.05, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                ConeCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            ],
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=16,
-                solver_velocity_iteration_count=0,
-                disable_gravity=False,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
-        ),
+        spawn=ObjectCfg(),  # type: ignore
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
     )
 
     # table
-    table: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/table",
-        spawn=TABLE_SPAWN_CFG,
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
+    # table: RigidObjectCfg = RigidObjectCfg(
+    #     prim_path="/World/envs/env_.*/table",
+    #     spawn=TABLE_SPAWN_CFG,
+    #     init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+    # )
 
     # plane
     plane = AssetBaseCfg(
@@ -143,6 +162,7 @@ class ObservationsCfg:
         object_quat_b = ObsTerm(func=mdp.object_quat_b, noise=Unoise(n_min=-0.0, n_max=0.0))
         target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
+        # timeout = ObsTerm(func=mdp.time_left)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -198,8 +218,8 @@ class ObservationsCfg:
 
 
 @configclass
-class EventCfg:
-    """Configuration for randomization."""
+class StartupEventCfg:
+    """Startup-mode domain randomization (PhysX only — Newton does not support startup events)."""
 
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -256,15 +276,40 @@ class EventCfg:
         },
     )
 
-    reset_table = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": [-0.05, 0.05], "y": [-0.05, 0.05], "z": [0.0, 0.0]},
-            "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-            "asset_cfg": SceneEntityCfg("table"),
-        },
-    )
+
+@configclass
+class EventCfg:
+    """Reset-mode events (shared by all physics backends)."""
+
+    @configclass
+    class GravityRandomizationCfg(PresetCfg):
+        physx = EventTerm(
+            func=mdp.randomize_physics_scene_gravity,
+            mode="reset",
+            params={
+                "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+                "operation": "abs",
+            },
+        )
+        newton = EventTerm(
+            func=mdp.randomize_newton_physics_scene_gravity,
+            mode="reset",
+            params={
+                "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+                "operation": "abs",
+            },
+        )
+        default = physx
+
+    # reset_table = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {"x": [-0.05, 0.05], "y": [-0.05, 0.05], "z": [0.0, 0.0]},
+    #         "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
+    #         "asset_cfg": SceneEntityCfg("table"),
+    #     },
+    # )
 
     reset_object = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -317,14 +362,7 @@ class EventCfg:
     # and gradually introducing full gravity (hard) — the agent learns more smoothly.
     # This removes the need for a special "Lift" reward (often required to push the
     # agent to counter gravity), which has bonus effect of simplifying reward composition overall.
-    variable_gravity = EventTerm(
-        func=mdp.randomize_physics_scene_gravity,
-        mode="reset",
-        params={
-            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-            "operation": "abs",
-        },
-    )
+    variable_gravity = GravityRandomizationCfg()
 
 
 @configclass
@@ -410,7 +448,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: EventCfg = MISSING  # type: ignore
     curriculum: CurriculumCfg | None = CurriculumCfg()
 
     def __post_init__(self):
