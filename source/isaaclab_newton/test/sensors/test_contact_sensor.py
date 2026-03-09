@@ -36,7 +36,6 @@ from physics.physics_test_utils import (
     get_shape_height,
     make_sim_cfg,
     perform_sim_step,
-    phase_timer,
     shape_type_to_str,
 )
 
@@ -103,25 +102,24 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
     sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity_mag))
 
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
-        with phase_timer("scene_setup"):
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
-            scene_cfg.object_a = create_shape_cfg(
-                shape_type,
-                "{ENV_REGEX_NS}/Object",
-                pos=(0.0, 0.0, 3.0),
-                disable_gravity=False,
-                activate_contact_sensors=True,
-            )
-            scene_cfg.contact_sensor_a = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Object",
-                update_period=0.0,
-                history_length=1,
-                track_air_time=True,
-            )
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.object_a = create_shape_cfg(
+            shape_type,
+            "{ENV_REGEX_NS}/Object",
+            pos=(0.0, 0.0, 3.0),
+            disable_gravity=False,
+            activate_contact_sensors=True,
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            update_period=0.0,
+            history_length=1,
+            track_air_time=True,
+        )
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         contact_sensor: ContactSensor = scene["contact_sensor_a"]
         obj: RigidObject = scene["object_a"]
@@ -138,66 +136,63 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         contact_detected = [False] * num_envs
         contact_tick = [-1] * num_envs
 
-        with phase_timer("simulation"):
-            for _ in range(5):
-                perform_sim_step(sim, scene, SIM_DT)
+        for _ in range(5):
+            perform_sim_step(sim, scene, SIM_DT)
 
+        forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
+        for env_idx in range(num_envs):
+            assert forces[env_idx].max().item() < 0.01, (
+                f"Env {env_idx}: No contact should be detected while in air."
+            )
+
+        for tick in range(5, total_fall_steps):
+            perform_sim_step(sim, scene, SIM_DT)
             forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
             for env_idx in range(num_envs):
-                assert forces[env_idx].max().item() < 0.01, (
-                    f"Env {env_idx}: No contact should be detected while in air."
-                )
+                if forces[env_idx].max().item() > 0.1 and not contact_detected[env_idx]:
+                    contact_detected[env_idx] = True
+                    contact_tick[env_idx] = tick
 
-            for tick in range(5, total_fall_steps):
-                perform_sim_step(sim, scene, SIM_DT)
+        for env_idx in range(num_envs):
+            group_idx = env_idx // envs_per_group
+            assert contact_detected[env_idx], (
+                f"Env {env_idx} (group {group_idx}, h={base_heights[group_idx]}m): Contact should be detected"
+            )
+
+        for env_idx in range(num_envs):
+            group_idx = env_idx // envs_per_group
+            expected_tick = expected_land_ticks[group_idx]
+            tolerance_ticks = int(0.3 * expected_tick) + 10
+            assert abs(contact_tick[env_idx] - expected_tick) < tolerance_ticks, (
+                f"Env {env_idx}: Contact at tick {contact_tick[env_idx]}, expected ~{expected_tick} ± {tolerance_ticks}"
+            )
+
+        group_land_times = []
+        for group_idx in range(num_groups):
+            group_ticks = [contact_tick[group_idx * envs_per_group + i] for i in range(envs_per_group)]
+            group_land_times.append(sum(group_ticks) / len(group_ticks))
+
+        for i in range(num_groups - 1):
+            assert group_land_times[i] < group_land_times[i + 1], (
+                f"Group {i} should land before Group {i + 1}. "
+                f"Avg ticks: {group_land_times[i]:.1f} vs {group_land_times[i + 1]:.1f}"
+            )
+
+        velocity = torch.zeros(num_envs, 6, device=device)
+        velocity[:, 2] = 5.0
+        obj.write_root_velocity_to_sim_index(root_velocity=velocity)
+
+        no_contact_detected = [False] * num_envs
+        for step in range(lift_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+            if step > 10:
                 forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
                 for env_idx in range(num_envs):
-                    if forces[env_idx].max().item() > 0.1 and not contact_detected[env_idx]:
-                        contact_detected[env_idx] = True
-                        contact_tick[env_idx] = tick
+                    if forces[env_idx].max().item() < 0.01:
+                        no_contact_detected[env_idx] = True
 
-        with phase_timer("assertions"):
-            for env_idx in range(num_envs):
-                group_idx = env_idx // envs_per_group
-                assert contact_detected[env_idx], (
-                    f"Env {env_idx} (group {group_idx}, h={base_heights[group_idx]}m): Contact should be detected"
-                )
-
-            for env_idx in range(num_envs):
-                group_idx = env_idx // envs_per_group
-                expected_tick = expected_land_ticks[group_idx]
-                tolerance_ticks = int(0.3 * expected_tick) + 10
-                assert abs(contact_tick[env_idx] - expected_tick) < tolerance_ticks, (
-                    f"Env {env_idx}: Contact at tick {contact_tick[env_idx]}, expected ~{expected_tick} ± {tolerance_ticks}"
-                )
-
-            group_land_times = []
-            for group_idx in range(num_groups):
-                group_ticks = [contact_tick[group_idx * envs_per_group + i] for i in range(envs_per_group)]
-                group_land_times.append(sum(group_ticks) / len(group_ticks))
-
-            for i in range(num_groups - 1):
-                assert group_land_times[i] < group_land_times[i + 1], (
-                    f"Group {i} should land before Group {i + 1}. "
-                    f"Avg ticks: {group_land_times[i]:.1f} vs {group_land_times[i + 1]:.1f}"
-                )
-
-        with phase_timer("lift_phase"):
-            velocity = torch.zeros(num_envs, 6, device=device)
-            velocity[:, 2] = 5.0
-            obj.write_root_velocity_to_sim_index(root_velocity=velocity)
-
-            no_contact_detected = [False] * num_envs
-            for step in range(lift_steps):
-                perform_sim_step(sim, scene, SIM_DT)
-                if step > 10:
-                    forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
-                    for env_idx in range(num_envs):
-                        if forces[env_idx].max().item() < 0.01:
-                            no_contact_detected[env_idx] = True
-
-            for env_idx in range(num_envs):
-                assert no_contact_detected[env_idx], f"Env {env_idx}: Contact should stop after lift."
+        for env_idx in range(num_envs):
+            assert no_contact_detected[env_idx], f"Env {env_idx}: Contact should stop after lift."
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -228,37 +223,36 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        with phase_timer("scene_setup"):
-            max_separation = max(cfg[1] for cfg in group_configs)
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
-            scene_cfg.object_a = create_shape_cfg(
-                shape_type,
-                "{ENV_REGEX_NS}/ObjectA",
-                pos=(-max_separation / 2, 0.0, 0.5),
-                disable_gravity=True,
-                activate_contact_sensors=True,
-            )
-            scene_cfg.object_b = create_shape_cfg(
-                shape_type,
-                "{ENV_REGEX_NS}/ObjectB",
-                pos=(max_separation / 2, 0.0, 0.5),
-                disable_gravity=True,
-                activate_contact_sensors=True,
-            )
-            scene_cfg.contact_sensor_a = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/ObjectA",
-                update_period=0.0,
-                history_length=3,
-            )
-            scene_cfg.contact_sensor_b = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/ObjectB",
-                update_period=0.0,
-                history_length=3,
-            )
+        max_separation = max(cfg[1] for cfg in group_configs)
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.object_a = create_shape_cfg(
+            shape_type,
+            "{ENV_REGEX_NS}/ObjectA",
+            pos=(-max_separation / 2, 0.0, 0.5),
+            disable_gravity=True,
+            activate_contact_sensors=True,
+        )
+        scene_cfg.object_b = create_shape_cfg(
+            shape_type,
+            "{ENV_REGEX_NS}/ObjectB",
+            pos=(max_separation / 2, 0.0, 0.5),
+            disable_gravity=True,
+            activate_contact_sensors=True,
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectA",
+            update_period=0.0,
+            history_length=3,
+        )
+        scene_cfg.contact_sensor_b = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectB",
+            update_period=0.0,
+            history_length=3,
+        )
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         object_a: RigidObject = scene["object_a"]
         object_b: RigidObject = scene["object_b"]
@@ -284,23 +278,21 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         contact_detected_a = [False] * num_envs
         contact_detected_b = [False] * num_envs
 
-        with phase_timer("simulation"):
-            for tick in range(collision_steps):
-                perform_sim_step(sim, scene, SIM_DT)
-                forces_a = torch.norm(wp.to_torch(sensor_a.data.net_forces_w), dim=-1)
-                forces_b = torch.norm(wp.to_torch(sensor_b.data.net_forces_w), dim=-1)
-                for env_idx in range(num_envs):
-                    if forces_a[env_idx].max().item() > 0.1:
-                        contact_detected_a[env_idx] = True
-                    if forces_b[env_idx].max().item() > 0.1:
-                        contact_detected_b[env_idx] = True
-
-        with phase_timer("assertions"):
+        for tick in range(collision_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+            forces_a = torch.norm(wp.to_torch(sensor_a.data.net_forces_w), dim=-1)
+            forces_b = torch.norm(wp.to_torch(sensor_b.data.net_forces_w), dim=-1)
             for env_idx in range(num_envs):
-                group_idx = env_idx // envs_per_group
-                vel, sep = group_configs[group_idx]
-                assert contact_detected_a[env_idx], f"Env {env_idx} (v={vel}m/s): Object A should detect contact"
-                assert contact_detected_b[env_idx], f"Env {env_idx} (v={vel}m/s): Object B should detect contact"
+                if forces_a[env_idx].max().item() > 0.1:
+                    contact_detected_a[env_idx] = True
+                if forces_b[env_idx].max().item() > 0.1:
+                    contact_detected_b[env_idx] = True
+
+        for env_idx in range(num_envs):
+            group_idx = env_idx // envs_per_group
+            vel, sep = group_configs[group_idx]
+            assert contact_detected_a[env_idx], f"Env {env_idx} (v={vel}m/s): Object A should detect contact"
+            assert contact_detected_b[env_idx], f"Env {env_idx} (v={vel}m/s): Object B should detect contact"
 
 
 # ===================================================================
@@ -334,72 +326,69 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        with phase_timer("scene_setup"):
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
-            rigid_props = sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False, linear_damping=0.5, angular_damping=0.5
-            )
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        rigid_props = sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False, linear_damping=0.5, angular_damping=0.5
+        )
 
-            scene_cfg.object_a = RigidObjectCfg(
-                prim_path="{ENV_REGEX_NS}/BoxA",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    rigid_props=rigid_props,
-                    collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=mass_a),
-                    activate_contact_sensors=True,
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.5, 0.0, 0.5)),
-            )
-            scene_cfg.object_b = RigidObjectCfg(
-                prim_path="{ENV_REGEX_NS}/BoxB",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    rigid_props=rigid_props,
-                    collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=mass_b),
-                    activate_contact_sensors=True,
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
-            )
-            scene_cfg.contact_sensor_a = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/BoxA", update_period=0.0, history_length=1
-            )
-            scene_cfg.contact_sensor_b = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/BoxB", update_period=0.0, history_length=1
-            )
+        scene_cfg.object_a = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/BoxA",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                rigid_props=rigid_props,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=mass_a),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.5, 0.0, 0.5)),
+        )
+        scene_cfg.object_b = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/BoxB",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                rigid_props=rigid_props,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=mass_b),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/BoxA", update_period=0.0, history_length=1
+        )
+        scene_cfg.contact_sensor_b = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/BoxB", update_period=0.0, history_length=1
+        )
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         sensor_a: ContactSensor = scene["contact_sensor_a"]
         sensor_b: ContactSensor = scene["contact_sensor_b"]
 
-        with phase_timer("settle"):
-            for _ in range(settle_steps):
-                perform_sim_step(sim, scene, SIM_DT)
+        for _ in range(settle_steps):
+            perform_sim_step(sim, scene, SIM_DT)
 
-        with phase_timer("assertions"):
-            forces_a = wp.to_torch(sensor_a.data.net_forces_w)
-            forces_b = wp.to_torch(sensor_b.data.net_forces_w)
-            force_mags_a = torch.norm(forces_a, dim=-1)
-            force_mags_b = torch.norm(forces_b, dim=-1)
+        forces_a = wp.to_torch(sensor_a.data.net_forces_w)
+        forces_b = wp.to_torch(sensor_b.data.net_forces_w)
+        force_mags_a = torch.norm(forces_a, dim=-1)
+        force_mags_b = torch.norm(forces_b, dim=-1)
 
-            for env_idx in range(num_envs):
-                fa = force_mags_a[env_idx].max().item()
-                fb = force_mags_b[env_idx].max().item()
+        for env_idx in range(num_envs):
+            fa = force_mags_a[env_idx].max().item()
+            fb = force_mags_b[env_idx].max().item()
 
-                assert abs(fa - expected_force_a) < 0.2 * expected_force_a, (
-                    f"Env {env_idx}: BoxA ({mass_a}kg) force should be ~{expected_force_a:.2f} N. Got {fa:.2f} N"
-                )
-                assert abs(fb - expected_force_b) < 0.2 * expected_force_b, (
-                    f"Env {env_idx}: BoxB ({mass_b}kg) force should be ~{expected_force_b:.2f} N. Got {fb:.2f} N"
-                )
-                assert fb > fa, f"Env {env_idx}: Heavier BoxB should have larger force. A: {fa:.2f}, B: {fb:.2f}"
+            assert abs(fa - expected_force_a) < 0.2 * expected_force_a, (
+                f"Env {env_idx}: BoxA ({mass_a}kg) force should be ~{expected_force_a:.2f} N. Got {fa:.2f} N"
+            )
+            assert abs(fb - expected_force_b) < 0.2 * expected_force_b, (
+                f"Env {env_idx}: BoxB ({mass_b}kg) force should be ~{expected_force_b:.2f} N. Got {fb:.2f} N"
+            )
+            assert fb > fa, f"Env {env_idx}: Heavier BoxB should have larger force. A: {fa:.2f}, B: {fb:.2f}"
 
-                assert forces_a[env_idx, 0, 2].item() > 0.1, f"Env {env_idx}: BoxA Z force should be positive"
-                assert forces_b[env_idx, 0, 2].item() > 0.1, f"Env {env_idx}: BoxB Z force should be positive"
+            assert forces_a[env_idx, 0, 2].item() > 0.1, f"Env {env_idx}: BoxA Z force should be positive"
+            assert forces_b[env_idx, 0, 2].item() > 0.1, f"Env {env_idx}: BoxB Z force should be positive"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -424,24 +413,23 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        with phase_timer("scene_setup"):
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
-            scene_cfg.object_a = create_shape_cfg(
-                ShapeType.SPHERE,
-                "{ENV_REGEX_NS}/Sphere",
-                pos=(0.0, 0.0, max_height + object_radius),
-                disable_gravity=False,
-                activate_contact_sensors=True,
-            )
-            scene_cfg.contact_sensor_a = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Sphere",
-                update_period=0.0,
-                history_length=1,
-            )
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.object_a = create_shape_cfg(
+            ShapeType.SPHERE,
+            "{ENV_REGEX_NS}/Sphere",
+            pos=(0.0, 0.0, max_height + object_radius),
+            disable_gravity=False,
+            activate_contact_sensors=True,
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Sphere",
+            update_period=0.0,
+            history_length=1,
+        )
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         obj: RigidObject = scene["object_a"]
         contact_sensor: ContactSensor = scene["contact_sensor_a"]
@@ -455,31 +443,29 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
         peak_forces = [0.0] * num_envs
         contact_detected = [False] * num_envs
 
-        with phase_timer("simulation"):
-            for _ in range(total_steps):
-                perform_sim_step(sim, scene, SIM_DT)
-                force_magnitudes = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
-                for env_idx in range(num_envs):
-                    f = force_magnitudes[env_idx].max().item()
-                    if f > 0.1:
-                        contact_detected[env_idx] = True
-                    peak_forces[env_idx] = max(peak_forces[env_idx], f)
-
-        with phase_timer("assertions"):
+        for _ in range(total_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+            force_magnitudes = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
             for env_idx in range(num_envs):
-                assert contact_detected[env_idx], f"Env {env_idx} (h={drop_heights[env_idx]:.2f}m): No contact"
+                f = force_magnitudes[env_idx].max().item()
+                if f > 0.1:
+                    contact_detected[env_idx] = True
+                peak_forces[env_idx] = max(peak_forces[env_idx], f)
 
-            violations = []
-            for i in range(num_envs - 1):
-                if peak_forces[i + 1] < peak_forces[i] * 0.95:
-                    violations.append(
-                        f"Env {i} (h={drop_heights[i]:.2f}m, F={peak_forces[i]:.2f}N) -> "
-                        f"Env {i + 1} (h={drop_heights[i + 1]:.2f}m, F={peak_forces[i + 1]:.2f}N)"
-                    )
-            assert len(violations) <= 2, "Peak force should increase with height. Violations:\n" + "\n".join(violations)
+        for env_idx in range(num_envs):
+            assert contact_detected[env_idx], f"Env {env_idx} (h={drop_heights[env_idx]:.2f}m): No contact"
 
-            force_ratio = peak_forces[-1] / peak_forces[0] if peak_forces[0] > 0 else 0
-            assert force_ratio > 1.5, f"Force ratio (highest/lowest) should be > 1.5. Got {force_ratio:.2f}"
+        violations = []
+        for i in range(num_envs - 1):
+            if peak_forces[i + 1] < peak_forces[i] * 0.95:
+                violations.append(
+                    f"Env {i} (h={drop_heights[i]:.2f}m, F={peak_forces[i]:.2f}N) -> "
+                    f"Env {i + 1} (h={drop_heights[i + 1]:.2f}m, F={peak_forces[i + 1]:.2f}N)"
+                )
+        assert len(violations) <= 2, "Peak force should increase with height. Violations:\n" + "\n".join(violations)
+
+        force_ratio = peak_forces[-1] / peak_forces[0] if peak_forces[0] > 0 else 0
+        assert force_ratio > 1.5, f"Force ratio (highest/lowest) should be > 1.5. Got {force_ratio:.2f}"
 
 
 # ===================================================================
@@ -517,77 +503,74 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        with phase_timer("scene_setup"):
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
 
-            rigid_props_a = sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False, linear_damping=0.5, angular_damping=0.5
-            )
-            scene_cfg.object_a = RigidObjectCfg(
-                prim_path="{ENV_REGEX_NS}/ObjectA",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.5, 0.5, 0.3),
-                    rigid_props=rigid_props_a,
-                    collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
-                    activate_contact_sensors=True,
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
-            )
+        rigid_props_a = sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False, linear_damping=0.5, angular_damping=0.5
+        )
+        scene_cfg.object_a = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectA",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.5, 0.5, 0.3),
+                rigid_props=rigid_props_a,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
+        )
 
-            rigid_props_b = sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False, linear_damping=2.0, angular_damping=2.0
-            )
-            scene_cfg.object_b = RigidObjectCfg(
-                prim_path="{ENV_REGEX_NS}/ObjectB",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    rigid_props=rigid_props_b,
-                    collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=mass_b),
-                    activate_contact_sensors=True,
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
-            )
+        rigid_props_b = sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False, linear_damping=2.0, angular_damping=2.0
+        )
+        scene_cfg.object_b = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectB",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                rigid_props=rigid_props_b,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=mass_b),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
+        )
 
-            scene_cfg.contact_sensor_a = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/ObjectA",
-                update_period=0.0,
-                history_length=1,
-                filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
-            )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectA",
+            update_period=0.0,
+            history_length=1,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
+        )
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         contact_sensor: ContactSensor = scene["contact_sensor_a"]
 
-        with phase_timer("settle"):
-            for _ in range(settle_steps):
-                perform_sim_step(sim, scene, SIM_DT)
+        for _ in range(settle_steps):
+            perform_sim_step(sim, scene, SIM_DT)
 
-        with phase_timer("assertions"):
-            force_matrix_raw = contact_sensor.data.force_matrix_w
-            net_forces_raw = contact_sensor.data.net_forces_w
+        force_matrix_raw = contact_sensor.data.force_matrix_w
+        net_forces_raw = contact_sensor.data.net_forces_w
 
-            assert force_matrix_raw is not None, "force_matrix_w should not be None when filter is set"
+        assert force_matrix_raw is not None, "force_matrix_w should not be None when filter is set"
 
-            force_matrix = wp.to_torch(force_matrix_raw)
-            net_forces = wp.to_torch(net_forces_raw)
+        force_matrix = wp.to_torch(force_matrix_raw)
+        net_forces = wp.to_torch(net_forces_raw)
 
-            for env_idx in range(num_envs):
-                matrix_force = torch.norm(force_matrix[env_idx]).item()
-                net_force = torch.norm(net_forces[env_idx]).item()
+        for env_idx in range(num_envs):
+            matrix_force = torch.norm(force_matrix[env_idx]).item()
+            net_force = torch.norm(net_forces[env_idx]).item()
 
-                tolerance = 0.3 * expected_force_from_b
-                assert abs(matrix_force - expected_force_from_b) < tolerance, (
-                    f"Env {env_idx}: force_matrix should be ~{expected_force_from_b:.2f} N. Got: {matrix_force:.2f} N"
-                )
-                assert matrix_force < net_force, (
-                    f"Env {env_idx}: force_matrix (B only) should be < net_forces (all). "
-                    f"Matrix: {matrix_force:.2f} N, Net: {net_force:.2f} N"
-                )
+            tolerance = 0.3 * expected_force_from_b
+            assert abs(matrix_force - expected_force_from_b) < tolerance, (
+                f"Env {env_idx}: force_matrix should be ~{expected_force_from_b:.2f} N. Got: {matrix_force:.2f} N"
+            )
+            assert matrix_force < net_force, (
+                f"Env {env_idx}: force_matrix (B only) should be < net_forces (all). "
+                f"Matrix: {matrix_force:.2f} N, Net: {net_force:.2f} N"
+            )
 
 
 # ===================================================================
@@ -647,66 +630,65 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
     with build_simulation_context(sim_cfg=sim_cfg, add_ground_plane=True, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        with phase_timer("scene_setup"):
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
 
-            scene_cfg.hand = ALLEGRO_HAND_CFG.copy()
-            scene_cfg.hand.prim_path = "{ENV_REGEX_NS}/Hand"
-            scene_cfg.hand.init_state.pos = hand_pos
+        scene_cfg.hand = ALLEGRO_HAND_CFG.copy()
+        scene_cfg.hand.prim_path = "{ENV_REGEX_NS}/Hand"
+        scene_cfg.hand.init_state.pos = hand_pos
 
-            for finger in finger_names:
-                setattr(
-                    scene_cfg,
-                    f"contact_sensor_{finger}",
-                    ContactSensorCfg(
-                        prim_path=f"{{ENV_REGEX_NS}}/Hand/{ALLEGRO_FINGER_LINKS[finger]}",
-                        update_period=0.0,
-                        history_length=1,
-                    ),
-                )
-
-            drop_rigid_props = sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False, linear_damping=0.0, angular_damping=0.0
-            )
-            drop_collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
-            drop_mass_props = sim_utils.MassPropertiesCfg(mass=1.0)
-            drop_visual = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
-
-            spawn_map = {
-                ShapeType.SPHERE: lambda: sim_utils.SphereCfg(
-                    radius=0.035,
-                    rigid_props=drop_rigid_props,
-                    collision_props=drop_collision_props,
-                    mass_props=drop_mass_props,
-                    visual_material=drop_visual,
-                    activate_contact_sensors=True,
+        for finger in finger_names:
+            setattr(
+                scene_cfg,
+                f"contact_sensor_{finger}",
+                ContactSensorCfg(
+                    prim_path=f"{{ENV_REGEX_NS}}/Hand/{ALLEGRO_FINGER_LINKS[finger]}",
+                    update_period=0.0,
+                    history_length=1,
                 ),
-                ShapeType.MESH_BOX: lambda: sim_utils.MeshCuboidCfg(
-                    size=(0.05, 0.05, 0.05),
-                    rigid_props=drop_rigid_props,
-                    collision_props=drop_collision_props,
-                    mass_props=drop_mass_props,
-                    visual_material=drop_visual,
-                    activate_contact_sensors=True,
-                ),
-            }
-
-            default_offset = ALLEGRO_FINGERTIP_OFFSETS["index"]
-            default_drop_pos = (
-                hand_pos[0] + default_offset[0],
-                hand_pos[1] + default_offset[1],
-                hand_pos[2] + default_offset[2] + 0.10,
             )
 
-            scene_cfg.drop_object = RigidObjectCfg(
-                prim_path="{ENV_REGEX_NS}/DropObject",
-                spawn=spawn_map[drop_shape](),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=default_drop_pos),
-            )
+        drop_rigid_props = sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False, linear_damping=0.0, angular_damping=0.0
+        )
+        drop_collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
+        drop_mass_props = sim_utils.MassPropertiesCfg(mass=1.0)
+        drop_visual = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        spawn_map = {
+            ShapeType.SPHERE: lambda: sim_utils.SphereCfg(
+                radius=0.035,
+                rigid_props=drop_rigid_props,
+                collision_props=drop_collision_props,
+                mass_props=drop_mass_props,
+                visual_material=drop_visual,
+                activate_contact_sensors=True,
+            ),
+            ShapeType.MESH_BOX: lambda: sim_utils.MeshCuboidCfg(
+                size=(0.05, 0.05, 0.05),
+                rigid_props=drop_rigid_props,
+                collision_props=drop_collision_props,
+                mass_props=drop_mass_props,
+                visual_material=drop_visual,
+                activate_contact_sensors=True,
+            ),
+        }
+
+        default_offset = ALLEGRO_FINGERTIP_OFFSETS["index"]
+        default_drop_pos = (
+            hand_pos[0] + default_offset[0],
+            hand_pos[1] + default_offset[1],
+            hand_pos[2] + default_offset[2] + 0.10,
+        )
+
+        scene_cfg.drop_object = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/DropObject",
+            spawn=spawn_map[drop_shape](),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=default_drop_pos),
+        )
+
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         hand: Articulation = scene["hand"]
         drop_object: RigidObject = scene["drop_object"]
@@ -730,9 +712,8 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
             drop_pose[env_idx, 2] = hand_world_pos[env_idx, 2] + offset[2] + 0.10
         drop_object.write_root_pose_to_sim_index(root_pose=drop_pose)
 
-        with phase_timer("hand_settle"):
-            for _ in range(30):
-                perform_sim_step(sim, scene, SIM_DT)
+        for _ in range(30):
+            perform_sim_step(sim, scene, SIM_DT)
 
         hand_world_pos = wp.to_torch(hand.data.root_link_pose_w)[:, :3]
         drop_object.reset()
@@ -750,30 +731,28 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
 
         peak_forces = {f: [0.0] * num_envs for f in finger_names}
 
-        with phase_timer("simulation"):
-            for _ in range(drop_steps):
-                perform_sim_step(sim, scene, SIM_DT)
-                for finger_name, sensor in finger_sensors.items():
-                    if sensor.data.net_forces_w is not None:
-                        forces = wp.to_torch(sensor.data.net_forces_w)
-                        for env_idx in range(num_envs):
-                            f = torch.norm(forces[env_idx]).item()
-                            peak_forces[finger_name][env_idx] = max(peak_forces[finger_name][env_idx], f)
+        for _ in range(drop_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+            for finger_name, sensor in finger_sensors.items():
+                if sensor.data.net_forces_w is not None:
+                    forces = wp.to_torch(sensor.data.net_forces_w)
+                    for env_idx in range(num_envs):
+                        f = torch.norm(forces[env_idx]).item()
+                        peak_forces[finger_name][env_idx] = max(peak_forces[finger_name][env_idx], f)
 
-        with phase_timer("assertions"):
-            for env_idx, target_finger in enumerate(finger_names):
-                target_peak = peak_forces[target_finger][env_idx]
-                assert target_peak > 0.5, (
-                    f"Env {env_idx}: Target finger '{target_finger}' peak force: {target_peak:.4f} N (expected > 0.5)"
-                )
+        for env_idx, target_finger in enumerate(finger_names):
+            target_peak = peak_forces[target_finger][env_idx]
+            assert target_peak > 0.5, (
+                f"Env {env_idx}: Target finger '{target_finger}' peak force: {target_peak:.4f} N (expected > 0.5)"
+            )
 
-                for other_finger in finger_names:
-                    if other_finger != target_finger:
-                        assert target_peak >= peak_forces[other_finger][env_idx], (
-                            f"Env {env_idx}: '{target_finger}' (peak={target_peak:.4f}N) should have "
-                            f"highest force, but '{other_finger}' had "
-                            f"{peak_forces[other_finger][env_idx]:.4f}N"
-                        )
+            for other_finger in finger_names:
+                if other_finger != target_finger:
+                    assert target_peak >= peak_forces[other_finger][env_idx], (
+                        f"Env {env_idx}: '{target_finger}' (peak={target_peak:.4f}N) should have "
+                        f"highest force, but '{other_finger}' had "
+                        f"{peak_forces[other_finger][env_idx]:.4f}N"
+                    )
 
 
 # ===================================================================
@@ -788,25 +767,24 @@ def test_sensor_print():
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
 
-        with phase_timer("scene_setup"):
-            scene_cfg = ContactSensorTestSceneCfg(num_envs=4, env_spacing=5.0, lazy_sensor_update=False)
-            scene_cfg.object_a = create_shape_cfg(
-                ShapeType.BOX,
-                "{ENV_REGEX_NS}/Object",
-                pos=(0.0, 0.0, 2.0),
-                disable_gravity=False,
-                activate_contact_sensors=True,
-            )
-            scene_cfg.contact_sensor_a = ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Object",
-                update_period=0.0,
-                history_length=3,
-                track_air_time=True,
-            )
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=4, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.object_a = create_shape_cfg(
+            ShapeType.BOX,
+            "{ENV_REGEX_NS}/Object",
+            pos=(0.0, 0.0, 2.0),
+            disable_gravity=False,
+            activate_contact_sensors=True,
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            update_period=0.0,
+            history_length=3,
+            track_air_time=True,
+        )
 
-            scene = InteractiveScene(scene_cfg)
-            sim.reset()
-            scene.reset()
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
 
         sensor_str = str(scene["contact_sensor_a"])
         assert len(sensor_str) > 0
