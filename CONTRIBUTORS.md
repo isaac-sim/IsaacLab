@@ -140,6 +140,7 @@ Guidelines for modifications:
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
+* Rebecca (Rui) Zhang
 * Renaud Poncelet
 * René Zurbrügg
 * RinZ27
