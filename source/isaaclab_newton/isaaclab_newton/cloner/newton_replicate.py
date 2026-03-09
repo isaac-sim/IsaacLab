@@ -12,6 +12,7 @@ from newton import ModelBuilder, solvers
 from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
+from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 
 def newton_replicate(
@@ -38,6 +39,8 @@ def newton_replicate(
     builder = ModelBuilder(up_axis=up_axis)
     stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
+    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
     env0_pos = positions[0]
@@ -50,6 +53,7 @@ def newton_replicate(
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
+            schema_resolvers=schema_resolvers,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
