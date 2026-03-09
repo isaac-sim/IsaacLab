@@ -48,8 +48,9 @@ ANT_CFG = ArticulationCfg(
         "body": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
             stiffness=0.0,
-            damping=0.5,
-            effort_limit_sim=30.0,
+            damping=0.1,
+            armature=0.02,
+            effort_limit_sim=15.0,
         ),
     },
 )
