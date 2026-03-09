@@ -49,7 +49,7 @@ ANT_CFG = ArticulationCfg(
             joint_names_expr=[".*"],
             stiffness=0.0,
             damping=0.1,
-            armature=0.02,
+            armature=0.05,
             effort_limit_sim=15.0,
         ),
     },
