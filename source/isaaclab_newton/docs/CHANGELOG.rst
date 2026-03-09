@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.5.4 (2026-02-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``contact_filter`` module and ``build_contact_sensor()`` to centralize
+  contact sensor pattern resolution and replicated-kernel construction.
+
+* Added contact sensor and contact filter test suites with shared physics utilities.
+
+Changed
+^^^^^^^
+
+* Refactored ``NewtonManager.add_contact_sensor`` to delegate to ``build_contact_sensor``.
+
+Fixed
+^^^^^
+
+* Fixed ``RigidObjectData.body_inertia`` shape from ``(N, B, 3, 3)`` to ``(N, B, 9)``.
+
+
 0.5.3 (2026-03-09)
 ~~~~~~~~~~~~~~~~~~
 

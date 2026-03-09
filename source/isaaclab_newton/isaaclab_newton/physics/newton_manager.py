@@ -13,14 +13,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
+
+from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
+
+from ..cloner.contact_filter import build_contact_sensor
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -289,7 +291,6 @@ class NewtonManager(PhysicsManager):
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
         # Set smaller contact margin for manipulation examples (default 10cm is too large)
-        cls._builder.default_shape_cfg.contact_margin = 0.01
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
@@ -589,7 +590,9 @@ class NewtonManager(PhysicsManager):
     ) -> tuple[str | list[str] | None, str | list[str] | None, str | list[str] | None, str | list[str] | None]:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
-        Note: Only one contact sensor can be active at a time.
+        Pattern resolution, per-world index matching, and replicated-kernel
+        construction are all handled by :func:`build_contact_sensor` in
+        ``cloner.contact_filter``.
 
         Args:
             body_names_expr: Expression for body names to sense.
@@ -599,7 +602,6 @@ class NewtonManager(PhysicsManager):
             prune_noncolliding: Make force matrix sparse using collision pairs.
             verbose: Print verbose information.
         """
-        # Validate inputs
         if body_names_expr is None and shape_names_expr is None:
             raise ValueError("At least one of body_names_expr or shape_names_expr must be provided")
         if body_names_expr is not None and shape_names_expr is not None:
@@ -607,64 +609,35 @@ class NewtonManager(PhysicsManager):
         if contact_partners_body_expr is not None and contact_partners_shape_expr is not None:
             raise ValueError("Only one of contact_partners_body_expr or contact_partners_shape_expr must be provided")
 
-        # Log sensor configuration
         sensor_target = body_names_expr or shape_names_expr
         partner_filter = contact_partners_body_expr or contact_partners_shape_expr or "all bodies/shapes"
         logger.info(f"Adding contact sensor for {sensor_target} with filter {partner_filter}")
 
-        # Create unique key for this sensor
-        sensor_key = (body_names_expr, shape_names_expr, contact_partners_body_expr, contact_partners_shape_expr)
+        def _hashable_key(x):
+            return tuple(x) if isinstance(x, list) else x
 
-        def _to_fnmatch_patterns(expr: str | list[str] | None):
-            if expr is None:
-                return None
-            if isinstance(expr, str):
-                return expr.replace(".*", "*")
-            return [pattern.replace(".*", "*") for pattern in expr]
-
-        def _normalize_expr_for_model_labels(expr: str | list[str] | None, labels: list[str] | None):
-            if expr is None or not labels:
-                return expr
-            label_has_paths = any("/" in label for label in labels)
-            expr_list = [expr] if isinstance(expr, str) else list(expr)
-            expr_uses_paths = any("/" in pattern for pattern in expr_list)
-            if label_has_paths or not expr_uses_paths:
-                return expr
-            normalized = [pattern.rsplit("/", 1)[-1] for pattern in expr_list]
-            return normalized[0] if isinstance(expr, str) else normalized
-
-        model = cls._model
-        body_labels = getattr(model, "body_label", None) or getattr(model, "body_key", None)
-        shape_labels = getattr(model, "shape_label", None) or getattr(model, "shape_key", None)
-        sensing_obj_bodies = _normalize_expr_for_model_labels(_to_fnmatch_patterns(body_names_expr), body_labels)
-        sensing_obj_shapes = _normalize_expr_for_model_labels(_to_fnmatch_patterns(shape_names_expr), shape_labels)
-        counterpart_bodies = _normalize_expr_for_model_labels(
-            _to_fnmatch_patterns(contact_partners_body_expr), body_labels
-        )
-        counterpart_shapes = _normalize_expr_for_model_labels(
-            _to_fnmatch_patterns(contact_partners_shape_expr), shape_labels
+        sensor_key = (
+            _hashable_key(body_names_expr),
+            _hashable_key(shape_names_expr),
+            _hashable_key(contact_partners_body_expr),
+            _hashable_key(contact_partners_shape_expr),
         )
 
-        # Create and store the sensor
-        # Note: SensorContact constructor requests 'force' attribute from the model
-        newton_sensor = NewtonContactSensor(
-            cls._model,
-            sensing_obj_bodies=sensing_obj_bodies,
-            sensing_obj_shapes=sensing_obj_shapes,
-            counterpart_bodies=counterpart_bodies,
-            counterpart_shapes=counterpart_shapes,
-            include_total=True,
-            prune_noncolliding=prune_noncolliding,
-            verbose=verbose,
-        )
-        cls._newton_contact_sensors[sensor_key] = newton_sensor
+        with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
+            sensor = build_contact_sensor(
+                cls._model,
+                body_names_expr=body_names_expr,
+                shape_names_expr=shape_names_expr,
+                contact_partners_body_expr=contact_partners_body_expr,
+                contact_partners_shape_expr=contact_partners_shape_expr,
+                prune_noncolliding=prune_noncolliding,
+                verbose=verbose,
+            )
+
+        cls._newton_contact_sensors[sensor_key] = sensor
         cls._report_contacts = True
 
-        # Regenerate contacts only if they were already created without force attribute
-        # If solver is not initialized, contacts will be created with force in initialize_solver()
-        if cls._solver is not None and cls._contacts is not None:
-            # Only regenerate if contacts don't have force attribute (sensor.update() requires it)
-            if cls._contacts.force is None:
-                cls._initialize_contacts()
+        if cls._solver is not None and cls._contacts is not None and cls._contacts.force is None:
+            cls._initialize_contacts()
 
         return sensor_key

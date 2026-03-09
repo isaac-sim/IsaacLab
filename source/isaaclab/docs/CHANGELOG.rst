@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+4.5.11 (2026-02-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``visualizers`` parameter to ``build_simulation_context()``.
+
+
 4.5.10 (2026-03-09)
 ~~~~~~~~~~~~~~~~~~~
 
