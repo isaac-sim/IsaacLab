@@ -539,6 +539,7 @@ class SimulationContext:
     def get_scene_data_requirements(self) -> dict[str, bool]:
         """Return resolved scene-data requirements for providers."""
         return dict(self._scene_data_requirements)
+
     def get_newton_visualizer_artifact(self) -> dict[str, Any] | None:
         """Return prebuilt Newton visualizer artifact, if available."""
         return self._newton_visualizer_artifact

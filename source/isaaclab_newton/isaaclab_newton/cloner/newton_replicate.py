@@ -158,6 +158,8 @@ def newton_visualizer_prebuild(
     model = builder.finalize(device=device)
     state = model.state()
     return model, state
+
+
 def _get_inverse_env_xform(stage: Usd.Stage, src_path: str):
     """Get the inverse transform of src_path to convert world→local."""
     xform_cache = UsdGeom.XformCache()
