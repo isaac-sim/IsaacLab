@@ -23,6 +23,7 @@ from isaaclab_contrib.controllers import (
 from isaaclab_contrib.controllers import (
     lee_attitude_control as att_mod,
 )
+from isaaclab_contrib.controllers import lee_controller_base as base_mod
 from isaaclab_contrib.controllers import (
     lee_position_control as pos_mod,
 )
@@ -83,17 +84,15 @@ class _DummySimContext:
         self.cfg = _DummySimCfg()
 
 
-def _patch_aggregate(monkeypatch: pytest.MonkeyPatch, module, num_envs: int, device: torch.device) -> None:
-    """Monkeypatch aggregate_inertia_about_robot_com to a deterministic CPU-friendly stub."""
-
+def _patch_aggregate(monkeypatch, _module, num_envs, device):
     def _agg(*_args, **_kwargs):
         return (
-            torch.ones(num_envs, device=device),  # mass
-            torch.eye(3, device=device).repeat(num_envs, 1, 1),  # inertia
+            torch.ones(num_envs, device=device),
+            torch.eye(3, device=device).repeat(num_envs, 1, 1),
             torch.zeros((num_envs, 3, 3), device=device),
         )
 
-    monkeypatch.setattr(module.math_utils, "aggregate_inertia_about_robot_com", _agg)
+    monkeypatch.setattr(base_mod, "aggregate_inertia_about_robot_com", _agg)
 
 
 def _patch_sim_context(monkeypatch: pytest.MonkeyPatch, module) -> None:
