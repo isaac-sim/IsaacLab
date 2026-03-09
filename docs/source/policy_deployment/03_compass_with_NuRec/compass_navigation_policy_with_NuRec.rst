@@ -178,15 +178,13 @@ For example, for the Galileo environment:
 
 .. code-block:: bash
 
-    compass/rl_env/exts/mobility_es/mobility_es/usd/real2sim_galileo/
-    ├── real2sim_galileo.usd
-    └── omap/
-        ├── occupancy_map.yaml
-        └── occupancy_map.png
+    compass/rl_env/exts/mobility_es/mobility_es/usd/nova_carter-galileo/
+    ├── stage.usdz
+    ├── occupancy_map.yaml
+    └── occupancy_map.png
 
 .. note::
 
-   The occupancy map files (``omap/``) are used for collision checking during training and evaluation.
    The following environments are available in the dataset:
 
    .. list-table::
@@ -394,6 +392,7 @@ For NuRec Real2Sim environments:
 
 .. _Isaac Lab Installation Guide: https://isaac-sim.github.io/IsaacLab/v2.0.0/source/setup/installation/index.html
 .. _Isaac Sim Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html
+.. _Isaac Sim pip Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_python.html
 .. _Isaac Sim 6.0 Alpha Release: https://developer.nvidia.com/isaac/sim
 .. _COMPASS Repository: https://github.com/NVlabs/COMPASS
 .. _COMPASS ROS2 Deployment Guide: https://github.com/NVlabs/COMPASS/tree/main/ros2_deployment
