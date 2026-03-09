@@ -26,7 +26,10 @@ def _parse_stub(stub_file: str) -> tuple[str | None, list[str], list[str]]:
 
         *filtered_path* is a temporary ``.pyi`` containing only explicit
         relative imports (what ``lazy_loader`` can handle), or ``None`` when
-        no filtering was needed.
+        no filtering was needed.  The temporary file may be empty when the
+        stub contained only wildcard imports; this is intentional — passing
+        the original stub to ``lazy_loader`` would raise ``ValueError``
+        because it does not support absolute or wildcard imports.
 
         *fallback_packages* lists fully-qualified package names extracted from
         absolute wildcard imports (``from pkg import *``).
@@ -98,6 +101,10 @@ def lazy_export(
         packages: **Deprecated.**  Fallback packages are now inferred from
             absolute wildcard imports in the ``.pyi`` stub.  Passing this
             argument still works but emits a :class:`DeprecationWarning`.
+
+    Raises:
+        ImportError: If the ``.pyi`` stub declares ``from pkg import *`` but
+            *pkg* is not installed.
     """
     caller_globals = sys._getframe(1).f_globals
     package_name: str = caller_globals["__name__"]
@@ -149,8 +156,11 @@ def lazy_export(
         for _pkg_name in fallback_packages:
             try:
                 _resolved_pkgs.append(importlib.import_module(_pkg_name))
-            except (ImportError, ModuleNotFoundError):
-                pass
+            except (ImportError, ModuleNotFoundError) as e:
+                raise ImportError(
+                    f"lazy_export() in {package_name!r}: .pyi stub declares "
+                    f"'from {_pkg_name} import *' but the package is not installed."
+                ) from e
 
         def _pkg_getattr(name: str):
             for pkg_mod in _resolved_pkgs:
