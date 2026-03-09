@@ -56,7 +56,12 @@ def main():
         # reset environment
         env.reset()
         # simulate environment
-        while env.unwrapped.sim.is_running():
+        sim = env.unwrapped.sim
+        while True:
+            if sim.visualizers:
+                # visualizer mode: run until the visualizer window is closed
+                if not any(v.is_running() and not v.is_closed for v in sim.visualizers):
+                    break
             # run everything in inference mode
             with torch.inference_mode():
                 # sample actions from -1 to 1
