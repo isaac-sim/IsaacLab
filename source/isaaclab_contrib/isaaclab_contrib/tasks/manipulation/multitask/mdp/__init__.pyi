@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the MDP functions for the multitask manipulation environments."""
+__all__ = [
+    "reset_multitask_scene_to_default",
+]
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export(packages=["isaaclab.envs.mdp"])
+from .events import reset_multitask_scene_to_default
