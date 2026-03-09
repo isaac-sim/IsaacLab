@@ -284,8 +284,8 @@ def _install_no_deps_extensions() -> None:
                 "pip",
                 "install",
                 "--editable",
-                "--no-deps",
                 str(pkg_path),
+                "--no-deps",
             ]
         )
 
