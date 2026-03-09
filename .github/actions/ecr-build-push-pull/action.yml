@@ -116,8 +116,8 @@ runs:
             echo "🟢 Tagged as: ${IMAGE_TAG} — skipping build."
             exit 0
           } || {
-            echo "🟠 Image can't be pulled from ECR, will build locally."
-            echo "${PULL_OUTPUT}" | sed 's/^/    /'
+            echo "🟠 Image can't be pulled from ECR, will build locally:"
+            echo -e "\e[90m${PULL_OUTPUT}\e[0m"
           }
         fi
 
