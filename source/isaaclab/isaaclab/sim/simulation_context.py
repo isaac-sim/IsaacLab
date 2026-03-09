@@ -22,6 +22,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
+from isaaclab.physics.scene_data_requirements import aggregate_requirements, requirement_for_visualizer_type
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -472,18 +473,17 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
-        # Default requirement resolution from visualizer cfgs only.
-        # InteractiveScene may later override this with renderer-aware requirements
-        # before provider initialization.
-        requires_newton_model = False
-        requires_usd_stage = False
-        for cfg in visualizer_cfgs:
-            requires_newton_model |= bool(getattr(cfg, "requires_newton_model", False))
-            requires_usd_stage |= bool(getattr(cfg, "requires_usd_stage", False))
+        # Resolve requirements by visualizer type, not by importing backend cfg classes,
+        # so this stays stable even when optional visualizer packages are not installed.
+        req = aggregate_requirements(
+            requirement_for_visualizer_type(cfg.visualizer_type)
+            for cfg in visualizer_cfgs
+            if getattr(cfg, "visualizer_type", None) is not None
+        )
 
         self.set_scene_data_requirements(
-            requires_newton_model=requires_newton_model,
-            requires_usd_stage=requires_usd_stage,
+            requires_newton_model=req.requires_newton_model,
+            requires_usd_stage=req.requires_usd_stage,
         )
         self.initialize_scene_data_provider()
         self._visualizers = []

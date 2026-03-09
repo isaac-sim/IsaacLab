@@ -105,12 +105,9 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
-        requirements = {}
-        get_requirements = getattr(self._simulation_context, "get_scene_data_requirements", None)
-        if callable(get_requirements):
-            requirements = get_requirements()
+        # Determine if newton model sync is required for selected renderers and visualizers
+        requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_newton_sync = bool(requirements.get("requires_newton_model", False))
-        self._needs_usd_stage = bool(requirements.get("requires_usd_stage", False))
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.

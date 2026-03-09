@@ -36,13 +36,9 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._metadata = {"physics_backend": "newton"}
         self._num_envs: int | None = None
         self._warned_once: set[str] = set()
-        # Only sync Newton -> USD when a USD-stage-based visualizer is active.
-        # When both sim and rendering are Newton-based, they use Newton state directly.
-        requirements = {}
-        get_requirements = getattr(self._simulation_context, "get_scene_data_requirements", None)
-        if callable(get_requirements):
-            requirements = get_requirements()
-        self._needs_newton_sync = bool(requirements.get("requires_newton_model", False))
+
+        # Determine if usd stage sync is required for selected renderers and visualizers
+        requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_usd_sync = bool(requirements.get("requires_usd_stage", False))
 
     def _warn_once(self, key: str, message: str, *args) -> None:

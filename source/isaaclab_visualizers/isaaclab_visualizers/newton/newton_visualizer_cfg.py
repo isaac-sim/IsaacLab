@@ -16,9 +16,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "newton"
     """Type identifier for Newton visualizer."""
 
-    requires_newton_model: bool = True
-    """Internal requirement flag; do not override in user configs."""
-
     window_width: int = 1920
     """Window width in pixels."""
 

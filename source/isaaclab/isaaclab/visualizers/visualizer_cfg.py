@@ -28,12 +28,6 @@ class VisualizerCfg:
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
-    requires_newton_model: bool = False
-    """Internal requirement flag for scene-data setup; avoid overriding in user configs."""
-
-    requires_usd_stage: bool = False
-    """Internal requirement flag for scene-data setup; avoid overriding in user configs."""
-
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
 

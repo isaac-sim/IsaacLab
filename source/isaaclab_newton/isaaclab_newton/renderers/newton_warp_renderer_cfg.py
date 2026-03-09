@@ -15,6 +15,3 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
-
-    requires_newton_model: bool = True
-    """Internal requirement flag; do not override in user configs."""

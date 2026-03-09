@@ -19,12 +19,6 @@ if TYPE_CHECKING:
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
-    requires_newton_model: bool = False
-    """Whether this renderer requires Newton model/state from SceneDataProvider."""
-
-    requires_usd_stage: bool = False
-    """Whether this renderer requires direct USD stage access."""
-
     @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the stage for rendering before create_render_data is called.

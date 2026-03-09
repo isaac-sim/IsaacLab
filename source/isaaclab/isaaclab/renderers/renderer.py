@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import logging
 
+from isaaclab.physics.scene_data_requirements import requirement_for_renderer_type
 from isaaclab.utils.backend_utils import FactoryBase
 
 from .base_renderer import BaseRenderer
@@ -28,11 +29,6 @@ class Renderer(FactoryBase, BaseRenderer):
         "physx": "IsaacRtxRenderer",
         "newton": "NewtonWarpRenderer",
         "ov": "OVRTXRenderer",
-    }
-    _renderer_cfg_import_targets = {
-        "isaac_rtx": ("isaaclab_physx.renderers.isaac_rtx_renderer_cfg", "IsaacRtxRendererCfg"),
-        "newton_warp": ("isaaclab_newton.renderers.newton_warp_renderer_cfg", "NewtonWarpRendererCfg"),
-        "ovrtx": ("isaaclab_ov.renderers.ovrtx_renderer_cfg", "OVRTXRendererCfg"),
     }
 
     @classmethod
@@ -62,47 +58,10 @@ class Renderer(FactoryBase, BaseRenderer):
             return None
 
     @classmethod
-    def _resolve_cfg_class_for_renderer_type(cls, renderer_type: str) -> type | None:
-        """Resolve backend renderer cfg class for a renderer type."""
-        target = cls._renderer_cfg_import_targets.get(renderer_type)
-        if target is None:
-            return None
-        module_name, class_name = target
-        try:
-            module = importlib.import_module(module_name)
-            return getattr(module, class_name)
-        except Exception as exc:
-            logger.debug(
-                "[Renderer] Failed to resolve config class for renderer '%s': %s",
-                renderer_type,
-                exc,
-            )
-            return None
-
-    @classmethod
     def get_requirements_for_type(cls, renderer_type: str) -> tuple[bool, bool]:
         """Return (requires_newton_model, requires_usd_stage) for a renderer type."""
-        cfg_class = cls._resolve_cfg_class_for_renderer_type(renderer_type)
-        if cfg_class is None:
-            logger.debug(
-                "[Renderer] Using default requirements (False, False) for renderer '%s' because backend config "
-                "class could not be imported.",
-                renderer_type,
-            )
-            return False, False
-        try:
-            cfg_obj = cfg_class()
-        except Exception as exc:
-            logger.debug(
-                "[Renderer] Using default requirements (False, False) for renderer '%s' because backend config "
-                "could not be instantiated: %s",
-                renderer_type,
-                exc,
-            )
-            return False, False
-        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(
-            getattr(cfg_obj, "requires_usd_stage", False)
-        )
+        requirement = requirement_for_renderer_type(renderer_type)
+        return requirement.requires_newton_model, requirement.requires_usd_stage
 
     def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
         """Create a new instance of a renderer based on the backend."""

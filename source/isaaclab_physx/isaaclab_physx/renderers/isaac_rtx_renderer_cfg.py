@@ -15,6 +15,3 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     renderer_type: str = "isaac_rtx"
     """Type identifier for Isaac RTX renderer."""
-
-    requires_usd_stage: bool = True
-    """Internal requirement flag; do not override in user configs."""

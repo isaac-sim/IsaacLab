@@ -28,6 +28,7 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
+from isaaclab.physics.scene_data_requirements import requirement_for_renderer_type, requirement_for_visualizer_type
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -237,6 +238,8 @@ class InteractiveScene:
             if not copy_from_source:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
                 self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
+            if self.cloner_cfg.visualizer_clone_fn is not None:
+                self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
             cloner.usd_replicate(self.stage, *replicate_args)
 
     def _create_newton_visualizer_clone_fn(self):
@@ -285,15 +288,15 @@ class InteractiveScene:
 
     def _resolve_scene_data_requirements(self, requested_viz_types: set[str]) -> tuple[bool, bool, list[str]]:
         """Resolve data requirements from visualizers and sensor renderers."""
-        from isaaclab.renderers.renderer import Renderer
-        from isaaclab.visualizers.visualizer import Visualizer
-
         requires_newton_model = False
         requires_usd_stage = False
         reasons: list[str] = []
 
         for visualizer_type in sorted(requested_viz_types):
-            needs_newton, needs_usd = Visualizer.get_requirements_for_type(visualizer_type)
+            # Requirement resolution is type-based and does not import optional backend packages.
+            req = requirement_for_visualizer_type(visualizer_type)
+            needs_newton = req.requires_newton_model
+            needs_usd = req.requires_usd_stage
             requires_newton_model |= needs_newton
             requires_usd_stage |= needs_usd
             if needs_newton or needs_usd:
@@ -305,7 +308,9 @@ class InteractiveScene:
             if renderer_cfg is None:
                 continue
             renderer_type = getattr(renderer_cfg, "renderer_type", "default")
-            needs_newton, needs_usd = Renderer.get_requirements_for_type(renderer_type)
+            req = requirement_for_renderer_type(renderer_type)
+            needs_newton = req.requires_newton_model
+            needs_usd = req.requires_usd_stage
             requires_newton_model |= needs_newton
             requires_usd_stage |= needs_usd
             if needs_newton or needs_usd:

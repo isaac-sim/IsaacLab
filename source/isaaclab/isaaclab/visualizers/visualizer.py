@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import logging
 
+from isaaclab.physics.scene_data_requirements import requirement_for_visualizer_type
 from isaaclab.utils.backend_utils import FactoryBase
 
 from .base_visualizer import BaseVisualizer
@@ -28,12 +29,6 @@ class Visualizer(FactoryBase, BaseVisualizer):
         "newton": "NewtonVisualizer",
         "rerun": "RerunVisualizer",
         "viser": "ViserVisualizer",
-    }
-    _cfg_import_targets = {
-        "kit": ("isaaclab_visualizers.kit.kit_visualizer_cfg", "KitVisualizerCfg"),
-        "newton": ("isaaclab_visualizers.newton.newton_visualizer_cfg", "NewtonVisualizerCfg"),
-        "rerun": ("isaaclab_visualizers.rerun.rerun_visualizer_cfg", "RerunVisualizerCfg"),
-        "viser": ("isaaclab_visualizers.viser.viser_visualizer_cfg", "ViserVisualizerCfg"),
     }
 
     @classmethod
@@ -73,54 +68,10 @@ class Visualizer(FactoryBase, BaseVisualizer):
             return None
 
     @classmethod
-    def _resolve_cfg_class_for_type(cls, visualizer_type: str) -> type | None:
-        """Resolve visualizer cfg class for a visualizer type."""
-        if visualizer_type not in _VISUALIZER_TYPES:
-            return None
-        target = cls._cfg_import_targets.get(visualizer_type)
-        if target is None:
-            return None
-        module_name, class_name = target
-        try:
-            module = importlib.import_module(module_name)
-            return getattr(module, class_name)
-        except Exception as exc:
-            logger.debug(
-                "[Visualizer] Failed to resolve config class for type '%s': %s",
-                visualizer_type,
-                exc,
-            )
-            return None
-
-    @classmethod
     def get_requirements_for_type(cls, visualizer_type: str) -> tuple[bool, bool]:
         """Return (requires_newton_model, requires_usd_stage) for a visualizer type."""
-        if visualizer_type not in _VISUALIZER_TYPES:
-            raise ValueError(
-                f"Visualizer type '{visualizer_type}' is not registered. Valid types: "
-                f"{', '.join(repr(k) for k in _VISUALIZER_TYPES)}."
-            )
-        cfg_class = cls._resolve_cfg_class_for_type(visualizer_type)
-        if cfg_class is None:
-            logger.debug(
-                "[Visualizer] Using default requirements (False, False) for type '%s' because config class could not "
-                "be imported.",
-                visualizer_type,
-            )
-            return False, False
-        try:
-            cfg_obj = cfg_class()
-        except Exception as exc:
-            logger.debug(
-                "[Visualizer] Using default requirements (False, False) for type '%s' because config could not be "
-                "instantiated: %s",
-                visualizer_type,
-                exc,
-            )
-            return False, False
-        return bool(getattr(cfg_obj, "requires_newton_model", False)), bool(
-            getattr(cfg_obj, "requires_usd_stage", False)
-        )
+        requirement = requirement_for_visualizer_type(visualizer_type)
+        return requirement.requires_newton_model, requirement.requires_usd_stage
 
     def __new__(cls, cfg, *args, **kwargs) -> BaseVisualizer:
         """Create a new visualizer instance based on the visualizer type."""
