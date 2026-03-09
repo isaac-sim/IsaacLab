@@ -54,7 +54,7 @@ class _DummyRobot:
 
     def __init__(self, num_envs: int, num_bodies: int, device: torch.device):
         self.num_bodies = num_bodies
-        quat_id = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+        quat_id = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
         self.data = types.SimpleNamespace(
             root_link_quat_w=quat_id.repeat(num_envs, 1),
             root_quat_w=quat_id.repeat(num_envs, 1),
