@@ -53,6 +53,7 @@ class KukaAllegroPhysicsCfg(PresetCfg):
             ls_iterations=15,
             ls_parallel=False,
             use_mujoco_contacts=True,
+            ccd_iterations=5000,
         ),
         num_substeps=2,
         debug_mode=False,
