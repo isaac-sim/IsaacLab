@@ -171,7 +171,7 @@ The dataset provides several environments. For COMPASS, download the environment
 
 .. code-block:: bash
 
-    .. Ensure that you are in compass root directory
+    .. Ensure that you are in COMPASS root directory
     compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/
 
 For example, for the Galileo environment:
@@ -233,7 +233,7 @@ Execute the following command from the ``COMPASS`` directory (Terminal 2) to tra
         -o <output_dir> \
         -b <path/to/x_mobility_ckpt> \
         --embodiment <embodiment_type> \
-        --environment real2sim_galileo \
+        --environment nova_carter-galileo \
         --num_envs 64 \
         --video \
         --video_interval 1 \
@@ -246,7 +246,7 @@ Where:
 - ``<output_dir>``: Directory where training outputs and checkpoints will be saved
 - ``<path/to/x_mobility_ckpt>``: Path to the downloaded X-Mobility checkpoint
 - ``<embodiment_type>``: One of ``h1``, ``spot``, ``carter``, ``g1``, or ``digit``
-- ``--environment real2sim_galileo``: Specifies the NuRec Real2Sim Galileo environment
+- ``--environment nova_carter-galileo``: Specifies the NuRec Real2Sim Galileo environment
 
 The training will run for the number of iterations specified in the config file (default: 1000 iterations).
 The resulting checkpoint will be stored in ``<output_dir>/checkpoints/`` with the filename ``model_<iteration_number>.pt``.
@@ -289,7 +289,7 @@ Execute the following command from the ``COMPASS`` directory to evaluate the tra
         -b <path/to/x_mobility_ckpt> \
         -p <path/to/residual_policy_ckpt> \
         --embodiment <embodiment_type> \
-        --environment real2sim_galileo \
+        --environment nova_carter-galileo \
         --num_envs <num_envs> \
         --video \
         --video_interval 1
