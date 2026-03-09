@@ -193,6 +193,8 @@ def run_command(
     except subprocess.CalledProcessError as e:
         print_error(f'Command failed with code {e.returncode}: "{command_str}"')
         sys.exit(e.returncode)
+    except KeyboardInterrupt:
+        sys.exit(130)
 
 
 def extract_python_exe(allow_isaacsim_python: bool = True) -> str:

@@ -197,12 +197,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
         # run training
-        runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
-
-        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-
-        # close the simulator
-        env.close()
+        try:
+            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            # close the simulator
+            env.close()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

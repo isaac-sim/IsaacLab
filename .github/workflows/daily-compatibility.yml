@@ -70,9 +70,9 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Build Docker Image
@@ -127,9 +127,9 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Build Docker Image
@@ -168,15 +168,17 @@ jobs:
 
   combine-compat-results:
     needs: [test-isaaclab-tasks-compat, test-general-compat]
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     if: always()
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Create Reports Directory
       run: |
@@ -217,15 +219,17 @@ jobs:
 
   notify-compatibility-status:
     needs: [setup-versions, combine-compat-results]
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     if: always()
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: false
+        sparse-checkout: .github/actions
+        sparse-checkout-cone-mode: true
 
     - name: Create Compatibility Report
       run: |
