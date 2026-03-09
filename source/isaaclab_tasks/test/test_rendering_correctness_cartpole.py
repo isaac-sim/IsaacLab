@@ -15,28 +15,25 @@ import copy  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 
-from isaaclab_tasks.direct.cartpole.cartpole_env import (  # noqa: E402
-    CartpoleEnv,
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env import (  # noqa: E402
+    CartpoleCameraEnv,
 )
-from isaaclab_tasks.direct.cartpole.cartpole_env_cfg import (  # noqa: E402
-    CartpoleEnvCfg,
+from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import (  # noqa: E402
+    CartpoleCameraPresetsEnvCfg,
 )
 
-from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import (  # noqa: E402
-    ShadowHandVisionEnv,
-)
-from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
-    ShadowHandVisionBenchmarkEnvCfg,
-    ShadowHandVisionEnvCfg,
-)
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
 
 
 @pytest.fixture(scope="module")
-def shadow_hand_vision_presets():
-    """Collect all presets from ShadowHandVisionEnvCfg once for the module."""
-    return collect_presets(ShadowHandVisionEnvCfg())
+def cartpole_presets():
+    """Collect all presets from CartpoleCameraPresetsEnvCfg once for the module."""
+    return collect_presets(CartpoleCameraPresetsEnvCfg())
 
+
+# ---------------------------------------------------------------------------
+# Integration: camera output tensors must contain non-zero pixel values
+# ---------------------------------------------------------------------------
 
 # physics backend, renderer, data type
 _RENDER_CORRECTNESS_CASES = [
@@ -108,39 +105,41 @@ _RENDER_CORRECTNESS_CASES = [
 
 
 @pytest.fixture(params=_RENDER_CORRECTNESS_CASES)
-def render_correctness_env(request, shadow_hand_vision_presets):
+def render_correctness_env(request, cartpole_presets):
     """Build an env with the specified physics_backend + renderer + data_type combination, step once, yield, close.
 
     Function-scoped so each parametrized case creates and closes its own env sequentially.
     ``SimulationContext.clear_instance()`` (called by ``env.close()``) fully tears down the
     singleton, allowing a new env with a different physics backend to be created next.
 
-    The shared ``shadow_hand_vision_presets`` fixture is deepcopied before mutation so that
+    The shared ``cartpole_presets`` fixture is deepcopied before mutation so that
     subsequent parametrized cases see clean preset configs.
     """
     physics_backend, renderer, data_type = request.param
 
     # Wire in the requested camera and renderer presets.
-    camera_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera"][data_type])
-    camera_cfg.renderer_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer])
+    camera_cfg = copy.deepcopy(cartpole_presets["tiled_camera"][data_type])
+    camera_cfg.renderer_cfg = copy.deepcopy(cartpole_presets["tiled_camera.renderer_cfg"][renderer])
 
-    env_cfg = ShadowHandVisionBenchmarkEnvCfg()
+    env_cfg = CartpoleCameraPresetsEnvCfg()
     env_cfg.tiled_camera = camera_cfg
 
     # Apply Newton presets before resolve_preset_defaults so they are not overwritten by defaults.
-    # Newton needs a specific solver config, a different robot USD, an articulation-based object,
-    # and a stripped-down event cfg (no PhysX-specific material randomization).
+    # Cartpole only has sim.physics as a PresetCfg; robot_cfg/object_cfg/events are not presets.
+    # if physics_backend == "newton" and "sim.physics" in cartpole_presets:
+    #     env_cfg.sim.physics = copy.deepcopy(cartpole_presets["sim.physics"]["newton"])
     if physics_backend == "newton":
-        env_cfg.sim.physics = copy.deepcopy(shadow_hand_vision_presets["sim.physics"]["newton"])
-        env_cfg.robot_cfg = copy.deepcopy(shadow_hand_vision_presets["robot_cfg"]["newton"])
-        env_cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["newton"])
-        if "events" in shadow_hand_vision_presets:
-            env_cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["newton"])
+        if "robot_cfg" in cartpole_presets:
+            env_cfg.robot_cfg = copy.deepcopy(cartpole_presets["robot_cfg"]["newton"])
+        if "object_cfg" in cartpole_presets:
+            env_cfg.object_cfg = copy.deepcopy(cartpole_presets["object_cfg"]["newton"])
+        if "events" in cartpole_presets:
+            env_cfg.events = copy.deepcopy(cartpole_presets["events"]["newton"])
 
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
 
-    env = ShadowHandVisionEnv(env_cfg)
+    env = CartpoleCameraEnv(env_cfg)
     env.reset()
 
     actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
