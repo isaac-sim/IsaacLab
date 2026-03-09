@@ -106,7 +106,11 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     # table
-    table: TableCfg = TableCfg()
+    table: RigidObjectCfg = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/table",
+        spawn=TABLE_SPAWN_CFG,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
 
     # plane
     plane = AssetBaseCfg(
