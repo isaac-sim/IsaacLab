@@ -10,7 +10,7 @@ Changed
 * :mod:`isaaclab_ov` is now always installed when using ``./isaaclab.sh -i`` (or
   ``--install all``), but with ``--no-deps`` so it is importable (e.g. by
   :mod:`isaaclab_tasks` presets) without pulling in the optional ``ovrtx`` dependency.
-  To install the ovrtx dependency for OVRTX rendering, run ``./isaaclab.sh -i ov``.
+  To install the ovrtx dependency for OVRTX rendering, run ``./isaaclab.sh -i ovrtx``.
 
 4.5.8 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~

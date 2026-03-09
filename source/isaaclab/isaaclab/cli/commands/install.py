@@ -129,7 +129,7 @@ def _ensure_cuda_torch() -> None:
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
 VALID_ISAACLAB_SUBPACKAGES: set[str] = {
     "assets",
-    "ov",
+    "ovrtx",
     "physx",
     "contrib",
     "mimic",
@@ -143,7 +143,7 @@ VALID_ISAACLAB_SUBPACKAGES: set[str] = {
 # so they are importable (e.g. for config types) without pulling in optional heavy deps.
 INSTALL_NO_DEPS_SUBPACKAGES: set[str] = {"ov"}
 
-# -i ov installs this dependency only (isaaclab_ov is already installed with --no-deps).
+# -i ovrtx installs this dependency only (isaaclab_ov is already installed with --no-deps).
 # Keep in sync with isaaclab_ov/setup.py INSTALL_REQUIRES.
 OVRTX_PIP_SPEC: str = "ovrtx>=0.2.0,<0.3.0"
 
@@ -399,7 +399,7 @@ def command_install(install_type: str = "all") -> None:
                 extension_extras["isaaclab_visualizers"] = visualizer_extras
                 continue
             if name in VALID_ISAACLAB_SUBPACKAGES:
-                if name == "ov":
+                if name == "ovrtx":
                     install_ovrtx = True  # install ovrtx dependency only; isaaclab_ov already present
                 elif name == "visualizers":
                     if "isaaclab_visualizers" not in extensions:
@@ -464,7 +464,7 @@ def command_install(install_type: str = "all") -> None:
         if install_type == "all" or install_type in VALID_RL_FRAMEWORKS:
             _install_no_deps_extensions()
 
-        # Install ovrtx when user requested -i ov (the specific dependency for isaaclab_ov).
+        # Install ovrtx when user requested -i ovrtx (the specific dependency for isaaclab_ov).
         if install_ovrtx:
             _install_ovrtx_dependency()
 
