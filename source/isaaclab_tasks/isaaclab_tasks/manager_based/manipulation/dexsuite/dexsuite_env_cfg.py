@@ -280,25 +280,17 @@ class StartupEventCfg:
 class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
-    @configclass
-    class GravityRandomizationCfg(PresetCfg):
-        physx = EventTerm(
-            func=mdp.randomize_physics_scene_gravity,
-            mode="reset",
-            params={
-                "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-                "operation": "abs",
-            },
-        )
-        newton = EventTerm(
-            func=mdp.randomize_newton_physics_scene_gravity,
-            mode="reset",
-            params={
-                "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-                "operation": "abs",
-            },
-        )
-        default = physx
+    # Gravity scheduling is a deliberate curriculum trick — starting with no
+    # gravity (easy) and gradually introducing full gravity (hard) makes learning
+    # smoother and removes the need for a separate "Lift" reward.
+    variable_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="reset",
+        params={
+            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            "operation": "abs",
+        },
+    )
 
     reset_object = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -345,13 +337,6 @@ class EventCfg:
             "velocity_range": [0.0, 0.0],
         },
     )
-
-    # Note (Octi): This is a deliberate trick in Remake to accelerate learning.
-    # By scheduling gravity as a curriculum — starting with no gravity (easy)
-    # and gradually introducing full gravity (hard) — the agent learns more smoothly.
-    # This removes the need for a special "Lift" reward (often required to push the
-    # agent to counter gravity), which has bonus effect of simplifying reward composition overall.
-    variable_gravity = GravityRandomizationCfg()
 
 
 @configclass

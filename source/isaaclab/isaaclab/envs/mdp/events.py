@@ -501,88 +501,36 @@ def randomize_rigid_body_collider_offsets(
         asset.root_view.set_contact_offsets(contact_offset, env_ids.cpu())
 
 
-def randomize_physics_scene_gravity(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    gravity_distribution_params: tuple[list[float], list[float]],
-    operation: Literal["add", "scale", "abs"],
-    distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-):
+class randomize_physics_scene_gravity(ManagerTermBase):
     """Randomize gravity by adding, scaling, or setting random values.
 
-    This function allows randomizing gravity of the physics scene. The function samples random values from the
-    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the
-    operation.
+    Automatically detects the active physics backend (PhysX or Newton) and applies
+    the appropriate gravity randomization strategy:
 
-    The distribution parameters are lists of two elements each, representing the lower and upper bounds of the
-    distribution for the x, y, and z components of the gravity vector. The function samples random values for each
-    component independently.
+    - **PhysX**: samples a single gravity vector and sets it scene-wide via the PhysX
+      simulation view.  All environments share the same gravity.
+    - **Newton**: samples per-environment gravity vectors and writes them in-place to
+      the Newton model's per-world gravity array on GPU.
 
-    .. attention::
-        This function applied the same gravity for all the environments.
+    The distribution parameters are tuples of two lists with three floats each,
+    representing the lower and upper bounds for the x, y, and z gravity components [m/s^2].
 
-    .. tip::
-        This function uses CPU tensors to assign gravity.
-    """
-    # get the current gravity
-    gravity = torch.tensor(env.sim.cfg.gravity, device="cpu").unsqueeze(0)
-    dist_param_0 = torch.tensor(gravity_distribution_params[0], device="cpu")
-    dist_param_1 = torch.tensor(gravity_distribution_params[1], device="cpu")
-    gravity = _randomize_prop_by_op(
-        gravity,
-        (dist_param_0, dist_param_1),
-        None,
-        slice(None),
-        operation=operation,
-        distribution=distribution,
-    )
-    # unbatch the gravity tensor into a list
-    gravity = gravity[0].tolist()
-
-    # set the gravity into the physics simulation (local: carb/physx only available with Kit)
-    import carb  # noqa: PLC0415
-    import omni.physics.tensors.impl.api as physx  # noqa: PLC0415
-
-    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
-    physics_sim_view.set_gravity(carb.Float3(*gravity))
-
-
-class randomize_newton_physics_scene_gravity(ManagerTermBase):
-    """Randomize gravity by adding, scaling, or setting random values.
-
-    This function allows randomizing gravity of the physics scene. The function samples random values from the
-    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the
-    operation.
-
-    The distribution parameters are lists of two elements each, representing the lower and upper bounds of the
-    distribution for the x, y, and z components of the gravity vector. The function samples random values for each
-    component independently.
-
-    This function supports **per-environment gravity randomization** using Newton's per-world gravity array.
-    Each environment (world) can have a different gravity vector.
-
-    .. note::
-        Gravity is set per-world using Newton's per-world gravity array support.
-        The randomization is applied only to the specified ``env_ids``.
-
-    .. tip::
-        This function uses GPU tensors for efficient per-environment gravity updates.
+    Args:
+        cfg: The configuration of the event term.
+        env: The environment instance.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        """Initialize the term and cache expensive objects.
-
-        Args:
-            cfg: The configuration of the event term.
-            env: The environment instance.
-        """
         super().__init__(cfg, env)
-        import isaaclab_newton.physics.newton_manager as newton_manager_module
-        from newton.solvers import SolverNotifyFlags
 
-        self.newton_manager = newton_manager_module.NewtonManager
-        self.notify_model_properties = SolverNotifyFlags.MODEL_PROPERTIES
-        # Validate and cache distribution function
+        manager_name = env.sim.physics_manager.__name__.lower()
+        if "newton" in manager_name:
+            self._backend = "newton"
+            self._init_newton(cfg, env)
+        else:
+            self._backend = "physx"
+            self._init_physx(env)
+
         distribution = cfg.params.get("distribution", "uniform")
         if distribution == "uniform":
             self._dist_fn = math_utils.sample_uniform
@@ -596,14 +544,12 @@ class randomize_newton_physics_scene_gravity(ManagerTermBase):
                 " Please use 'uniform', 'log_uniform', or 'gaussian'."
             )
 
-        # Validate operation
         operation = cfg.params["operation"]
         if operation not in ("add", "scale", "abs"):
             raise NotImplementedError(
                 f"Unknown operation: '{operation}' for gravity randomization. Please use 'add', 'scale', or 'abs'."
             )
 
-        # Cache distribution params as tensors
         gravity_distribution_params = cfg.params["gravity_distribution_params"]
         self._dist_param_0 = torch.tensor(gravity_distribution_params[0], device=env.device, dtype=torch.float32)
         self._dist_param_1 = torch.tensor(gravity_distribution_params[1], device=env.device, dtype=torch.float32)
@@ -622,42 +568,57 @@ class randomize_newton_physics_scene_gravity(ManagerTermBase):
             env: The environment instance.
             env_ids: The environment IDs to randomize. If None, all environments are randomized.
             gravity_distribution_params: Distribution parameters as a tuple of two lists, each
-                with 3 floats corresponding to (x, y, z) gravity components. Updated into
-                pre-allocated tensors each call to support curriculum-driven range changes.
+                with 3 floats corresponding to (x, y, z) gravity components [m/s^2]. Updated
+                into pre-allocated tensors each call to support curriculum-driven range changes.
             operation: The operation to apply ('add', 'scale', or 'abs').
             distribution: The distribution type (cached at init, param ignored at runtime).
         """
-        model = self.newton_manager.get_model()
-        if model is None or model.gravity is None:
-            raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
-
-        # Get torch view of model.gravity - modifications are in-place
-        gravity = wp.to_torch(model.gravity)
-
-        # Resolve env_ids
-        if env_ids is None:
-            env_ids = env.scene._ALL_INDICES
-
-        if len(env_ids) == 0:
-            return
-
-        num_to_randomize = len(env_ids)
-
-        # Sample random values using cached distribution function and params
         self._dist_param_0[0] = gravity_distribution_params[0][0]
         self._dist_param_1[0] = gravity_distribution_params[1][0]
         self._dist_param_0[1] = gravity_distribution_params[0][1]
         self._dist_param_1[1] = gravity_distribution_params[1][1]
         self._dist_param_0[2] = gravity_distribution_params[0][2]
         self._dist_param_1[2] = gravity_distribution_params[1][2]
+
+        if self._backend == "newton":
+            self._call_newton(env, env_ids, operation)
+        else:
+            self._call_physx(env, operation)
+
+    def _init_newton(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Cache Newton manager reference and solver notification flag."""
+        import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
+        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+
+        self._newton_manager = newton_manager_module.NewtonManager
+        self._notify_model_properties = SolverNotifyFlags.MODEL_PROPERTIES
+
+    def _call_newton(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        operation: str,
+    ):
+        """Apply per-environment gravity via Newton's per-world gravity array on GPU."""
+        model = self._newton_manager.get_model()
+        if model is None or model.gravity is None:
+            raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
+
+        gravity = wp.to_torch(model.gravity)
+
+        if env_ids is None:
+            env_ids = env.scene._ALL_INDICES
+        if len(env_ids) == 0:
+            return
+
+        num = len(env_ids)
         random_values = self._dist_fn(
-            self._dist_param_0.unsqueeze(0).expand(num_to_randomize, -1),
-            self._dist_param_1.unsqueeze(0).expand(num_to_randomize, -1),
-            (num_to_randomize, 3),
+            self._dist_param_0.unsqueeze(0).expand(num, -1),
+            self._dist_param_1.unsqueeze(0).expand(num, -1),
+            (num, 3),
             device=env.device,
         )
 
-        # Apply operation directly to model.gravity (in-place via torch view)
         if operation == "abs":
             gravity[env_ids] = random_values
         elif operation == "add":
@@ -665,8 +626,29 @@ class randomize_newton_physics_scene_gravity(ManagerTermBase):
         elif operation == "scale":
             gravity[env_ids] *= random_values
 
-        # Notify solver that model properties changed (required for gravity to take effect)
-        self.newton_manager.add_model_change(self.notify_model_properties)
+        self._newton_manager.add_model_change(self._notify_model_properties)
+
+    def _init_physx(self, env: ManagerBasedEnv):
+        """Cache the ``carb`` module and PhysX simulation view for scene-wide gravity updates."""
+        import carb  # noqa: PLC0415
+
+        self._carb = carb
+        self._physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
+
+    def _call_physx(self, env: ManagerBasedEnv, operation: str):
+        """Sample a single gravity vector and apply it scene-wide via the PhysX simulation view."""
+        gravity = torch.tensor(env.sim.cfg.gravity, device="cpu").unsqueeze(0)
+        gravity = _randomize_prop_by_op(
+            gravity,
+            (self._dist_param_0.cpu(), self._dist_param_1.cpu()),
+            None,
+            slice(None),
+            operation=operation,
+            distribution="uniform",
+        )
+        gravity = gravity[0].tolist()
+        self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
+
 
 
 class randomize_actuator_gains(ManagerTermBase):

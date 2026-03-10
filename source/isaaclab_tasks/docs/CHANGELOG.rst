@@ -1,8 +1,15 @@
 Changelog
 ---------
 
-1.5.5 (2026-03-09)
+1.5.5 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified Dexsuite gravity randomization to use the unified
+  :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity` term, removing the
+  backend-specific ``GravityRandomizationCfg`` preset.
 
 Added
 ^^^^^
