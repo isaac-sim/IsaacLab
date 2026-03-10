@@ -16,6 +16,8 @@ import copy  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 
+from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
+
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import (  # noqa: E402
     CartpoleCameraEnv,
 )
@@ -28,11 +30,10 @@ from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import (  # noqa: 
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
     ShadowHandVisionEnvCfg,
 )
+from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (  # noqa: E402
+    DexsuiteKukaAllegroLiftEnvCfg,
+)
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
-
-# HDC_TODO: add test for Isaac-Dexsuite-Kuka-Allegro-Lift
-#
-# - python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Dexsuite-Kuka-Allegro-Lift-v0 presets=cube,newton,singe_camera,newton_renderer,depth64
 
 
 @pytest.fixture(scope="module")
@@ -45,6 +46,12 @@ def shadow_hand_vision_presets():
 def cartpole_presets():
     """Collect all presets from CartpoleCameraPresetsEnvCfg once for the module."""
     return collect_presets(CartpoleCameraPresetsEnvCfg())
+
+
+@pytest.fixture(scope="module")
+def dexsuite_presets():
+    """Collect all presets from DexsuiteKukaAllegroLiftEnvCfg once for the module."""
+    return collect_presets(DexsuiteKukaAllegroLiftEnvCfg())
 
 
 # Skip reason for ovrtx_renderer
@@ -130,10 +137,9 @@ _SHARED_RENDER_CORRECTNESS_CASES = [
 ]
 
 
-def _assert_camera_renders_not_empty(env_name, physics_backend, renderer, data_type, env):
+def _assert_camera_renders_not_empty(env_name, physics_backend, renderer, data_type, camera_output):
     """Shared assertion: camera output has at least one non-zero pixel per data type."""
     label = f"{env_name}-{physics_backend}-{renderer}+{data_type}"
-    camera_output = env._tiled_camera.data.output
     assert len(camera_output) > 0, f"[{label}] Camera produced no output tensors at all."
     for dt, tensor in camera_output.items():
         finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
@@ -213,10 +219,64 @@ def cartpole_camera_env(request, cartpole_presets):
 def test_camera_renders_not_empty_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
     physics_backend, renderer, data_type, env = shadow_hand_env
-    _assert_camera_renders_not_empty("shadow_hand", physics_backend, renderer, data_type, env)
+    _assert_camera_renders_not_empty("shadow_hand", physics_backend, renderer, data_type, env._tiled_camera.data.output)
 
 
 def test_camera_renders_not_empty_cartpole_camera(cartpole_camera_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
     physics_backend, renderer, data_type, env = cartpole_camera_env
-    _assert_camera_renders_not_empty("cartpole", physics_backend, renderer, data_type, env)
+    _assert_camera_renders_not_empty("cartpole", physics_backend, renderer, data_type, env._tiled_camera.data.output)
+
+
+@pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
+def dexsuite_kuka_allegro_lift_env(request, dexsuite_presets, shadow_hand_vision_presets):
+    """Build Dexsuite Kuka-Allegro Lift env (single camera) for (physics_backend, renderer, data_type).
+
+    Uses scene.single_camera and scene.base_camera presets; renderer from Shadow Hand presets.
+    Skips cases Dexsuite does not support (no simple_shading presets; PhysX only; newton+depth).
+    Function-scoped so each parametrized case creates and closes its own env sequentially.
+    """
+    physics_backend, renderer, data_type = request.param
+
+    # Map the presets to the 64x64 presets
+    data_type_to_dexsuite = {
+        "rgb": "rgb64",
+        "albedo": "albedo64",
+        "depth": "depth64",
+        "simple_shading_constant_diffuse": "simple_shading_constant_diffuse64",
+        "simple_shading_diffuse_mdl": "simple_shading_diffuse_mdl64",
+        "simple_shading_full_mdl": "simple_shading_full_mdl64",
+    }
+
+    dexsuite_camera_key = data_type_to_dexsuite[data_type]
+    env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
+    env_cfg.scene = copy.deepcopy(dexsuite_presets["scene"]["single_camera"])
+    env_cfg.scene.base_camera = copy.deepcopy(dexsuite_presets["scene.base_camera"][dexsuite_camera_key])
+    env_cfg.scene.base_camera.renderer_cfg = copy.deepcopy(
+        shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer]
+    )
+    env_cfg.observations = copy.deepcopy(dexsuite_presets["observations"]["single_camera"])
+    env_cfg = resolve_preset_defaults(env_cfg)
+    env_cfg.scene.num_envs = 4
+    env_cfg.seed = 42
+    env_cfg.write_image_to_file = True
+    env = ManagerBasedRLEnv(env_cfg)
+    env.reset()
+    actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
+    env.step(actions)
+    yield physics_backend, renderer, data_type, env
+    env.close()
+
+
+def test_camera_renders_not_empty_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
+    """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
+    physics_backend, renderer, data_type, env = dexsuite_kuka_allegro_lift_env
+
+    camera = env.scene.sensors["base_camera"]
+    _assert_camera_renders_not_empty(
+        "dexsuite_kuka_allegro_lift",
+        physics_backend,
+        renderer,
+        data_type,
+        camera.data.output,
+    )
