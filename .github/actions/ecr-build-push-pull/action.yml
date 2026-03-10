@@ -224,6 +224,7 @@ runs:
           OVERLAY_BUILDER="ci-builder-overlay-${{ github.run_id }}-${{ github.job }}"
           docker buildx create --use --driver docker-container --name "${OVERLAY_BUILDER}" \
             || docker buildx use "${OVERLAY_BUILDER}"
+          trap 'docker buildx rm "${OVERLAY_BUILDER}" || true' EXIT
           docker buildx build \
             --progress=plain \
             --platform linux/amd64 \
@@ -276,6 +277,7 @@ runs:
         BUILDER_NAME="ci-builder-${{ github.run_id }}-${{ github.job }}"
         docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
           || docker buildx use "${BUILDER_NAME}"
+        trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
 
         echo "🟢 Building ${{ inputs.image-tag }}..."
         docker buildx build --load "${BUILD_ARGS[@]}" .
