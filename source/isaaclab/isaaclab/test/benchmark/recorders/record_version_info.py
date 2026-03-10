@@ -41,10 +41,11 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         """Get version via importlib.metadata (pip package name, no module import)."""
         try:
             return importlib.metadata.version(pip_name)
-        except importlib.metadata.PackageNotFoundError:
+        except Exception:
             return None
 
     def _record(self, key: str, version: str | None) -> None:
+        """Store a version entry only if version is non-empty."""
         if version:
             self._version_info[key] = version
 
