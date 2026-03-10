@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.5 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to raise a clear
+  ``RuntimeError`` when the Newton model is unavailable instead of deferring to
+  a confusing ``AttributeError`` on ``render_context.world_count``.
+
+
 0.5.4 (2026-02-28)
 ~~~~~~~~~~~~~~~~~~
 
