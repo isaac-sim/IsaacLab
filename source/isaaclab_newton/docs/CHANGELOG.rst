@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.5 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.body_inertia` and
+  :attr:`~isaaclab_newton.assets.RigidObjectData.body_inertia` returning raw
+  ``mat33f`` arrays instead of ``(N, B, 9)`` float32. The previous ptr-based
+  reshape assumed ``float32`` with ``ndim == 4``, but Newton returns ``mat33f``
+  dtype with ``ndim == 2``. Now uses ``view(wp.float32).reshape()`` for a
+  correct zero-copy reinterpretation.
+
+
 0.5.4 (2026-02-28)
 ~~~~~~~~~~~~~~~~~~
 
