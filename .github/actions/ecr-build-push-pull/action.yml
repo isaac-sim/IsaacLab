@@ -165,7 +165,7 @@ runs:
         echo "🟢 Trying to pull commit-tagged ${ECR_IMAGE} from ECR..."
         if docker pull "${ECR_IMAGE}" 2>/dev/null; then
           docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
-          echo "🟢 Commit-taged image puled, skipping build!"
+          echo "🟢 Commit-tagged image pulled, skipping build!"
           echo "hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Image ${ECR_IMAGE} not found in ECR, will try deps-cache strategy..."
@@ -197,7 +197,6 @@ runs:
         )
         # Manifest files matched repo-wide via git ls-files.
         DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
-
 
         # Resolve the actual base image digest so a new push of a mutable tag
         # (e.g. latest-develop) invalidates the deps cache automatically.
