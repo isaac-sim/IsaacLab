@@ -10,7 +10,7 @@ Setup
 
 .. note::
 
-   This tutorial is for Linux only and is intended for Isaac Lab 3.0.0 and Isaac Sim 6.0.0.
+   This tutorial is for **Ubuntu 22.04** and the **OVX with RTX platform**. It is intended for Isaac Lab 3.0.0 and Isaac Sim 6.0.0.
 
 Create a Workspace
 ~~~~~~~~~~~~~~~~~~
@@ -27,19 +27,26 @@ Terminal 1 — Isaac Lab & Isaac Sim Installation
 
 Follow these steps in your first terminal to install Isaac Sim and Isaac Lab.
 
-1. Install Isaac Sim 6.0 by following the `Isaac Sim Installation Guide`_.
-   For testing, you may use the `Isaac Sim 6.0 Alpha Release`_.
+1. Install Isaac Sim 6.0. The supported installation methods are:
+
+   - **pip install** (recommended): Follow the `Isaac Sim pip Installation Guide`_.
+   - **Binary download**: Download the pre-built binary from the `Isaac Sim Installation Guide`_.
 
 2. Clone the Isaac Lab repository and check out the ``v3.0`` tag (or the ``develop`` branch for testing):
 
 .. code-block:: bash
 
-    git clone git@github.com:isaac-sim/IsaacLab.git
+    git clone https://github.com/isaac-sim/IsaacLab.git
     cd IsaacLab
     git fetch origin
     git checkout v3.0
 
 3. Set the required environment variables:
+
+.. note::
+
+   This step is only required if Isaac Sim was installed via the **binary download**.
+   If you installed Isaac Sim via ``pip``, these variables are not needed.
 
 .. code-block:: bash
 
@@ -96,7 +103,7 @@ Open a second terminal and follow these steps to install the COMPASS repository.
 
 .. code-block:: bash
 
-    git clone git@github.com:NVlabs/COMPASS.git
+    git clone https://github.com/NVlabs/COMPASS.git
     cd COMPASS
     git fetch
     git checkout samc/support_nurec_assets_isaaclab_3.0
@@ -127,6 +134,17 @@ Open a second terminal and follow these steps to install the COMPASS repository.
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install -e exts/mobility_es
     cd -
 
+Testing the Setup
+~~~~~~~~~~~~~~~~~
+
+Run the following command from the ``COMPASS`` directory to verify the setup:
+
+.. code-block:: bash
+
+    cd compass/rl_env
+    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
+    cd -
+
 Downloading Assets & Checkpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -153,21 +171,20 @@ The dataset provides several environments. For COMPASS, download the environment
 
 .. code-block:: bash
 
+    .. Ensure that you are in COMPASS root directory
     compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/
 
 For example, for the Galileo environment:
 
 .. code-block:: bash
 
-    compass/rl_env/exts/mobility_es/mobility_es/usd/real2sim_galileo/
-    ├── real2sim_galileo.usd
-    └── omap/
-        ├── occupancy_map.yaml
-        └── occupancy_map.png
+    compass/rl_env/exts/mobility_es/mobility_es/usd/nova_carter-galileo/
+    ├── stage.usdz
+    ├── occupancy_map.yaml
+    └── occupancy_map.png
 
 .. note::
 
-   The occupancy map files (``omap/``) are used for collision checking during training and evaluation.
    The following environments are available in the dataset:
 
    .. list-table::
@@ -190,15 +207,6 @@ For example, for the Galileo environment:
         - Living room in NVIDIA Endeavor building
         - Yes
 
-Testing the Setup
-~~~~~~~~~~~~~~~~~
-
-Run the following command from the ``COMPASS`` directory to verify the setup:
-
-.. code-block:: bash
-
-    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
-
 Training the Policy
 -------------------
 
@@ -216,7 +224,7 @@ This configuration includes optimized settings for Real2Sim environments:
 Training the Residual RL Specialist
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Execute the following command from the ``COMPASS`` directory to train a residual RL specialist policy for NuRec Real2Sim environments.
+Execute the following command from the ``COMPASS`` directory (Terminal 2) to train a residual RL specialist policy for NuRec Real2Sim environments.
 
 .. code-block:: bash
 
@@ -225,7 +233,7 @@ Execute the following command from the ``COMPASS`` directory to train a residual
         -o <output_dir> \
         -b <path/to/x_mobility_ckpt> \
         --embodiment <embodiment_type> \
-        --environment real2sim_galileo \
+        --environment nova_carter-galileo \
         --num_envs 64 \
         --video \
         --video_interval 1 \
@@ -238,7 +246,7 @@ Where:
 - ``<output_dir>``: Directory where training outputs and checkpoints will be saved
 - ``<path/to/x_mobility_ckpt>``: Path to the downloaded X-Mobility checkpoint
 - ``<embodiment_type>``: One of ``h1``, ``spot``, ``carter``, ``g1``, or ``digit``
-- ``--environment real2sim_galileo``: Specifies the NuRec Real2Sim Galileo environment
+- ``--environment nova_carter-galileo``: Specifies the NuRec Real2Sim Galileo environment
 
 The training will run for the number of iterations specified in the config file (default: 1000 iterations).
 The resulting checkpoint will be stored in ``<output_dir>/checkpoints/`` with the filename ``model_<iteration_number>.pt``.
@@ -281,7 +289,7 @@ Execute the following command from the ``COMPASS`` directory to evaluate the tra
         -b <path/to/x_mobility_ckpt> \
         -p <path/to/residual_policy_ckpt> \
         --embodiment <embodiment_type> \
-        --environment real2sim_galileo \
+        --environment nova_carter-galileo \
         --num_envs <num_envs> \
         --video \
         --video_interval 1
@@ -384,7 +392,7 @@ For NuRec Real2Sim environments:
 
 .. _Isaac Lab Installation Guide: https://isaac-sim.github.io/IsaacLab/v2.0.0/source/setup/installation/index.html
 .. _Isaac Sim Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html
-.. _Isaac Sim 6.0 Alpha Release: https://developer.nvidia.com/isaac/sim
+.. _Isaac Sim pip Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_python.html
 .. _COMPASS Repository: https://github.com/NVlabs/COMPASS
 .. _COMPASS ROS2 Deployment Guide: https://github.com/NVlabs/COMPASS/tree/main/ros2_deployment
 .. _PhysicalAI-Robotics-NuRec dataset: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec
