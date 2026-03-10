@@ -1,7 +1,26 @@
 Changelog
 ---------
 
-1.5.3 (2026-03-09)
+1.5.5 (2026-03-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified all task MDP ``__init__.py`` files to call ``lazy_export()`` without
+  arguments. Fallback packages are now inferred from ``__init__.pyi`` stubs.
+
+Added
+^^^^^
+
+* Added ``from isaaclab.envs.mdp import *`` wildcard re-exports to all task MDP
+  ``__init__.pyi`` stubs, fixing broken type hints for base MDP symbols.
+
+* Added ``test_lazy_export_stubs.py`` to enforce that ``lazy_export()`` is called
+  without arguments across the codebase.
+
+
+1.5.4 (2026-03-08)
 ~~~~~~~~~~~~~~~~~~
 
 Added
@@ -29,6 +48,10 @@ Added
 * Added backend-specific ``joint_gears`` to ant and humanoid direct environments. Newton and
   PhysX joint orderings differ, so each backend now has its own gear ratio list resolved at
   env init.
+
+
+1.5.3 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
