@@ -51,6 +51,7 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.0",
     "flaky",
     "packaging",
+    "psutil",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",
