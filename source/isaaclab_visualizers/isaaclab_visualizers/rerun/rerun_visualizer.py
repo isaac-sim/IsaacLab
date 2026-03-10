@@ -53,11 +53,6 @@ def _normalize_host(addr: str) -> str:
     return addr
 
 
-def _stop_managed_rerun_server() -> None:
-    """No-op hook reserved for future managed rerun server lifecycle."""
-    return
-
-
 def _ensure_rerun_server(app_id: str, bind_address: str, grpc_port: int, web_port: int) -> tuple[str, bool]:
     """Resolve rerun endpoint and whether viewer should start web/grpc server."""
     del app_id
@@ -254,7 +249,6 @@ class RerunVisualizer(BaseVisualizer):
             rr.disconnect()
         except Exception as exc:
             logger.warning("[RerunVisualizer] Failed while disconnecting rerun: %s", exc)
-        _stop_managed_rerun_server()
         self._is_closed = True
 
     def is_running(self) -> bool:
