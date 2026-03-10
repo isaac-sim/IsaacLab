@@ -62,14 +62,18 @@ runs:
 
         if [ -z "${ECR_URL}" ]; then
           echo "🟢 ECR_CACHE_URL env var not set, trying SSM..."
-          # Use IMDSv2: fetch a session token first
+          
           IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
             -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
           INSTANCE_ID=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
             "http://169.254.169.254/latest/meta-data/instance-id") || true
+          INSTANCE_REGION=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+            "http://169.254.169.254/latest/meta-data/placement/region") || true
+
           if [ -n "${INSTANCE_ID}" ]; then
             ECR_URL=$(aws ssm get-parameter \
               --name "/github-runner/${INSTANCE_ID}/ecr-cache-url" \
+              --region "${INSTANCE_REGION}" \
               --query 'Parameter.Value' --output text 2>/dev/null) || ECR_URL=""
             if [ -n "${ECR_URL}" ]; then
               echo "🟢 Resolved ECR URL from SSM (/github-runner/${INSTANCE_ID}/ecr-cache-url): ${ECR_URL}"
