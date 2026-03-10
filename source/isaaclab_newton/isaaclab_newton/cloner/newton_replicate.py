@@ -28,7 +28,6 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     simplify_meshes: bool = True,
-    register_custom_attributes: bool = True,
 ) -> tuple[ModelBuilder, object]:
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
@@ -51,8 +50,7 @@ def _build_newton_builder_from_mapping(
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
-        if register_custom_attributes:
-            solvers.SolverMuJoCo.register_custom_attributes(p)
+        solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
             stage,
             root_path=src_path,
@@ -64,10 +62,9 @@ def _build_newton_builder_from_mapping(
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
-    # Create a separate world for each environment (heterogeneous spawning).
-    # Newton assigns sequential world IDs (0, 1, 2, ...), so we map by column index.
-    for col, env_id in enumerate(env_ids.tolist()):
-        _ = env_id  # env_id kept for readability/consistency with historical code.
+    # create a separate world for each environment (heterogeneous spawning)
+    # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
+    for col, _ in enumerate(env_ids.tolist()):
         # begin a new world context (Newton assigns world ID = col)
         builder.begin_world()
         # add all active sources for this world
@@ -86,13 +83,13 @@ def _build_newton_builder_from_mapping(
 def _rename_builder_labels(
     builder: ModelBuilder, sources: list[str], destinations: list[str], env_ids: torch.Tensor, mapping: torch.Tensor
 ) -> None:
-    # Per-source, per-world renaming (strict prefix swap).
+    # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
         src_prefix_len = len(src_path.rstrip("/"))
         swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
-        # Map Newton world IDs (sequential cols) to destination paths using env_ids.
-        world_roots = {c: destinations[i].format(int(env_ids[c])) for c in world_cols}
+        # Map Newton world IDs (sequential) to destination paths using env_ids
+        world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
             labels = getattr(builder, f"{t}_label", None)
@@ -127,10 +124,8 @@ def newton_physics_replicate(
         quaternions=quaternions,
         up_axis=up_axis,
         simplify_meshes=simplify_meshes,
-        register_custom_attributes=True,
     )
     _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
-
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
     return builder, stage_info
@@ -162,7 +157,6 @@ def newton_visualizer_prebuild(
         quaternions=quaternions,
         up_axis=up_axis,
         simplify_meshes=simplify_meshes,
-        register_custom_attributes=False,
     )
     _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     model = builder.finalize(device=device)

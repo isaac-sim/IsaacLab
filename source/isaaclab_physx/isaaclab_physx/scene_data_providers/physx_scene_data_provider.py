@@ -58,6 +58,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     - Newton model/state handles
     """
 
+    # Benchmark/debug override: force USD traversal fallback even when prebuilt
+    # visualizer artifacts are available from the cloner path.
+    force_usd_fallback_for_newton_model_build: bool = False
+
     # ---- Environment discovery / metadata -------------------------------------------------
 
     def _env_id_from_path(self, path: str) -> int | None:
@@ -110,21 +114,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Determine if newton model sync is required for selected renderers and visualizers
         requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_newton_sync = bool(requirements.requires_newton_model)
-        # Optional debug/benchmark toggles:
-        # - force USD fallback even when cloner prebuilt artifact exists
-        # - optionally disable prebuilt artifact usage (legacy toggle)
-        self._force_usd_fallback = os.getenv("ISAACLAB_NEWTON_VIS_FORCE_USD_FALLBACK", "0").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        self._use_prebuilt_artifact = os.getenv("ISAACLAB_NEWTON_VIS_USE_PREBUILT", "1").strip().lower() not in {
-            "0",
-            "false",
-            "no",
-            "off",
-        }
+        # Optional benchmark/debug toggle controlled by caller code.
+        self._force_usd_fallback = bool(type(self).force_usd_fallback_for_newton_model_build)
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -159,6 +150,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._view_order_tensors: dict[str, Any] = {}
         # Last full-model build source for tests/debugging ("prebuilt", "usd_fallback", "error").
         self._last_newton_model_build_source: str | None = None
+        self._last_newton_model_build_elapsed_ms: float | None = None
 
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
@@ -204,7 +196,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _try_use_prebuilt_newton_artifact(self) -> bool:
         """Use scene-time prebuilt Newton visualizer artifact when available."""
-        if getattr(self, "_force_usd_fallback", False) or not getattr(self, "_use_prebuilt_artifact", True):
+        if getattr(self, "_force_usd_fallback", False):
             return False
         artifact = self._simulation_context.get_scene_data_visualizer_prebuilt_artifact()
         if not artifact:
@@ -293,11 +285,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._num_envs_at_last_newton_build = None
         finally:
             elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+            self._last_newton_model_build_elapsed_ms = elapsed_ms
             try:
                 num_envs = self.get_num_envs()
             except Exception:
                 num_envs = -1
-            logger.info(
+            logger.debug(
                 "[PhysxSceneDataProvider] Newton model build source=%s num_envs=%d elapsed_ms=%.2f",
                 self._last_newton_model_build_source,
                 num_envs,
