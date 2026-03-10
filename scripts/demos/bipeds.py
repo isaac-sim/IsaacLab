@@ -93,17 +93,19 @@ def run_simulator(sim: sim_utils.SimulationContext, robots: list[Articulation], 
                     wp.to_torch(robot.data.default_joint_pos),
                     wp.to_torch(robot.data.default_joint_vel),
                 )
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
-                root_state = wp.to_torch(robot.data.default_root_state).clone()
-                root_state[:, :3] += origins[index]
-                robot.write_root_pose_to_sim(root_state[:, :7])
-                robot.write_root_velocity_to_sim(root_state[:, 7:])
+                robot.write_joint_position_to_sim_index(position=joint_pos)
+                robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
+                root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+                root_pose[:, :3] += origins[index]
+                robot.write_root_pose_to_sim_index(root_pose=root_pose)
+                root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+                robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
                 robot.reset()
             # reset command
             print(">>>>>>>> Reset!")
         # apply action to the robot
         for robot in robots:
-            robot.set_joint_position_target(wp.to_torch(robot.data.default_joint_pos).clone())
+            robot.set_joint_position_target_index(target=wp.to_torch(robot.data.default_joint_pos).clone())
             robot.write_data_to_sim()
         # perform step
         sim.step()

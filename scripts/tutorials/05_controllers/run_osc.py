@@ -181,7 +181,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     robot.update(dt=sim_dt)
 
     # Get the center of the robot soft joint limits
-    joint_centers = torch.mean(robot.data.soft_joint_pos_limits[:, arm_joint_ids, :], dim=-1)
+    joint_centers = torch.mean(wp.to_torch(robot.data.soft_joint_pos_limits)[:, arm_joint_ids, :], dim=-1)
 
     # get the updated states
     (
@@ -215,10 +215,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # reset every 500 steps
         if count % 500 == 0:
             # reset joint state to default
-            default_joint_pos = robot.data.default_joint_pos.clone()
-            default_joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(default_joint_pos, default_joint_vel)
-            robot.set_joint_effort_target(zero_joint_efforts)  # Set zero torques in the initial step
+            default_joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
+            default_joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+            robot.write_joint_position_to_sim_index(position=default_joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=default_joint_vel)
+            robot.set_joint_effort_target_index(target=zero_joint_efforts)  # Set zero torques in the initial step
             robot.write_data_to_sim()
             robot.reset()
             # reset contact sensor
@@ -262,7 +263,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 nullspace_joint_pos_target=joint_centers,
             )
             # apply actions
-            robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+            robot.set_joint_effort_target_index(target=joint_efforts, joint_ids=arm_joint_ids)
             robot.write_data_to_sim()
 
         # update marker positions

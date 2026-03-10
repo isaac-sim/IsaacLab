@@ -35,10 +35,10 @@ simulation_app = app_launcher.app
 
 import torch
 import warp as wp
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import SimulationContext
 
 
@@ -106,12 +106,12 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
             # write nodal state to simulation
-            cube_object.write_nodal_state_to_sim(nodal_state)
+            cube_object.write_nodal_state_to_sim_index(nodal_state)
 
             # Write the nodal state to the kinematic target and free all vertices
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
-            cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
+            cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 
             # reset buffers
             cube_object.reset()
@@ -126,7 +126,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
         # 0: constrained, 1: free
         nodal_kinematic_target[[0, 3], 0, 3] = 0.0
         # write kinematic target to simulation
-        cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
+        cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 
         # write internal data to simulation
         cube_object.write_data_to_sim()

@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.8 (2026-03-09)
+0.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Added
@@ -17,6 +17,23 @@ Changed
 * Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to use the shared
   :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_depth_clipping`
   utility instead of inline depth clipping logic.
+
+Fixed
+^^^^^
+
+* Removed redundant ``ArticulationView`` from
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
+  Creating a single ``ArticulationView`` for heterogeneous articulation types
+  (e.g. Robot + Cabinet) triggered PhysX "Incorrect DofIdx" errors. The
+  ``RigidBodyView`` already covers all body transforms including articulation
+  links, so the articulation view was unnecessary. Articulation paths from
+  prebuilt artifacts are now merged into rigid body paths for the
+  ``RigidBodyView``.
+* Fixed pre-existing test fixture in
+  ``test_physx_scene_data_provider_visualizer_contract.py`` where
+  ``_make_provider()`` was missing the
+  ``_force_usd_fallback_for_newton_model_build`` attribute and the force
+  fallback test used an incorrect attribute name.
 
 0.5.7 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~

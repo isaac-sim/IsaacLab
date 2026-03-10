@@ -82,6 +82,7 @@ Collect five demonstrations by running the following command:
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --visualizer kit \
    --device cpu \
+   --xr \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
 
@@ -275,6 +276,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
       --visualizer kit \
       --device cpu \
+      --xr \
       --num_demos 5 \
       --dataset_file ./datasets/dataset_gr1_nut_pouring.hdf5
 
@@ -432,6 +434,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/tools/record_demos.py \
       --device cpu \
+      --xr \
       --visualizer kit \
       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \

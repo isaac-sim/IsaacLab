@@ -7,6 +7,29 @@ Isaac Lab uses a pluggable renderer architecture to support different rendering 
 The :class:`~isaaclab.renderers.BaseRenderer` abstract base class defines the interface that all renderer
 implementations must follow.
 
+Isaac Lab supports two rendering backends:
+
+- **RTX renderer** (``IsaacRtxRendererCfg`` / ``OVRTXRendererCfg``) — NVIDIA's Omniverse RTX
+  rendering pipeline. Requires Isaac Sim. Best for photorealistic rendering, full camera sensor
+  support (RGB, depth, semantic segmentation, etc.), and production quality outputs.
+- **Newton Warp renderer** (``NewtonWarpRendererCfg``) — A lightweight GPU-accelerated renderer
+  built on NVIDIA Warp. Works with the Newton physics backend and does **not** require Isaac Sim
+  (kit-less mode). Ideal for training workflows where full RTX fidelity is not needed.
+
+Choosing a renderer backend
+----------------------------
+
++---------------------+-------------------------------+---------------------------------+
+| Backend             | Requires Isaac Sim?           | Best For                        |
++=====================+===============================+=================================+
+| Isaac RTX           | Yes                           | Full sensor fidelity, RTX       |
+|                     |                               | photorealism, PhysX backend     |
++---------------------+-------------------------------+---------------------------------+
+| OVRTX               | Yes (+ ``isaaclab_ov``)       | Alternative RTX pipeline        |
++---------------------+-------------------------------+---------------------------------+
+| Newton Warp         | No (kit-less)                 | Newton backend, fast training   |
++---------------------+-------------------------------+---------------------------------+
+
 Architecture Overview
 ---------------------
 
@@ -22,9 +45,22 @@ The renderer system consists of:
    from isaaclab.renderers import BaseRenderer, Renderer
    from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
-   # Create a renderer via the factory (returns the appropriate backend instance)
+   # Create a Newton Warp renderer (no Isaac Sim required)
    renderer: BaseRenderer = Renderer(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
+
+For the RTX renderer (requires Isaac Sim):
+
+.. code-block:: python
+
+   from isaaclab.renderers import Renderer
+   from isaaclab.renderers import IsaacRtxRendererCfg  # or OVRTXRendererCfg
+
+   # Create an RTX renderer
+   renderer: BaseRenderer = Renderer(IsaacRtxRendererCfg())
+
+For RTX renderer settings and presets (quality, balanced, performance), see
+:doc:`/source/how-to/configure_rendering`.
 
 Core concepts
 -------------
