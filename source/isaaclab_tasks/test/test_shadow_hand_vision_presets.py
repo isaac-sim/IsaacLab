@@ -8,7 +8,8 @@
 Two test suites are provided:
 
 1. **Validation unit tests** — use lightweight ``types.SimpleNamespace`` mocks.
-   These exercise :func:`_validate_cfg` directly and do not require Isaac Sim.
+   These exercise :meth:`ShadowHandVisionEnvCfg.validate_config` directly and
+   do not require Isaac Sim.
 
 2. **Preset resolution tests** — verify that each named preset in
    :class:`ShadowHandVisionTiledCameraCfg` and
@@ -35,11 +36,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
-from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import (  # noqa: E402
-    _WARP_SUPPORTED_DATA_TYPES,
-    ShadowHandVisionEnv,
-    _validate_cfg,
-)
+from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv  # noqa: E402
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
     ShadowHandVisionBenchmarkEnvCfg,
     ShadowHandVisionEnvCfg,
@@ -52,13 +49,17 @@ from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults 
 
 
 def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extractor_enabled: bool = True):
-    """Build a minimal mock cfg accepted by :func:`_validate_cfg`."""
+    """Build a minimal mock cfg with a :meth:`validate_config` method.
+
+    The mock reuses the real validation logic from :class:`ShadowHandVisionEnvCfg`.
+    """
     cfg = types.SimpleNamespace()
     cfg.tiled_camera = types.SimpleNamespace(
         renderer_cfg=types.SimpleNamespace(renderer_type=renderer_type),
         data_types=data_types,
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
+    cfg.validate_config = lambda: ShadowHandVisionEnvCfg.validate_config(cfg)
     return cfg
 
 
@@ -94,7 +95,7 @@ _VALID_COMBOS = [
 @pytest.mark.parametrize("renderer_type,data_types,enabled", _VALID_COMBOS)
 def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
     cfg = _make_cfg(renderer_type, data_types, enabled)
-    _validate_cfg(cfg)  # must not raise
+    cfg.validate_config()  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -167,17 +168,8 @@ _INVALID_COMBOS = [
 def test_invalid_combinations_raise_value_error(renderer_type, data_types, enabled, match):
     cfg = _make_cfg(renderer_type, data_types, enabled)
     with pytest.raises(ValueError, match=match):
-        _validate_cfg(cfg)
+        cfg.validate_config()
 
-
-# ---------------------------------------------------------------------------
-# Warp supported data types constant
-# ---------------------------------------------------------------------------
-
-
-def test_warp_supported_data_types():
-    """_WARP_SUPPORTED_DATA_TYPES must contain exactly rgb and depth."""
-    assert {"rgb", "depth"} == _WARP_SUPPORTED_DATA_TYPES
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +291,7 @@ def test_warp_with_valid_camera_preset(shadow_hand_vision_presets, camera_preset
     warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     enabled = camera_cfg.data_types != ["depth"]  # disable CNN for depth-only
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
-    _validate_cfg(cfg)  # must not raise
+    cfg.validate_config()  # must not raise
 
 
 @pytest.mark.parametrize("camera_preset", _WARP_INVALID_CAMERA_PRESETS)
@@ -309,7 +301,7 @@ def test_warp_with_invalid_camera_preset(shadow_hand_vision_presets, camera_pres
     warp_cfg = shadow_hand_vision_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, True)
     with pytest.raises(ValueError):
-        _validate_cfg(cfg)
+        cfg.validate_config()
 
 
 # ---------------------------------------------------------------------------
