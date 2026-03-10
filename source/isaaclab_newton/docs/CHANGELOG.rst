@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.6 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed dtype mismatch in :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  where ``write_body_com_pose_to_sim_index`` and ``write_body_link_velocity_to_sim_index``
+  passed ``body_com_pose_b`` (``wp.transformf``) instead of ``body_com_pos_b``
+  (``wp.vec3f``) to the underlying warp kernels.
+
+
 0.5.5 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
