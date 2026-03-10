@@ -21,10 +21,8 @@ class PhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             njmax=60,
             nconmax=25,
-            ls_iterations=40,
             cone="elliptic",
             impratio=100.0,
-            ls_parallel=True,
         ),
         num_substeps=1,
         debug_mode=False,

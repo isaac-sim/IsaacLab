@@ -3,9 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "newton_physics_replicate",
-    "newton_visualizer_prebuild",
-]
-
-from .newton_replicate import newton_physics_replicate, newton_visualizer_prebuild
+"""Shared utilities for physics and sensor tests."""

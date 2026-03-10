@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import math
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import torch
@@ -14,9 +16,12 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
 
 if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
+
+logger = logging.getLogger(__name__)
 
 
 def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
@@ -66,7 +71,7 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             _apply_asset_env_masks(src_paths, clone_masking, asset_env_masks, num_clones)
 
         # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
-        # will be served as sources for usd and physx replication.
+        # will be served as sources for usd and physics replication.
         proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
         proto_mask = torch.zeros_like(clone_masking)
         proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
@@ -81,6 +86,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+            if cfg.visualizer_clone_fn is not None:
+                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 # parse env_origins directly from clone_path
                 usd_replicate(stage, *replicate_args, positions=positions)
@@ -90,6 +97,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             replicate_args = selected_src, dest_paths, world_indices, clone_masking
             if cfg.clone_physics and cfg.physics_clone_fn is not None:
                 cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+            if cfg.visualizer_clone_fn is not None:
+                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
 
@@ -195,14 +204,13 @@ def usd_replicate(
         positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
         quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
 
-    Returns:
-        None
     """
     rl = stage.GetRootLayer()
 
     # Group replication by destination path depth so ancestors land before deeper paths.
     # This avoids composition issues for nested or interdependent specs.
     def dp_depth(template: str) -> int:
+        """Return destination prim path depth for stable parent-first replication."""
         dp = template.format(0)
         return Sdf.Path(dp).pathElementCount
 
@@ -279,8 +287,6 @@ def filter_collisions(
         prim_paths: Per-clone prim paths.
         global_paths: Optional global-collider paths.
 
-    Returns:
-        None
     """
 
     scene_prim = stage.GetPrimAtPath(physicsscene_path)
@@ -414,3 +420,37 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     ori = torch.zeros((N, 4), device=device)
     ori[:, 3] = 1.0  # w=1 for identity quaternion
     return pos, ori
+
+
+def resolve_visualizer_clone_fn(
+    physics_backend: str,
+    requirements: SceneDataRequirement,
+    stage,
+    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
+):
+    """Return an optional visualizer prebuild hook for clone workflows.
+
+    Args:
+        physics_backend: Active physics backend name.
+        requirements: Aggregated scene-data requirements.
+        stage: USD stage used by the clone callback.
+        set_visualizer_artifact: Callback for storing prebuilt visualizer artifacts.
+
+    Returns:
+        Clone callback when the prebuild path is supported; otherwise ``None``.
+    """
+    if "physx" not in physics_backend or not requirements.requires_newton_model:
+        return None
+    try:
+        from isaaclab_newton.cloner.newton_replicate import (
+            create_newton_visualizer_prebuild_clone_fn,
+        )
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.warning("Visualizer prebuild hook unavailable: failed to import backend helper.")
+        logger.debug("Visualizer prebuild import failure details: %s", exc)
+        return None
+
+    return create_newton_visualizer_prebuild_clone_fn(
+        stage=stage,
+        set_visualizer_artifact=set_visualizer_artifact,
+    )

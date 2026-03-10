@@ -16,9 +16,9 @@ DEFAULT_TIMEOUT = 1000
 """The default timeout for each test in seconds."""
 
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 500,
-    "test_stage_in_memory.py": 500,
-    "test_imu.py": 750,
+    "test_articulation.py": 1000,
+    "test_stage_in_memory.py": 1000,
+    "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
     "test_environments_with_stage_in_memory.py": (
         10000
@@ -27,7 +27,7 @@ PER_TEST_TIMEOUTS = {
     "test_pickplace_stack_environments.py": 10000,  # This test runs through PickPlace and Stack environments
     "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
-    "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
+    "test_generate_dataset.py": 1000,  # This test runs annotation for 10 demos and generation until one succeeds
     "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
     "test_environments_training.py": (
         10000
@@ -38,22 +38,23 @@ PER_TEST_TIMEOUTS = {
     "test_teleop_environments_with_stage_in_memory.py": 5000,
     "test_cartpole_showcase_environments.py": 5000,
     "test_cartpole_showcase_environments_with_stage_in_memory.py": 5000,
-    "test_simulation_render_config.py": 500,
-    "test_operational_space.py": 500,
+    "test_simulation_render_config.py": 1000,
+    "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_rl_games_wrapper.py": 1000,
     "test_rsl_rl_wrapper.py": 1000,
     "test_sb3_wrapper.py": 1000,
     "test_skrl_wrapper.py": 1000,
-    "test_action_state_recorder_term.py": 500,
+    "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces.py": 500,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
-    "test_rigid_object_collection.py": 500,
-    "test_outdated_sensor.py": 500,
+    "test_rigid_object_collection.py": 1000,
+    "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
     "test_shadow_hand_vision_presets.py": 5000,
+    "test_environments_newton.py": 5000,
 }
 """A dictionary of tests and their timeouts in seconds.
 

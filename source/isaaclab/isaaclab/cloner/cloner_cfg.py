@@ -73,6 +73,9 @@ class TemplateCloneCfg:
     physics_clone_fn: callable | None = None
     """Function used to perform physics replication."""
 
+    visualizer_clone_fn: callable | None = None
+    """Optional function used to build precomputed visualizer artifacts from the clone plan."""
+
     clone_strategy: callable = random
     """Function used to build prototype-to-environment mapping. Default is :func:`random`."""
 

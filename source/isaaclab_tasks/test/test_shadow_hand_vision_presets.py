@@ -340,37 +340,21 @@ _RENDER_CORRECTNESS_CASES = [
     # ── Newton physics + Warp: Warp renderer is physics-backend agnostic ──
     pytest.param(("newton_renderer", "rgb", "newton"), id="newton-warp-rgb"),
     pytest.param(("newton_renderer", "depth", "newton"), id="newton-warp-depth"),
-    # ── Newton physics + IsaacRTX: known incompatibility — produces empty frames ──
-    # xfail(strict=True): if these ever pass the mark becomes a hard failure, prompting review.
-    pytest.param(
-        ("isaacsim_rtx_renderer", "rgb", "newton"),
-        id="newton-isaacsim_rtx-rgb",
-        marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
-    ),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "depth", "newton"),
-        id="newton-isaacsim_rtx-depth",
-        marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
-    ),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "albedo", "newton"),
-        id="newton-isaacsim_rtx-albedo",
-        marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
-    ),
+    # ── Newton physics + IsaacRTX ──
+    pytest.param(("isaacsim_rtx_renderer", "rgb", "newton"), id="newton-isaacsim_rtx-rgb"),
+    pytest.param(("isaacsim_rtx_renderer", "depth", "newton"), id="newton-isaacsim_rtx-depth"),
+    pytest.param(("isaacsim_rtx_renderer", "albedo", "newton"), id="newton-isaacsim_rtx-albedo"),
     pytest.param(
         ("isaacsim_rtx_renderer", "simple_shading_constant_diffuse", "newton"),
         id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
         ("isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", "newton"),
         id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     pytest.param(
         ("isaacsim_rtx_renderer", "simple_shading_full_mdl", "newton"),
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
-        marks=pytest.mark.xfail(strict=True, reason="Newton physics + IsaacRTX renderer produces empty frames"),
     ),
     # ── OVRTX: disabled ──
     pytest.param(
@@ -424,9 +408,7 @@ def test_camera_renders_not_empty(render_correctness_env):
     Depth tensors may contain ``inf`` for background pixels (empty space). ``inf`` is replaced
     with 0 before checking ``max()``; a non-zero max confirms the renderer produced geometry pixels.
 
-    The ``newton-isaacsim_rtx-rgb`` case is marked ``xfail(strict=True)``: Newton physics +
-    IsaacRTX renderer is a known incompatibility that produces empty frames. If it ever starts
-    passing, the strict xfail will surface it as a regression for review.
+    All renderer+camera+physics combinations are expected to produce non-empty frames.
     """
     renderer_preset, camera_preset, physics, env = render_correctness_env
     label = f"{physics}-{renderer_preset}+{camera_preset}"
@@ -434,7 +416,8 @@ def test_camera_renders_not_empty(render_correctness_env):
     assert len(camera_output) > 0, f"[{label}] Camera produced no output tensors at all."
     for dt, tensor in camera_output.items():
         finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
-        assert finite.max() > 0, (
+        # import pdb; pdb.set_trace()
+        assert finite.max() > 0.2, (
             f"[{label}] Camera output '{dt}' is all zeros or all inf "
             f"after stepping. Tensor shape: {tensor.shape}, dtype: {tensor.dtype}."
         )
