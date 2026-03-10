@@ -431,10 +431,9 @@ def determine_python_version() -> str:
         except Exception:
             pass
 
-    # No Isaac Sim found -- default to current interpreter's Python version.
+    # No Isaac Sim found -- default to 3.12 (required by Isaac Sim 6.x).
     if isaacsim_version is None:
-        major, minor = sys.version_info[:2]
-        python_version = f"{major}.{minor}"
+        python_version = "3.12"
         print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")
         return python_version
 
