@@ -692,8 +692,8 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-workspace">Create a Workspace</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-1-isaac-lab-isaac-sim-installation">Terminal 1 — Isaac Lab &amp; Isaac Sim Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-2-compass-installation">Terminal 2 — COMPASS Installation</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-the-setup">Testing the Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-the-policy">Training the Policy</a><ul class="nav section-nav flex-column">
@@ -741,7 +741,7 @@ For more details about the project, please visit the <a class="reference externa
 <h2>Setup<a class="headerlink" href="#setup" title="Permalink to this heading">#</a></h2>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This tutorial is for Linux only and is intended for Isaac Lab 3.0.0 and Isaac Sim 6.0.0.</p>
+<p>This tutorial is for <strong>Ubuntu 22.04</strong> and the <strong>OVX with RTX platform</strong>. It is intended for Isaac Lab 3.0.0 and Isaac Sim 6.0.0.</p>
 </div>
 <section id="create-a-workspace">
 <h3>Create a Workspace<a class="headerlink" href="#create-a-workspace" title="Permalink to this heading">#</a></h3>
@@ -755,11 +755,15 @@ For more details about the project, please visit the <a class="reference externa
 <h3>Terminal 1 — Isaac Lab &amp; Isaac Sim Installation<a class="headerlink" href="#terminal-1-isaac-lab-isaac-sim-installation" title="Permalink to this heading">#</a></h3>
 <p>Follow these steps in your first terminal to install Isaac Sim and Isaac Lab.</p>
 <ol class="arabic simple">
-<li><p>Install Isaac Sim 6.0 by following the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html">Isaac Sim Installation Guide</a>.
-For testing, you may use the <a class="reference external" href="https://developer.nvidia.com/isaac/sim">Isaac Sim 6.0 Alpha Release</a>.</p></li>
+<li><p>Install Isaac Sim 6.0. The supported installation methods are:</p>
+<ul class="simple">
+<li><p><strong>pip install</strong> (recommended): Follow the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_python.html">Isaac Sim pip Installation Guide</a>.</p></li>
+<li><p><strong>Binary download</strong>: Download the pre-built binary from the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html">Isaac Sim Installation Guide</a>.</p></li>
+</ul>
+</li>
 <li><p>Clone the Isaac Lab repository and check out the <code class="docutils literal notranslate"><span class="pre">v3.0</span></code> tag (or the <code class="docutils literal notranslate"><span class="pre">develop</span></code> branch for testing):</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-sim/IsaacLab.git
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacLab.git
 <span class="nb">cd</span><span class="w"> </span>IsaacLab
 git<span class="w"> </span>fetch<span class="w"> </span>origin
 git<span class="w"> </span>checkout<span class="w"> </span>v3.0
@@ -768,6 +772,11 @@ git<span class="w"> </span>checkout<span class="w"> </span>v3.0
 <ol class="arabic simple" start="3">
 <li><p>Set the required environment variables:</p></li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This step is only required if Isaac Sim was installed via the <strong>binary download</strong>.
+If you installed Isaac Sim via <code class="docutils literal notranslate"><span class="pre">pip</span></code>, these variables are not needed.</p>
+</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Isaac Sim root directory</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/isaacsim&quot;</span>
 
@@ -820,7 +829,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>env_isaaclab_3.0_co
 <ol class="arabic simple" start="2">
 <li><p>Clone the COMPASS repository and check out the NuRec-compatible branch:</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:NVlabs/COMPASS.git
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVlabs/COMPASS.git
 <span class="nb">cd</span><span class="w"> </span>COMPASS
 git<span class="w"> </span>fetch
 git<span class="w"> </span>checkout<span class="w"> </span>samc/support_nurec_assets_isaaclab_3.0
@@ -853,6 +862,15 @@ git<span class="w"> </span>checkout<span class="w"> </span>samc/support_nurec_as
 </pre></div>
 </div>
 </section>
+<section id="testing-the-setup">
+<h3>Testing the Setup<a class="headerlink" href="#testing-the-setup" title="Permalink to this heading">#</a></h3>
+<p>Run the following command from the <code class="docutils literal notranslate"><span class="pre">COMPASS</span></code> directory to verify the setup:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>compass/rl_env
+<span class="si">${</span><span class="nv">ISAACLAB_PATH</span><span class="si">}</span>/isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/play.py<span class="w"> </span>--enable_cameras<span class="w"> </span>--visualizer<span class="w"> </span>kit
+<span class="nb">cd</span><span class="w"> </span>-
+</pre></div>
+</div>
+</section>
 <section id="downloading-assets-checkpoints">
 <h3>Downloading Assets &amp; Checkpoints<a class="headerlink" href="#downloading-assets-checkpoints" title="Permalink to this heading">#</a></h3>
 <p><strong>1. Pre-trained X-Mobility checkpoint</strong></p>
@@ -869,21 +887,20 @@ git<span class="w"> </span>checkout<span class="w"> </span>samc/support_nurec_as
 </div>
 <p>The dataset provides several environments. For COMPASS, download the environment(s) you need
 (e.g., <code class="docutils literal notranslate"><span class="pre">nova_carter-galileo</span></code>) and place the extracted files under the COMPASS extension directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>compass/rl_env/exts/mobility_es/mobility_es/usd/&lt;environment_name&gt;/
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>..<span class="w"> </span>Ensure<span class="w"> </span>that<span class="w"> </span>you<span class="w"> </span>are<span class="w"> </span><span class="k">in</span><span class="w"> </span>COMPASS<span class="w"> </span>root<span class="w"> </span>directory
+compass/rl_env/exts/mobility_es/mobility_es/usd/&lt;environment_name&gt;/
 </pre></div>
 </div>
 <p>For example, for the Galileo environment:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>compass/rl_env/exts/mobility_es/mobility_es/usd/real2sim_galileo/
-├──<span class="w"> </span>real2sim_galileo.usd
-└──<span class="w"> </span>omap/
-<span class="w">    </span>├──<span class="w"> </span>occupancy_map.yaml
-<span class="w">    </span>└──<span class="w"> </span>occupancy_map.png
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>compass/rl_env/exts/mobility_es/mobility_es/usd/nova_carter-galileo/
+├──<span class="w"> </span>stage.usdz
+├──<span class="w"> </span>occupancy_map.yaml
+└──<span class="w"> </span>occupancy_map.png
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The occupancy map files (<code class="docutils literal notranslate"><span class="pre">omap/</span></code>) are used for collision checking during training and evaluation.
-The following environments are available in the dataset:</p>
+<p>The following environments are available in the dataset:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 30.0%" />
@@ -918,13 +935,6 @@ The following environments are available in the dataset:</p>
 </div>
 </div>
 </section>
-<section id="testing-the-setup">
-<h3>Testing the Setup<a class="headerlink" href="#testing-the-setup" title="Permalink to this heading">#</a></h3>
-<p>Run the following command from the <code class="docutils literal notranslate"><span class="pre">COMPASS</span></code> directory to verify the setup:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="si">${</span><span class="nv">ISAACLAB_PATH</span><span class="si">}</span>/isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/play.py<span class="w"> </span>--enable_cameras<span class="w"> </span>--visualizer<span class="w"> </span>kit
-</pre></div>
-</div>
-</section>
 </section>
 <section id="training-the-policy">
 <h2>Training the Policy<a class="headerlink" href="#training-the-policy" title="Permalink to this heading">#</a></h2>
@@ -941,13 +951,13 @@ This configuration includes optimized settings for Real2Sim environments:</p>
 </section>
 <section id="training-the-residual-rl-specialist">
 <h3>Training the Residual RL Specialist<a class="headerlink" href="#training-the-residual-rl-specialist" title="Permalink to this heading">#</a></h3>
-<p>Execute the following command from the <code class="docutils literal notranslate"><span class="pre">COMPASS</span></code> directory to train a residual RL specialist policy for NuRec Real2Sim environments.</p>
+<p>Execute the following command from the <code class="docutils literal notranslate"><span class="pre">COMPASS</span></code> directory (Terminal 2) to train a residual RL specialist policy for NuRec Real2Sim environments.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="si">${</span><span class="nv">ISAACLAB_PATH</span><span class="p">:?</span><span class="si">}</span>/isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>run.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span>configs/train_config_real2sim.gin<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-o<span class="w"> </span>&lt;output_dir&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-b<span class="w"> </span>&lt;path/to/x_mobility_ckpt&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--embodiment<span class="w"> </span>&lt;embodiment_type&gt;<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--environment<span class="w"> </span>real2sim_galileo<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--environment<span class="w"> </span>nova_carter-galileo<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--video<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--video_interval<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
@@ -961,7 +971,7 @@ This configuration includes optimized settings for Real2Sim environments:</p>
 - <code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;</span></code>: Directory where training outputs and checkpoints will be saved
 - <code class="docutils literal notranslate"><span class="pre">&lt;path/to/x_mobility_ckpt&gt;</span></code>: Path to the downloaded X-Mobility checkpoint
 - <code class="docutils literal notranslate"><span class="pre">&lt;embodiment_type&gt;</span></code>: One of <code class="docutils literal notranslate"><span class="pre">h1</span></code>, <code class="docutils literal notranslate"><span class="pre">spot</span></code>, <code class="docutils literal notranslate"><span class="pre">carter</span></code>, <code class="docutils literal notranslate"><span class="pre">g1</span></code>, or <code class="docutils literal notranslate"><span class="pre">digit</span></code>
-- <code class="docutils literal notranslate"><span class="pre">--environment</span> <span class="pre">real2sim_galileo</span></code>: Specifies the NuRec Real2Sim Galileo environment</p>
+- <code class="docutils literal notranslate"><span class="pre">--environment</span> <span class="pre">nova_carter-galileo</span></code>: Specifies the NuRec Real2Sim Galileo environment</p>
 <p>The training will run for the number of iterations specified in the config file (default: 1000 iterations).
 The resulting checkpoint will be stored in <code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;/checkpoints/</span></code> with the filename <code class="docutils literal notranslate"><span class="pre">model_&lt;iteration_number&gt;.pt</span></code>.
 Videos will be saved in <code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;/videos/</span></code>.</p>
@@ -998,7 +1008,7 @@ Orientation computation is slow so use it only if necessary.</p>
 <span class="w">    </span>-b<span class="w"> </span>&lt;path/to/x_mobility_ckpt&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-p<span class="w"> </span>&lt;path/to/residual_policy_ckpt&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--embodiment<span class="w"> </span>&lt;embodiment_type&gt;<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--environment<span class="w"> </span>real2sim_galileo<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--environment<span class="w"> </span>nova_carter-galileo<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="w"> </span>&lt;num_envs&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--video<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--video_interval<span class="w"> </span><span class="m">1</span>
@@ -1141,8 +1151,8 @@ The Real2Sim assets provide a bridge between simulation and reality, enabling po
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-workspace">Create a Workspace</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-1-isaac-lab-isaac-sim-installation">Terminal 1 — Isaac Lab &amp; Isaac Sim Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-2-compass-installation">Terminal 2 — COMPASS Installation</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-the-setup">Testing the Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-the-policy">Training the Policy</a><ul class="nav section-nav flex-column">
