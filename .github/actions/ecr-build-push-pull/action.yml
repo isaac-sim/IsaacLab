@@ -234,7 +234,6 @@ runs:
             -t "${{ inputs.image-tag }}" \
             --load \
             .
-          docker buildx rm "${OVERLAY_BUILDER}" || true
           echo "🟢 Overlay build complete!"
           docker tag "${{ inputs.image-tag }}" "${ECR_IMAGE}"
           echo "🟢 Pushing overlay image ${ECR_IMAGE} to ECR for future reuse..."
@@ -282,8 +281,6 @@ runs:
         echo "🟢 Building ${{ inputs.image-tag }}..."
         docker buildx build --load "${BUILD_ARGS[@]}" .
 
-        docker buildx rm "${BUILDER_NAME}" || true
-
     ##### 7: Push to ECR #####
 
     # Pushes the per-commit ECR image after a successful full build.
@@ -312,3 +309,13 @@ runs:
         echo "🟢 Pushing deps image for future cache hits: ${DEPS_ECR_IMAGE}"
         docker tag "${{ inputs.image-tag }}" "${DEPS_ECR_IMAGE}"
         docker push "${DEPS_ECR_IMAGE}"
+
+    ##### 9: Cleanup docker config #####
+
+    - name: Cleanup docker config
+      if: always()
+      shell: bash
+      run: |
+        if [ -n "${DOCKER_CONFIG}" ] && [ -d "${DOCKER_CONFIG}" ]; then
+          rm -rf "${DOCKER_CONFIG}"
+        fi
