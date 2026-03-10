@@ -43,12 +43,14 @@ runs:
   steps:
     - name: ECR Build, Push, Pull
       shell: bash
+      env:
+        INPUT_ECR_URL: ${{ inputs.ecr-url }}
       run: |
         IMAGE_TAG="${{ inputs.image-tag }}"
 
         # Prefer explicit input; fall back to ECR_CACHE_URL env var; then SSM
 
-        ECR_URL="${{ inputs.ecr-url }}"
+        ECR_URL="${INPUT_ECR_URL:-}"
 
         if [ -z "${ECR_URL}" ]; then
           echo "🟢 ecr-url input not set, trying ECR_CACHE_URL env var..."
