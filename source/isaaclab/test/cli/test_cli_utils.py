@@ -169,15 +169,13 @@ class TestDeterminePythonVersion:
     """Tests for :func:`determine_python_version`."""
 
     def test_defaults_to_current_python_when_no_sim(self):
-        """Without Isaac Sim, should return the current interpreter's version."""
-        expected = f"{sys.version_info[0]}.{sys.version_info[1]}"
-
+        """Without Isaac Sim, should default to python 3.12 (Isaac Sim 6.x requirement)."""
         with (
             mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=None),
             mock.patch("importlib.metadata.version", side_effect=Exception("not found")),
         ):
             result = determine_python_version()
-            assert result == expected
+            assert result == "3.12"
 
     def test_returns_3_11_for_sim_5(self, tmp_path):
         """Isaac Sim 5.x should map to Python 3.11."""
