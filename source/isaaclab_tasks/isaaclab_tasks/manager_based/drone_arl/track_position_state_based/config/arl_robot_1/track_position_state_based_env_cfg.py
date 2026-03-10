@@ -25,6 +25,13 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab_contrib.assets import MultirotorCfg
 
 import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
+from isaaclab_tasks.manager_based.drone_arl.mdp.commands import DroneUniformPoseCommandCfg
+from isaaclab_tasks.manager_based.drone_arl.mdp.rewards import (
+    ang_vel_xyz_exp,
+    distance_to_goal_exp,
+    lin_vel_xyz_exp,
+    yaw_aligned,
+)
 
 
 ##
@@ -56,12 +63,12 @@ class ArlTrackPositionStateBasedSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    target_pose = mdp.DroneUniformPoseCommandCfg(
+    target_pose = DroneUniformPoseCommandCfg(
         asset_name="robot",
         body_name="base_link",
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
-        ranges=mdp.DroneUniformPoseCommandCfg.Ranges(
+        ranges=DroneUniformPoseCommandCfg.Ranges(
             pos_x=(-0.0, 0.0),
             pos_y=(-0.0, 0.0),
             pos_z=(-0.0, 0.0),
@@ -149,7 +156,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     distance_to_goal_exp = RewTerm(
-        func=mdp.distance_to_goal_exp,
+        func=distance_to_goal_exp,
         weight=25.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
@@ -163,17 +170,17 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
     yaw_aligned = RewTerm(
-        func=mdp.yaw_aligned,
+        func=yaw_aligned,
         weight=2.0,
         params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0},
     )
     lin_vel_xyz_exp = RewTerm(
-        func=mdp.lin_vel_xyz_exp,
+        func=lin_vel_xyz_exp,
         weight=2.5,
         params={"asset_cfg": SceneEntityCfg("robot"), "std": 2.0},
     )
     ang_vel_xyz_exp = RewTerm(
-        func=mdp.ang_vel_xyz_exp,
+        func=ang_vel_xyz_exp,
         weight=10.0,
         params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0},
     )

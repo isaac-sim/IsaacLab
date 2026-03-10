@@ -31,6 +31,19 @@ from isaaclab_contrib.assets import MultirotorCfg
 from isaaclab_contrib.controllers import LeeVelControllerCfg
 
 import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
+from isaaclab_tasks.manager_based.drone_arl.mdp.commands import DroneUniformPoseCommandCfg
+from isaaclab_tasks.manager_based.drone_arl.mdp.curriculums import ObstacleDensityCurriculum
+from isaaclab_tasks.manager_based.drone_arl.mdp.events import reset_obstacles_with_individual_ranges
+from isaaclab_tasks.manager_based.drone_arl.mdp.observations import (
+    ImageLatentObservation,
+    base_roll_pitch,
+    generated_drone_commands,
+    last_action_navigation,
+)
+from isaaclab_tasks.manager_based.drone_arl.mdp.rewards import (
+    distance_to_goal_exp_curriculum,
+    velocity_to_goal_reward_curriculum,
+)
 
 logging.getLogger("isaaclab.sensors.ray_caster.multi_mesh_ray_caster").setLevel(logging.WARNING)
 
@@ -108,12 +121,12 @@ class ArlNavigationSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    target_pose = mdp.DroneUniformPoseCommandCfg(
+    target_pose = DroneUniformPoseCommandCfg(
         asset_name="robot",
         body_name="base_link",
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
-        ranges=mdp.DroneUniformPoseCommandCfg.Ranges(
+        ranges=DroneUniformPoseCommandCfg.Ranges(
             pos_x=(4.0, 5.0),
             pos_y=(-3.0, 3.0),
             pos_z=(1.0, 5.0),
@@ -157,19 +170,19 @@ class ObservationsCfg:
 
         # observation terms (order preserved)
         base_link_position = ObsTerm(
-            func=mdp.generated_drone_commands,
+            func=generated_drone_commands,
             params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.1, n_max=0.1),
         )
-        base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_roll_pitch = ObsTerm(func=base_roll_pitch, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         last_action = ObsTerm(
-            func=mdp.last_action_navigation,
+            func=last_action_navigation,
             params={"action_name": "velocity_commands"},
         )
         depth_latent = ObsTerm(
-            func=mdp.ImageLatentObservation,
+            func=ImageLatentObservation,
             params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane"},
         )
 
@@ -209,7 +222,7 @@ class EventCfg:
     )
 
     reset_obstacles = EventTerm(
-        func=mdp.reset_obstacles_with_individual_ranges,
+        func=reset_obstacles_with_individual_ranges,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object_collection"),
@@ -229,7 +242,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     goal_dist_exp1 = RewTerm(
-        func=mdp.distance_to_goal_exp_curriculum,
+        func=distance_to_goal_exp_curriculum,
         weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
@@ -238,7 +251,7 @@ class RewardsCfg:
         },
     )
     goal_dist_exp2 = RewTerm(
-        func=mdp.distance_to_goal_exp_curriculum,
+        func=distance_to_goal_exp_curriculum,
         weight=4.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
@@ -247,7 +260,7 @@ class RewardsCfg:
         },
     )
     velocity_reward = RewTerm(
-        func=mdp.velocity_to_goal_reward_curriculum,
+        func=velocity_to_goal_reward_curriculum,
         weight=0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
@@ -280,7 +293,7 @@ class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
     obstacle_levels = CurrTerm(
-        func=mdp.ObstacleDensityCurriculum,
+        func=ObstacleDensityCurriculum,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "max_difficulty": 10,
