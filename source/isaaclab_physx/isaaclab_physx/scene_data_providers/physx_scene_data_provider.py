@@ -215,7 +215,16 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         self._newton_model = model
         self._newton_state = state
-        self._rigid_body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
+        body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
+        # Merge articulation root paths into rigid body paths (deduplicated) so the
+        # RigidBodyView covers all bodies without needing a separate ArticulationView.
+        if artifact.articulation_paths:
+            seen = set(body_paths)
+            for path in artifact.articulation_paths:
+                if path not in seen:
+                    body_paths.append(path)
+                    seen.add(path)
+        self._rigid_body_paths = body_paths
         self._xform_views.clear()
         self._view_body_index_map = {}
         self._view_order_tensors.clear()
@@ -233,7 +242,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return True
 
     def _build_newton_model_from_usd(self) -> None:
-        """Build Newton model from USD and cache body/articulation paths."""
+        """Build Newton model from USD and cache body paths."""
         # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
         # is complete for full and partial visualization model-build paths.
         start_t = time.perf_counter()
@@ -562,7 +571,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return orientations
 
     def _read_poses_from_best_source(self) -> tuple[Any, Any, str, Any] | None:
-        """Merge pose data from articulation, rigid-body, and xform views."""
+        """Merge pose data from rigid-body and xform views."""
         if self._newton_state is None or not self._rigid_body_paths:
             return None
 
