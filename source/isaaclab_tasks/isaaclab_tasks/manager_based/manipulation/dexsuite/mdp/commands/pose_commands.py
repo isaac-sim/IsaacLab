@@ -152,12 +152,11 @@ class ObjectUniformPoseCommand(CommandTerm):
         pass
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
         if debug_vis:
             if not hasattr(self, "goal_visualizer"):
-                # -- goal pose
+                from isaaclab.markers import VisualizationMarkers
+
                 self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
-                # -- current body pose
                 self.curr_visualizer = VisualizationMarkers(self.cfg.curr_pose_visualizer_cfg)
             # set their visibility to true
             self.goal_visualizer.set_visibility(True)
