@@ -226,16 +226,6 @@ class OvPhysxManager(PhysicsManager):
 
         atexit.register(_atexit_release_and_exit)
 
-        # Tell the clone plugin which path to exclude from eager attachStage
-        # parsing.  Without this, attachStage would create a duplicate actor
-        # for env_0 before replicate() runs, corrupting the articulation count.
-        # When no clones are pending the env root stays empty (no exclusion).
-        if cls._pending_clones:
-            source = cls._pending_clones[0][0]
-            env_root = source.rsplit("/", 1)[0]
-            cls._physx.set_clone_env_root(env_root)
-            logger.info("OvPhysxManager: set clone env root to '%s'", env_root)
-
         usd_handle, op_idx = cls._physx.add_usd(stage_file)
         cls._physx.wait_op(op_idx)
         cls._usd_handle = usd_handle
@@ -255,8 +245,11 @@ class OvPhysxManager(PhysicsManager):
                     "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
                     source, len(targets), targets[0], targets[-1],
                 )
-                positions_arg = parent_positions if parent_positions else None
-                op_idx = cls._physx.clone(source, targets, positions_arg)
+                if parent_positions:
+                    transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
+                else:
+                    transforms = None
+                op_idx = cls._physx.clone(source, targets, transforms)
                 cls._physx.wait_op(op_idx)
             cls._pending_clones = []
 

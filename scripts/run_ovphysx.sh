@@ -18,6 +18,16 @@ source "${ISAAC_DIR}/setup_python_env.sh"
 # Both try to tear down at process exit -> segfault.
 export LD_PRELOAD=""
 
+# Ensure pxr (OpenUSD Python bindings) is on PYTHONPATH.
+# setup_python_env.sh may not include the packman USD path after rebuilds.
+for usd_dir in "${ISAAC_DIR}"/kit/python/lib/python3.*/site-packages/usd_core.libs/../.. \
+               /home/alex/packman-repo/chk/usd.py312.*/*/lib/python; do
+    if [ -d "${usd_dir}/pxr" ]; then
+        export PYTHONPATH="${usd_dir}:${PYTHONPATH}"
+        break
+    fi
+done
+
 # Add all isaaclab source packages to PYTHONPATH so editable installs work
 for pkg in isaaclab isaaclab_ovphysx isaaclab_tasks isaaclab_rl isaaclab_physx isaaclab_newton isaaclab_assets isaaclab_contrib; do
     if [ -d "${ISAACLAB_PATH}/source/${pkg}" ]; then
