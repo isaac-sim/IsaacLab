@@ -95,8 +95,8 @@ class TestExtractPythonExe:
 
     def test_uses_virtual_env_when_set(self, tmp_path):
         """Should return the venv Python when VIRTUAL_ENV is set."""
-        venv_python = tmp_path / "bin" / "python"
-        venv_python.parent.mkdir(parents=True)
+        venv_python = _python_in_venv(tmp_path)
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
         venv_python.touch()
 
         with mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}, clear=False):
@@ -105,8 +105,8 @@ class TestExtractPythonExe:
 
     def test_uses_conda_prefix_when_no_venv(self, tmp_path):
         """Should return conda Python when CONDA_PREFIX is set and no VIRTUAL_ENV."""
-        conda_python = tmp_path / "bin" / "python"
-        conda_python.parent.mkdir(parents=True)
+        conda_python = _python_for_conda(tmp_path)
+        conda_python.parent.mkdir(parents=True, exist_ok=True)
         conda_python.touch()
 
         env = os.environ.copy()
@@ -290,6 +290,12 @@ def _python_in_venv(venv: Path) -> Path:
     if sys.platform == "win32":
         return venv / "Scripts" / "python.exe"
     return venv / "bin" / "python"
+
+
+def _python_for_conda(base: Path) -> Path:
+    if sys.platform == "win32":
+        return base / "python.exe"
+    return base / "bin" / "python"
 
 
 def _run_in_venv(venv: Path, code: str) -> subprocess.CompletedProcess:
