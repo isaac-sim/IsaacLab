@@ -22,6 +22,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -40,21 +41,37 @@ FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
 
 @configclass
-class CabinetPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625)
-    newton: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=90,
-            nconmax=100,
-            ls_iterations=20,
-            cone="pyramidal",
-            ls_parallel=True,
-            integrator="implicitfast",
-            impratio=1,
+class CabinetSimCfg(PresetCfg):
+    """Simulation configuration presets for the cabinet environment.
+
+    Wraps the full :class:`~isaaclab.sim.SimulationCfg` so that Newton can run at a
+    finer physics timestep (1/200 s) while PhysX keeps its default (1/60 s).
+    """
+
+    default: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+    )
+    physx: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+    )
+    newton: SimulationCfg = SimulationCfg(
+        dt=1 / 600,
+        render_interval=1,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=90,
+                nconmax=100,
+                cone="pyramidal",
+                integrator="implicitfast",
+                impratio=1,
+            ),
+            num_substeps=1,
+            debug_mode=False,
         ),
-        num_substeps=1,
-        debug_mode=False,
     )
 
 
@@ -300,6 +317,9 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
+    # Sim settings — override base-class SimulationCfg with a preset-aware wrapper so that
+    # Newton can use dt=1/200 while PhysX keeps dt=1/60.
+    sim: CabinetSimCfg = CabinetSimCfg()
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)
     # Basic settings
@@ -317,7 +337,4 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 8.0
         self.viewer.eye = (-2.0, 2.0, 2.0)
         self.viewer.lookat = (0.8, 0.0, 0.5)
-        # simulation settings
-        self.sim.dt = 1 / 60  # 60Hz
-        self.sim.render_interval = self.decimation
-        self.sim.physics = CabinetPhysicsCfg()
+        # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

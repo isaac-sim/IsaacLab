@@ -37,6 +37,7 @@ Fixed
   spatial-vector extraction helpers. The ``source`` buffer shape and kernel dispatch ``dim``
   now use the input array's shape instead of the (possibly uninitialized) output shape.
 
+
 0.5.2 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
@@ -58,6 +59,7 @@ Fixed
   :meth:`~isaaclab_newton.physics.NewtonManager.step` when ``use_cuda_graph=True`` but the CUDA
   graph was not captured (e.g., when RTX/Fabric USD sync is active). The step condition now
   checks ``cls._graph is not None`` directly instead of repeating the capture-time heuristic.
+
 
 0.5.1 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
