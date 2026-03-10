@@ -335,8 +335,18 @@ _RENDER_CORRECTNESS_CASES = [
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
     ),
     # ── PhysX physics + Warp: only rgb and depth are supported ──
-    pytest.param(("newton_renderer", "rgb", "physx"), id="physx-warp-rgb"),
-    pytest.param(("newton_renderer", "depth", "physx"), id="physx-warp-depth"),
+    # xfail: standard Shadow Hand USD contains PhysX tendons that Newton's ModelBuilder cannot parse,
+    # so the Newton model build fails and the Warp renderer cannot initialise.
+    pytest.param(
+        ("newton_renderer", "rgb", "physx"),
+        id="physx-warp-rgb",
+        marks=pytest.mark.xfail(raises=RuntimeError, reason="PhysX tendon schemas unsupported by Newton ModelBuilder"),
+    ),
+    pytest.param(
+        ("newton_renderer", "depth", "physx"),
+        id="physx-warp-depth",
+        marks=pytest.mark.xfail(raises=RuntimeError, reason="PhysX tendon schemas unsupported by Newton ModelBuilder"),
+    ),
     # ── Newton physics + Warp: Warp renderer is physics-backend agnostic ──
     pytest.param(("newton_renderer", "rgb", "newton"), id="newton-warp-rgb"),
     pytest.param(("newton_renderer", "depth", "newton"), id="newton-warp-depth"),
