@@ -205,17 +205,18 @@ runs:
           "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
           --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
         if [ -n "${BASE_IMAGE_DIGEST}" ]; then
-          echo "🟢 Base image digest: ${BASE_IMAGE_DIGEST}"
-          BASE_STR="${BASE_IMAGE_DIGEST}"
+          BAS_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
         else
           echo "🟠 Could not resolve base image digest, falling back to tag string"
-          BASE_STR="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+          BAS_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
         fi
+        
+        echo "🟢 Base image ID: ${BAS_IMAGE_UNIQ_ID}"
 
         MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
         FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
           | sha256sum | cut -c1-16)
-        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_STR}" | sha256sum | cut -c1-16)
+        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BAS_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
         DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
         echo "🟢 Deps hash: ${DEPS_HASH}"
         echo "🟢 Trying to pull deps image ${DEPS_ECR_IMAGE} from ECR..."
