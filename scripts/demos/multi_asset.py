@@ -250,7 +250,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             default_pose_w[..., :3] += scene.env_origins.unsqueeze(1)
             rigid_object_collection.write_body_pose_to_sim_index(body_poses=default_pose_w)
             default_vel_w = wp.to_torch(rigid_object_collection.data.default_body_vel).clone()
-            rigid_object_collection.write_object_com_velocity_to_sim(default_vel_w)
+            rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=default_vel_w)
             # robot
             # -- root state
             root_pose = wp.to_torch(robot.data.default_root_pose).clone()

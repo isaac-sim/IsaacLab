@@ -76,9 +76,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
             root_pose = wp.to_torch(scene["robot"].data.default_root_pose).clone()
             root_pose[:, :3] += scene.env_origins
-            scene["robot"].write_root_link_pose_to_sim(root_pose)
+            scene["robot"].write_root_link_pose_to_sim_index(root_pose=root_pose)
             root_vel = wp.to_torch(scene["robot"].data.default_root_vel).clone()
-            scene["robot"].write_root_com_velocity_to_sim(root_vel)
+            scene["robot"].write_root_com_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
             joint_pos, joint_vel = (
                 wp.to_torch(scene["robot"].data.default_joint_pos).clone(),
