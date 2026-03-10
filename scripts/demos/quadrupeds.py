@@ -139,13 +139,15 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # reset robots
             for index, robot in enumerate(entities.values()):
                 # root state
-                root_state = robot.data.default_root_state.clone()
-                root_state[:, :3] += origins[index]
-                robot.write_root_pose_to_sim(root_state[:, :7])
-                robot.write_root_velocity_to_sim(root_state[:, 7:])
+                root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+                root_pose[:, :3] += origins[index]
+                robot.write_root_pose_to_sim_index(root_pose=root_pose)
+                root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+                robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
                 # joint state
-                joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
+                joint_pos, joint_vel = wp.to_torch(robot.data.default_joint_pos).clone(), wp.to_torch(robot.data.default_joint_vel).clone()
+                robot.write_joint_position_to_sim_index(position=joint_pos)
+                robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
                 # reset the internal state
                 robot.reset()
             print("[INFO]: Resetting robots state...")
@@ -156,7 +158,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
                 wp.to_torch(robot.data.default_joint_pos) + torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 0.1
             )
             # apply action to the robot
-            robot.set_joint_position_target(joint_pos_target)
+            robot.set_joint_position_target_index(target=joint_pos_target)
             # write data to sim
             robot.write_data_to_sim()
         # perform step
