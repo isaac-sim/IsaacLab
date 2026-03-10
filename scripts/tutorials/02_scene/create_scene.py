@@ -88,7 +88,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             root_vel = wp.to_torch(robot.data.default_root_vel).clone()
             robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
-            joint_pos, joint_vel = wp.to_torch(robot.data.default_joint_pos).clone(), wp.to_torch(robot.data.default_joint_vel).clone()
+            joint_pos, joint_vel = (
+                wp.to_torch(robot.data.default_joint_pos).clone(),
+                wp.to_torch(robot.data.default_joint_vel).clone(),
+            )
             joint_pos += torch.rand_like(joint_pos) * 0.1
             robot.write_joint_position_to_sim_index(position=joint_pos)
             robot.write_joint_velocity_to_sim_index(velocity=joint_vel)

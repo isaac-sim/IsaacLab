@@ -300,11 +300,15 @@ def main():
             # observations
             # -- end-effector frame
             ee_frame_tf: FrameTransformer = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = wp.to_torch(ee_frame_tf.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            tcp_rest_position = (
+                wp.to_torch(ee_frame_tf.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            )
             tcp_rest_orientation = wp.to_torch(ee_frame_tf.data.target_quat_w)[..., 0, :].clone()
             # -- handle frame
             cabinet_frame_tf: FrameTransformer = env.unwrapped.scene["cabinet_frame"]
-            cabinet_position = wp.to_torch(cabinet_frame_tf.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            cabinet_position = (
+                wp.to_torch(cabinet_frame_tf.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            )
             cabinet_orientation = wp.to_torch(cabinet_frame_tf.data.target_quat_w)[..., 0, :].clone()
 
             # advance state machine

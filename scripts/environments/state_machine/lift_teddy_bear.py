@@ -303,7 +303,9 @@ def main():
             # observations
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = wp.to_torch(ee_frame_sensor.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            tcp_rest_position = (
+                wp.to_torch(ee_frame_sensor.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            )
             tcp_rest_orientation = wp.to_torch(ee_frame_sensor.data.target_quat_w)[..., 0, :].clone()
             # -- object frame
             object_data: RigidObjectData = env.unwrapped.scene["object"].data
