@@ -128,9 +128,10 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
 
 @configclass
 class KukaAllegroObservationCfg(PresetCfg):
-    default = StateObservationCfg()
+    state = StateObservationCfg()
     single_camera = SingleCameraObservationsCfg()
     duo_camera = DuoCameraObservationsCfg()
+    default = state
 
 
 @configclass

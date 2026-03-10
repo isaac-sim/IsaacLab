@@ -15,7 +15,6 @@ import torch
 import warp as wp
 
 from isaaclab.managers import CommandTerm
-from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -79,7 +78,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
-
+        from isaaclab.markers import VisualizationMarkers
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
 
