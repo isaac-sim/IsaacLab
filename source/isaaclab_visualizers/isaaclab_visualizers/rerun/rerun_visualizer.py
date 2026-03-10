@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
+    """Return whether a TCP port can be bound on host."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -39,12 +40,14 @@ def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
 
 
 def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
+    """Return whether a TCP port is currently accepting connections."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.2)
         return sock.connect_ex((host, int(port))) == 0
 
 
 def _normalize_host(addr: str) -> str:
+    """Normalize bind host to loopback-friendly address for client URLs."""
     if addr in ("0.0.0.0", "127.0.0.1", "localhost"):
         return "127.0.0.1"
     return addr
@@ -88,6 +91,7 @@ class NewtonViewerRerun(ViewerRerun):
         self._paused_rendering = False
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
     def _render_ui(self):
@@ -109,6 +113,11 @@ class RerunVisualizer(BaseVisualizer):
     """Rerun visualizer for Isaac Lab."""
 
     def __init__(self, cfg: RerunVisualizerCfg):
+        """Initialize Rerun visualizer state.
+
+        Args:
+            cfg: Rerun visualizer configuration.
+        """
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg
         self._viewer: NewtonViewerRerun | None = None
@@ -120,6 +129,11 @@ class RerunVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+        """Initialize rerun viewer and bind scene data provider.
+
+        Args:
+            scene_data_provider: Scene data provider used to fetch model/state data.
+        """
         if self._is_initialized:
             return
         if scene_data_provider is None:
@@ -193,6 +207,11 @@ class RerunVisualizer(BaseVisualizer):
         atexit.register(self.close)
 
     def step(self, dt: float) -> None:
+        """Advance visualization by one simulation step.
+
+        Args:
+            dt: Simulation time-step in seconds.
+        """
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
@@ -215,6 +234,7 @@ class RerunVisualizer(BaseVisualizer):
             self._viewer.end_frame()
 
     def close(self) -> None:
+        """Close viewer/session resources."""
         if self._is_closed:
             return
 
@@ -234,6 +254,11 @@ class RerunVisualizer(BaseVisualizer):
         self._is_closed = True
 
     def is_running(self) -> bool:
+        """Return whether the visualizer should continue stepping.
+
+        Returns:
+            ``True`` while the visualizer is active, otherwise ``False``.
+        """
         if not self._is_initialized or self._is_closed:
             return False
         if self._viewer is None:
@@ -241,6 +266,7 @@ class RerunVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """Resolve initial camera pose from config or USD camera path."""
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
             if pose is not None:
@@ -248,6 +274,11 @@ class RerunVisualizer(BaseVisualizer):
         return self.cfg.camera_position, self.cfg.camera_target
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
+        """Apply camera pose to rerun's 3D view controls.
+
+        Args:
+            pose: Camera eye and target tuples.
+        """
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
@@ -267,6 +298,7 @@ class RerunVisualizer(BaseVisualizer):
         self._last_camera_pose = (cam_pos, cam_target)
 
     def _update_camera_from_usd_path(self) -> None:
+        """Refresh camera pose from configured USD camera path when it changes."""
         pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
         if pose is None:
             return

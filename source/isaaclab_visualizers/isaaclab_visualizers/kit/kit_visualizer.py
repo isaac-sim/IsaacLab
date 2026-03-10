@@ -27,6 +27,11 @@ class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
     def __init__(self, cfg: KitVisualizerCfg):
+        """Initialize Kit visualizer state.
+
+        Args:
+            cfg: Kit visualizer configuration.
+        """
         super().__init__(cfg)
         self.cfg: KitVisualizerCfg = cfg
 
@@ -42,6 +47,11 @@ class KitVisualizer(BaseVisualizer):
     # ---- Lifecycle ------------------------------------------------------------------------
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+        """Initialize viewport resources and bind scene data provider.
+
+        Args:
+            scene_data_provider: Scene data provider used by the visualizer.
+        """
         if self._is_initialized:
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
@@ -80,6 +90,11 @@ class KitVisualizer(BaseVisualizer):
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
+        """Advance visualizer/UI updates for one simulation step.
+
+        Args:
+            dt: Simulation time-step in seconds.
+        """
         if not self._is_initialized:
             return
         self._sim_time += dt
@@ -101,6 +116,7 @@ class KitVisualizer(BaseVisualizer):
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
     def close(self) -> None:
+        """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
         self._restore_env_visibility()
@@ -113,6 +129,11 @@ class KitVisualizer(BaseVisualizer):
     # ---- Capabilities ---------------------------------------------------------------------
 
     def is_running(self) -> bool:
+        """Return whether Kit app/runtime is still running.
+
+        Returns:
+            ``True`` when the visualizer can continue stepping, otherwise ``False``.
+        """
         if self._simulation_app is not None:
             return self._simulation_app.is_running()
         try:
@@ -124,6 +145,7 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def is_training_paused(self) -> bool:
+        """Return whether simulation play flag is paused in Kit settings."""
         try:
             from isaaclab.app.settings_manager import get_settings_manager
 
@@ -150,6 +172,12 @@ class KitVisualizer(BaseVisualizer):
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
+        """Set active viewport camera eye/target.
+
+        Args:
+            eye: Camera eye position.
+            target: Camera look-at target.
+        """
         if not self._is_initialized:
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
@@ -158,6 +186,7 @@ class KitVisualizer(BaseVisualizer):
     # ---- Viewport + camera ----------------------------------------------------------------
 
     def _ensure_simulation_app(self) -> None:
+        """Ensure a running Isaac Sim app is available and cache runtime mode."""
         import omni.kit.app
 
         app = omni.kit.app.get_app()
@@ -182,6 +211,11 @@ class KitVisualizer(BaseVisualizer):
             pass
 
     def _setup_viewport(self, usd_stage) -> None:
+        """Create/resolve viewport and configure initial camera.
+
+        Args:
+            usd_stage: USD stage used for camera prim setup.
+        """
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
 
@@ -231,6 +265,7 @@ class KitVisualizer(BaseVisualizer):
             self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
+        """Dock a created viewport window relative to main viewport."""
         import omni.kit.app
         import omni.ui
 
@@ -261,6 +296,7 @@ class KitVisualizer(BaseVisualizer):
             viewport_window.focus()
 
     def _create_and_assign_camera(self, usd_stage) -> None:
+        """Create viewport camera prim (if needed) and set it active."""
         camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
 
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
@@ -271,6 +307,7 @@ class KitVisualizer(BaseVisualizer):
             self._viewport_api.set_active_camera(camera_path)
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
+        """Apply eye/target camera view to the active viewport."""
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
         if self._viewport_api is None:
@@ -284,6 +321,11 @@ class KitVisualizer(BaseVisualizer):
         )
 
     def _set_active_camera_path(self, camera_path: str) -> bool:
+        """Set active camera path for viewport if the prim exists.
+
+        Returns:
+            ``True`` if camera was set, otherwise ``False``.
+        """
         if self._viewport_api is None:
             return False
         usd_stage = self._scene_data_provider.get_usd_stage() if self._scene_data_provider else None
@@ -296,6 +338,7 @@ class KitVisualizer(BaseVisualizer):
         return True
 
     def _apply_env_visibility(self, usd_stage, metadata: dict) -> None:
+        """Hide non-selected environments for cosmetic env filtering."""
         if not self._env_ids:
             return
         num_envs = int(metadata.get("num_envs", 0))
@@ -319,6 +362,7 @@ class KitVisualizer(BaseVisualizer):
             attr.Set(UsdGeom.Tokens.invisible)
 
     def _restore_env_visibility(self) -> None:
+        """Restore environment visibilities modified by env filtering."""
         if not self._hidden_env_visibilities:
             return
         usd_stage = self._scene_data_provider.get_usd_stage() if self._scene_data_provider else None

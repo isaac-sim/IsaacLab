@@ -392,7 +392,17 @@ def resolve_visualizer_clone_fn(
     stage,
     set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
 ):
-    """Return an optional visualizer prebuild hook for clone workflows."""
+    """Return an optional visualizer prebuild hook for clone workflows.
+
+    Args:
+        physics_backend: Active physics backend name.
+        requirements: Aggregated scene-data requirements.
+        stage: USD stage used by the clone callback.
+        set_visualizer_artifact: Callback for storing prebuilt visualizer artifacts.
+
+    Returns:
+        Clone callback when the prebuild path is supported; otherwise ``None``.
+    """
     if "physx" not in physics_backend or not requirements.requires_newton_model:
         return None
     try:

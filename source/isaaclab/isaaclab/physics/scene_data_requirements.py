@@ -54,17 +54,31 @@ _RENDERER_REQUIREMENTS: dict[str, SceneDataRequirement] = {
 
 
 def supported_visualizer_types() -> tuple[str, ...]:
-    """Return supported visualizer type names in sorted order."""
+    """Return supported visualizer type names in sorted order.
+
+    Returns:
+        Sorted tuple of supported visualizer type names.
+    """
     return tuple(sorted(_VISUALIZER_REQUIREMENTS))
 
 
 def supported_renderer_types() -> tuple[str, ...]:
-    """Return supported renderer type names in sorted order."""
+    """Return supported renderer type names in sorted order.
+
+    Returns:
+        Sorted tuple of supported renderer type names.
+    """
     return tuple(sorted(_RENDERER_REQUIREMENTS))
 
 
 def requirement_for_visualizer_type(visualizer_type: str) -> SceneDataRequirement:
     """Resolve scene-data requirements for one visualizer type.
+
+    Args:
+        visualizer_type: Visualizer type name.
+
+    Returns:
+        Requirement object for the given visualizer type.
 
     Raises:
         ValueError: If ``visualizer_type`` is unknown.
@@ -79,6 +93,12 @@ def requirement_for_visualizer_type(visualizer_type: str) -> SceneDataRequiremen
 def requirement_for_renderer_type(renderer_type: str) -> SceneDataRequirement:
     """Resolve scene-data requirements for one renderer type.
 
+    Args:
+        renderer_type: Renderer type name.
+
+    Returns:
+        Requirement object for the given renderer type.
+
     Raises:
         ValueError: If ``renderer_type`` is unknown.
     """
@@ -90,7 +110,14 @@ def requirement_for_renderer_type(renderer_type: str) -> SceneDataRequirement:
 
 
 def aggregate_requirements(requirements: Iterable[SceneDataRequirement]) -> SceneDataRequirement:
-    """Combine a sequence of requirements using logical OR."""
+    """Combine a sequence of requirements using logical OR.
+
+    Args:
+        requirements: Requirement objects to combine.
+
+    Returns:
+        Combined requirement object.
+    """
     requires_newton_model = False
     requires_usd_stage = False
     for requirement in requirements:
@@ -103,7 +130,15 @@ def resolve_scene_data_requirements(
     visualizer_types: Iterable[str],
     renderer_types: Iterable[str] = (),
 ) -> SceneDataRequirement:
-    """Resolve combined scene-data requirements from visualizer and renderer types."""
+    """Resolve combined scene-data requirements from visualizer and renderer types.
+
+    Args:
+        visualizer_types: Visualizer type names to resolve.
+        renderer_types: Renderer type names to resolve.
+
+    Returns:
+        Combined requirement object.
+    """
     requirements = [requirement_for_visualizer_type(viz_type) for viz_type in visualizer_types]
     requirements.extend(requirement_for_renderer_type(renderer_type) for renderer_type in renderer_types)
     return aggregate_requirements(requirements)

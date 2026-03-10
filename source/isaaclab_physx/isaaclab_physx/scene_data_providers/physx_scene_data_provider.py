@@ -91,6 +91,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return max_env_id + 1 if max_env_id >= 0 else 0
 
     def __init__(self, stage, simulation_context) -> None:
+        """Initialize the PhysX scene data provider.
+
+        Args:
+            stage: USD stage handle.
+            simulation_context: Active simulation context.
+        """
         from isaacsim.core.simulation_manager import SimulationManager
 
         self._simulation_context = simulation_context
@@ -180,19 +186,37 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._setup_articulation_view()
 
     def _model_body_paths(self, model) -> list[str]:
-        """Return body paths/keys from a Newton model."""
+        """Return body paths/keys from a Newton model.
+
+        Args:
+            model: Newton model object.
+
+        Returns:
+            Body paths/keys from the model, or an empty list when unavailable.
+        """
         if model is None:
             return []
         return list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
 
     def _model_articulation_paths(self, model) -> list[str]:
-        """Return articulation paths/keys from a Newton model."""
+        """Return articulation paths/keys from a Newton model.
+
+        Args:
+            model: Newton model object.
+
+        Returns:
+            Articulation paths/keys from the model, or an empty list when unavailable.
+        """
         if model is None:
             return []
         return list(getattr(model, "articulation_label", None) or getattr(model, "articulation_key", []))
 
     def _try_use_prebuilt_newton_artifact(self) -> bool:
-        """Use scene-time prebuilt Newton visualizer artifact when available."""
+        """Use scene-time prebuilt Newton visualizer artifact when available.
+
+        Returns:
+            ``True`` when a valid prebuilt artifact was consumed, otherwise ``False``.
+        """
         if self._force_usd_fallback_for_newton_model_build:
             return False
         artifact = self._simulation_context.get_scene_data_visualizer_prebuilt_artifact()
@@ -297,7 +321,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             )
 
     def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
-        """Build Newton model/state for a subset of envs."""
+        """Build Newton model/state for a subset of environments.
+
+        Args:
+            env_ids: Environment ids to include in the subset model.
+        """
         # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
         # is complete for full and partial visualization model-build paths.
         try:
@@ -711,11 +739,22 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             )
 
     def get_newton_model(self) -> Any | None:
-        """Return Newton model when sync is enabled."""
+        """Return Newton model when sync is enabled.
+
+        Returns:
+            Newton model object, or ``None`` when unavailable.
+        """
         return self._newton_model if self._needs_newton_sync else None
 
     def get_newton_model_for_env_ids(self, env_ids: list[int] | None) -> Any | None:
-        """Return Newton model for a subset of envs if requested."""
+        """Return Newton model for selected environments.
+
+        Args:
+            env_ids: Optional environment ids. ``None`` returns full model.
+
+        Returns:
+            Full or filtered Newton model, or ``None`` when unavailable.
+        """
         if not self._needs_newton_sync:
             return None
         if env_ids is None:
@@ -800,13 +839,22 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     # ---- Public provider API ---------------------------------------------------------------
 
     def get_usd_stage(self) -> Any:
-        """Return the USD stage handle."""
+        """Return USD stage handle.
+
+        Returns:
+            USD stage object.
+        """
         if self._stage is not None:
             return self._stage
         return getattr(self._simulation_context, "stage", None)
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
-        """Return per-camera, per-env transforms (positions, orientations)."""
+        """Return per-camera, per-environment transforms.
+
+        Returns:
+            Dictionary containing camera order, positions, orientations, and environment count,
+            or ``None`` when unavailable.
+        """
         if self._stage is None:
             return None
 
@@ -873,13 +921,21 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
-        """Return metadata for visualizers (num_envs, physics_backend, etc.)."""
+        """Return provider metadata for visualizers and renderers.
+
+        Returns:
+            Metadata dictionary with backend and environment count.
+        """
         out = dict(self._metadata)
         out["num_envs"] = self.get_num_envs()
         return out
 
     def get_transforms(self) -> dict[str, Any] | None:
-        """Return merged body transforms from available PhysX views."""
+        """Return merged body transforms from available PhysX views.
+
+        Returns:
+            Dictionary with positions/orientations, or ``None`` when unavailable.
+        """
         try:
             result = self._read_poses_from_best_source()
             if result is None:
@@ -897,7 +953,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             return None
 
     def get_velocities(self) -> dict[str, Any] | None:
-        """Return linear/angular velocities from available PhysX views."""
+        """Return linear/angular velocities from available PhysX views.
+
+        Returns:
+            Dictionary with linear/angular velocities, or ``None`` when unavailable.
+        """
         for source, view in (
             ("articulation_view", self._articulation_view),
             ("rigid_body_view", self._rigid_body_view),
@@ -908,5 +968,9 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return None
 
     def get_contacts(self) -> dict[str, Any] | None:
-        """Contacts not yet supported for PhysX provider."""
+        """Return contact data for PhysX provider.
+
+        Returns:
+            ``None`` because contacts are not currently implemented in this provider.
+        """
         return None

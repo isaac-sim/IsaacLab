@@ -29,6 +29,21 @@ def _build_newton_builder_from_mapping(
     up_axis: str = "Z",
     simplify_meshes: bool = True,
 ) -> tuple[ModelBuilder, object]:
+    """Build a Newton model builder from clone mapping inputs.
+
+    Args:
+        stage: USD stage containing source assets.
+        sources: Source prim paths used for cloning.
+        env_ids: Environment ids for destination worlds.
+        mapping: Boolean source-to-environment mapping matrix.
+        positions: Optional per-environment world positions.
+        quaternions: Optional per-environment orientations in xyzw order.
+        up_axis: Up axis for the Newton model builder.
+        simplify_meshes: Whether to run convex-hull mesh approximation.
+
+    Returns:
+        Tuple of the populated Newton model builder and stage metadata returned by ``add_usd``.
+    """
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
@@ -83,6 +98,15 @@ def _build_newton_builder_from_mapping(
 def _rename_builder_labels(
     builder: ModelBuilder, sources: list[str], destinations: list[str], env_ids: torch.Tensor, mapping: torch.Tensor
 ) -> None:
+    """Rename builder labels/keys from source roots to destination roots.
+
+    Args:
+        builder: Newton model builder to update in-place.
+        sources: Source prim root paths.
+        destinations: Destination prim path templates.
+        env_ids: Environment ids corresponding to mapping columns.
+        mapping: Boolean source-to-environment mapping matrix.
+    """
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
         src_prefix_len = len(src_path.rstrip("/"))
@@ -114,7 +138,23 @@ def newton_physics_replicate(
     up_axis: str = "Z",
     simplify_meshes: bool = True,
 ):
-    """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
+    """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
+
+    Args:
+        stage: USD stage containing source assets.
+        sources: Source prim paths used for cloning.
+        destinations: Destination prim path templates.
+        env_ids: Environment ids for destination worlds.
+        mapping: Boolean source-to-environment mapping matrix.
+        positions: Optional per-environment world positions.
+        quaternions: Optional per-environment orientations in xyzw order.
+        device: Device used by the finalized Newton model builder.
+        up_axis: Up axis for the Newton model builder.
+        simplify_meshes: Whether to run convex-hull mesh approximation.
+
+    Returns:
+        Tuple of the populated Newton model builder and stage metadata.
+    """
     builder, stage_info = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
@@ -147,6 +187,21 @@ def newton_visualizer_prebuild(
 
     Unlike :func:`newton_physics_replicate`, this path does not mutate ``NewtonManager`` and is intended
     for prebuilding visualizer-only artifacts that can be consumed by scene data providers.
+
+    Args:
+        stage: USD stage containing source assets.
+        sources: Source prim paths used for cloning.
+        destinations: Destination prim path templates.
+        env_ids: Environment ids for destination worlds.
+        mapping: Boolean source-to-environment mapping matrix.
+        positions: Optional per-environment world positions.
+        quaternions: Optional per-environment orientations in xyzw order.
+        device: Device used by the finalized Newton model.
+        up_axis: Up axis for the Newton model builder.
+        simplify_meshes: Whether to run convex-hull mesh approximation.
+
+    Returns:
+        Tuple of finalized Newton model and state.
     """
     builder, _ = _build_newton_builder_from_mapping(
         stage=stage,
@@ -168,7 +223,15 @@ def create_newton_visualizer_prebuild_clone_fn(
     stage,
     set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
 ):
-    """Create a cloner callback that prebuilds Newton visualizer artifacts."""
+    """Create a cloner callback that prebuilds Newton visualizer artifacts.
+
+    Args:
+        stage: USD stage used by the clone callback.
+        set_visualizer_artifact: Callback used to store the produced prebuilt artifact.
+
+    Returns:
+        Clone callback that builds and stores visualizer prebuilt artifacts.
+    """
     up_axis = UsdGeom.GetStageUpAxis(stage)
 
     def _visualizer_clone_fn(

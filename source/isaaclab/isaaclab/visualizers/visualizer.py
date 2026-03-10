@@ -27,6 +27,19 @@ class Visualizer(FactoryBase, BaseVisualizer):
 
     @classmethod
     def _get_backend(cls, cfg, *args, **kwargs) -> str:
+        """Resolve backend key from visualizer config.
+
+        Args:
+            cfg: Visualizer configuration instance.
+            *args: Unused positional arguments.
+            **kwargs: Unused keyword arguments.
+
+        Returns:
+            Backend key used by the factory.
+
+        Raises:
+            ValueError: If visualizer type is not registered.
+        """
         visualizer_type = getattr(cfg, "visualizer_type", None)
         if visualizer_type not in _VISUALIZER_TYPES:
             raise ValueError(
@@ -37,10 +50,30 @@ class Visualizer(FactoryBase, BaseVisualizer):
 
     @classmethod
     def _get_module_name(cls, backend: str) -> str:
+        """Return module path for a visualizer backend.
+
+        Args:
+            backend: Backend key.
+
+        Returns:
+            Module import path for the backend.
+        """
         return f"isaaclab_visualizers.{backend}"
 
     def __new__(cls, cfg, *args, **kwargs) -> BaseVisualizer:
-        """Create a new visualizer instance based on the visualizer type."""
+        """Create a new visualizer instance based on the visualizer type.
+
+        Args:
+            cfg: Visualizer configuration instance.
+            *args: Additional constructor positional arguments.
+            **kwargs: Additional constructor keyword arguments.
+
+        Returns:
+            Instantiated backend visualizer.
+
+        Raises:
+            TypeError: If backend class does not inherit from ``BaseVisualizer``.
+        """
         result = super().__new__(cls, cfg, *args, **kwargs)
         if not isinstance(result, BaseVisualizer):
             name = type(result).__name__

@@ -31,6 +31,12 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
     """
 
     def __init__(self, stage, simulation_context) -> None:
+        """Initialize the Newton scene data provider.
+
+        Args:
+            stage: USD stage handle.
+            simulation_context: Active simulation context.
+        """
         self._simulation_context = simulation_context
         self._stage = stage
         self._metadata = {"physics_backend": "newton"}
@@ -42,6 +48,13 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._needs_usd_sync = bool(requirements.requires_usd_stage)
 
     def _warn_once(self, key: str, message: str, *args) -> None:
+        """Emit a warning once per unique key.
+
+        Args:
+            key: Unique warning key.
+            message: Warning message format string.
+            *args: Optional formatting arguments.
+        """
         if key in self._warned_once:
             return
         self._warned_once.add(key)
@@ -50,6 +63,11 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
     # ---- Environment discovery ---------------------------------------------------------------
 
     def get_num_envs(self) -> int:
+        """Return discovered environment count.
+
+        Returns:
+            Number of environments discovered from stage prim paths.
+        """
         if self._num_envs is not None and self._num_envs > 0:
             return self._num_envs
         discovered = self._determine_num_envs_in_scene()
@@ -59,6 +77,11 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         return 0
 
     def _determine_num_envs_in_scene(self) -> int:
+        """Infer environment count from ``/World/envs/env_<id>`` prim names.
+
+        Returns:
+            Number of environments inferred from the stage.
+        """
         if self._stage is None:
             return 0
         max_env_id = -1
@@ -81,6 +104,9 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd` when a Kit
         (or other USD-based) visualizer is in use. When both sim and rendering backend
         are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
+
+        Args:
+            env_ids: Optional environment id selection. Unused in this provider.
         """
         if not self._needs_usd_sync:
             return
@@ -92,7 +118,11 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
             pass
 
     def get_newton_model(self) -> Any | None:
-        """Return Newton model from NewtonManager."""
+        """Return Newton model from ``NewtonManager``.
+
+        Returns:
+            Newton model object, or ``None`` when unavailable.
+        """
         from isaaclab_newton.physics import NewtonManager
 
         return NewtonManager.get_model()
@@ -112,20 +142,40 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         return NewtonManager.get_state_0()
 
     def get_model(self) -> Any | None:
-        """Alias for get_newton_model (visualizer compatibility)."""
+        """Alias for :meth:`get_newton_model` for visualizer compatibility.
+
+        Returns:
+            Newton model object, or ``None`` when unavailable.
+        """
         return self.get_newton_model()
 
     def get_state(self, env_ids: list[int] | None = None) -> Any | None:
-        """Alias for get_newton_state (visualizer compatibility)."""
+        """Alias for :meth:`get_newton_state` for visualizer compatibility.
+
+        Args:
+            env_ids: Optional list of environment ids.
+
+        Returns:
+            Newton state object, or ``None`` when unavailable.
+        """
         return self.get_newton_state(env_ids)
 
     def get_usd_stage(self) -> Any | None:
-        """Return the USD stage handle."""
+        """Return the USD stage handle.
+
+        Returns:
+            USD stage object, or ``None`` when unavailable.
+        """
         if self._stage is not None:
             return self._stage
         return getattr(self._simulation_context, "stage", None)
 
     def get_metadata(self) -> dict[str, Any]:
+        """Return provider metadata.
+
+        Returns:
+            Metadata dictionary with backend and synchronization information.
+        """
         out = dict(self._metadata)
         out["num_envs"] = self.get_num_envs()
         out["needs_usd_sync"] = self._needs_usd_sync
@@ -136,6 +186,9 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
 
         Reads body_q from the authoritative Newton state and splits it into
         positions (vec3) and orientations (quaternion xyzw).
+
+        Returns:
+            Dictionary containing positions and orientations, or ``None`` when unavailable.
         """
         try:
             import warp as wp
@@ -159,7 +212,11 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
             return None
 
     def get_velocities(self) -> dict[str, Any] | None:
-        """Return body velocities from Newton state."""
+        """Return body velocities from Newton state.
+
+        Returns:
+            Dictionary containing linear and angular velocities, or ``None`` when unavailable.
+        """
         try:
             import warp as wp
 
@@ -186,11 +243,20 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
             return None
 
     def get_contacts(self) -> dict[str, Any] | None:
-        """Contacts not yet supported for Newton provider."""
+        """Return contact data for Newton provider.
+
+        Returns:
+            ``None`` because contacts are not currently implemented in this provider.
+        """
         return None
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
-        """Return per-camera, per-env transforms (positions, orientations)."""
+        """Return per-camera, per-environment transforms.
+
+        Returns:
+            Dictionary containing camera order, positions, orientations, and environment count,
+            or ``None`` when unavailable.
+        """
         if self._stage is None:
             return None
 
