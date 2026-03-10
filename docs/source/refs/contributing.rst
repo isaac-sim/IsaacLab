@@ -364,23 +364,59 @@ Key rules for ``.pyi`` stubs:
   <https://peps.python.org/pep-0484/#stub-files>`__).
 * Group imports from the same submodule on one line. Use parenthesized multi-line
   imports if the line exceeds 100 characters.
-* Only use **relative imports** (``from .something import ...``) — ``lazy_loader``
-  does not support absolute imports in stubs.
+* Use **relative imports** (``from .something import ...``) for local submodule
+  symbols. Absolute wildcard imports (``from pkg import *``) are only used for
+  cross-package fallbacks (see below).
 * Include the standard Isaac Lab license header.
 
 **Cross-package fallback** — for modules that re-export names from another package
-(e.g. task MDP modules that delegate to ``isaaclab.envs.mdp``):
+(e.g. task MDP modules that delegate to ``isaaclab.envs.mdp``), add a wildcard
+import for the external package in the ``.pyi`` stub:
+
+.. code:: python
+
+   # isaaclab_tasks/.../mdp/__init__.pyi
+   __all__ = ["MyReward", "MyObservation"]
+
+   from .rewards import MyReward
+   from .observations import MyObservation
+
+   from isaaclab.envs.mdp import *
+
+The ``__init__.py`` stays the same as the standard pattern — just ``lazy_export()``
+with no arguments:
 
 .. code:: python
 
    # isaaclab_tasks/.../mdp/__init__.py
    from isaaclab.utils.module import lazy_export
 
-   lazy_export(packages=["isaaclab.envs.mdp"])
+   lazy_export()
 
-The ``lazy_export`` helper in :mod:`isaaclab.utils.module` wraps ``lazy_loader.attach_stub``
-and, when ``packages`` is provided, adds a runtime fallback that scans the specified
-packages for names not found in the local stub.
+At runtime, ``lazy_export`` parses the ``.pyi`` stub and uses the absolute wildcard
+import (``from isaaclab.envs.mdp import *``) as a fallback: any name not found in
+the local submodules is looked up in the specified package. This also gives type
+checkers and IDEs full visibility into the re-exported symbols.
+
+**Relative wildcard re-exports** — the stub can also use ``from .submodule import *``
+to eagerly export all public names from a local submodule. This is resolved at
+import time (not lazily) and is useful when a submodule's public API is large or
+changes frequently.
+
+.. note::
+
+   Relative wildcard re-exports bypass lazy loading and eagerly import every public
+   name from the submodule at package init time. In general, we advise against using
+   them unless absolutely necessary. Prefer listing explicit named imports in the stub
+   so that the public API surface is clear, reviewable, and remains lazily loaded.
+
+.. code:: python
+
+   # isaaclab_tasks/.../mdp/__init__.pyi
+   from .rewards import *
+   from .observations import *
+
+   from isaaclab.envs.mdp import *
 
 **Ensuring .pyi stubs are distributed**
 

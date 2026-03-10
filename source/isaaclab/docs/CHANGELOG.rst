@@ -1,6 +1,43 @@
 Changelog
 ---------
 
+4.5.12 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity` into a single
+  class-based term that auto-detects the active physics backend (PhysX or Newton).
+
+Removed
+^^^^^^^
+
+* Removed ``randomize_newton_physics_scene_gravity``. Use
+  :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity` instead, which
+  handles both PhysX and Newton backends automatically.
+
+
+4.5.11 (2026-02-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``visualizers`` parameter to ``build_simulation_context()``.
+
+
+4.5.10 (2026-03-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored :func:`~isaaclab.utils.module.lazy_export` to infer fallback packages
+  and relative wildcard re-exports from the ``.pyi`` stub, making the stub the
+  single source of truth. The ``packages`` argument is deprecated.
+
+
 4.5.9 (2026-03-08)
 ~~~~~~~~~~~~~~~~~~
 

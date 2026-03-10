@@ -31,22 +31,19 @@ class out_of_bound(ManagerTermBase):
     """
 
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        """Initialize the termination term.
-
-        Args:
-            cfg: The termination term configuration.
-            env: The environment instance.
-        """
         super().__init__(cfg, env)
 
-        # Cache asset reference
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("object"))
         self._object: RigidObject = env.scene[asset_cfg.name]
 
-        # Cache ranges tensor
         in_bound_range: dict[str, tuple[float, float]] = cfg.params.get("in_bound_range", {})
         range_list = [in_bound_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        self._ranges = torch.tensor(range_list, device=env.device, dtype=torch.float32)
+        ranges = torch.tensor(range_list, device=env.device, dtype=torch.float32)
+
+        # Pre-apply env_origins so we can compare directly against world-space positions.
+        origins = env.scene.env_origins  # (N, 3)
+        self._lower = origins + ranges[:, 0]  # (N, 3)
+        self._upper = origins + ranges[:, 1]  # (N, 3)
 
     def __call__(
         self,
@@ -54,19 +51,8 @@ class out_of_bound(ManagerTermBase):
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         in_bound_range: dict[str, tuple[float, float]] = {},
     ) -> torch.Tensor:
-        """Check if the object is out of bounds.
-
-        Args:
-            env: The environment (unused, cached in __init__).
-            asset_cfg: The object configuration (unused, cached in __init__).
-            in_bound_range: The bound ranges (unused, cached in __init__).
-
-        Returns:
-            Boolean tensor indicating which environments have objects out of bounds.
-        """
-        object_pos_local = wp.to_torch(self._object.data.root_pos_w) - env.scene.env_origins
-        outside_bounds = ((object_pos_local < self._ranges[:, 0]) | (object_pos_local > self._ranges[:, 1])).any(dim=1)
-        return outside_bounds
+        pos_w = wp.to_torch(self._object.data.root_pos_w)
+        return ((pos_w < self._lower) | (pos_w > self._upper)).any(dim=1)
 
 
 def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:

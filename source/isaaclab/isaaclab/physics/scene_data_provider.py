@@ -23,7 +23,7 @@ class SceneDataProvider(FactoryBase, BaseSceneDataProvider):
     _backend_class_names = {"physx": "PhysxSceneDataProvider", "newton": "NewtonSceneDataProvider"}
 
     @classmethod
-    def _get_backend(cls, visualizer_cfgs, stage, simulation_context: SimulationContext, *args, **kwargs) -> str:
+    def _get_backend(cls, stage, simulation_context: SimulationContext, *args, **kwargs) -> str:
         manager_name = simulation_context.physics_manager.__name__.lower()
         if "newton" in manager_name:
             return "newton"
@@ -35,11 +35,9 @@ class SceneDataProvider(FactoryBase, BaseSceneDataProvider):
     def _get_module_name(cls, backend: str) -> str:
         return f"isaaclab_{backend}.scene_data_providers"
 
-    def __new__(
-        cls, visualizer_cfgs, stage, simulation_context: SimulationContext, *args, **kwargs
-    ) -> BaseSceneDataProvider:
+    def __new__(cls, stage, simulation_context: SimulationContext, *args, **kwargs) -> BaseSceneDataProvider:
         """Create a new scene data provider based on the active physics backend."""
-        result = super().__new__(cls, visualizer_cfgs, stage, simulation_context, *args, **kwargs)
+        result = super().__new__(cls, stage, simulation_context, *args, **kwargs)
         if not isinstance(result, BaseSceneDataProvider):
             name = type(result).__name__
             raise TypeError(f"Backend scene data provider {name!r} must inherit from BaseSceneDataProvider.")
