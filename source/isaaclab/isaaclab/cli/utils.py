@@ -212,12 +212,16 @@ def get_pip_command(python_exe: str | None = None) -> list[str]:
 
     # If we're in a virtual env and uv is available, check whether pip module exists
     if os.environ.get("VIRTUAL_ENV") and shutil.which("uv"):
-        result = subprocess.run(
-            [python_exe, "-m", "pip", "--version"],
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
+        try:
+            result = run_command(
+                [python_exe, "-m", "pip", "--version"],
+                capture_output=True,
+                check=False,
+            )
+            pip_available = result.returncode == 0
+        except (FileNotFoundError, OSError):
+            pip_available = False
+        if not pip_available:
             return ["uv", "pip"]
 
     return [python_exe, "-m", "pip"]
