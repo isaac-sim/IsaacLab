@@ -156,9 +156,11 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def supports_markers(self) -> bool:
+        """Kit viewport supports marker visualization through Omni UI rendering."""
         return True
 
     def supports_live_plots(self) -> bool:
+        """Kit backend can host live plot widgets via viewport UI panels."""
         return True
 
     def requires_forward_before_step(self) -> bool:

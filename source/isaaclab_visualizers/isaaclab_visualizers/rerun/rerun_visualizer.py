@@ -54,6 +54,7 @@ def _normalize_host(addr: str) -> str:
 
 
 def _stop_managed_rerun_server() -> None:
+    """No-op hook reserved for future managed rerun server lifecycle."""
     return
 
 
@@ -75,6 +76,7 @@ def _ensure_rerun_server(app_id: str, bind_address: str, grpc_port: int, web_por
 
 
 def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
+    """Open rerun web UI and prefill endpoint connection URL."""
     url = f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe='')}"
     try:
         if not webbrowser.open_new_tab(url):
@@ -87,6 +89,7 @@ class NewtonViewerRerun(ViewerRerun):
     """Wrapper around Newton's ViewerRerun with rendering pause controls."""
 
     def __init__(self, *args, **kwargs):
+        """Initialize viewer wrapper and Isaac Lab pause state."""
         super().__init__(*args, **kwargs)
         self._paused_rendering = False
 
@@ -95,6 +98,7 @@ class NewtonViewerRerun(ViewerRerun):
         return self._paused_rendering
 
     def _render_ui(self):
+        """Extend base UI with Isaac Lab rendering pause toggle."""
         super()._render_ui()
 
         if not self._has_imgui:
@@ -307,15 +311,22 @@ class RerunVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
+        """Rerun backend currently does not expose Isaac Lab marker primitives."""
         return False
 
     def supports_live_plots(self) -> bool:
+        """Rerun backend currently does not expose Isaac Lab live-plot widgets."""
         return False
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused.
+
+        Rerun viewer exposes rendering pause only.
+        """
         return False
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()

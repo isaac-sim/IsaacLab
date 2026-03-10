@@ -165,14 +165,13 @@ def usd_replicate(
         positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
         quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
 
-    Returns:
-        None
     """
     rl = stage.GetRootLayer()
 
     # Group replication by destination path depth so ancestors land before deeper paths.
     # This avoids composition issues for nested or interdependent specs.
     def dp_depth(template: str) -> int:
+        """Return destination prim path depth for stable parent-first replication."""
         dp = template.format(0)
         return Sdf.Path(dp).pathElementCount
 
@@ -249,8 +248,6 @@ def filter_collisions(
         prim_paths: Per-clone prim paths.
         global_paths: Optional global-collider paths.
 
-    Returns:
-        None
     """
 
     scene_prim = stage.GetPrimAtPath(physicsscene_path)

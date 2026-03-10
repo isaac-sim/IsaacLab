@@ -31,6 +31,7 @@ def _set_body_q_kernel(
     orientations: wp.array(dtype=wp.quatf),
     body_q: wp.array(dtype=wp.transformf),
 ):
+    """Write pose arrays into Newton ``body_q`` in one-to-one index order."""
     i = wp.tid()
     body_q[i] = wp.transformf(positions[i], orientations[i])
 
@@ -42,6 +43,7 @@ def _set_body_q_subset_kernel(
     body_indices: wp.array(dtype=wp.int32),
     body_q: wp.array(dtype=wp.transformf),
 ):
+    """Write pose arrays into selected Newton ``body_q`` indices."""
     i = wp.tid()
     bi = body_indices[i]
     body_q[bi] = wp.transformf(positions[i], orientations[i])
@@ -830,6 +832,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             body_q_subset = wp.from_torch(body_q_subset, dtype=wp.transformf)
 
         class _SubsetState:
+            """Minimal state carrier with ``body_q`` field for subset rendering."""
+
             pass
 
         s = _SubsetState()

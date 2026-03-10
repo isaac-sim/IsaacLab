@@ -82,6 +82,16 @@ class NewtonViewerViser(ViewerViser):
         record_to_viser: str | None = None,
         metadata: dict | None = None,
     ):
+        """Initialize Newton-backed viser viewer wrapper.
+
+        Args:
+            port: HTTP port for viser server.
+            label: Optional viewer label.
+            verbose: Whether to keep verbose startup output enabled.
+            share: Whether to enable sharing/tunneling.
+            record_to_viser: Optional recording destination.
+            metadata: Optional metadata attached to the viewer.
+        """
         _disable_viser_runtime_client_rebuild_if_bundled()
         super().__init__(
             port=port,
@@ -203,12 +213,18 @@ class ViserVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused.
+
+        Viser backend does not currently expose a training pause control.
+        """
         return False
 
     def supports_markers(self) -> bool:
+        """Viser backend currently does not expose Isaac Lab marker primitives."""
         return False
 
     def supports_live_plots(self) -> bool:
+        """Viser backend currently does not expose Isaac Lab live-plot widgets."""
         return False
 
     def _create_viewer(self, record_to_viser: str | None, metadata: dict | None = None) -> None:

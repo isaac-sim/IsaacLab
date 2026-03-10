@@ -34,6 +34,14 @@ class NewtonViewerGL(ViewerGL):
         update_frequency: int = 1,
         **kwargs,
     ):
+        """Initialize Newton viewer wrapper state.
+
+        Args:
+            *args: Positional arguments forwarded to ``ViewerGL``.
+            metadata: Optional metadata shown in viewer panels.
+            update_frequency: Viewer refresh cadence in simulation frames.
+            **kwargs: Keyword arguments forwarded to ``ViewerGL``.
+        """
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
@@ -83,11 +91,13 @@ class NewtonViewerGL(ViewerGL):
             )
 
     def on_key_press(self, symbol, modifiers):
+        """Forward key presses unless UI is currently capturing input."""
         if self.ui.is_capturing():
             return
         super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
+        """Render default UI and fallback control window when callback hooks are unavailable."""
         if not self._fallback_draw_controls:
             return super()._render_ui()
 
@@ -163,11 +173,13 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
                 def _to_imvec4(color):
+                    """Convert renderer color values to ImGui-compatible color objects."""
                     if hasattr(color, "x"):
                         return color
                     return imgui.ImVec4(float(color[0]), float(color[1]), float(color[2]), 1.0)
 
                 def _from_imvec4(color):
+                    """Convert ImGui color objects back to renderer RGB tuples."""
                     return (float(color.x), float(color.y), float(color.z))
 
                 changed, c = imgui.color_edit3("Light Color", _to_imvec4(self.renderer._light_color))
@@ -431,17 +443,21 @@ class NewtonVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
+        """Newton OpenGL viewer does not implement Isaac Lab marker primitives."""
         return False
 
     def supports_live_plots(self) -> bool:
+        """Newton OpenGL viewer does not provide live-plot panels."""
         return False
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_training_paused()
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()

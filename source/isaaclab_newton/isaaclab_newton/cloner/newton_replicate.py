@@ -244,6 +244,7 @@ def create_newton_visualizer_prebuild_clone_fn(
         quaternions=None,
         device="cpu",
     ):
+        """Prebuild Newton model/state and store visualizer artifacts for clone consumers."""
         model, state = newton_visualizer_prebuild(
             stage=stage,
             sources=sources,
