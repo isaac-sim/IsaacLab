@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 09, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 10, 2026"/>
   </head>
   
   
@@ -988,6 +988,20 @@ file which iterates over all the sub-packages and registers their respective env
 the default configuration as well as to create the environment instance. In addition, other
 parsed command line arguments such as the number of environments, the simulation device,
 and whether to render, are used to override the default configuration.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton)</span>
+    <span class="n">env_cfg</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">resolve_task_config</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">launch_simulation</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">args_cli</span><span class="p">):</span>
+        <span class="c1"># override with CLI arguments</span>
+        <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span>
+        <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span>
+        <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">disable_fabric</span><span class="p">:</span>
+            <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">use_fabric</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># create environment</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
 <p>Once creating the environment, the rest of the execution follows the standard resetting and stepping.</p>
 </section>
 </section>
@@ -1101,7 +1115,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 09, 2026.
+  Last updated on Mar 10, 2026.
   <br/>
 </p>
   </div>
