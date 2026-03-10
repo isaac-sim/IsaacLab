@@ -48,6 +48,8 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG
 from isaaclab_assets.robots.universal_robots import UR10_CFG
 
+from .demo_multitask_flat_env_cfg import MultitaskPhysicsCfg
+
 TASK_OPENARM_LIFT = 0
 TASK_FRANKA_STACK = 1
 TASK_UR10_REACH = 2
@@ -310,6 +312,7 @@ class FlatMultiRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 10.0
         self.sim.dt = 1.0 / 60.0
         self.sim.render_interval = self.decimation
+        self.sim.physics = MultitaskPhysicsCfg()
 
         groups = _partition_env_ids(self.scene.num_envs, NUM_GROUPS)
 

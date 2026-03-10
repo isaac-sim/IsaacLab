@@ -22,9 +22,7 @@ only replicates them into the environments that belong to their task group.
 The ``assigned_env_ids`` are populated in ``__post_init__`` after the
 environment partition is computed.
 
-Group / task mapping is stored in ``_group_env_ids`` and ``_task_id_per_env``
-so that any MDP term can query which task an environment belongs to.  The
-stack task uses a different Franka default joint pose, which is applied
+The stack task uses a different Franka default joint pose, which is applied
 per-env via ``_default_joint_pos_per_env`` and the corresponding reset event.
 
 Layout (3 groups, evenly split):
@@ -36,6 +34,8 @@ Layout (3 groups, evenly split):
 from __future__ import annotations
 
 import torch
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -58,11 +58,45 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_contrib.tasks.manipulation.multitask import mdp
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 # ---------------------------------------------------------------------------
 # Task / group constants
 # ---------------------------------------------------------------------------
+
+
+@configclass
+class MultitaskPhysicsCfg(PresetCfg):
+    """Physics backend presets for the single-robot multitask environment."""
+
+    default: PhysxCfg = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+    physx: PhysxCfg = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=60,
+            nconmax=80,
+            ls_iterations=20,
+            cone="pyramidal",
+            ls_parallel=True,
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
+
 
 TASK_LIFT = 0
 TASK_STACK = 1
@@ -112,11 +146,11 @@ def reset_default_joint_pos_per_env(
     physics priming), this writes the desired joint positions and zero
     velocities straight into the sim for the requested environments.
     """
-    per_env = getattr(env.cfg, "_default_joint_pos_per_env", None)
-    if per_env is None:
+    per_env_list = getattr(env.cfg, "_default_joint_pos_per_env", None)
+    if per_env_list is None:
         return
     asset = env.scene[asset_cfg.name]
-    per_env = per_env.to(device=asset.device)
+    per_env = torch.tensor(per_env_list, dtype=torch.float32, device=asset.device)
     joint_pos = per_env[env_ids]
     joint_vel = torch.zeros_like(joint_pos)
     asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
@@ -354,14 +388,9 @@ class FlatSingleRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
     Per-task objects (cubes) use ``{GROUP<N>}`` placeholder tokens that are
     resolved in ``__post_init__`` into concrete env-id regexes.
 
-    Group tracking attributes set on this cfg instance:
-
-    * ``_group_env_ids``  – ``list[list[int]]`` mapping group index to env IDs.
-    * ``_task_id_per_env`` – ``torch.Tensor`` of shape ``(num_envs,)`` with the
-      task/group index for each environment.
-    * ``_default_joint_pos_per_env`` – ``torch.Tensor`` of shape
-      ``(num_envs, num_joints)`` holding the per-env default joint positions
-      (stack envs get a different pose than lift/reach envs).
+    ``__post_init__`` stores a ``_default_joint_pos_per_env`` nested list
+    (OmegaConf-safe) so the reset event can write per-env default joint
+    positions (stack envs get a different pose than lift/reach envs).
 
     Group 0 (LIFT):  Franka -- lift 1 cube       (joint-position actions)
     Group 1 (STACK): Franka -- stack 3 cubes     (joint-position actions)
@@ -384,26 +413,16 @@ class FlatSingleRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 10.0
         self.sim.dt = 1.0 / 60.0
         self.sim.render_interval = self.decimation
+        self.sim.physics = MultitaskPhysicsCfg()
 
         # --- partition env IDs across tasks ----------------------------------
         groups = _partition_env_ids(self.scene.num_envs, NUM_GROUPS)
 
-        # Expose the partition so any MDP term can look up task membership.
-        self._group_env_ids: list[list[int]] = groups
-
-        # Per-env task index tensor (shape: [num_envs]).
-        task_ids = torch.zeros(self.scene.num_envs, dtype=torch.long)
-        for group_idx, env_ids in enumerate(groups):
-            task_ids[env_ids] = group_idx
-        self._task_id_per_env: torch.Tensor = task_ids
-
-        # --- per-env default joint positions ---------------------------------
-        # The stack task uses a different starting arm pose.
-        num_joints = len(_DEFAULT_JOINT_POS)
-        default_jpos = torch.zeros(self.scene.num_envs, num_joints, dtype=torch.float32)
-        default_jpos[:] = torch.tensor(_DEFAULT_JOINT_POS, dtype=torch.float32)
-        default_jpos[groups[TASK_STACK]] = torch.tensor(_STACK_DEFAULT_JOINT_POS, dtype=torch.float32)
-        self._default_joint_pos_per_env: torch.Tensor = default_jpos
+        # --- per-env default joint positions (stored as nested list for OmegaConf) ---
+        default_jpos = [list(_DEFAULT_JOINT_POS) for _ in range(self.scene.num_envs)]
+        for eid in groups[TASK_STACK]:
+            default_jpos[eid] = list(_STACK_DEFAULT_JOINT_POS)
+        self._default_joint_pos_per_env: list[list[float]] = default_jpos
 
         # --- assign per-task objects to their group environments -------------
         self.scene.lift_cube.assigned_env_ids = groups[TASK_LIFT]
