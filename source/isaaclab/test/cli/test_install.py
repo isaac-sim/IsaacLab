@@ -138,7 +138,13 @@ class TestExtractIsaacsimPath:
 
     def test_returns_none_when_not_required(self):
         """When required=False and Isaac Sim is not found, return None."""
-        with mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", Path("/nonexistent/path")):
+        with (
+            mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", Path("/nonexistent/path")),
+            mock.patch(
+                "isaaclab.cli.utils.run_command",
+                return_value=subprocess.CompletedProcess(args=[], returncode=1),
+            ),
+        ):
             result = extract_isaacsim_path(required=False)
             assert result is None
 
@@ -146,6 +152,10 @@ class TestExtractIsaacsimPath:
         """When required=True and Isaac Sim is not found, sys.exit."""
         with (
             mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", Path("/nonexistent/path")),
+            mock.patch(
+                "isaaclab.cli.utils.run_command",
+                return_value=subprocess.CompletedProcess(args=[], returncode=1),
+            ),
             pytest.raises(SystemExit),
         ):
             extract_isaacsim_path(required=True)
@@ -168,7 +178,7 @@ class TestExtractIsaacsimPath:
 class TestDeterminePythonVersion:
     """Tests for :func:`determine_python_version`."""
 
-    def test_defaults_to_current_python_when_no_sim(self):
+    def test_defaults_to_3_12_when_no_sim(self):
         """Without Isaac Sim, should default to python 3.12 (Isaac Sim 6.x requirement)."""
         with (
             mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=None),
