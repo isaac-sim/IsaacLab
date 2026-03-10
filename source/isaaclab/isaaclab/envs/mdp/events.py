@@ -650,7 +650,6 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
 
 
-
 class randomize_actuator_gains(ManagerTermBase):
     """Randomize the actuator gains in an articulation by adding, scaling, or setting random values.
 
