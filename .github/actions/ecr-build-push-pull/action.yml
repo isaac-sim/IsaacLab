@@ -37,32 +37,63 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
+  overlay-dockerfile-path:
+    description: 'Thin overlay Dockerfile applied on top of a deps cache hit.'
+    required: false
+    default: 'docker/Dockerfile.overlay'
 
 runs:
   using: composite
   steps:
-    - name: ECR Build, Push, Pull
+
+    ##### 1: Setup docker config + Login to nvcr.io #####
+
+    # Create a temp docker config with credsStore disabled before any login.
+    # The runner's credential store backend is broken ("not implemented") and
+    # causes all docker login calls to fail unless we bypass it upfront.
+    # The temp config is exported as DOCKER_CONFIG so all subsequent steps
+    # (including ECR login in step 3) inherit it automatically.
+
+    - name: Setup docker config and login to nvcr.io
+      shell: bash
+      run: |
+        DOCKER_CONFIG_DIR=$(mktemp -d)
+        if [ -f "${HOME}/.docker/config.json" ]; then
+          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
+        else
+          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        fi
+        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "🟢 Logging into nvcr.io..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+        else
+          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
+        fi
+
+    ##### 2: Resolve ECR URL #####
+
+    # Tries: explicit input → ECR_CACHE_URL env var → SSM parameter on EC2.
+    # Exports ECR_URL to GITHUB_ENV and sets output `available`.
+
+    - name: Resolve ECR URL
+      id: resolve-ecr
       shell: bash
       env:
         INPUT_ECR_URL: ${{ inputs.ecr-url }}
       run: |
-        IMAGE_TAG="${{ inputs.image-tag }}"
-
-        # Prefer explicit input; fall back to ECR_CACHE_URL env var; then SSM
-
         ECR_URL="${INPUT_ECR_URL:-}"
 
         if [ -z "${ECR_URL}" ]; then
           echo "🟢 ecr-url input not set, trying ECR_CACHE_URL env var..."
           ECR_URL="${ECR_CACHE_URL:-}"
-          if [ -n "${ECR_URL}" ]; then
-            echo "🟢 Using ECR_CACHE_URL env var: ${ECR_URL}"
-          fi
+          [ -n "${ECR_URL}" ] && echo "🟢 Using ECR_CACHE_URL env var: ${ECR_URL}"
         fi
 
         if [ -z "${ECR_URL}" ]; then
           echo "🟢 ECR_CACHE_URL env var not set, trying SSM..."
-
           IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
             -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
           INSTANCE_ID=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
@@ -81,76 +112,148 @@ runs:
               echo "🟢 SSM parameter not found for instance ${INSTANCE_ID}"
             fi
           else
-            echo "🟢 Not running on EC2 or Instance Metadata Service is unavailable, skipping SSM lookup"
+            echo "🟢 Not running on EC2 or IMDS unavailable, skipping SSM lookup"
           fi
         fi
 
-        if [ -z "${ECR_URL}" ]; then
-          echo "🟠 ECR URL cannot be resolved. Building locally."
+        if [ -n "${ECR_URL}" ]; then
+          echo "ECR_URL=${ECR_URL}" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
         else
-          # Derive registry host and AWS region from the URL
-          REGISTRY=$(echo "${ECR_URL}" | cut -d'/' -f1)
-          AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
-
-          # Validate ECR URL
-          if [ "${AWS_REGION}" = "${REGISTRY}" ]; then
-            echo "🔴 Invalid ECR URL — cannot extract AWS region: ${ECR_URL}"
-            echo "🔴 Expected format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo>"
-            exit 1
-          fi
-
-          # Derive ECR image tag by slugifying the local image-tag
-          # (colons/slashes not valid in ECR tags)
-          ECR_TAG=$(echo "${IMAGE_TAG}" | tr ':/' '--')
-          ECR_IMAGE="${ECR_URL}:${ECR_TAG}"
-          CACHE_IMAGE="${ECR_URL}:${{ inputs.cache-tag }}"
-
-          # The runner's credential store is broken ("not implemented"), so use a temp config dir
-          # with credsStore disabled. Copy existing ~/.docker/config.json first to preserve other
-          # registry auths (e.g. nvcr.io), then strip credsStore/credHelpers.
-          #
-          DOCKER_CONFIG_DIR=$(mktemp -d)
-          trap 'rm -rf "${DOCKER_CONFIG_DIR}"' EXIT
-          if [ -f "${HOME}/.docker/config.json" ]; then
-            python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-          else
-            echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-          fi
-          #
-          # Export so all subsequent docker calls in this job inherit it
-          echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
-          export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
-
-          # Login to ECR registry with token provided by aws cli
-          echo "🟢 Logging into ECR registry..."
-          aws ecr get-login-password --region "${AWS_REGION}" | \
-            docker login --username AWS --password-stdin "${REGISTRY}"
-
-          # Try pulling the exact image from ECR to skip the build
-          echo "🟢 Checking for existing image ${ECR_IMAGE} in ECR..."
-          PULL_OUTPUT=$(docker pull "${ECR_IMAGE}" 2>&1) && {
-            echo "🟢 Image found in ECR, pulled: ${ECR_IMAGE}"
-            docker tag "${ECR_IMAGE}" "${IMAGE_TAG}"
-            echo "🟢 Tagged as: ${IMAGE_TAG} — skipping build."
-            exit 0
-          } || {
-            echo "🟠 Image can't be pulled from ECR, will build locally:"
-            echo -e "\e[90m${PULL_OUTPUT}\e[0m"
-          }
+          echo "🟠 ECR URL cannot be resolved. Building locally without ECR cache."
         fi
 
-        # Log into nvcr.io so the Dockerfile can pull nvcr.io base images.
-        # Credential is written into the temp config dir when ECR is enabled,
-        # and into the default config when it is not.
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
-          echo "🟢 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+    ##### 3: Setup ECR authentication #####
+
+    # Validates the ECR URL, derives ECR image tags, and logs into ECR.
+    # DOCKER_CONFIG (with credsStore disabled) is already set by step 1.
+
+    - name: Setup ECR authentication
+      if: steps.resolve-ecr.outputs.available == 'true'
+      shell: bash
+      run: |
+        REGISTRY=$(echo "${ECR_URL}" | cut -d'/' -f1)
+        AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
+
+        if [ "${AWS_REGION}" = "${REGISTRY}" ]; then
+          echo "🔴 Invalid ECR URL — cannot extract AWS region: ${ECR_URL}"
+          echo "🔴 Expected format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo>"
+          exit 1
+        fi
+
+        ECR_TAG=$(echo "${{ inputs.image-tag }}" | tr ':/' '--')
+        ECR_IMAGE="${ECR_URL}:${ECR_TAG}"
+        CACHE_IMAGE="${ECR_URL}:${{ inputs.cache-tag }}"
+
+        echo "ECR_IMAGE=${ECR_IMAGE}"     >> "$GITHUB_ENV"
+        echo "CACHE_IMAGE=${CACHE_IMAGE}" >> "$GITHUB_ENV"
+
+        echo "🟢 Logging into ECR registry..."
+        aws ecr get-login-password --region "${AWS_REGION}" | \
+          docker login --username AWS --password-stdin "${REGISTRY}"
+
+    ##### 4: Pull exact image from ECR #####
+
+    # If the exact per-commit image already exists in ECR, pull and tag it locally.
+    # Sets output `hit: true` to skip all subsequent build/push steps.
+
+    - name: Pull exact image from ECR
+      id: pull-exact
+      if: steps.resolve-ecr.outputs.available == 'true'
+      shell: bash
+      run: |
+        echo "🟢 Trying to pull commit-tagged ${ECR_IMAGE} from ECR..."
+        if docker pull "${ECR_IMAGE}" 2>/dev/null; then
+          docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
+          echo "🟢 Commit-tagged image pulled, skipping build!"
+          echo "hit=true" >> "$GITHUB_OUTPUT"
         else
-          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
+          echo "🟠 Image ${ECR_IMAGE} not found in ECR, will try deps-cache strategy..."
         fi
 
-        # Build the image
+    ##### 5: Compute deps hash and try overlay #####
 
+    # Hashes installation-relevant files + the base image digest to produce a stable
+    # deps-<hash> ECR tag. If it exists, builds only the thin final-COPY overlay
+    # (seconds) instead of the full image (40-60 min).
+
+    # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install
+    # inputs change (new packages, new manifests, etc.).
+
+    - name: Compute deps hash and try overlay
+      id: deps-cache
+      if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
+      shell: bash
+      run: |
+        ##### Deps-hash configuration #####
+        # Exact files/dirs whose full content is hashed. The Dockerfile is first.
+        DEPS_FILES=(
+          "${{ inputs.dockerfile-path }}"
+          isaaclab.sh
+          environment.yml
+          tools
+          source/isaaclab/isaaclab/cli
+        )
+        # Manifest files matched repo-wide via git ls-files.
+        DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
+
+        # Resolve the actual base image digest so a new push of a mutable tag
+        # (e.g. latest-develop) invalidates the deps cache automatically.
+        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
+        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
+          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
+        else
+          echo "🟠 Could not resolve base image digest, falling back to tag string"
+          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+        fi
+
+        echo "🟢 Base image ID: ${BASE_IMAGE_UNIQ_ID}"
+
+        MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
+        FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
+          | sha256sum | cut -c1-16)
+        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
+        DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
+        echo "🟢 Deps hash: ${DEPS_HASH}"
+        echo "🟢 Trying to pull deps image ${DEPS_ECR_IMAGE} from ECR..."
+
+        if docker pull "${DEPS_ECR_IMAGE}" 2>/dev/null; then
+          echo "🟢 Deps cache HIT!!! Building thin overlay (final COPY only)..."
+          OVERLAY_BUILDER="ci-builder-overlay-${{ github.run_id }}-${{ github.job }}"
+          docker buildx create --use --driver docker-container --name "${OVERLAY_BUILDER}" \
+            || docker buildx use "${OVERLAY_BUILDER}"
+          trap 'docker buildx rm "${OVERLAY_BUILDER}" || true' EXIT
+          docker buildx build \
+            --progress=plain \
+            --platform linux/amd64 \
+            -f "${{ inputs.overlay-dockerfile-path }}" \
+            --build-arg "DEPS_IMAGE=${DEPS_ECR_IMAGE}" \
+            --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab" \
+            -t "${{ inputs.image-tag }}" \
+            --load \
+            .
+          echo "🟢 Overlay build complete!"
+          docker tag "${{ inputs.image-tag }}" "${ECR_IMAGE}"
+          echo "🟢 Pushing overlay image ${ECR_IMAGE} to ECR for future reuse..."
+          docker push "${ECR_IMAGE}"
+          echo "overlay-built=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"
+          echo "DEPS_ECR_IMAGE=${DEPS_ECR_IMAGE}" >> "$GITHUB_ENV"
+          echo "PUSH_DEPS_IMAGE=true"             >> "$GITHUB_ENV"
+        fi
+
+    ##### 6: Full build #####
+
+    # Runs when neither the exact image nor the deps-overlay was available.
+    # Uses ECR layer cache (--cache-from/--cache-to) when ECR is available.
+
+    - name: Full build
+      if: steps.pull-exact.outputs.hit != 'true' && steps.deps-cache.outputs.overlay-built != 'true'
+      shell: bash
+      run: |
         BUILD_ARGS=(
           --progress=plain
           --platform linux/amd64
@@ -160,36 +263,59 @@ runs:
           --build-arg "ISAACSIM_ROOT_PATH_ARG=/isaac-sim"
           --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab"
           --build-arg "DOCKER_USER_HOME_ARG=/root"
-          -t "${IMAGE_TAG}"
+          -t "${{ inputs.image-tag }}"
         )
-
-        # Add ECR layer caching
-        if [ -n "${ECR_URL}" ]; then
+        if [ -n "${ECR_URL:-}" ]; then
           BUILD_ARGS+=(
             --cache-from "type=registry,ref=${CACHE_IMAGE}"
-            --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max"
+            --cache-to   "type=registry,ref=${CACHE_IMAGE},mode=max"
             -t "${ECR_IMAGE}"
           )
         fi
 
-        # Set up buildx builder with docker-container driver (required for registry cache export).
         BUILDER_NAME="ci-builder-${{ github.run_id }}-${{ github.job }}"
-
-        # Create builder (or fall back to reusing existing one on workflow re-runs)
         docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
           || docker buildx use "${BUILDER_NAME}"
+        trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
 
-        echo "🟢 Building ${IMAGE_TAG}..."
+        echo "🟢 Building ${{ inputs.image-tag }}..."
         docker buildx build --load "${BUILD_ARGS[@]}" .
 
-        # Clean up builder
-        docker buildx rm "${BUILDER_NAME}" || true
+    ##### 7: Push to ECR #####
 
-        echo "🟢 Build completed for ${IMAGE_TAG}, pushing to ECR..."
+    # Pushes the per-commit ECR image after a successful full build.
+    # Skipped if the image was pulled in (4).
 
-        if [ -n "${ECR_URL}" ]; then
-          docker push "${ECR_IMAGE}"
-          echo "🟢 Pushed ${ECR_IMAGE} to ECR"
+    - name: Push to ECR
+      if: >
+        steps.resolve-ecr.outputs.available == 'true' &&
+        steps.pull-exact.outputs.hit != 'true' &&
+        steps.deps-cache.outputs.overlay-built != 'true'
+      shell: bash
+      run: |
+        echo "🟢 Pushing ${ECR_IMAGE} to ECR..."
+        docker push "${ECR_IMAGE}"
+        echo "🟢 Pushed ${ECR_IMAGE}"
+
+    ##### 8: Push deps tag #####
+
+    # Tags the freshly built image as deps-<hash> so future runs with identical
+    # install inputs hit the fast path (step 5) instead of doing a full build.
+
+    - name: Push deps tag
+      if: env.PUSH_DEPS_IMAGE == 'true'
+      shell: bash
+      run: |
+        echo "🟢 Pushing deps image for future cache hits: ${DEPS_ECR_IMAGE}"
+        docker tag "${{ inputs.image-tag }}" "${DEPS_ECR_IMAGE}"
+        docker push "${DEPS_ECR_IMAGE}"
+
+    ##### 9: Cleanup docker config #####
+
+    - name: Cleanup docker config
+      if: always()
+      shell: bash
+      run: |
+        if [ -n "${DOCKER_CONFIG}" ] && [ -d "${DOCKER_CONFIG}" ]; then
+          rm -rf "${DOCKER_CONFIG}"
         fi
-
-        echo "🟢 Image ${IMAGE_TAG} is ready!"

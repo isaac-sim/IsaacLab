@@ -95,15 +95,16 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = cone_object.data.default_root_state.clone()
+            root_pose = wp.to_torch(cone_object.data.default_root_pose).clone()
             # sample a random position on a cylinder around the origins
-            root_state[:, :3] += origins
-            root_state[:, :3] += math_utils.sample_cylinder(
+            root_pose[:, :3] += origins
+            root_pose[:, :3] += math_utils.sample_cylinder(
                 radius=0.1, h_range=(0.25, 0.5), size=cone_object.num_instances, device=cone_object.device
             )
             # write root state to simulation
-            cone_object.write_root_pose_to_sim(root_state[:, :7])
-            cone_object.write_root_velocity_to_sim(root_state[:, 7:])
+            cone_object.write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = wp.to_torch(cone_object.data.default_root_vel).clone()
+            cone_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # reset buffers
             cone_object.reset()
             print("----------------------------------------")

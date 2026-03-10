@@ -110,28 +110,32 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset counters
             count = 0
             # reset the scene entities to their initial positions offset by the environment origins
-            root_jetbot_state = wp.to_torch(scene["Jetbot"].data.default_root_state).clone()
-            root_jetbot_state[:, :3] += scene.env_origins
-            root_dofbot_state = wp.to_torch(scene["Dofbot"].data.default_root_state).clone()
-            root_dofbot_state[:, :3] += scene.env_origins
+            root_jetbot_pose = wp.to_torch(scene["Jetbot"].data.default_root_pose).clone()
+            root_jetbot_pose[:, :3] += scene.env_origins
+            root_dofbot_pose = wp.to_torch(scene["Dofbot"].data.default_root_pose).clone()
+            root_dofbot_pose[:, :3] += scene.env_origins
 
             # copy the default root state to the sim for the jetbot's orientation and velocity
-            scene["Jetbot"].write_root_pose_to_sim(root_jetbot_state[:, :7])
-            scene["Jetbot"].write_root_velocity_to_sim(root_jetbot_state[:, 7:])
-            scene["Dofbot"].write_root_pose_to_sim(root_dofbot_state[:, :7])
-            scene["Dofbot"].write_root_velocity_to_sim(root_dofbot_state[:, 7:])
+            scene["Jetbot"].write_root_pose_to_sim_index(root_pose=root_jetbot_pose)
+            root_jetbot_vel = wp.to_torch(scene["Jetbot"].data.default_root_vel).clone()
+            scene["Jetbot"].write_root_velocity_to_sim_index(root_velocity=root_jetbot_vel)
+            scene["Dofbot"].write_root_pose_to_sim_index(root_pose=root_dofbot_pose)
+            root_dofbot_vel = wp.to_torch(scene["Dofbot"].data.default_root_vel).clone()
+            scene["Dofbot"].write_root_velocity_to_sim_index(root_velocity=root_dofbot_vel)
 
             # copy the default joint states to the sim
             joint_pos, joint_vel = (
                 wp.to_torch(scene["Jetbot"].data.default_joint_pos).clone(),
                 wp.to_torch(scene["Jetbot"].data.default_joint_vel).clone(),
             )
-            scene["Jetbot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["Jetbot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene["Jetbot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             joint_pos, joint_vel = (
                 wp.to_torch(scene["Dofbot"].data.default_joint_pos).clone(),
                 wp.to_torch(scene["Dofbot"].data.default_joint_vel).clone(),
             )
-            scene["Dofbot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["Dofbot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene["Dofbot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting Jetbot and Dofbot state...")
@@ -149,7 +153,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # wave
         wave_action = wp.to_torch(scene["Dofbot"].data.default_joint_pos)
         wave_action[:, 0:4] = 0.25 * np.sin(2 * np.pi * 0.5 * sim_time)
-        scene["Dofbot"].set_joint_position_target(wave_action)
+        scene["Dofbot"].set_joint_position_target_index(target=wave_action)
 
         scene.write_data_to_sim()
         sim.step()

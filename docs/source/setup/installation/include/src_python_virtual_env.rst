@@ -28,12 +28,41 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
    The Python version of the virtual environment must match the Python version of Isaac Sim.
 
    - For Isaac Sim 6.X, the required Python version is 3.12.
-   - For Isaac Sim 5.X, the required Python version is 3.11.
 
    Using a different Python version will result in errors when running Isaac Lab.
 
 
 .. tab-set::
+
+   .. tab-item::  UV Environment (Recommended)
+
+      To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
+      You can create the Isaac Lab environment using the following commands:
+
+      .. tab-set::
+         :sync-group: os
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux
+            :sync: linux
+
+            .. code:: bash
+
+               # Option 1: Default environment name 'env_isaaclab'
+               ./isaaclab.sh --uv  # or "./isaaclab.sh -u"
+               # Option 2: Custom name
+               ./isaaclab.sh --uv my_env  # or "./isaaclab.sh -u my_env"
+
+            .. code:: bash
+
+               # Activate environment
+               source ./env_isaaclab/bin/activate  # or "source ./my_env/bin/activate"
+
+         .. tab-item:: :icon:`fa-brands fa-windows` Windows
+            :sync: windows
+
+            .. warning::
+               Windows support for UV is currently unavailable. Please check
+               `issue #3483 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
 
    .. tab-item::  Conda Environment
 
@@ -75,36 +104,6 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
                :: Activate environment
                conda activate env_isaaclab  # or "conda activate my_env"
-
-   .. tab-item::  UV Environment
-
-      To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
-      You can create the Isaac Lab environment using the following commands:
-
-      .. tab-set::
-         :sync-group: os
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux
-            :sync: linux
-
-            .. code:: bash
-
-               # Option 1: Default environment name 'env_isaaclab'
-               ./isaaclab.sh --uv  # or "./isaaclab.sh -u"
-               # Option 2: Custom name
-               ./isaaclab.sh --uv my_env  # or "./isaaclab.sh -u my_env"
-
-            .. code:: bash
-
-               # Activate environment
-               source ./env_isaaclab/bin/activate  # or "source ./my_env/bin/activate"
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows
-            :sync: windows
-
-            .. warning::
-               Windows support for UV is currently unavailable. Please check
-               `issue #3483 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
 
 Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` or
 ``isaaclab.bat -p`` to run python scripts. You can use the default python executable in your
