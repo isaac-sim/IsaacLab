@@ -8,6 +8,7 @@ from __future__ import annotations
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
+from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
@@ -34,9 +35,11 @@ def newton_replicate(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
+    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+
     # load empty stage
     builder = ModelBuilder(up_axis=up_axis)
-    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
+    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources, schema_resolvers=schema_resolvers)
 
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
@@ -50,6 +53,7 @@ def newton_replicate(
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
+            schema_resolvers=schema_resolvers,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)

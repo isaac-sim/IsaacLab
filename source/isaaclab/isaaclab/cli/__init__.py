@@ -40,6 +40,7 @@ def cli() -> None:
             "Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.\n"
             "\n"
             "Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop, visualizers.\n"
+            "Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.\n"
             "Visualizer selectors: visualizers[all|kit|newton|rerun|viser].\n"
             "RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.\n"
             "\n"

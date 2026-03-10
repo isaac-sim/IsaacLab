@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+4.5.10 (2026-03-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored :func:`~isaaclab.utils.module.lazy_export` to infer fallback packages
+  and relative wildcard re-exports from the ``.pyi`` stub, making the stub the
+  single source of truth. The ``packages`` argument is deprecated.
+
+
+4.5.9 (2026-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :mod:`isaaclab_ov` is now always installed when using ``./isaaclab.sh -i`` (or
+  ``--install all``), but with ``--no-deps`` so it is importable (e.g. by
+  :mod:`isaaclab_tasks` presets) without pulling in the optional ``ovrtx`` dependency.
+  To install the ovrtx dependency for OVRTX rendering, run ``./isaaclab.sh -i ovrtx``.
+
 4.5.8 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
