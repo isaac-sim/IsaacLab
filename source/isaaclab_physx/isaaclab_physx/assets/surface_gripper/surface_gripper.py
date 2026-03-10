@@ -577,7 +577,7 @@ class SurfaceGripper(AssetBase):
             A warp array of int32 indices.
         """
         if env_ids is None or env_ids == slice(None):
-            return None
+            return self._ALL_INDICES
         elif isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         elif isinstance(env_ids, torch.Tensor):
