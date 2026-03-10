@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
@@ -34,6 +36,9 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         )
+
+        # IK control is not supported with Newton physics; use PhysX only.
+        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
 
 @configclass

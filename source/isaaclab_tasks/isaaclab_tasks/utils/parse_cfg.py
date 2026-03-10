@@ -65,6 +65,44 @@ def _resolve_presets_to_default(cfg: object) -> object:
     return cfg
 
 
+def apply_named_preset(env_cfg: object, raw_cfg: object, preset_name: str) -> None:
+    """Apply a named preset to all preset-wrapper fields in *env_cfg*, guided by *raw_cfg*.
+
+    Walks *raw_cfg* to find preset wrappers (both :class:`PresetCfg` subclasses and
+    old-style wrappers with a ``presets`` dict). For each wrapper that contains
+    *preset_name*, overrides the corresponding already-resolved field in *env_cfg*.
+
+    This is used in tests to apply a non-default physics preset (e.g. ``'newton'``)
+    after :func:`parse_env_cfg` has already resolved all wrappers to ``'default'``.
+
+    Args:
+        env_cfg: Resolved env config (from :func:`parse_env_cfg`) to update in-place.
+        raw_cfg: Raw env config (from :func:`load_cfg_from_registry`) with preset
+            wrappers still intact.
+        preset_name: Name of the preset to apply (e.g., ``'newton'``).
+    """
+    if not hasattr(raw_cfg, "__dataclass_fields__"):
+        return
+    for field_name in raw_cfg.__dataclass_fields__:
+        raw_value = getattr(raw_cfg, field_name, None)
+        if raw_value is None or not hasattr(raw_value, "__dataclass_fields__"):
+            continue
+        if _is_preset_cfg(raw_value):
+            if hasattr(raw_value, preset_name):
+                resolved = getattr(raw_value, preset_name)
+                setattr(env_cfg, field_name, resolved)
+                apply_named_preset(resolved, resolved, preset_name)
+        elif _is_old_style_preset(raw_value):
+            if preset_name in raw_value.presets:
+                resolved = raw_value.presets[preset_name]
+                setattr(env_cfg, field_name, resolved)
+                apply_named_preset(resolved, resolved, preset_name)
+        else:
+            env_value = getattr(env_cfg, field_name, None)
+            if env_value is not None and hasattr(env_value, "__dataclass_fields__"):
+                apply_named_preset(env_value, raw_value, preset_name)
+
+
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 

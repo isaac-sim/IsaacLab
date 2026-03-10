@@ -142,6 +142,15 @@ class SimulationContext:
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
+
+        # Normalize "cuda" -> "cuda:<id>" now that the USD physics scene is initialized
+        # and /physics/cudaDevice is available. Update cfg.device in-place so all
+        # downstream code (physics backends, assets, sensors) sees a consistent value.
+        if "cuda" in self.cfg.device and ":" not in self.cfg.device:
+            cuda_device = self.get_setting("/physics/cudaDevice")
+            device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
+            self.cfg.device = f"cuda:{device_id}"
+
         # Set default physics backend if not specified
         if self.cfg.physics is None:
             from isaaclab_physx.physics import PhysxCfg
