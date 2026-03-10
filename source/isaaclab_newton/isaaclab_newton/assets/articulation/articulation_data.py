@@ -1232,11 +1232,17 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
         # Newton stores body_inertia as (N, 1, B) mat33f — the [:, 0] removes the padding dim
-        # giving (N, B) mat33f. Reinterpret as (N, B, 3, 3) float32 then flatten to (N, B, 9).
-        # Both view() and reshape() are zero-copy pointer reinterpretations.
+        # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
+        # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
+        # The slice may be non-contiguous in the outer dims, so we preserve those strides.
         _body_inertia_raw = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = _body_inertia_raw.view(wp.float32).reshape(
-            (self._num_instances, self._num_bodies, 9)
+        self._sim_bind_body_inertia = wp.array(
+            ptr=_body_inertia_raw.ptr,
+            dtype=wp.float32,
+            shape=(self._num_instances, self._num_bodies, 9),
+            strides=(_body_inertia_raw.strides[0], _body_inertia_raw.strides[1], 4),
+            device=_body_inertia_raw.device,
+            copy=False,
         )
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
