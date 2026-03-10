@@ -169,12 +169,12 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         if cfg.background_usd_path is not None:
             self._num_forklifts = 0
             self._num_boxes = 0
-            remove_virtual_ground = True
+            set_ground_invisible = True
             cfg.scene.add_background_asset(cfg.background_usd_path)
         else:
             self._num_forklifts = NUM_FORKLIFTS
             self._num_boxes = NUM_BOXES
-            remove_virtual_ground = False
+            set_ground_invisible = False
 
         if cfg.high_res_video:
             cfg.scene.add_robot_pov_cam(540, 960)
@@ -184,8 +184,8 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         cfg.scene.add_forklifts(self._num_forklifts)
         cfg.scene.add_boxes(self._num_boxes)
 
-        if remove_virtual_ground:
-            delattr(cfg.scene, "ground")
+        if set_ground_invisible:
+            cfg.scene.ground.spawn.visible = False
 
         super().__init__(cfg)
         self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
