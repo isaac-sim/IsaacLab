@@ -716,6 +716,7 @@ def build_simulation_context(
     add_ground_plane: bool = False,
     add_lighting: bool = False,
     auto_add_lighting: bool = False,
+    visualizers: list[str] | None = None,
 ) -> Iterator[SimulationContext]:
     """Context manager to build a simulation context with the provided settings.
 
@@ -728,6 +729,10 @@ def build_simulation_context(
         add_ground_plane: Whether to add a ground plane. Defaults to False.
         add_lighting: Whether to add a dome light. Defaults to False.
         auto_add_lighting: Whether to auto-add lighting if GUI present. Defaults to False.
+        visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton", "rerun"]``).
+            Valid types: ``"kit"``, ``"newton"``, ``"rerun"``, ``"viser"``.
+            When provided, sets the ``/isaaclab/visualizer/types`` setting so the
+            existing visualizer resolution machinery picks them up. Defaults to None.
 
     Yields:
         The simulation context to use for the simulation.
@@ -743,11 +748,14 @@ def build_simulation_context(
 
         sim = SimulationContext(sim_cfg)
 
+        if visualizers:
+            sim.set_setting("/isaaclab/visualizer/types", " ".join(visualizers))
+
         if add_ground_plane:
             cfg = GroundPlaneCfg()
             cfg.func("/World/defaultGroundPlane", cfg)
 
-        if add_lighting or (auto_add_lighting and sim.get_setting("/isaaclab/has_gui")):
+        if add_lighting or (auto_add_lighting and (sim.get_setting("/isaaclab/has_gui") or visualizers)):
             cfg = DomeLightCfg(
                 color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=10000
             )
