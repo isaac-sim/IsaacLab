@@ -1,8 +1,16 @@
-Simulation Performance  and Tuning
-====================================
+PhysX Simulation Performance and Tuning
+=========================================
 
-The performance of the simulation can be affected by various factors, including the number of objects in the scene,
-the complexity of the physics simulation, and the hardware being used. Here are some tips to improve performance:
+.. note::
+
+   This guide covers performance tuning for the **PhysX** backend, which is the default when
+   running Isaac Lab with Isaac Sim. For the **Newton** backend solver parameters (e.g.
+   ``njmax``, ``nconmax``, ``ls_iterations``), see the
+   :ref:`migrating-to-isaaclab-3-0` migration guide and the Newton physics documentation.
+
+The performance of the PhysX simulation can be affected by various factors, including the number
+of objects in the scene, the complexity of the physics simulation, and the hardware being used.
+Here are some tips to improve performance:
 
 1. **Use Headless Mode**: Running the simulation in headless mode can significantly improve performance, especially
    when rendering is not required. You can enable headless mode by using the ``--headless`` flag when running the
@@ -62,8 +70,8 @@ Additional Performance Guides
 -----------------------------
 
 There are many ways to "tune" the performance of the simulation, but the way you choose largely depends on what you are trying to simulate. In general, the first place
-you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering
-and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to
+you will want to look for performance gains is with the `PhysX engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering
+and running deep learning models, the PhysX engine is the most computationally costly. Tuning the PhysX sim to limit the scope to only the task of interest is a great place to
 start hunting for performance gains.
 
 We have recently released a new `gripper tuning guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/gripper_tuning_example.html>`_ , specific to contact and grasp tuning. Please check it first if you intend to use robot grippers. For additional details, you should also checkout these guides!
