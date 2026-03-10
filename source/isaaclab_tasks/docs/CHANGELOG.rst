@@ -1,15 +1,6 @@
 Changelog
 ---------
 
-1.5.6 (2026-03-10)
-~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Detach torch tensor before setting joint positions in AGILE lower body action.
-
-
 1.5.5 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
