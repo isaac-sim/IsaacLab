@@ -20,7 +20,7 @@ def command_format() -> None:
     pre_commit_module = False
 
     result = run_command(
-        [python_exe, "-c", "from importlib.metadata import distribution; distribution('pre-commit')"],
+        [python_exe, "-c", "import pre_commit"],
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

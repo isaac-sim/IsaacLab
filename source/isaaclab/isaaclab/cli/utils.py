@@ -299,14 +299,14 @@ def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
         # This handles docker or system installs.
         try:
             result = run_command(
-                [sys.executable, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
+                [sys.executable, "-c", "import isaacsim"],
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if result.returncode == 0:
                 python_exe = sys.executable
-                print_debug(f'extract_python_exe(): Found "isaacsim-rl" module in sys.executable: "{python_exe}"')
+                print_debug(f'extract_python_exe(): Found "isaacsim" module in sys.executable: "{python_exe}"')
         except Exception:
             pass
 
@@ -315,7 +315,7 @@ def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
         print_error(f"Unable to find any Python executable at path: '{python_exe}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda or uv environment is not activated.")
-        print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
+        print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Python executable is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         sys.exit(1)
 
@@ -340,9 +340,8 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
         python_exe = extract_python_exe(allow_isaacsim_python=False)
         # Retrieve the path importing isaac sim and getting the environment path.
         try:
-            # Check if isaacsim-rl is installed.
             result = run_command(
-                [python_exe, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
+                [python_exe, "-c", "import isaacsim"],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -366,7 +365,7 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
         print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda environment is not activated.")
-        print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
+        print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Isaac Sim directory is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         # Exit.
         sys.exit(1)

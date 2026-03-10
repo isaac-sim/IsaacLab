@@ -504,10 +504,10 @@ def command_setup_conda(env_name: str) -> None:
     # Check if _isaac_sim symlink exists
     symlink_missing = not (ISAACLAB_ROOT / "_isaac_sim").exists()
 
-    # Check if pip package isaacsim-rl is installed.
+    # Check if isaacsim is importable.
     pip_package_missing = True
     result = run_command(
-        [sys.executable, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
+        [sys.executable, "-c", "import isaacsim"],
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -598,11 +598,11 @@ def command_setup_uv(env_name: str) -> None:
     # Check if already in a uv environment - use precise pattern matching.
     # (In Python we check environments differently or assume env_name is new).
 
-    # Check if _isaac_sim symlink exists and isaacsim-rl is not installed.
+    # Check if _isaac_sim symlink exists and isaacsim is not importable.
     if not (ISAACLAB_ROOT / "_isaac_sim").is_symlink():
         try:
             result = run_command(
-                [sys.executable, "-c", "from importlib.metadata import distribution; distribution('isaacsim-rl')"],
+                [sys.executable, "-c", "import isaacsim"],
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
