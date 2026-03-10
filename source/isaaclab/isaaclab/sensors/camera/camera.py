@@ -551,7 +551,10 @@ class Camera(SensorBase):
         # For now the Camera implementation works only with Isaac RTX Renderer.
         # Future consideration should be to move Renderer from TiledCamera up the hierarchy to Camera
         # to make the Camera backend-agnostic.
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+            apply_depth_clipping,
+            ensure_isaac_rtx_render_update,
+        )
 
         ensure_isaac_rtx_render_update()
 
@@ -574,19 +577,12 @@ class Camera(SensorBase):
                     self._data.output[name][index] = data
                     # add info to output
                     self._data.info[index][name] = info
-                # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
-                #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
-                #       larger than the clipping range in the output. We apply an additional clipping to ensure values
-                #       are within the clipping range for all the annotators.
-                if name == "distance_to_camera":
-                    self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-                # apply defined clipping behavior
-                if (
-                    name == "distance_to_camera" or name == "distance_to_image_plane"
-                ) and self.cfg.depth_clipping_behavior != "none":
-                    self._data.output[name][torch.isinf(self._data.output[name])] = (
-                        0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
-                    )
+                apply_depth_clipping(
+                    self._data.output[name],
+                    name,
+                    self.cfg.spawn.clipping_range,
+                    self.cfg.depth_clipping_behavior,
+                )
 
     """
     Private Helpers

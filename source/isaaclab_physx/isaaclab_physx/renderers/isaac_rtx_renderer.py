@@ -24,6 +24,7 @@ from isaaclab.utils.warp.kernels import reshape_tiled_image
 from .isaac_rtx_renderer_utils import (
     SIMPLE_SHADING_MODE_SETTING,
     SIMPLE_SHADING_MODES,
+    apply_depth_clipping,
     configure_isaac_rtx_settings,
     ensure_isaac_rtx_render_update,
     resolve_simple_shading_mode,
@@ -257,21 +258,12 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type == "rgba" and "rgb" in cfg.data_types:
                 output_data["rgb"] = output_data["rgba"][..., :3]
 
-            # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center.
-            #       However, the replicator depth clipping is applied w.r.t. to the image plane which may result
-            #       in values larger than the clipping range in the output. We apply an additional clipping to
-            #       ensure values are within the clipping range for all the annotators.
-            if data_type == "distance_to_camera":
-                output_data[data_type][output_data[data_type] > cfg.spawn.clipping_range[1]] = torch.inf
-
-            # apply defined clipping behavior
-            if (
-                data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
-                and cfg.depth_clipping_behavior != "none"
-            ):
-                output_data[data_type][torch.isinf(output_data[data_type])] = (
-                    0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
-                )
+            apply_depth_clipping(
+                output_data[data_type],
+                data_type,
+                cfg.spawn.clipping_range,
+                cfg.depth_clipping_behavior,
+            )
 
     def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
         """No-op for Isaac RTX - all outputs written in render().

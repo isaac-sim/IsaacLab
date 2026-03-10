@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Literal
+
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -139,3 +142,40 @@ def resolve_simple_shading_mode(data_types: Sequence[str]) -> int | None:
             requested[0],
         )
     return SIMPLE_SHADING_MODES[requested[0]]
+
+
+DEPTH_DATA_TYPES: frozenset[str] = frozenset({"distance_to_camera", "distance_to_image_plane", "depth"})
+"""Data types that represent depth measurements and are eligible for depth clipping."""
+
+
+def apply_depth_clipping(
+    output: torch.Tensor,
+    data_type: str,
+    clipping_range: tuple[float, float],
+    behavior: Literal["max", "zero", "none"],
+) -> None:
+    """Apply depth clipping to a camera output tensor in-place.
+
+    Two operations are performed sequentially:
+
+    1. For ``"distance_to_camera"`` data, values exceeding the far clipping plane are
+       set to infinity. The ``distance_to_camera`` annotator returns the radial distance
+       to the camera optical center, but the renderer clips w.r.t. the image plane, so
+       some values can exceed the far plane.
+    2. For all depth data types (see :data:`DEPTH_DATA_TYPES`), infinite values are
+       replaced according to *behavior*: ``"zero"`` maps them to ``0.0``, ``"max"``
+       maps them to the far clipping distance, and ``"none"`` leaves them as infinity.
+
+    Args:
+        output: Depth tensor to clip, modified in-place.
+        data_type: The camera data type name (e.g. ``"distance_to_camera"``).
+        clipping_range: Near and far clipping distances [m].
+        behavior: Clipping behavior for values beyond the far plane.
+    """
+    far = clipping_range[1]
+
+    if data_type == "distance_to_camera":
+        output[output > far] = torch.inf
+
+    if data_type in DEPTH_DATA_TYPES and behavior != "none":
+        output[torch.isinf(output)] = 0.0 if behavior == "zero" else far
