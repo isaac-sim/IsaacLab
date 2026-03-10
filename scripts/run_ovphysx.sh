@@ -20,13 +20,25 @@ export LD_PRELOAD=""
 
 # Ensure pxr (OpenUSD Python bindings) is on PYTHONPATH.
 # setup_python_env.sh may not include the packman USD path after rebuilds.
+# Search order: IsaacSim's bundled site-packages first, then the Python
+# environment's own site-packages (covers pip-installed OpenUSD).
+_pxr_found=false
 for usd_dir in "${ISAAC_DIR}"/kit/python/lib/python3.*/site-packages/usd_core.libs/../.. \
-               /home/alex/packman-repo/chk/usd.py312.*/*/lib/python; do
+               "${ISAAC_DIR}"/kit/python/lib/python3.*/site-packages; do
     if [ -d "${usd_dir}/pxr" ]; then
         export PYTHONPATH="${usd_dir}:${PYTHONPATH}"
+        _pxr_found=true
         break
     fi
 done
+if [ "${_pxr_found}" = false ]; then
+    # Last resort: ask Python itself where pxr lives
+    _pxr_path=$("${ISAAC_DIR}/kit/python/bin/python3" -c "import pxr, os; print(os.path.dirname(os.path.dirname(pxr.__file__)))" 2>/dev/null)
+    if [ -n "${_pxr_path}" ] && [ -d "${_pxr_path}/pxr" ]; then
+        export PYTHONPATH="${_pxr_path}:${PYTHONPATH}"
+    fi
+fi
+unset _pxr_found _pxr_path
 
 # Add all isaaclab source packages to PYTHONPATH so editable installs work
 for pkg in isaaclab isaaclab_ovphysx isaaclab_tasks isaaclab_rl isaaclab_physx isaaclab_newton isaaclab_assets isaaclab_contrib; do
