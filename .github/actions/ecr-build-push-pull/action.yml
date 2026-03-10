@@ -23,44 +23,87 @@ inputs:
     description: 'Path to Dockerfile, relative to the repository root'
     default: 'docker/Dockerfile.base'
     required: false
-  ecr-repository:
-    description: 'ECR repository name. If omitted, ECR push/pull/cache is skipped and the image is always built.'
+  ecr-url:
+    description: >
+      ECR repository URL (e.g. "123456789.dkr.ecr.us-west-2.amazonaws.com/my-repo").
+      Resolved in the following order:
+      1. ecr-url input, if provided.
+      2. ECR_CACHE_URL environment variable on the runner.
+      3. SSM parameter /github-runner/<instance-id>/ecr-cache-url.
+      4. If still empty, ECR cache is skipped and the image is built locally.
     required: false
     default: ''
   cache-tag:
-    description: >
-      Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
+    description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
-  aws-region:
-    description: >
-      AWS region (e.g. us-west-2, etc).
-      For best performance, should match the runner EC2 region.
-    required: false
-    default: 'us-west-2'
 
 runs:
   using: composite
   steps:
     - name: ECR Build, Push, Pull
       shell: bash
+      env:
+        INPUT_ECR_URL: ${{ inputs.ecr-url }}
       run: |
         IMAGE_TAG="${{ inputs.image-tag }}"
-        ECR_REPOSITORY="${{ inputs.ecr-repository }}"
-        AWS_REGION="${{ inputs.aws-region }}"
 
-        if [ -z "${ECR_REPOSITORY}" ]; then
-          echo "🟠 ecr-repository not set, skipping ECR login/push/pull. Building locally only."
+        # Prefer explicit input; fall back to ECR_CACHE_URL env var; then SSM
+
+        ECR_URL="${INPUT_ECR_URL:-}"
+
+        if [ -z "${ECR_URL}" ]; then
+          echo "🟢 ecr-url input not set, trying ECR_CACHE_URL env var..."
+          ECR_URL="${ECR_CACHE_URL:-}"
+          if [ -n "${ECR_URL}" ]; then
+            echo "🟢 Using ECR_CACHE_URL env var: ${ECR_URL}"
+          fi
+        fi
+
+        if [ -z "${ECR_URL}" ]; then
+          echo "🟢 ECR_CACHE_URL env var not set, trying SSM..."
+          
+          IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
+            -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
+          INSTANCE_ID=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+            "http://169.254.169.254/latest/meta-data/instance-id") || true
+          INSTANCE_REGION=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+            "http://169.254.169.254/latest/meta-data/placement/region") || true
+
+          if [ -n "${INSTANCE_ID}" ]; then
+            ECR_URL=$(aws ssm get-parameter \
+              --name "/github-runner/${INSTANCE_ID}/ecr-cache-url" \
+              --region "${INSTANCE_REGION}" \
+              --query 'Parameter.Value' --output text 2>/dev/null) || ECR_URL=""
+            if [ -n "${ECR_URL}" ]; then
+              echo "🟢 Resolved ECR URL from SSM (/github-runner/${INSTANCE_ID}/ecr-cache-url): ${ECR_URL}"
+            else
+              echo "🟢 SSM parameter not found for instance ${INSTANCE_ID}"
+            fi
+          else
+            echo "🟢 Not running on EC2 or Instance Metadata Service is unavailable, skipping SSM lookup"
+          fi
+        fi
+
+        if [ -z "${ECR_URL}" ]; then
+          echo "🟠 ECR URL cannot be resolved. Building locally."
         else
-          # Get AWS account ID from the runner's IAM instance profile
-          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          # Derive registry host and AWS region from the URL
+          REGISTRY=$(echo "${ECR_URL}" | cut -d'/' -f1)
+          AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
+
+          # Validate ECR URL
+          if [ "${AWS_REGION}" = "${REGISTRY}" ]; then
+            echo "🔴 Invalid ECR URL — cannot extract AWS region: ${ECR_URL}"
+            echo "🔴 Expected format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo>"
+            exit 1
+          fi
 
           # Derive ECR image tag by slugifying the local image-tag
           # (colons/slashes not valid in ECR tags)
           ECR_TAG=$(echo "${IMAGE_TAG}" | tr ':/' '--')
-          ECR_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${ECR_TAG}"
-          CACHE_IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${{ inputs.cache-tag }}"
+          ECR_IMAGE="${ECR_URL}:${ECR_TAG}"
+          CACHE_IMAGE="${ECR_URL}:${{ inputs.cache-tag }}"
 
           # The runner's credential store is broken ("not implemented"), so use a temp config dir
           # with credsStore disabled. Copy existing ~/.docker/config.json first to preserve other
@@ -91,7 +134,8 @@ runs:
             echo "🟢 Tagged as: ${IMAGE_TAG} — skipping build."
             exit 0
           } || {
-            echo "🟠 Image not pulled (will build instead): ${PULL_OUTPUT}"
+            echo "🟠 Image can't be pulled from ECR, will build locally:"
+            echo -e "\e[90m${PULL_OUTPUT}\e[0m"
           }
         fi
 
@@ -120,7 +164,7 @@ runs:
         )
 
         # Add ECR layer caching
-        if [ -n "${ECR_REPOSITORY}" ]; then
+        if [ -n "${ECR_URL}" ]; then
           BUILD_ARGS+=(
             --cache-from "type=registry,ref=${CACHE_IMAGE}"
             --cache-to "type=registry,ref=${CACHE_IMAGE},mode=max"
@@ -143,7 +187,7 @@ runs:
 
         echo "🟢 Build completed for ${IMAGE_TAG}, pushing to ECR..."
 
-        if [ -n "${ECR_REPOSITORY}" ]; then
+        if [ -n "${ECR_URL}" ]; then
           docker push "${ECR_IMAGE}"
           echo "🟢 Pushed ${ECR_IMAGE} to ECR"
         fi
