@@ -11,7 +11,6 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import replace
 from typing import Any
 
 import toml
@@ -24,7 +23,6 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
-    SceneDataProviderContext,
     SceneDataRequirement,
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
@@ -162,7 +160,8 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
-        self._scene_data_provider_context = SceneDataProviderContext()
+        self._scene_data_requirements = SceneDataRequirement()
+        self._visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -480,10 +479,7 @@ class SimulationContext:
             cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
         ]
         requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
-        self._scene_data_provider_context = replace(
-            self._scene_data_provider_context,
-            requirements=requirements,
-        )
+        self._scene_data_requirements = requirements
         self.initialize_scene_data_provider()
         self._visualizers = []
 
@@ -511,13 +507,17 @@ class SimulationContext:
             self._scene_data_provider = SceneDataProvider(self.stage, self)
         return self._scene_data_provider
 
-    def get_scene_data_provider_context(self) -> SceneDataProviderContext:
-        """Return the runtime context consumed by scene data providers."""
-        return self._scene_data_provider_context
+    def get_scene_data_requirements(self) -> SceneDataRequirement:
+        """Return scene-data requirements resolved from visualizers/renderers."""
+        return self._scene_data_requirements
 
     def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:
-        """Update only requirements in the scene data provider context."""
-        self._scene_data_provider_context = replace(self._scene_data_provider_context, requirements=requirements)
+        """Update scene-data requirements."""
+        self._scene_data_requirements = requirements
+
+    def get_scene_data_visualizer_prebuilt_artifact(self) -> VisualizerPrebuiltArtifacts | None:
+        """Return optional prebuilt visualizer artifact."""
+        return self._visualizer_prebuilt_artifact
 
     def set_scene_data_visualizer_prebuilt_artifact(self, artifact: VisualizerPrebuiltArtifacts | None) -> None:
         """Set or clear the optional visualizer prebuilt artifact.
@@ -525,10 +525,7 @@ class SimulationContext:
         The scene (clone flow) writes this once, and providers can read it
         during initialization as a fast path.
         """
-        self._scene_data_provider_context = replace(
-            self._scene_data_provider_context,
-            visualizer_prebuilt_artifact=artifact,
-        )
+        self._visualizer_prebuilt_artifact = artifact
 
     def clear_scene_data_visualizer_prebuilt_artifact(self) -> None:
         """Clear optional prebuilt artifact in provider context."""

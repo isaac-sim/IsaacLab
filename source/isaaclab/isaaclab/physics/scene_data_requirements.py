@@ -12,7 +12,7 @@ checks stay robust even when optional backend packages are not installed.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -37,19 +37,6 @@ class VisualizerPrebuiltArtifacts:
     rigid_body_paths: list[str]
     articulation_paths: list[str]
     num_envs: int
-
-
-@dataclass(frozen=True)
-class SceneDataProviderContext:
-    """Runtime context shared between scene setup and scene-data providers.
-
-    The scene writes this once it knows what data consumers need. Providers then
-    read it during init/update to decide whether to build/sync extra data.
-    """
-
-    requirements: SceneDataRequirement = field(default_factory=SceneDataRequirement)
-    # Optional prebuilt payload used by providers that can consume it.
-    visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
 
 
 _VISUALIZER_REQUIREMENTS: dict[str, SceneDataRequirement] = {

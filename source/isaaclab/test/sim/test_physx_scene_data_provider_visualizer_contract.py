@@ -63,9 +63,7 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
         articulation_paths=["/World/envs/env_0/Robot"],
         num_envs=4,
     )
-    provider._simulation_context = SimpleNamespace(
-        get_scene_data_provider_context=lambda: SimpleNamespace(visualizer_prebuilt_artifact=artifact)
-    )
+    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: artifact)
 
     provider._xform_views = {"old": object()}
     provider._view_body_index_map = {"old": [1]}
@@ -100,6 +98,22 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
     assert provider._filtered_newton_state is None
     assert provider._filtered_env_ids_key is None
     assert provider._filtered_body_indices == []
+
+
+def test_try_use_prebuilt_artifact_respects_force_usd_fallback_flag():
+    """Force flag should disable prebuilt fast path even when artifact is available."""
+    provider = _make_provider()
+    provider._force_usd_fallback = True
+    artifact = VisualizerPrebuiltArtifacts(
+        model="prebuilt-model",
+        state="prebuilt-state",
+        rigid_body_paths=["/World/envs/env_0/A"],
+        articulation_paths=["/World/envs/env_0/Robot"],
+        num_envs=4,
+    )
+    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: artifact)
+
+    assert provider._try_use_prebuilt_newton_artifact() is False
 
 
 def test_build_newton_model_from_usd_short_circuits_when_prebuilt_available():
