@@ -44,11 +44,8 @@ def cartpole_presets():
     return collect_presets(CartpoleCameraPresetsEnvCfg())
 
 
-# Skip reason for ovrtx_renderer (backend 'ov' not available)
-_OVRTX_SKIP = (
-    "ValueError: Could not import module for backend 'ov' for factory Renderer. "
-    "Attempted to import from 'isaaclab_ov.renderers'."
-)
+# Skip reason for ovrtx_renderer
+_OVRTX_SKIP = "OVRTX testing disabled"
 
 # (physics_backend, renderer, data_type) shared by both envs
 _SHARED_RENDER_CORRECTNESS_CASES = [
@@ -77,57 +74,24 @@ _SHARED_RENDER_CORRECTNESS_CASES = [
     pytest.param(
         ("newton", "isaacsim_rtx_renderer", "depth"),
         id="newton-isaacsim_rtx-depth",
-        marks=pytest.mark.skip(
-            reason=(
-                "AssertionError: [newton-isaacsim_rtx-depth] Camera output 'depth' is all zeros or all inf "
-                "after stepping. Tensor shape: torch.Size([4, 120, 120, 1]), dtype: torch.float32."
-            )
-        ),
     ),
     pytest.param(
         ("newton", "isaacsim_rtx_renderer", "simple_shading_constant_diffuse"),
         id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=pytest.mark.skip(
-            reason=(
-                "AssertionError: [newton-isaacsim_rtx_renderer+simple_shading_constant_diffuse] "
-                "Camera output 'simple_shading_constant_diffuse' is all zeros or all inf after stepping. "
-                "Tensor shape: torch.Size([4, 120, 120, 3]), dtype: torch.uint8."
-            )
-        ),
     ),
     pytest.param(
         ("newton", "isaacsim_rtx_renderer", "simple_shading_diffuse_mdl"),
         id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=pytest.mark.skip(
-            reason=(
-                "AssertionError: [newton-isaacsim_rtx_renderer+simple_shading_diffuse_mdl] "
-                "Camera output 'simple_shading_diffuse_mdl' is all zeros or all inf after stepping. "
-                "Tensor shape: torch.Size([4, 120, 120, 3]), dtype: torch.uint8."
-            )
-        ),
     ),
     pytest.param(
         ("newton", "isaacsim_rtx_renderer", "simple_shading_full_mdl"),
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
-        marks=pytest.mark.skip(
-            reason=(
-                "AssertionError: [newton-isaacsim_rtx_renderer+simple_shading_full_mdl] "
-                "Camera output 'simple_shading_full_mdl' is all zeros or all inf after stepping. "
-                "Tensor shape: torch.Size([4, 120, 120, 3]), dtype: torch.uint8."
-            )
-        ),
     ),
     # newton + newton_renderer (warp)
     pytest.param(("newton", "newton_renderer", "rgb"), id="newton-newton_warp-rgb"),
     pytest.param(
         ("newton", "newton_renderer", "depth"),
         id="newton-newton_warp-depth",
-        marks=pytest.mark.skip(
-            reason=(
-                "AssertionError: [newton-newton_renderer+depth] Camera output 'depth' is all zeros or all inf "
-                "after stepping. Tensor shape: torch.Size([4, 120, 120, 1]), dtype: torch.float32."
-            )
-        ),
     ),
     # newton + ovrtx_renderer
     pytest.param(
@@ -186,7 +150,7 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
     presets = shadow_hand_vision_presets
     camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
     camera_cfg.renderer_cfg = copy.deepcopy(presets["tiled_camera.renderer_cfg"][renderer])
-    env_cfg = ShadowHandVisionBenchmarkEnvCfg()
+    env_cfg = ShadowHandVisionBenchmarkEnvCfg()  # HDC_TODO: use ShadowHandVisionEnvCfg with feature_extractor disabled explicitly
     env_cfg.tiled_camera = camera_cfg
     if physics_backend == "newton":
         env_cfg.sim.physics = copy.deepcopy(presets["sim.physics"]["newton"])
