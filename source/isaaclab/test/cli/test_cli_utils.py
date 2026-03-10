@@ -281,6 +281,15 @@ def _uv(*args: str, **kwargs) -> subprocess.CompletedProcess:
 def _run_in_venv(venv: Path, code: str) -> subprocess.CompletedProcess:
     """Run a Python snippet inside the given venv."""
     python = venv / "bin" / "python"
+import sys
+
+def _python_in_venv(venv: Path) -> Path:
+    if sys.platform == "win32":
+        return venv / "Scripts" / "python.exe"
+    return venv / "bin" / "python"
+
+def _run_in_venv(venv: Path, code: str) -> subprocess.CompletedProcess:
+    python = _python_in_venv(venv)
     return subprocess.run([str(python), "-c", code], check=True, capture_output=True, text=True)
 
 
