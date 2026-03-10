@@ -805,17 +805,14 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout = self._layout
                 asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
                 self._articulations[asset_name] = asset
             elif isinstance(asset_cfg, DeformableObjectCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout = self._layout
                 asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
                 self._deformable_objects[asset_name] = asset
             elif isinstance(asset_cfg, RigidObjectCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout = self._layout
                 asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
                 self._rigid_objects[asset_name] = asset
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
@@ -838,7 +835,6 @@ class InteractiveScene:
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout = self._layout
                 asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
                 self._surface_grippers[asset_name] = asset
             elif isinstance(asset_cfg, SensorBaseCfg):

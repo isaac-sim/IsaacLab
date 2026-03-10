@@ -545,7 +545,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids: The environment indices to reset. If ``None``, all environments are reset.
+            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
         """
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:

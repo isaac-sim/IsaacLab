@@ -90,9 +90,8 @@ class AssetBase(ABC):
             # asset should exist at run time
             check_path = self.cfg.prim_path
 
-        # Layout reference — set by InteractiveScene after construction.
-        # When set, all env-id mapping is delegated to the centralized layout.
-        self._layout: Any | None = None
+        # Layout key — set by InteractiveScene after construction.
+        # When set, identifies this asset in the centralized EnvLayout.
         self._layout_key: str | None = None
 
         # register various callback functions
