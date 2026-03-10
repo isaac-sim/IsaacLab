@@ -73,7 +73,6 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
             ),
             spawn=UsdFileCfg(
                 usd_path=background_usd_path,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             ),
         )
 
