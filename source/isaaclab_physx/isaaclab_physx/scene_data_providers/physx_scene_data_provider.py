@@ -106,8 +106,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._num_envs: int | None = None
 
         # Determine if newton model sync is required for selected renderers and visualizers
-        requirements = self._simulation_context.get_scene_data_requirements()
-        self._needs_newton_sync = bool(requirements.get("requires_newton_model", False))
+        bootstrap = self._simulation_context.get_scene_data_bootstrap()
+        self._needs_newton_sync = bool(bootstrap.requirements.requires_newton_model)
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -185,10 +185,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _try_use_prebuilt_newton_artifact(self) -> bool:
         """Use scene-time prebuilt Newton visualizer artifact when available."""
-        getter = getattr(self._simulation_context, "get_newton_visualizer_artifact", None)
-        if not callable(getter):
-            return False
-        artifact = getter()
+        artifact = self._simulation_context.get_scene_data_bootstrap().visualizer_artifact
         if not artifact:
             return False
 

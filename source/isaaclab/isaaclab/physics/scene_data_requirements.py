@@ -12,7 +12,8 @@ checks stay robust even when optional backend packages are not installed.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,14 @@ class SceneDataRequirement:
 
     requires_newton_model: bool = False
     requires_usd_stage: bool = False
+
+
+@dataclass(frozen=True)
+class SceneDataBootstrap:
+    """Provider bootstrap payload set by scene/simulation orchestration."""
+
+    requirements: SceneDataRequirement = field(default_factory=SceneDataRequirement)
+    visualizer_artifact: dict[str, Any] | None = None
 
 
 _VISUALIZER_REQUIREMENTS: dict[str, SceneDataRequirement] = {
@@ -81,3 +90,13 @@ def aggregate_requirements(requirements: Iterable[SceneDataRequirement]) -> Scen
         requires_newton_model |= requirement.requires_newton_model
         requires_usd_stage |= requirement.requires_usd_stage
     return SceneDataRequirement(requires_newton_model=requires_newton_model, requires_usd_stage=requires_usd_stage)
+
+
+def resolve_scene_data_requirements(
+    visualizer_types: Iterable[str],
+    renderer_types: Iterable[str] = (),
+) -> SceneDataRequirement:
+    """Resolve combined scene-data requirements from visualizer and renderer types."""
+    requirements = [requirement_for_visualizer_type(viz_type) for viz_type in visualizer_types]
+    requirements.extend(requirement_for_renderer_type(renderer_type) for renderer_type in renderer_types)
+    return aggregate_requirements(requirements)

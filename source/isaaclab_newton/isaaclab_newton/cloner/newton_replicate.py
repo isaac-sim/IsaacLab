@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
 from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd
+from pxr import Usd, UsdGeom
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -60,15 +63,20 @@ def _build_newton_builder_from_mapping(
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
-    # Newton world IDs are sequential by begin_world/end_world order.
-    for col, _env_id in enumerate(env_ids.tolist()):
+    # Create a separate world for each environment (heterogeneous spawning).
+    # Newton assigns sequential world IDs (0, 1, 2, ...), so we map by column index.
+    for col, env_id in enumerate(env_ids.tolist()):
+        _ = env_id  # env_id kept for readability/consistency with historical code.
+        # begin a new world context (Newton assigns world ID = col)
         builder.begin_world()
+        # add all active sources for this world
         delta_pos = (positions[col] - env0_pos).tolist()
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             builder.add_builder(
                 protos[sources[row]],
                 xform=wp.transform(delta_pos, quaternions[col].tolist()),
             )
+        # end the world context
         builder.end_world()
 
     return builder, stage_info
@@ -82,7 +90,7 @@ def _rename_builder_labels(
         src_prefix_len = len(src_path.rstrip("/"))
         swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
-        # Keys are Newton world IDs (sequential cols), values use real env IDs in destination path.
+        # Map Newton world IDs (sequential cols) to destination paths using env_ids.
         world_roots = {c: destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
@@ -159,3 +167,46 @@ def newton_visualizer_prebuild(
     model = builder.finalize(device=device)
     state = model.state()
     return model, state
+
+
+def create_newton_visualizer_prebuild_clone_fn(
+    stage,
+    set_visualizer_artifact: Callable[[dict[str, Any] | None], None],
+):
+    """Create a cloner callback that prebuilds Newton visualizer artifacts."""
+    up_axis = UsdGeom.GetStageUpAxis(stage)
+
+    def _visualizer_clone_fn(
+        stage,
+        sources,
+        destinations,
+        env_ids,
+        mapping,
+        positions=None,
+        quaternions=None,
+        device="cpu",
+    ):
+        model, state = newton_visualizer_prebuild(
+            stage=stage,
+            sources=sources,
+            destinations=destinations,
+            env_ids=env_ids,
+            mapping=mapping,
+            positions=positions,
+            quaternions=quaternions,
+            device=device,
+            up_axis=up_axis,
+        )
+        set_visualizer_artifact(
+            {
+                "model": model,
+                "state": state,
+                "rigid_body_paths": list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
+                "articulation_paths": list(
+                    getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
+                ),
+                "num_envs": int(mapping.size(1)),
+            }
+        )
+
+    return _visualizer_clone_fn

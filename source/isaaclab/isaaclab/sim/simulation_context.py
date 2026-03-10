@@ -11,6 +11,7 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from typing import Any
 
 import toml
@@ -22,7 +23,11 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
-from isaaclab.physics.scene_data_requirements import aggregate_requirements, requirement_for_visualizer_type
+from isaaclab.physics.scene_data_requirements import (
+    SceneDataBootstrap,
+    SceneDataRequirement,
+    resolve_scene_data_requirements,
+)
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -156,11 +161,7 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
-        self._newton_visualizer_artifact: dict[str, Any] | None = None
-        self._scene_data_requirements: dict[str, bool] = {
-            "requires_newton_model": False,
-            "requires_usd_stage": False,
-        }
+        self._scene_data_bootstrap = SceneDataBootstrap()
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -473,17 +474,14 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
-        # Resolve requirements by visualizer type, not by importing backend cfg classes,
-        # so this stays stable even when optional visualizer packages are not installed.
-        req = aggregate_requirements(
-            requirement_for_visualizer_type(cfg.visualizer_type)
-            for cfg in visualizer_cfgs
-            if getattr(cfg, "visualizer_type", None) is not None
-        )
-
-        self.set_scene_data_requirements(
-            requires_newton_model=req.requires_newton_model,
-            requires_usd_stage=req.requires_usd_stage,
+        # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
+        visualizer_types = [
+            cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
+        ]
+        requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
+        self._scene_data_bootstrap = replace(
+            self._scene_data_bootstrap,
+            requirements=requirements,
         )
         self.initialize_scene_data_provider()
         self._visualizers = []
@@ -512,41 +510,25 @@ class SimulationContext:
             self._scene_data_provider = SceneDataProvider(self.stage, self)
         return self._scene_data_provider
 
-    def set_newton_visualizer_artifact(
-        self,
-        model: Any,
-        state: Any,
-        rigid_body_paths: list[str],
-        articulation_paths: list[str],
-        num_envs: int,
-    ) -> None:
-        """Store a prebuilt Newton model/state for debug visualizers."""
-        self._newton_visualizer_artifact = {
-            "model": model,
-            "state": state,
-            "rigid_body_paths": rigid_body_paths,
-            "articulation_paths": articulation_paths,
-            "num_envs": num_envs,
-        }
+    def get_scene_data_bootstrap(self) -> SceneDataBootstrap:
+        """Return provider bootstrap payload (requirements + optional prebuilt artifact)."""
+        return self._scene_data_bootstrap
 
-    def set_scene_data_requirements(self, requires_newton_model: bool, requires_usd_stage: bool) -> None:
-        """Store resolved scene-data requirements for provider initialization/update."""
-        self._scene_data_requirements = {
-            "requires_newton_model": bool(requires_newton_model),
-            "requires_usd_stage": bool(requires_usd_stage),
-        }
+    def set_scene_data_bootstrap(self, bootstrap: SceneDataBootstrap) -> None:
+        """Set provider bootstrap payload (requirements + optional prebuilt artifact)."""
+        self._scene_data_bootstrap = bootstrap
 
-    def get_scene_data_requirements(self) -> dict[str, bool]:
-        """Return resolved scene-data requirements for providers."""
-        return dict(self._scene_data_requirements)
+    def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:
+        """Update only scene-data requirements in the provider bootstrap payload."""
+        self._scene_data_bootstrap = replace(self._scene_data_bootstrap, requirements=requirements)
 
-    def get_newton_visualizer_artifact(self) -> dict[str, Any] | None:
-        """Return prebuilt Newton visualizer artifact, if available."""
-        return self._newton_visualizer_artifact
+    def set_scene_data_visualizer_artifact(self, artifact: dict[str, Any] | None) -> None:
+        """Set optional prebuilt visualizer artifact used by scene data providers."""
+        self._scene_data_bootstrap = replace(self._scene_data_bootstrap, visualizer_artifact=artifact)
 
-    def clear_newton_visualizer_artifact(self) -> None:
-        """Clear prebuilt Newton visualizer artifact cache."""
-        self._newton_visualizer_artifact = None
+    def clear_scene_data_artifact(self) -> None:
+        """Clear optional prebuilt visualizer artifact in bootstrap payload."""
+        self.set_scene_data_visualizer_artifact(None)
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:

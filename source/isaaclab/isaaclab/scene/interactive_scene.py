@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
-from pxr import Sdf, UsdGeom
+from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -28,7 +28,7 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.physics.scene_data_requirements import requirement_for_renderer_type, requirement_for_visualizer_type
+from isaaclab.physics.scene_data_requirements import resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -138,7 +138,7 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        self.sim.clear_newton_visualizer_artifact()
+        self.sim.clear_scene_data_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         visualizer_clone_fn = None
         requested_viz_types = set(self.sim.resolve_visualizer_types())
@@ -182,24 +182,23 @@ class InteractiveScene:
         if has_scene_cfg_entities:
             self._add_entities_from_cfg()
 
-        requires_newton_model, requires_usd_stage, requirement_reasons = self._resolve_scene_data_requirements(
-            requested_viz_types
+        requirements = resolve_scene_data_requirements(
+            visualizer_types=requested_viz_types,
+            renderer_types=self._sensor_renderer_types(),
         )
-        self.sim.set_scene_data_requirements(
-            requires_newton_model=requires_newton_model,
-            requires_usd_stage=requires_usd_stage,
-        )
-        if "physx" in self.physics_backend and requires_newton_model:
-            visualizer_clone_fn = self._create_newton_visualizer_clone_fn()
+        self.sim.update_scene_data_requirements(requirements)
+        if "physx" in self.physics_backend and requirements.requires_newton_model:
+            visualizer_clone_fn = self._create_visualizer_clone_fn()
             if visualizer_clone_fn is None:
                 logger.warning(
                     "Newton visualizer artifact prebuild is unavailable because isaaclab_newton is not installed."
                 )
             else:
                 logger.debug(
-                    "Enabling Newton artifact prebuild for PhysX clone path (reasons=%s, requires_usd_stage=%s).",
-                    ", ".join(requirement_reasons),
-                    requires_usd_stage,
+                    "Enabling visualizer artifact prebuild for PhysX clone path "
+                    "(requires_newton_model=%s, requires_usd_stage=%s).",
+                    requirements.requires_newton_model,
+                    requirements.requires_usd_stage,
                 )
                 self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
 
@@ -242,81 +241,30 @@ class InteractiveScene:
                 self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
             cloner.usd_replicate(self.stage, *replicate_args)
 
-    def _create_newton_visualizer_clone_fn(self):
-        """Create clone callback that prebuilds Newton visualizer artifacts."""
+    def _create_visualizer_clone_fn(self):
+        """Create optional visualizer artifact prebuild callback."""
         try:
-            from isaaclab_newton.cloner import newton_visualizer_prebuild
+            from isaaclab_newton.cloner.newton_replicate import (
+                create_newton_visualizer_prebuild_clone_fn,
+            )
         except (ImportError, ModuleNotFoundError):
             return None
+        return create_newton_visualizer_prebuild_clone_fn(
+            stage=self.stage,
+            set_visualizer_artifact=self.sim.set_scene_data_visualizer_artifact,
+        )
 
-        up_axis = UsdGeom.GetStageUpAxis(self.stage)
-
-        def _visualizer_clone_fn(
-            stage,
-            sources,
-            destinations,
-            env_ids,
-            mapping,
-            positions=None,
-            quaternions=None,
-            device="cpu",
-        ):
-            model, state = newton_visualizer_prebuild(
-                stage,
-                sources,
-                destinations,
-                env_ids,
-                mapping,
-                positions=positions,
-                quaternions=quaternions,
-                device=device,
-                up_axis=up_axis,
-            )
-            rigid_body_paths = list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
-            articulation_paths = list(
-                getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
-            )
-            self.sim.set_newton_visualizer_artifact(
-                model=model,
-                state=state,
-                rigid_body_paths=rigid_body_paths,
-                articulation_paths=articulation_paths,
-                num_envs=int(mapping.size(1)),
-            )
-
-        return _visualizer_clone_fn
-
-    def _resolve_scene_data_requirements(self, requested_viz_types: set[str]) -> tuple[bool, bool, list[str]]:
-        """Resolve data requirements from visualizers and sensor renderers."""
-        requires_newton_model = False
-        requires_usd_stage = False
-        reasons: list[str] = []
-
-        for visualizer_type in sorted(requested_viz_types):
-            # Requirement resolution is type-based and does not import optional backend packages.
-            req = requirement_for_visualizer_type(visualizer_type)
-            needs_newton = req.requires_newton_model
-            needs_usd = req.requires_usd_stage
-            requires_newton_model |= needs_newton
-            requires_usd_stage |= needs_usd
-            if needs_newton or needs_usd:
-                reasons.append(f"visualizer:{visualizer_type}(newton={needs_newton},usd={needs_usd})")
-
+    def _sensor_renderer_types(self) -> list[str]:
+        """Return renderer type names used by scene sensors."""
+        renderer_types: list[str] = []
         for sensor in self._sensors.values():
             sensor_cfg = getattr(sensor, "cfg", None)
             renderer_cfg = getattr(sensor_cfg, "renderer_cfg", None)
             if renderer_cfg is None:
                 continue
             renderer_type = getattr(renderer_cfg, "renderer_type", "default")
-            req = requirement_for_renderer_type(renderer_type)
-            needs_newton = req.requires_newton_model
-            needs_usd = req.requires_usd_stage
-            requires_newton_model |= needs_newton
-            requires_usd_stage |= needs_usd
-            if needs_newton or needs_usd:
-                reasons.append(f"renderer:{renderer_type}(newton={needs_newton},usd={needs_usd})")
-
-        return requires_newton_model, requires_usd_stage, reasons
+            renderer_types.append(renderer_type)
+        return renderer_types
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
