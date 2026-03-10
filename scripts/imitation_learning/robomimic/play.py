@@ -159,14 +159,15 @@ def main():
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
 
-    # Run policy
-    results = []
-    for trial in range(args_cli.num_rollouts):
-        print(f"[INFO] Starting trial {trial}")
-        policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
-        terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
-        results.append(terminated)
-        print(f"[INFO] Trial {trial}: {terminated}\n")
+    with torch.inference_mode():
+        # Run policy
+        results = []
+        for trial in range(args_cli.num_rollouts):
+            print(f"[INFO] Starting trial {trial}")
+            policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
+            terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
+            results.append(terminated)
+            print(f"[INFO] Trial {trial}: {terminated}\n")
 
     print(f"\nSuccessful trials: {results.count(True)}, out of {len(results)} trials")
     print(f"Success rate: {results.count(True) / len(results)}")

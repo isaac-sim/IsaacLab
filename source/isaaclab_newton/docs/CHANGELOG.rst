@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.5 (2026-03-10)
+0.5.6 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -11,6 +11,17 @@ Fixed
   where ``write_body_com_pose_to_sim_index`` and ``write_body_link_velocity_to_sim_index``
   passed ``body_com_pose_b`` (``wp.transformf``) instead of ``body_com_pos_b``
   (``wp.vec3f``) to the underlying warp kernels.
+
+
+0.5.5 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to raise a clear
+  ``RuntimeError`` when the Newton model is unavailable instead of deferring to
+  a confusing ``AttributeError`` on ``render_context.world_count``.
 
 
 0.5.4 (2026-02-28)
