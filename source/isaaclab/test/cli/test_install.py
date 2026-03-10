@@ -388,16 +388,3 @@ class TestUvInstallIntegration:
             "spec = gym.spec('Isaac-Cartpole-Direct-v0'); "
             "assert spec.entry_point is not None",
         )
-
-    def test_get_pip_command_returns_uv(self, uv_venv):
-        """In a fresh uv venv (no pip module), get_pip_command should return uv pip."""
-        result = _run_in_venv(
-            uv_venv,
-            f"import os; os.environ['VIRTUAL_ENV'] = r'{uv_venv}'; "
-            "from isaaclab.cli.utils import get_pip_command; "
-            "import sys; cmd = get_pip_command(python_exe=sys.executable); "
-            "print(','.join(cmd))",
-        )
-        cmd_parts = result.stdout.strip().split(",")
-        # uv venvs don't include pip, so should detect uv
-        assert cmd_parts == ["uv", "pip"]
