@@ -328,17 +328,17 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data
     initial_state = env.load_input_data(input_episode_data, 0)
     recording_initial_state = input_episode_data.get_initial_state()
 
-    wheel = env.scene["object"]
-    current_wheel_pose = torch.cat(
+    object = env.scene["object"]
+    current_object_pose = torch.cat(
         [
-            torch.as_tensor(wheel.data.root_pos_w[0:1], device=env.device, dtype=torch.float32),
-            torch.as_tensor(wheel.data.root_quat_w[0:1], device=env.device, dtype=torch.float32),
+            torch.as_tensor(object.data.root_pos_w[0:1], device=env.device, dtype=torch.float32),
+            torch.as_tensor(object.data.root_quat_w[0:1], device=env.device, dtype=torch.float32),
         ],
         dim=-1,
     )  # (1, 7)
 
     new_robot_pose = transform_mul(
-        current_wheel_pose,
+        current_object_pose,
         transform_mul(
             transform_inv(initial_state.object_pose.to(env.device)),
             initial_state.base_pose.to(env.device),
