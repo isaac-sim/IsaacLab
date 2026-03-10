@@ -1771,9 +1771,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
 )
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_camera_pose_update_reflected_in_render(
-    setup_camera, device, camera_cls, cfg_cls
-):
+def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls, cfg_cls):
     """Test that moving a camera is reflected in rendered depth.
 
     Both camera types must produce different depth images when the
@@ -1814,9 +1812,7 @@ def test_camera_pose_update_reflected_in_render(
     for _ in range(5):
         sim.step()
     camera.update(dt)
-    depth_close = (
-        camera.data.output["distance_to_camera"].clone()
-    )
+    depth_close = camera.data.output["distance_to_camera"].clone()
 
     # Position B: far from scene objects
     eyes_far = torch.tensor(
@@ -1828,20 +1824,14 @@ def test_camera_pose_update_reflected_in_render(
     for _ in range(2):
         sim.step()
     camera.update(dt)
-    depth_far = (
-        camera.data.output["distance_to_camera"].clone()
-    )
+    depth_far = camera.data.output["distance_to_camera"].clone()
 
     max_range = cam_cfg.spawn.clipping_range[1]
     valid_close = depth_close[depth_close < max_range]
     valid_far = depth_far[depth_far < max_range]
 
-    assert valid_close.numel() > 0, (
-        "No valid depth pixels from close position"
-    )
-    assert valid_far.numel() > 0, (
-        "No valid depth pixels from far position"
-    )
+    assert valid_close.numel() > 0, "No valid depth pixels from close position"
+    assert valid_far.numel() > 0, "No valid depth pixels from far position"
 
     mean_close = valid_close.mean().item()
     mean_far = valid_far.mean().item()

@@ -170,7 +170,7 @@ class TiledCamera(Camera):
         # the view keeps references to the prims located in the stage
         self.renderer.prepare_stage(self.stage, self._num_envs)
 
-        # Create a view for the sensor
+        # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
         self._view = XformPrimView(
             self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
         )
