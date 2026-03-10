@@ -61,7 +61,7 @@ runs:
         fi
 
         if [ -z "${ECR_URL}" ]; then
-          echo "🟠 ECR_CACHE_URL env var not set, trying SSM..."
+          echo "🟢 ECR_CACHE_URL env var not set, trying SSM..."
           # Use IMDSv2: fetch a session token first
           IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
             -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
