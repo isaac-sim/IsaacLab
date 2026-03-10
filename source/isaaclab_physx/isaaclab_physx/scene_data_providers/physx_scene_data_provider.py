@@ -614,15 +614,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         active = sum([rigid_count > 0, xform_count > 0])
         source = (
-            "merged"
-            if active > 1
-            else (
-                "rigid_body_view"
-                if rigid_count
-                else "xform_view"
-                if xform_count
-                else "none"
-            )
+            "merged" if active > 1 else ("rigid_body_view" if rigid_count else "xform_view" if xform_count else "none")
         )
         return positions, orientations, source, xform_mask
 
@@ -923,9 +915,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         Returns:
             Dictionary with linear/angular velocities, or ``None`` when unavailable.
         """
-        for source, view in (
-            ("rigid_body_view", self._rigid_body_view),
-        ):
+        for source, view in (("rigid_body_view", self._rigid_body_view),):
             linear, angular = self._get_view_velocities(view)
             if linear is not None and angular is not None:
                 return {"linear": linear, "angular": angular, "source": source}
