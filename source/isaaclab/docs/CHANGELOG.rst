@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.13 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``SimulationContext`` singleton leak when environment ``__init__`` fails
+  after creating the context. :class:`~isaaclab.envs.DirectRLEnv`,
+  :class:`~isaaclab.envs.DirectMARLEnv`, and :class:`~isaaclab.envs.ManagerBasedEnv`
+  now call ``clear_instance()`` on the context when initialization raises, preventing
+  cascading "Simulation context already exists" errors in test suites and training loops.
+
+
 4.5.12 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
