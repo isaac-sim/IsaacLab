@@ -6,17 +6,22 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import math
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 
 if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
+
+logger = logging.getLogger(__name__)
 
 
 def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
@@ -379,3 +384,27 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     ori = torch.zeros((N, 4), device=device)
     ori[:, 3] = 1.0  # w=1 for identity quaternion
     return pos, ori
+
+
+def resolve_visualizer_clone_fn(
+    physics_backend: str,
+    requirements: SceneDataRequirement,
+    stage,
+    set_visualizer_artifact: Callable[[dict[str, Any] | None], None],
+):
+    """Return an optional visualizer prebuild hook for clone workflows."""
+    if "physx" not in physics_backend or not requirements.requires_newton_model:
+        return None
+    try:
+        from isaaclab_newton.cloner.newton_replicate import (
+            create_newton_visualizer_prebuild_clone_fn,
+        )
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.warning("Visualizer prebuild hook unavailable: failed to import backend helper.")
+        logger.debug("Visualizer prebuild import failure details: %s", exc)
+        return None
+
+    return create_newton_visualizer_prebuild_clone_fn(
+        stage=stage,
+        set_visualizer_artifact=set_visualizer_artifact,
+    )

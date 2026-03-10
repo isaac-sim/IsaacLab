@@ -187,20 +187,21 @@ class InteractiveScene:
             renderer_types=self._sensor_renderer_types(),
         )
         self.sim.update_scene_data_requirements(requirements)
-        if "physx" in self.physics_backend and requirements.requires_newton_model:
-            visualizer_clone_fn = self._create_visualizer_clone_fn()
-            if visualizer_clone_fn is None:
-                logger.warning(
-                    "Newton visualizer artifact prebuild is unavailable because isaaclab_newton is not installed."
-                )
-            else:
-                logger.debug(
-                    "Enabling visualizer artifact prebuild for PhysX clone path "
-                    "(requires_newton_model=%s, requires_usd_stage=%s).",
-                    requirements.requires_newton_model,
-                    requirements.requires_usd_stage,
-                )
-                self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
+        visualizer_clone_fn = cloner.resolve_visualizer_clone_fn(
+            physics_backend=self.physics_backend,
+            requirements=requirements,
+            stage=self.stage,
+            set_visualizer_artifact=self.sim.set_scene_data_visualizer_artifact,
+        )
+        if visualizer_clone_fn is not None:
+            logger.debug(
+                "Enabling visualizer artifact prebuild for clone path "
+                "(backend=%s, requires_newton_model=%s, requires_usd_stage=%s).",
+                self.physics_backend,
+                requirements.requires_newton_model,
+                requirements.requires_usd_stage,
+            )
+            self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
 
         if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
@@ -240,19 +241,6 @@ class InteractiveScene:
             if self.cloner_cfg.visualizer_clone_fn is not None:
                 self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
             cloner.usd_replicate(self.stage, *replicate_args)
-
-    def _create_visualizer_clone_fn(self):
-        """Create optional visualizer artifact prebuild callback."""
-        try:
-            from isaaclab_newton.cloner.newton_replicate import (
-                create_newton_visualizer_prebuild_clone_fn,
-            )
-        except (ImportError, ModuleNotFoundError):
-            return None
-        return create_newton_visualizer_prebuild_clone_fn(
-            stage=self.stage,
-            set_visualizer_artifact=self.sim.set_scene_data_visualizer_artifact,
-        )
 
     def _sensor_renderer_types(self) -> list[str]:
         """Return renderer type names used by scene sensors."""
