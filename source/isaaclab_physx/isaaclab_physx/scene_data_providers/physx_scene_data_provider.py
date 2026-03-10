@@ -57,10 +57,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     - Newton model/state handles
     """
 
-    # Benchmark/debug override: force USD traversal fallback even when prebuilt
-    # visualizer artifacts are available from the cloner path.
-    force_usd_fallback_for_newton_model_build: bool = False
-
     # ---- Environment discovery / metadata -------------------------------------------------
 
     def _env_id_from_path(self, path: str) -> int | None:
@@ -113,8 +109,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Determine if newton model sync is required for selected renderers and visualizers
         requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_newton_sync = bool(requirements.requires_newton_model)
-        # Optional benchmark/debug toggle controlled by caller code.
-        self._force_usd_fallback = bool(type(self).force_usd_fallback_for_newton_model_build)
+
+        # Benchmark/debug override: force USD traversal fallback even when prebuilt
+        # visualizer artifacts are available from the cloner path.
+        self._force_usd_fallback_for_newton_model_build = False
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -195,7 +193,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _try_use_prebuilt_newton_artifact(self) -> bool:
         """Use scene-time prebuilt Newton visualizer artifact when available."""
-        if getattr(self, "_force_usd_fallback", False):
+        if self._force_usd_fallback_for_newton_model_build:
             return False
         artifact = self._simulation_context.get_scene_data_visualizer_prebuilt_artifact()
         if not artifact:
@@ -236,7 +234,9 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             if self._try_use_prebuilt_newton_artifact():
                 self._last_newton_model_build_source = "prebuilt"
                 return
-            self._last_newton_model_build_source = "usd_fallback_forced" if self._force_usd_fallback else "usd_fallback"
+            self._last_newton_model_build_source = (
+                "usd_fallback_forced" if self._force_usd_fallback_for_newton_model_build else "usd_fallback"
+            )
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
