@@ -10,7 +10,7 @@ from collections.abc import Callable
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
-from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
+from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
