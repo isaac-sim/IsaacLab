@@ -803,8 +803,6 @@ In the above example, we could also disable the <code class="docutils literal no
 <h3>Dictionaries<a class="headerlink" href="#dictionaries" title="Permalink to this heading">#</a></h3>
 <p>Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
-    <span class="n">joint_effort</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
-
 
 <span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
@@ -812,10 +810,10 @@ In the above example, we could also disable the <code class="docutils literal no
 
     <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
-<span class="hll"><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
-</span>
-        <span class="c1"># observation terms (order preserved)</span>
-        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+
+<span class="hll">        <span class="c1"># observation terms (order preserved)</span>
+</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
         <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -827,6 +825,8 @@ In the above example, we could also disable the <code class="docutils literal no
 
 
 <span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
 </pre></div>
 </div>
 <p>the <code class="docutils literal notranslate"><span class="pre">position_range</span></code> parameter can be modified with <code class="docutils literal notranslate"><span class="pre">env.events.reset_cart_position.params.position_range=&quot;[-2.0,</span> <span class="pre">2.0]&quot;</span></code>.

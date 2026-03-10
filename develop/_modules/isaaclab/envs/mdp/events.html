@@ -1013,7 +1013,8 @@
         <span class="n">masses</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="n">min_mass</span><span class="p">)</span>  <span class="c1"># ensure masses are positive</span>
 
         <span class="c1"># set the mass into the physics simulation</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">set_masses_index</span><span class="p">(</span><span class="n">masses</span><span class="o">=</span><span class="n">masses</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># note: backends expect partial data of shape (len(env_ids), len(body_ids))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">set_masses_index</span><span class="p">(</span><span class="n">masses</span><span class="o">=</span><span class="n">masses</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">=</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
 
         <span class="c1"># recompute inertia tensors if needed</span>
         <span class="k">if</span> <span class="n">recompute_inertia</span><span class="p">:</span>
@@ -1025,7 +1026,10 @@
             <span class="c1"># inertia has shape: (num_envs, num_bodies, 9) for all assets</span>
             <span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_inertia</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">*</span> <span class="n">ratios</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
             <span class="c1"># set the inertia tensors into the physics simulation</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">set_inertias_index</span><span class="p">(</span><span class="n">inertias</span><span class="o">=</span><span class="n">inertias</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+            <span class="c1"># note: backends expect partial data of shape (len(env_ids), len(body_ids), 9)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">set_inertias_index</span><span class="p">(</span>
+                <span class="n">inertias</span><span class="o">=</span><span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">],</span> <span class="n">body_ids</span><span class="o">=</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span>
+            <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_com"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_com">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_rigid_body_com</span><span class="p">(</span>
@@ -1128,50 +1132,153 @@
         <span class="n">asset</span><span class="o">.</span><span class="n">root_view</span><span class="o">.</span><span class="n">set_contact_offsets</span><span class="p">(</span><span class="n">contact_offset</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
 
-<div class="viewcode-block" id="randomize_physics_scene_gravity"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_physics_scene_gravity</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
-    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">gravity_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
-    <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>
-    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
-<span class="p">):</span>
+<div class="viewcode-block" id="randomize_physics_scene_gravity"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">randomize_physics_scene_gravity</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize gravity by adding, scaling, or setting random values.</span>
 
-<span class="sd">    This function allows randomizing gravity of the physics scene. The function samples random values from the</span>
-<span class="sd">    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the</span>
-<span class="sd">    operation.</span>
+<span class="sd">    Automatically detects the active physics backend (PhysX or Newton) and applies</span>
+<span class="sd">    the appropriate gravity randomization strategy:</span>
 
-<span class="sd">    The distribution parameters are lists of two elements each, representing the lower and upper bounds of the</span>
-<span class="sd">    distribution for the x, y, and z components of the gravity vector. The function samples random values for each</span>
-<span class="sd">    component independently.</span>
+<span class="sd">    - **PhysX**: samples a single gravity vector and sets it scene-wide via the PhysX</span>
+<span class="sd">      simulation view.  All environments share the same gravity.</span>
+<span class="sd">    - **Newton**: samples per-environment gravity vectors and writes them in-place to</span>
+<span class="sd">      the Newton model&#39;s per-world gravity array on GPU.</span>
 
-<span class="sd">    .. attention::</span>
-<span class="sd">        This function applied the same gravity for all the environments.</span>
+<span class="sd">    The distribution parameters are tuples of two lists with three floats each,</span>
+<span class="sd">    representing the lower and upper bounds for the x, y, and z gravity components [m/s^2].</span>
 
-<span class="sd">    .. tip::</span>
-<span class="sd">        This function uses CPU tensors to assign gravity.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        cfg: The configuration of the event term.</span>
+<span class="sd">        env: The environment instance.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># get the current gravity</span>
-    <span class="n">gravity</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gravity</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-    <span class="n">dist_param_0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
-    <span class="n">dist_param_1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
-    <span class="n">gravity</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-        <span class="n">gravity</span><span class="p">,</span>
-        <span class="p">(</span><span class="n">dist_param_0</span><span class="p">,</span> <span class="n">dist_param_1</span><span class="p">),</span>
-        <span class="kc">None</span><span class="p">,</span>
-        <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
-        <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
-        <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="c1"># unbatch the gravity tensor into a list</span>
-    <span class="n">gravity</span> <span class="o">=</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
 
-    <span class="c1"># set the gravity into the physics simulation (local: carb/physx only available with Kit)</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>  <span class="c1"># noqa: PLC0415</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>  <span class="c1"># noqa: PLC0415</span>
+<div class="viewcode-block" id="randomize_physics_scene_gravity.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_physics_scene_gravity.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
 
-    <span class="n">physics_sim_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">SimulationView</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span>
-    <span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_gravity</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">Float3</span><span class="p">(</span><span class="o">*</span><span class="n">gravity</span><span class="p">))</span></div>
+        <span class="n">manager_name</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="s2">&quot;newton&quot;</span> <span class="ow">in</span> <span class="n">manager_name</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="s2">&quot;newton&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_init_newton</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="s2">&quot;physx&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_init_physx</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+
+        <span class="n">distribution</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;distribution&quot;</span><span class="p">,</span> <span class="s2">&quot;uniform&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">distribution</span> <span class="o">==</span> <span class="s2">&quot;uniform&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dist_fn</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span>
+        <span class="k">elif</span> <span class="n">distribution</span> <span class="o">==</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dist_fn</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_log_uniform</span>
+        <span class="k">elif</span> <span class="n">distribution</span> <span class="o">==</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dist_fn</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_gaussian</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unknown distribution: &#39;</span><span class="si">{</span><span class="n">distribution</span><span class="si">}</span><span class="s2">&#39; for gravity randomization.&quot;</span>
+                <span class="s2">&quot; Please use &#39;uniform&#39;, &#39;log_uniform&#39;, or &#39;gaussian&#39;.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">operation</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;operation&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unknown operation: &#39;</span><span class="si">{</span><span class="n">operation</span><span class="si">}</span><span class="s2">&#39; for gravity randomization. Please use &#39;add&#39;, &#39;scale&#39;, or &#39;abs&#39;.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">gravity_distribution_params</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;gravity_distribution_params&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">gravity_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
+        <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>
+        <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Randomize gravity for the specified environments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env: The environment instance.</span>
+<span class="sd">            env_ids: The environment IDs to randomize. If None, all environments are randomized.</span>
+<span class="sd">            gravity_distribution_params: Distribution parameters as a tuple of two lists, each</span>
+<span class="sd">                with 3 floats corresponding to (x, y, z) gravity components [m/s^2]. Updated</span>
+<span class="sd">                into pre-allocated tensors each call to support curriculum-driven range changes.</span>
+<span class="sd">            operation: The operation to apply (&#39;add&#39;, &#39;scale&#39;, or &#39;abs&#39;).</span>
+<span class="sd">            distribution: The distribution type (cached at init, param ignored at runtime).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_0</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_0</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_1</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_0</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_1</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="s2">&quot;newton&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_call_newton</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">operation</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_call_physx</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">operation</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_init_newton</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Cache Newton manager reference and solver notification flag.&quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab_newton.physics.newton_manager</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">newton_manager_module</span>  <span class="c1"># noqa: PLC0415</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">newton.solvers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SolverNotifyFlags</span>  <span class="c1"># noqa: PLC0415</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_newton_manager</span> <span class="o">=</span> <span class="n">newton_manager_module</span><span class="o">.</span><span class="n">NewtonManager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_notify_model_properties</span> <span class="o">=</span> <span class="n">SolverNotifyFlags</span><span class="o">.</span><span class="n">MODEL_PROPERTIES</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_call_newton</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">operation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply per-environment gravity via Newton&#39;s per-world gravity array on GPU.&quot;&quot;&quot;</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_newton_manager</span><span class="o">.</span><span class="n">get_model</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">model</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">model</span><span class="o">.</span><span class="n">gravity</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Newton model is not initialized. Cannot randomize gravity.&quot;</span><span class="p">)</span>
+
+        <span class="n">gravity</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">gravity</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">num</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="n">random_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_fn</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_0</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_1</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+            <span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
+            <span class="n">gravity</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">random_values</span>
+        <span class="k">elif</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+            <span class="n">gravity</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="n">random_values</span>
+        <span class="k">elif</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
+            <span class="n">gravity</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">*=</span> <span class="n">random_values</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_newton_manager</span><span class="o">.</span><span class="n">add_model_change</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_notify_model_properties</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_init_physx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Cache the ``carb`` module and PhysX simulation view for scene-wide gravity updates.&quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>  <span class="c1"># noqa: PLC0415</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_carb</span> <span class="o">=</span> <span class="n">carb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_call_physx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">operation</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample a single gravity vector and apply it scene-wide via the PhysX simulation view.&quot;&quot;&quot;</span>
+        <span class="n">gravity</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gravity</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">gravity</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">gravity</span><span class="p">,</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_0</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_param_1</span><span class="o">.</span><span class="n">cpu</span><span class="p">()),</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">gravity</span> <span class="o">=</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">set_gravity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_carb</span><span class="o">.</span><span class="n">Float3</span><span class="p">(</span><span class="o">*</span><span class="n">gravity</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="randomize_actuator_gains"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_actuator_gains">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">randomize_actuator_gains</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>

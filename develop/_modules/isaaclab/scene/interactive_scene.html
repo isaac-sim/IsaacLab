@@ -655,6 +655,7 @@
     <span class="n">RigidObjectCollection</span><span class="p">,</span>
     <span class="n">RigidObjectCollectionCfg</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.physics.scene_data_requirements</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_scene_data_requirements</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">FrameTransformerCfg</span><span class="p">,</span> <span class="n">SensorBase</span><span class="p">,</span> <span class="n">SensorBaseCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span>
@@ -764,15 +765,18 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">clear_scene_data_visualizer_prebuilt_artifact</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">visualizer_clone_fn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">requested_viz_types</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">resolve_visualizer_types</span><span class="p">())</span>
         <span class="k">if</span> <span class="s2">&quot;physx&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_physx.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">physx_replicate</span>
 
             <span class="n">physics_clone_fn</span> <span class="o">=</span> <span class="n">physx_replicate</span>
         <span class="k">elif</span> <span class="s2">&quot;newton&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span><span class="p">:</span>
-            <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_newton.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">newton_replicate</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_newton.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">newton_physics_replicate</span>
 
-            <span class="n">physics_clone_fn</span> <span class="o">=</span> <span class="n">newton_replicate</span>
+            <span class="n">physics_clone_fn</span> <span class="o">=</span> <span class="n">newton_physics_replicate</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported physics backend: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="c1"># physics scene path</span>
@@ -785,6 +789,7 @@
             <span class="n">clone_in_fabric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">clone_in_fabric</span><span class="p">,</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
             <span class="n">physics_clone_fn</span><span class="o">=</span><span class="n">physics_clone_fn</span><span class="p">,</span>
+            <span class="n">visualizer_clone_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="c1"># create source prim</span>
@@ -800,8 +805,32 @@
         <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_setup_from_cfg</span><span class="p">():</span>
+        <span class="n">has_scene_cfg_entities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_setup_from_cfg</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">has_scene_cfg_entities</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_add_entities_from_cfg</span><span class="p">()</span>
+
+        <span class="n">requirements</span> <span class="o">=</span> <span class="n">resolve_scene_data_requirements</span><span class="p">(</span>
+            <span class="n">visualizer_types</span><span class="o">=</span><span class="n">requested_viz_types</span><span class="p">,</span>
+            <span class="n">renderer_types</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sensor_renderer_types</span><span class="p">(),</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">update_scene_data_requirements</span><span class="p">(</span><span class="n">requirements</span><span class="p">)</span>
+        <span class="n">visualizer_clone_fn</span> <span class="o">=</span> <span class="n">cloner</span><span class="o">.</span><span class="n">resolve_visualizer_clone_fn</span><span class="p">(</span>
+            <span class="n">physics_backend</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span><span class="p">,</span>
+            <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">,</span>
+            <span class="n">stage</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span>
+            <span class="n">set_visualizer_artifact</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">set_scene_data_visualizer_prebuilt_artifact</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">visualizer_clone_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">&quot;Enabling visualizer artifact prebuild for clone path &quot;</span>
+                <span class="s2">&quot;(backend=</span><span class="si">%s</span><span class="s2">, requires_newton_model=</span><span class="si">%s</span><span class="s2">, requires_usd_stage=</span><span class="si">%s</span><span class="s2">).&quot;</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span><span class="p">,</span>
+                <span class="n">requirements</span><span class="o">.</span><span class="n">requires_newton_model</span><span class="p">,</span>
+                <span class="n">requirements</span><span class="o">.</span><span class="n">requires_usd_stage</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cloner_cfg</span><span class="o">.</span><span class="n">visualizer_clone_fn</span> <span class="o">=</span> <span class="n">visualizer_clone_fn</span>
+
+        <span class="k">if</span> <span class="n">has_scene_cfg_entities</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span><span class="n">copy_from_source</span><span class="o">=</span><span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">))</span>
             <span class="c1"># Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_collisions</span> <span class="ow">and</span> <span class="s2">&quot;physx&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span><span class="p">:</span>
@@ -836,7 +865,21 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">copy_from_source</span><span class="p">:</span>
                 <span class="c1"># skip physx cloning, this means physx will walk and parse the stage one by one faithfully</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">cloner_cfg</span><span class="o">.</span><span class="n">physics_clone_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="o">*</span><span class="n">replicate_args</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cloner_cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cloner_cfg</span><span class="o">.</span><span class="n">visualizer_clone_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cloner_cfg</span><span class="o">.</span><span class="n">visualizer_clone_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="o">*</span><span class="n">replicate_args</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cloner_cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
             <span class="n">cloner</span><span class="o">.</span><span class="n">usd_replicate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="o">*</span><span class="n">replicate_args</span><span class="p">)</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_sensor_renderer_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return renderer type names used by scene sensors.&quot;&quot;&quot;</span>
+        <span class="n">renderer_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">sensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">sensor_cfg</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sensor</span><span class="p">,</span> <span class="s2">&quot;cfg&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">renderer_cfg</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sensor_cfg</span><span class="p">,</span> <span class="s2">&quot;renderer_cfg&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">renderer_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">renderer_type</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">renderer_cfg</span><span class="p">,</span> <span class="s2">&quot;renderer_type&quot;</span><span class="p">,</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span>
+            <span class="n">renderer_types</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">renderer_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">renderer_types</span>
 
 <div class="viewcode-block" id="InteractiveScene.filter_collisions"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.filter_collisions">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">filter_collisions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">global_prim_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Filter environments collisions.</span>
