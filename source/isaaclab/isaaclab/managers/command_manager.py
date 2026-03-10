@@ -146,6 +146,9 @@ class CommandTerm(ManagerTermBase):
         Returns:
             A dictionary containing the information to log under the "{name}" key.
         """
+        # resolve the environment IDs
+        if env_ids is None:
+            env_ids = slice(None)
 
         layout = self._env.scene.layout
         if layout.is_heterogeneous and not isinstance(env_ids, slice):
@@ -225,7 +228,7 @@ class CommandTerm(ManagerTermBase):
         if self._layout_key is None:
             return slice(None)
         asset_key = getattr(asset, "_layout_key", None)
-        return self._env.scene.layout.cross_slice(self._layout_key, asset_key or "")
+        return self._env.scene.layout.cross_slice(self._layout_key, asset_key)
 
     """
     Implementation specific functions.

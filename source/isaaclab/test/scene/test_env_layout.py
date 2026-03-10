@@ -37,7 +37,6 @@ class TestEnvLayoutRegistration:
         layout = EnvLayout(6, "cpu")
         assert layout.num_envs_for("missing") == 6
         assert layout.env_ids("missing") == (0, 1, 2, 3, 4, 5)
-        assert not layout.is_partial("missing")
 
     def test_register_out_of_range_raises(self):
         layout = EnvLayout(10, "cpu")

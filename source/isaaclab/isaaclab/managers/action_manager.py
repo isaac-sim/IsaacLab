@@ -374,7 +374,7 @@ class ActionManager(ManagerBase):
             env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
             for term in self._terms.values():
                 key = term._layout_key
-                if key and layout.is_partial(key):
+                if key:
                     local = layout.global_to_local(key, env_ids_t)
                     if local.numel() > 0:
                         term.reset(env_ids=local)

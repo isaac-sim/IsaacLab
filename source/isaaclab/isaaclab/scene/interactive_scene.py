@@ -448,22 +448,38 @@ class InteractiveScene:
         layout = self._layout
         if env_ids is not None and layout.is_heterogeneous:
             env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-            for name, articulation in self._articulations.items():
-                local = layout.global_to_local(name, env_ids_t)
-                if local.numel() > 0:
-                    articulation.reset(local)
-            for name, deformable_object in self._deformable_objects.items():
-                local = layout.global_to_local(name, env_ids_t)
-                if local.numel() > 0:
-                    deformable_object.reset(local)
-            for name, rigid_object in self._rigid_objects.items():
-                local = layout.global_to_local(name, env_ids_t)
-                if local.numel() > 0:
-                    rigid_object.reset(local)
-            for name, surface_gripper in self._surface_grippers.items():
-                local = layout.global_to_local(name, env_ids_t)
-                if local.numel() > 0:
-                    surface_gripper.reset(local)
+            for articulation in self._articulations.values():
+                key = articulation._layout_key
+                if key is not None:
+                    local = layout.global_to_local(key, env_ids_t)
+                    if local.numel() > 0:
+                        articulation.reset(local)
+                else:
+                    articulation.reset(env_ids)
+            for deformable_object in self._deformable_objects.values():
+                key = deformable_object._layout_key
+                if key is not None:
+                    local = layout.global_to_local(key, env_ids_t)
+                    if local.numel() > 0:
+                        deformable_object.reset(local)
+                else:
+                    deformable_object.reset(env_ids)
+            for rigid_object in self._rigid_objects.values():
+                key = rigid_object._layout_key
+                if key is not None:
+                    local = layout.global_to_local(key, env_ids_t)
+                    if local.numel() > 0:
+                        rigid_object.reset(local)
+                else:
+                    rigid_object.reset(env_ids)
+            for surface_gripper in self._surface_grippers.values():
+                key = surface_gripper._layout_key
+                if key is not None:
+                    local = layout.global_to_local(key, env_ids_t)
+                    if local.numel() > 0:
+                        surface_gripper.reset(local)
+                else:
+                    surface_gripper.reset(env_ids)
             for rigid_object_collection in self._rigid_object_collections.values():
                 rigid_object_collection.reset(env_ids)
             for sensor in self._sensors.values():
@@ -791,13 +807,13 @@ class InteractiveScene:
                         asset_cfg.spawn.spawn_path = f"{template_base}/{proto_id}_.*"
                     if resolved_env_ids is not None:
                         self.cloner_cfg.asset_env_masks[template_base] = list(resolved_env_ids)
-                        self._layout.register(asset_name, resolved_env_ids)
                 else:
                     # No cloning - spawn directly at prim_path
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path
-            elif resolved_env_ids is not None:
-                self._layout.register(asset_name, resolved_env_ids)
             # create asset and wire layout reference
+            # When task_group is set, reuse the group key already registered
+            # by apply_task_groups() instead of duplicating the registration.
+            layout_key = tg if tg is not None else None
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
                 asset_cfg.num_envs = self.cfg.num_envs
@@ -805,15 +821,15 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
+                asset._layout_key = layout_key
                 self._articulations[asset_name] = asset
             elif isinstance(asset_cfg, DeformableObjectCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
+                asset._layout_key = layout_key
                 self._deformable_objects[asset_name] = asset
             elif isinstance(asset_cfg, RigidObjectCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
+                asset._layout_key = layout_key
                 self._rigid_objects[asset_name] = asset
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
@@ -835,7 +851,7 @@ class InteractiveScene:
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = asset_name if self._layout.is_partial(asset_name) else None
+                asset._layout_key = layout_key
                 self._surface_grippers[asset_name] = asset
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer

@@ -30,18 +30,17 @@ class EnvLayout:
 
         # Setup (done once by InteractiveScene)
         layout = EnvLayout(num_envs=24, device="cuda:0")
-        layout.register("lift_cube", [0, 1, 2, 3, 4, 5, 6, 7])
-        layout.register("stack_cubes", [8, 9, 10, 11, 12, 13, 14, 15])
-        layout.register("ee_pose_cmd", [16, 17, 18, 19, 20, 21, 22, 23])
+        layout.apply_task_groups({"lift": 1, "stack": 1, "reach": 1})
+        # Registers three groups of 8 envs each.
 
         # Runtime queries
-        layout.global_to_local("lift_cube", torch.tensor([2, 5, 10]))
-        # → tensor([2, 5])   (10 is dropped — doesn't belong to lift_cube)
+        layout.global_to_local("lift", torch.tensor([2, 5, 10]))
+        # → tensor([2, 5])   (10 is dropped — doesn't belong to "lift")
 
-        layout.env_slice("stack_cubes")
+        layout.env_slice("stack")
         # → slice(8, 16)     (contiguous → zero-copy view)
 
-        layout.scatter("lift_cube", local_reward, fill=0.0)
+        layout.scatter("lift", local_reward, fill=0.0)
         # → (24,) tensor with reward in rows 0-7, zeros elsewhere
     """
 
@@ -135,8 +134,10 @@ class EnvLayout:
         Multiple keys that map to the *same* set of env indices will
         automatically share cached lookup tables and slices.
 
+        Typically called internally by :meth:`apply_task_groups`.
+
         Args:
-            key: Unique group name (e.g. an asset name or ``"commands/ee_pose"``).
+            key: Unique group name (usually a task group name such as ``"lift"``).
             env_ids: Global environment indices belonging to this group.
 
         Raises:
@@ -152,21 +153,17 @@ class EnvLayout:
 
     # ── simple queries ────────────────────────────────────────────────────
 
-    def is_partial(self, key: str) -> bool:
-        """Whether *key* covers only a subset of environments."""
-        return key in self._groups
-
-    def num_envs_for(self, key: str) -> int:
-        """Number of environments in a group (all envs if unregistered)."""
+    def num_envs_for(self, key: str | None) -> int:
+        """Number of environments in a group (all envs if *key* is ``None`` or unregistered)."""
         return len(self._groups[key]) if key in self._groups else self._num_envs
 
-    def env_ids(self, key: str) -> tuple[int, ...]:
-        """Global env indices for a group (all envs if unregistered)."""
+    def env_ids(self, key: str | None) -> tuple[int, ...]:
+        """Global env indices for a group (all envs if *key* is ``None`` or unregistered)."""
         return self._groups.get(key, tuple(range(self._num_envs)))
 
-    def env_slice(self, key: str) -> slice | torch.Tensor:
-        """Fast indexer: ``slice(None)`` if full, ``slice(a, b)`` if
-        contiguous, else a long tensor.  Maximises GPU efficiency.
+    def env_slice(self, key: str | None) -> slice | torch.Tensor:
+        """Fast indexer: ``slice(None)`` if *key* is ``None`` or full,
+        ``slice(a, b)`` if contiguous, else a long tensor.
         """
         if key not in self._groups:
             return slice(None)
@@ -175,7 +172,7 @@ class EnvLayout:
             self._slices[ids] = _build_slice(ids, self._device)
         return self._slices[ids]
 
-    def mask(self, key: str) -> torch.Tensor:
+    def mask(self, key: str | None) -> torch.Tensor:
         """Boolean mask of shape ``(num_envs,)`` — ``True`` for envs in the
         named group.  Returns an all-``True`` mask for unregistered keys.
         """
@@ -191,14 +188,14 @@ class EnvLayout:
 
     # ── env-id mapping ────────────────────────────────────────────────────
 
-    def global_to_local(self, key: str, global_ids: torch.Tensor) -> torch.Tensor:
+    def global_to_local(self, key: str | None, global_ids: torch.Tensor) -> torch.Tensor:
         """Map global env indices to local (0-based) indices for a group.
 
         Indices that do not belong to the group are **silently dropped**.
-        For unregistered (homogeneous) keys the input is returned unchanged.
+        If *key* is ``None`` or unregistered, the input is returned unchanged.
 
         Args:
-            key: Group name.
+            key: Group name, or ``None`` for homogeneous assets.
             global_ids: 1-D long tensor of global env indices.
 
         Returns:
@@ -212,15 +209,17 @@ class EnvLayout:
         valid = (global_ids <= max_id) & (lut[clamped] >= 0)
         return lut[global_ids[valid]]
 
-    def filter_and_split(self, key: str, global_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def filter_and_split(self, key: str | None, global_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return ``(local_ids, matching_global_ids)``.
 
         Useful when you need both local indices (for term-internal buffers)
         and the corresponding global indices (for scene-wide data like
         :attr:`InteractiveScene.env_origins`).
 
+        If *key* is ``None`` or unregistered, both outputs equal *global_ids*.
+
         Args:
-            key: Group name.
+            key: Group name, or ``None`` for homogeneous assets.
             global_ids: 1-D long tensor of global env indices.
 
         Returns:
@@ -236,7 +235,7 @@ class EnvLayout:
 
     # ── tensor alignment ──────────────────────────────────────────────────
 
-    def scatter(self, key: str, local_data: torch.Tensor, fill: float = 0.0) -> torch.Tensor:
+    def scatter(self, key: str | None, local_data: torch.Tensor, fill: float = 0.0) -> torch.Tensor:
         """Scatter local-space data into a full-env tensor.
 
         Args:
@@ -254,7 +253,7 @@ class EnvLayout:
         out[self.env_slice(key)] = local_data
         return out
 
-    def gather(self, key: str, full_data: torch.Tensor) -> torch.Tensor:
+    def gather(self, key: str | None, full_data: torch.Tensor) -> torch.Tensor:
         """Gather entries from a full-env tensor for a specific group.
 
         Args:
@@ -268,7 +267,7 @@ class EnvLayout:
             return full_data
         return full_data[self.env_slice(key)]
 
-    def cross_slice(self, term_key: str, asset_key: str) -> slice | torch.Tensor:
+    def cross_slice(self, term_key: str | None, asset_key: str | None) -> slice | torch.Tensor:
         """Return indices to align asset data with a term's local buffers.
 
         Use this when a term manages a subset of envs but the asset it
