@@ -70,6 +70,15 @@ runs:
         # Edit here when adding new package manifest conventions.
         DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
+        # Log into nvcr.io so the Dockerfile can pull nvcr.io base images
+        # and so we can resolve the base image digest for the deps hash.
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "🟢 Logging into nvcr.io..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+        else
+          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
+        fi
+
         # Prefer explicit input; fall back to ECR_CACHE_URL env var; then SSM
 
         ECR_URL="${INPUT_ECR_URL:-}"
@@ -161,18 +170,32 @@ runs:
           }
 
           # Deps-hash check:
-
           # Compute a content hash of install-relevant files. If ECR already has
           # a deps-<hash> image, pull it and build only the thin final-COPY overlay,
           # skipping the expensive pip/apt installation steps entirely.
 
+          # Resolve the actual base image digest so a new push of a mutable tag
+          # (e.g. latest-develop) invalidates the deps cache automatically.
+          BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
+            "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+            --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
+          if [ -n "${BASE_IMAGE_DIGEST}" ]; then
+            echo "🟢 Base image digest: ${BASE_IMAGE_DIGEST}"
+            BASE_STR="${BASE_IMAGE_DIGEST}"
+          else
+            echo "🟠 Could not resolve base image digest, falling back to tag string"
+            BASE_STR="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+          fi
+
           MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
           FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
             | sha256sum | cut -c1-16)
-          BASE_STR="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
           DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_STR}" | sha256sum | cut -c1-16)
           DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
-          echo "🟢 Deps hash: ${DEPS_HASH} → ${DEPS_ECR_IMAGE}"
+          
+          echo "🟢 Deps hash: ${DEPS_HASH}"
+          echo "🟢 Deps ECR image: ${DEPS_ECR_IMAGE}"
+
 
           if docker pull "${DEPS_ECR_IMAGE}" 2>/dev/null; then
             echo "🟢 Deps cache HIT — building thin overlay (final COPY only)..."
@@ -198,16 +221,6 @@ runs:
             PUSH_DEPS_IMAGE=true
           fi
 
-        fi
-
-        # Log into nvcr.io so the Dockerfile can pull nvcr.io base images.
-        # Credential is written into the temp config dir when ECR is enabled,
-        # and into the default config when it is not.
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
-          echo "🟢 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
-        else
-          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
         fi
 
         # Build the image
