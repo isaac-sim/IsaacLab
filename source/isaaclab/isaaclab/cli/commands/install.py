@@ -245,7 +245,6 @@ def _install_isaaclab_extensions(
             *extensions* is ``None``.
     """
     python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
     source_dir = ISAACLAB_ROOT / "source"
 
     if not source_dir.exists():
