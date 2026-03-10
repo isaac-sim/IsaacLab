@@ -1,5 +1,5 @@
 [package]
-version = "0.1.0"
+version = "0.1.1"
 title = "Omniverse renderers for IsaacLab"
 description = "Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for tiled camera rendering."
 readme = "docs/README.md"

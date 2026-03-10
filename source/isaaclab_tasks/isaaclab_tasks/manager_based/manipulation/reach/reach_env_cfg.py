@@ -24,6 +24,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import CollisionPropertiesCfg, RigidBodyPropertiesCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -36,13 +37,12 @@ from isaaclab_tasks.utils import PresetCfg
 class ReachPhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+
     newton: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=30,
+            njmax=50,
             nconmax=20,
-            ls_iterations=20,
             cone="pyramidal",
-            ls_parallel=True,
             integrator="implicitfast",
             impratio=1,
         ),
@@ -57,6 +57,33 @@ class ReachPhysicsCfg(PresetCfg):
 
 
 @configclass
+class TableCfg(PresetCfg):
+    physx = AssetBaseCfg(
+        prim_path="/World/envs/env_.*/Table",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0, 0, 0.707, 0.707)),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+        ),
+    )
+
+    newton: ArticulationCfg = ArticulationCfg(
+        prim_path="/World/envs/env_.*/Table",
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.5, 0.15, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
+        ),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.9, 1.3, 1.00),
+            collision_props=CollisionPropertiesCfg(),
+            rigid_props=RigidBodyPropertiesCfg(rigid_body_enabled=True),
+        ),
+        actuators={},
+        articulation_root_prim_path="",
+    )
+
+    default = physx
+
+
+@configclass
 class ReachSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
@@ -67,13 +94,7 @@ class ReachSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
     )
 
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.0, 0.0, 0.70711, 0.70711)),
-    )
+    table = TableCfg()
 
     # robots
     robot: ArticulationCfg = MISSING

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import torch
 import warp as wp
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -75,7 +77,17 @@ class LocomotionEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.action_scale = self.cfg.action_scale
-        self.joint_gears = torch.tensor(self.cfg.joint_gears, dtype=torch.float32, device=self.sim.device)
+        # Resolve the joint gears based on the physics type, since they do not have the same joint ordering.
+        if isinstance(self.cfg.joint_gears, dict):
+            if isinstance(self.cfg.sim.physics, PhysxCfg):
+                joint_gears = self.cfg.joint_gears["physx"]
+            elif isinstance(self.cfg.sim.physics, NewtonCfg):
+                joint_gears = self.cfg.joint_gears["newton"]
+            else:
+                raise ValueError(f"Invalid physics type: {self.cfg.sim.physics}")
+        else:
+            joint_gears = self.cfg.joint_gears
+        self.joint_gears = torch.tensor(joint_gears, dtype=torch.float32, device=self.sim.device)
         self.motor_effort_ratio = torch.ones_like(self.joint_gears, device=self.sim.device)
         self._joint_dof_idx, _ = self.robot.find_joints(".*")
 

@@ -34,12 +34,21 @@ class NewtonViewerGL(ViewerGL):
         update_frequency: int = 1,
         **kwargs,
     ):
+        """Initialize Newton viewer wrapper state.
+
+        Args:
+            *args: Positional arguments forwarded to ``ViewerGL``.
+            metadata: Optional metadata shown in viewer panels.
+            update_frequency: Viewer refresh cadence in simulation frames.
+            **kwargs: Keyword arguments forwarded to ``ViewerGL``.
+        """
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
+        self._color_edit3_accepts_sequence: bool | None = None
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -47,12 +56,15 @@ class NewtonViewerGL(ViewerGL):
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused by viewer controls."""
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
     def _render_training_controls(self, imgui):
+        """Render Isaac Lab-specific control widgets in the Newton viewer UI."""
         imgui.separator()
         imgui.text("IsaacLab Controls")
 
@@ -80,11 +92,13 @@ class NewtonViewerGL(ViewerGL):
             )
 
     def on_key_press(self, symbol, modifiers):
+        """Forward key presses unless UI is currently capturing input."""
         if self.ui.is_capturing():
             return
         super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
+        """Render default UI and fallback control window when callback hooks are unavailable."""
         if not self._fallback_draw_controls:
             return super()._render_ui()
 
@@ -100,6 +114,37 @@ class NewtonViewerGL(ViewerGL):
             self._render_training_controls(imgui)
         imgui.end()
         return None
+
+    def _coerce_color3(self, color) -> tuple[float, float, float]:
+        """Normalize color values from imgui/renderer into an RGB tuple."""
+        if hasattr(color, "x") and hasattr(color, "y") and hasattr(color, "z"):
+            return (float(color.x), float(color.y), float(color.z))
+        return (float(color[0]), float(color[1]), float(color[2]))
+
+    def _color_edit3_compat(self, imgui, label: str, color):
+        """
+        # Handle imgui.color_edit3 API differences between bindings.
+        # Some require a Sequence[float], others accept vector-like objects.
+        # This method tries both approaches, caching the one that works to avoid repeated exceptions.
+        # NOTE: This is a compatibility workaround, perhaps we can address the issue more directly.
+        """
+        color_tuple = self._coerce_color3(color)
+        sequence_color = [color_tuple[0], color_tuple[1], color_tuple[2]]
+        if self._color_edit3_accepts_sequence is not False:
+            try:
+                changed, edited = imgui.color_edit3(label, sequence_color)
+                self._color_edit3_accepts_sequence = True
+                return changed, self._coerce_color3(edited)
+            except TypeError:
+                self._color_edit3_accepts_sequence = False
+
+        try:
+            imvec4 = imgui.ImVec4(sequence_color[0], sequence_color[1], sequence_color[2], 1.0)
+            changed, edited = imgui.color_edit3(label, imvec4)
+            return changed, self._coerce_color3(edited)
+        except Exception as exc:
+            logger.debug("[NewtonVisualizer] color_edit3 failed for '%s': %s", label, exc)
+            return False, color_tuple
 
     def _render_left_panel(self):
         """Override the left panel to remove the base pause checkbox."""
@@ -159,23 +204,18 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
-                def _to_imvec4(color):
-                    if hasattr(color, "x"):
-                        return color
-                    return imgui.ImVec4(float(color[0]), float(color[1]), float(color[2]), 1.0)
-
-                def _from_imvec4(color):
-                    return (float(color.x), float(color.y), float(color.z))
-
-                changed, c = imgui.color_edit3("Light Color", _to_imvec4(self.renderer._light_color))
-                if changed:
-                    self.renderer._light_color = _from_imvec4(c)
-                changed, c = imgui.color_edit3("Upper Sky Color", _to_imvec4(self.renderer.sky_upper))
-                if changed:
-                    self.renderer.sky_upper = _from_imvec4(c)
-                changed, c = imgui.color_edit3("Lower Sky Color", _to_imvec4(self.renderer.sky_lower))
-                if changed:
-                    self.renderer.sky_lower = _from_imvec4(c)
+                try:
+                    changed, self.renderer._light_color = self._color_edit3_compat(
+                        imgui, "Light Color", self.renderer._light_color
+                    )
+                    changed, self.renderer.sky_upper = self._color_edit3_compat(
+                        imgui, "Upper Sky Color", self.renderer.sky_upper
+                    )
+                    changed, self.renderer.sky_lower = self._color_edit3_compat(
+                        imgui, "Lower Sky Color", self.renderer.sky_lower
+                    )
+                except Exception as exc:
+                    logger.debug("[NewtonVisualizer] Rendering color controls failed: %s", exc)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
@@ -204,6 +244,11 @@ class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
 
     def __init__(self, cfg: NewtonVisualizerCfg):
+        """Initialize Newton visualizer state.
+
+        Args:
+            cfg: Newton visualizer configuration.
+        """
         super().__init__(cfg)
         self.cfg: NewtonVisualizerCfg = cfg
         self._viewer: NewtonViewerGL | None = None
@@ -217,6 +262,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._headless_no_viewer = False
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+        """Initialize viewer resources and bind scene data provider.
+
+        Args:
+            scene_data_provider: Scene data provider used to fetch model/state data.
+        """
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
@@ -297,6 +347,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
+        """Advance visualization by one simulation step.
+
+        Args:
+            dt: Simulation time-step in seconds.
+        """
         if not self._is_initialized or self._is_closed:
             return
 
@@ -342,10 +397,11 @@ class NewtonVisualizer(BaseVisualizer):
                 self._viewer.end_frame()
             else:
                 self._viewer._update()
-        except RuntimeError as exc:
+        except Exception as exc:
             logger.debug("[NewtonVisualizer] Viewer update failed: %s", exc)
 
     def close(self) -> None:
+        """Release viewer resources."""
         if self._is_closed:
             return
         if self._viewer is not None:
@@ -353,6 +409,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._is_closed = True
 
     def is_running(self) -> bool:
+        """Return whether the visualizer should continue stepping.
+
+        Returns:
+            ``True`` while the visualizer is active, otherwise ``False``.
+        """
         if not self._is_initialized or self._is_closed:
             return False
         if self._headless_no_viewer and self._viewer is None:
@@ -362,6 +423,11 @@ class NewtonVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """Resolve initial camera pose from config or USD camera path.
+
+        Returns:
+            Camera eye and target tuples.
+        """
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
             if pose is not None:
@@ -373,6 +439,11 @@ class NewtonVisualizer(BaseVisualizer):
         return self.cfg.camera_position, self.cfg.camera_target
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
+        """Apply camera eye/target pose to the Newton viewer.
+
+        Args:
+            pose: Camera eye and target tuples.
+        """
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
@@ -388,6 +459,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._last_camera_pose = (cam_pos, cam_target)
 
     def _update_camera_from_usd_path(self) -> None:
+        """Refresh camera pose from configured USD camera path when it changes."""
         pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
         if pose is None:
             return
@@ -396,17 +468,21 @@ class NewtonVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
+        """Newton OpenGL viewer does not implement Isaac Lab marker primitives."""
         return False
 
     def supports_live_plots(self) -> bool:
+        """Newton OpenGL viewer does not provide live-plot panels."""
         return False
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_training_paused()
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()

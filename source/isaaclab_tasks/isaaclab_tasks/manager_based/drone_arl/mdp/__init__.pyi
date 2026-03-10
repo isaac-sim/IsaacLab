@@ -21,14 +21,7 @@ __all__ = [
 ]
 
 from .commands import DroneUniformPoseCommand, DroneUniformPoseCommandCfg
-from .curriculums import ObstacleDensityCurriculum
-from .observations import ImageLatentObservation, base_roll_pitch, generated_drone_commands, last_action_navigation
-from .events import reset_obstacles_with_individual_ranges
-from .rewards import (
-    ang_vel_xyz_exp,
-    distance_to_goal_exp,
-    distance_to_goal_exp_curriculum,
-    lin_vel_xyz_exp,
-    velocity_to_goal_reward_curriculum,
-    yaw_aligned,
-)
+from .observations import base_roll_pitch, generated_drone_commands
+from .rewards import ang_vel_xyz_exp, distance_to_goal_exp, lin_vel_xyz_exp, yaw_aligned
+from isaaclab.envs.mdp import *
+from isaaclab_contrib.mdp import *

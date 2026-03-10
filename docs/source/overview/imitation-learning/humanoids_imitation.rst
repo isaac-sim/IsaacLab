@@ -432,6 +432,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/tools/record_demos.py \
       --device cpu \
+      --visualizer kit \
       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \
       --num_demos 5
@@ -446,6 +447,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/tools/replay_demos.py \
       --device cpu \
+      --visualizer kit \
       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5
 
@@ -455,6 +457,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --device cpu \
+      --visualizer kit \
       --task Isaac-Locomanipulation-G1-Abs-Mimic-v0 \
       --input_file ./datasets/dataset_g1_locomanip.hdf5 \
       --output_file ./datasets/dataset_annotated_g1_locomanip.hdf5
@@ -492,6 +495,7 @@ Visualize the trained policy performance:
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
+   --visualizer kit \
    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
    --num_rollouts 50 \
    --horizon 400 \
