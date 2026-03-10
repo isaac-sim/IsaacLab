@@ -34,7 +34,7 @@ class RslRlDistillationAlgorithmCfg:
     """The number of environment steps the gradient flows back."""
 
     max_grad_norm: None | float = None
-    """The maximum norm the gradient is clipped to. Defaults to None"""
+    """The maximum norm the gradient is clipped to. Defaults to None."""
 
     optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
     """The optimizer to use for the student policy. Defaults to adam."""
