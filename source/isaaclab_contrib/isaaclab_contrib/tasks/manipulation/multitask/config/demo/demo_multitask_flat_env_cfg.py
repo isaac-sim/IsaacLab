@@ -33,13 +33,19 @@ Layout (3 groups, evenly split):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnvCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
+
 from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
     JointPositionActionCfg,

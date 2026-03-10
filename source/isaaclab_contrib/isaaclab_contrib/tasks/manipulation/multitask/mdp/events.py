@@ -5,11 +5,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import torch
 import warp as wp
 
-from isaaclab.assets import AssetBase
-from isaaclab.envs import ManagerBasedEnv
+if TYPE_CHECKING:
+    from isaaclab.assets import AssetBase
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def _asset_env_mapping(asset: AssetBase, requested_envs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
