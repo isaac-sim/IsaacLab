@@ -22,6 +22,8 @@ from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from .isaac_rtx_renderer_utils import (
+    ANNOTATOR_CHANNEL_COUNTS,
+    SEGMENTATION_COLORIZE_FIELDS,
     SIMPLE_SHADING_MODE_SETTING,
     SIMPLE_SHADING_MODES,
     apply_depth_clipping,
@@ -218,29 +220,17 @@ class IsaacRtxRenderer(BaseRenderer):
             else:
                 tiled_data_buffer = tiled_data_buffer.to(device=sensor.device)
 
-            # process data for different segmentation types
-            # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
-            #   so we need to convert them to uint8 4 channel images for colorized types
-            if (
-                (data_type == "semantic_segmentation" and cfg.colorize_semantic_segmentation)
-                or (data_type == "instance_segmentation_fast" and cfg.colorize_instance_segmentation)
-                or (data_type == "instance_id_segmentation_fast" and cfg.colorize_instance_id_segmentation)
-            ):
+            # Colorized segmentation: reinterpret uint32 → uint8×4
+            colorize_field = SEGMENTATION_COLORIZE_FIELDS.get(data_type)
+            if colorize_field is not None and getattr(cfg, colorize_field, False):
                 tiled_data_buffer = wp.array(
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=sensor.device
                 )
 
-            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
-            # For normals, we only require the first three channels of the tiled buffer
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            # Slice to the expected channel count (e.g. motion_vectors→2, normals→3)
+            n_channels = ANNOTATOR_CHANNEL_COUNTS.get(data_type)
+            if n_channels is not None:
+                tiled_data_buffer = tiled_data_buffer[:, :, :n_channels].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,

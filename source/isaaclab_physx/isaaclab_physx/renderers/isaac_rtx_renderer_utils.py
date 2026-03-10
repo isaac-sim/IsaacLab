@@ -147,6 +147,57 @@ def resolve_simple_shading_mode(data_types: Sequence[str]) -> int | None:
 DEPTH_DATA_TYPES: frozenset[str] = frozenset({"distance_to_camera", "distance_to_image_plane", "depth"})
 """Data types that represent depth measurements and are eligible for depth clipping."""
 
+ANNOTATOR_CHANNEL_COUNTS: dict[str, int] = {
+    "motion_vectors": 2,
+    "normals": 3,
+    "rgb": 3,
+    **{mode: 3 for mode in SIMPLE_SHADING_MODES},
+}
+"""Number of output channels for annotator data types that need channel slicing.
+
+Replicator annotators may return more channels than the data type requires.
+For example, ``"motion_vectors"`` returns a 4-channel buffer but only the first
+2 channels (x, y) are meaningful.  Data types not in this mapping do not need
+channel slicing.
+
+See also `GitHub #2003 <https://github.com/isaac-sim/IsaacLab/issues/2003>`_
+(motion vectors) and `GitHub #4239 <https://github.com/isaac-sim/IsaacLab/issues/4239>`_
+(normals) for context on why alignment-correct slicing is required.
+"""
+
+SEGMENTATION_COLORIZE_FIELDS: dict[str, str] = {
+    "semantic_segmentation": "colorize_semantic_segmentation",
+    "instance_segmentation_fast": "colorize_instance_segmentation",
+    "instance_id_segmentation_fast": "colorize_instance_id_segmentation",
+}
+"""Mapping from segmentation data type to the camera-config attribute that controls
+colorization.
+
+When colorization is enabled the raw ``uint32`` segmentation buffer is
+reinterpreted as a 4-channel ``uint8`` RGBA image.
+"""
+
+
+def slice_output_channels(data: torch.Tensor, data_type: str) -> torch.Tensor:
+    """Slice annotator output to the expected number of channels.
+
+    Replicator annotators often return 4-channel buffers where only a subset
+    of channels carry meaningful data.  This function slices to the correct
+    channel count based on :data:`ANNOTATOR_CHANNEL_COUNTS`.
+
+    Args:
+        data: Annotator output tensor with channels in the last dimension.
+        data_type: Camera data type name (e.g. ``"motion_vectors"``).
+
+    Returns:
+        A view of *data* with the trailing dimension sliced, or *data*
+        unchanged when no slicing rule exists for *data_type*.
+    """
+    n = ANNOTATOR_CHANNEL_COUNTS.get(data_type)
+    if n is not None:
+        return data[..., :n]
+    return data
+
 
 def apply_depth_clipping(
     output: torch.Tensor,
