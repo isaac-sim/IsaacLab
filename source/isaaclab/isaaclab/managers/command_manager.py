@@ -50,15 +50,18 @@ class CommandTerm(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # resolve assigned environment indices
-        # priority: explicit cfg.assigned_env_ids > asset's assigned_envs
-        if cfg.assigned_env_ids is not None:
-            self._assigned_envs = tuple(cfg.assigned_env_ids)
+        # resolve layout key for centralized env-id mapping
+        # priority: task_group > asset's layout key
+        layout = env.scene.layout
+        tg = getattr(cfg, "task_group", None)
+        if tg is not None:
+            layout.resolve_task_group(type(self).__name__, tg)
+            self._layout_key = tg
         else:
             asset_name = getattr(cfg, "asset_name", None)
             if asset_name is not None:
                 asset = env.scene[asset_name]
-                self._assigned_envs = getattr(asset, "assigned_envs", self._assigned_envs)
+                self._layout_key = asset._layout_key
 
         # create buffers to store the command
         # -- metrics that can be used for logging
@@ -143,16 +146,15 @@ class CommandTerm(ManagerTermBase):
         Returns:
             A dictionary containing the information to log under the "{name}" key.
         """
-        # resolve the environment IDs – map global to local for heterogeneous terms
-        if self.is_heterogeneous:
-            local_ids = self._filter_env_ids(env_ids)
-            if len(local_ids) == 0:
-                return {}
+
+        layout = self._env.scene.layout
+        if layout.is_heterogeneous and not isinstance(env_ids, slice):
+            env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+            local = layout.global_to_local(self._layout_key, env_ids_t)
+            if local.numel() > 0:
+                local_ids = local
         else:
-            if env_ids is None:
-                local_ids = slice(None)
-            else:
-                local_ids = env_ids
+            local_ids = env_ids
 
         # add logging metrics
         extras = {}
@@ -210,11 +212,8 @@ class CommandTerm(ManagerTermBase):
     def _resolve_asset_data_indices(self, asset) -> torch.Tensor | slice:
         """Return indices to slice asset data so it aligns with this term's buffers.
 
-        When the command term manages a subset of environments (via
-        :attr:`~CommandTermCfg.assigned_env_ids`) but the referenced asset
-        spans *all* environments, the asset's data tensors have more rows than
-        the command buffers.  This helper returns the global env indices needed
-        to select the matching rows.
+        Delegates to :meth:`EnvLayout.cross_slice` to determine whether the
+        asset data needs slicing relative to this term's local buffers.
 
         Args:
             asset: The scene asset whose data tensors may need slicing.
@@ -223,12 +222,10 @@ class CommandTerm(ManagerTermBase):
             A 1-D long tensor of global indices, or ``slice(None)`` when no
             slicing is needed (i.e. the shapes already agree).
         """
-        if not self.is_heterogeneous:
+        if self._layout_key is None:
             return slice(None)
-        asset_assigned = getattr(asset, "assigned_envs", ())
-        if len(asset_assigned) == 0:
-            return torch.tensor(self._assigned_envs, dtype=torch.long, device=self.device)
-        return slice(None)
+        asset_key = getattr(asset, "_layout_key", None)
+        return self._env.scene.layout.cross_slice(self._layout_key, asset_key or "")
 
     """
     Implementation specific functions.

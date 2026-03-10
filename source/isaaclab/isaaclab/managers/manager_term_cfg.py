@@ -118,15 +118,14 @@ class CommandTermCfg:
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
-    assigned_env_ids: list[int] | None = None
-    """Explicit environment indices this command term manages. Defaults to None.
+    task_group: str | None = None
+    """Task group name this command term belongs to. Defaults to None.
 
-    When set, the command term only generates and updates commands for the
-    listed environments.  This is useful in heterogeneous multi-task setups
-    where the underlying asset spans all environments but the command should
-    only target a subset (e.g. only the "reach" group).
+    When set, the command term is automatically scoped to the
+    environments belonging to the named group declared in
+    :attr:`~isaaclab.scene.InteractiveSceneCfg.task_groups`.
 
-    If ``None``, the term falls back to the ``assigned_envs`` of the
+    If ``None``, the term falls back to the layout key of the
     referenced asset (resolved via ``asset_name``).  If the asset also
     covers all environments, the command applies everywhere.
     """

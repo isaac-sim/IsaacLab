@@ -16,11 +16,9 @@ Because the robot and its action space are identical for all groups, a single
 set of action terms (``arm_action`` + ``gripper_action``) applies to all envs.
 
 Per-task objects (lift cube, stacking cubes) use ``{ENV_REGEX_NS}`` in their
-``prim_path`` just like shared assets, but set
-:attr:`~isaaclab.assets.AssetBaseCfg.assigned_env_ids` so that the cloner
-only replicates them into the environments that belong to their task group.
-The ``assigned_env_ids`` are populated in ``__post_init__`` after the
-environment partition is computed.
+``prim_path`` just like shared assets, but declare ``task_group`` to indicate
+which task group they belong to.  The scene's ``task_groups`` dict defines the
+groups; env-id partitioning and cloning masks are resolved automatically.
 
 The stack task uses a different Franka default joint pose, which is applied
 per-env via ``_default_joint_pos_per_env`` and the corresponding reset event.
@@ -56,7 +54,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg, partition_env_ids
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
@@ -104,12 +102,7 @@ class MultitaskPhysicsCfg(PresetCfg):
     )
 
 
-TASK_LIFT = 0
-TASK_STACK = 1
-TASK_REACH = 2
-
-NUM_GROUPS = 3
-NUM_ENVS = 24
+NUM_ENVS = 25
 
 # Stack task uses a different default arm pose than lift/reach.
 # (From the official Franka stack env config.)
@@ -120,20 +113,12 @@ _DEFAULT_JOINT_POS = [0.0, -0.569, 0.0, -2.810, 0.0, 3.037, 0.741, 0.04, 0.04]
 
 
 # ---------------------------------------------------------------------------
-# Utility functions
+# Task / group names
 # ---------------------------------------------------------------------------
 
-
-def _partition_env_ids(num_envs: int, num_groups: int) -> list[list[int]]:
-    """Split *num_envs* indices as evenly as possible across *num_groups*."""
-    base, remainder = divmod(num_envs, num_groups)
-    groups: list[list[int]] = []
-    start = 0
-    for g in range(num_groups):
-        size = base + (1 if g < remainder else 0)
-        groups.append(list(range(start, start + size)))
-        start += size
-    return groups
+TASK_LIFT_NAME = "lift"
+TASK_STACK_NAME = "stack"
+TASK_REACH_NAME = "reach"
 
 
 # ---------------------------------------------------------------------------
@@ -224,12 +209,12 @@ class FlatSingleRobotSceneCfg(InteractiveSceneCfg):
     **One Franka** is placed in every environment (``{ENV_REGEX_NS}/Robot``).
     This results in a single ``ArticulationView`` spanning all ``num_envs``.
 
-    Per-task objects use ``{ENV_REGEX_NS}`` like shared assets, but their
-    :attr:`~isaaclab.assets.AssetBaseCfg.assigned_env_ids` are set in
-    ``FlatSingleRobotMultiTaskEnvCfg.__post_init__`` so that the cloner
-    only replicates them into the environments assigned to their task group.
-    Group 2 (reach) has no objects at all.
+    Per-task objects declare ``task_group`` to indicate which group they
+    belong to.  Group 2 (reach) has no objects at all.
     """
+
+    # Values are relative weights: 1:1:1 means equal split across the three groups.
+    task_groups = {TASK_LIFT_NAME: 2, TASK_STACK_NAME: 1, TASK_REACH_NAME: 1}
 
     # -- shared (all envs) ---------------------------------------------------
     plane = AssetBaseCfg(
@@ -253,29 +238,31 @@ class FlatSingleRobotSceneCfg(InteractiveSceneCfg):
     )
 
     # -- Group 0: Lift – single cube ----------------------------------------
-    # assigned_env_ids is set in FlatSingleRobotMultiTaskEnvCfg.__post_init__
     lift_cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.055), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_LIFT_CUBE_SPAWN,
+        task_group=TASK_LIFT_NAME,
     )
 
     # -- Group 1: Stack – three cubes ----------------------------------------
-    # assigned_env_ids is set in FlatSingleRobotMultiTaskEnvCfg.__post_init__
     stack_cube_1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube_1",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_STACK_CUBE_1_SPAWN,
+        task_group=TASK_STACK_NAME,
     )
     stack_cube_2 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube_2",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.05, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_STACK_CUBE_2_SPAWN,
+        task_group=TASK_STACK_NAME,
     )
     stack_cube_3 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube_3",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, -0.1, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_STACK_CUBE_3_SPAWN,
+        task_group=TASK_STACK_NAME,
     )
 
     # -- Group 2: Reach – no objects -----------------------------------------
@@ -294,7 +281,7 @@ class FlatSingleRobotActionsCfg:
     Because every environment uses the same Franka with the same action space,
     only one ``arm_action`` and one ``gripper_action`` are needed.  The action
     terms reference ``asset_name="robot"`` whose ``prim_path`` is
-    ``{ENV_REGEX_NS}/Robot`` – this means ``_assigned_envs`` is empty (all
+    ``{ENV_REGEX_NS}/Robot`` – the robot has no layout key (present in all
     envs), so the actions are dispatched to every environment.
     """
 
@@ -329,6 +316,7 @@ class FlatCommandsCfg:
         body_name="panda_hand",
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
+        task_group=TASK_REACH_NAME,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.35, 0.65),
             pos_y=(-0.2, 0.2),
@@ -421,20 +409,11 @@ class FlatSingleRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = MultitaskPhysicsCfg()
 
-        # --- partition env IDs across tasks ----------------------------------
-        groups = _partition_env_ids(self.scene.num_envs, NUM_GROUPS)
-
         # --- per-env default joint positions (stored as nested list for OmegaConf) ---
+        # The partition is computed eagerly here because we need env_ids before
+        # the scene is constructed (for the reset event's joint-pose table).
+        groups = partition_env_ids(self.scene.num_envs, self.scene.task_groups)
         default_jpos = [list(_DEFAULT_JOINT_POS) for _ in range(self.scene.num_envs)]
-        for eid in groups[TASK_STACK]:
+        for eid in groups[TASK_STACK_NAME]:
             default_jpos[eid] = list(_STACK_DEFAULT_JOINT_POS)
         self._default_joint_pos_per_env: list[list[float]] = default_jpos
-
-        # --- assign per-task objects to their group environments -------------
-        self.scene.lift_cube.assigned_env_ids = groups[TASK_LIFT]
-        self.scene.stack_cube_1.assigned_env_ids = groups[TASK_STACK]
-        self.scene.stack_cube_2.assigned_env_ids = groups[TASK_STACK]
-        self.scene.stack_cube_3.assigned_env_ids = groups[TASK_STACK]
-
-        # --- assign command to their group environments -------------
-        self.commands.ee_pose.assigned_env_ids = groups[TASK_REACH]

@@ -9,11 +9,10 @@ Demonstrates how to write a heterogeneous multi-robot environment *without*
 the ``MultiTaskRegistryConfig`` composition machinery.  Every scene asset,
 action term, and prim-path is specified explicitly so the user has full control.
 
-Per-group assets use ``{ENV_REGEX_NS}`` in their ``prim_path`` like shared
-assets, but set :attr:`~isaaclab.assets.AssetBaseCfg.assigned_env_ids` so
-that the cloner only replicates them into the environments assigned to their
-task group.  The ``assigned_env_ids`` are populated in ``__post_init__``
-after the environment partition is computed.
+Per-group assets declare ``task_group`` to indicate which task group they
+belong to.  The scene's ``task_groups`` dict defines the groups and their
+relative weights; env-id partitioning and cloning masks are resolved
+automatically by the :class:`InteractiveScene`.
 
 Layout (3 groups, evenly split):
     Group 0:  OpenArm  -- Lift Cube          (differential-IK actions)
@@ -50,24 +49,11 @@ from isaaclab_assets.robots.universal_robots import UR10_CFG
 
 from .demo_multitask_flat_env_cfg import MultitaskPhysicsCfg
 
-TASK_OPENARM_LIFT = 0
-TASK_FRANKA_STACK = 1
-TASK_UR10_REACH = 2
+TASK_OPENARM_LIFT = "openarm_lift"
+TASK_FRANKA_STACK = "franka_stack"
+TASK_UR10_REACH = "ur10_reach"
 
-NUM_GROUPS = 3
-NUM_ENVS = 24
-
-
-def _partition_env_ids(num_envs: int, num_groups: int) -> list[list[int]]:
-    """Split *num_envs* indices as evenly as possible across *num_groups*."""
-    base, remainder = divmod(num_envs, num_groups)
-    groups: list[list[int]] = []
-    start = 0
-    for g in range(num_groups):
-        size = base + (1 if g < remainder else 0)
-        groups.append(list(range(start, start + size)))
-        start += size
-    return groups
+NUM_ENVS = 25
 
 
 _LIFT_CUBE_RIGID_PROPS = RigidBodyPropertiesCfg(
@@ -119,11 +105,12 @@ _TABLE_SPAWN = UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLab
 class FlatMultiRobotSceneCfg(InteractiveSceneCfg):
     """Scene with three robot groups, each in its own env-id subset.
 
-    All per-group assets use ``{ENV_REGEX_NS}`` in their ``prim_path``.
-    :attr:`~isaaclab.assets.AssetBaseCfg.assigned_env_ids` is set in
-    ``FlatMultiRobotLiftStackEnvCfg.__post_init__`` so that the cloner
-    only replicates each asset into the environments assigned to its group.
+    All per-group assets declare ``task_group`` to specify which group
+    they belong to.  The ``task_groups`` dict defines the partition.
     """
+
+    # Values are relative weights: 1:1:1 means equal split across the three groups.
+    task_groups = {TASK_OPENARM_LIFT: 1, TASK_FRANKA_STACK: 1, TASK_UR10_REACH: 1}
 
     # -- shared (all envs) ---------------------------------------------------
     plane = AssetBaseCfg(
@@ -137,50 +124,58 @@ class FlatMultiRobotSceneCfg(InteractiveSceneCfg):
     )
 
     # -- Group 0: OpenArm Lift -----------------------------------------------
-    # assigned_env_ids set in __post_init__
-    openarm_robot = OPENARM_UNI_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/OpenArm_Robot")
+    openarm_robot = OPENARM_UNI_HIGH_PD_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/OpenArm_Robot", task_group=TASK_OPENARM_LIFT
+    )
     openarm_table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/OpenArm_Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0), rot=(0.0, 0.0, 0.707, 0.707)),
         spawn=_TABLE_SPAWN,
+        task_group=TASK_OPENARM_LIFT,
     )
     openarm_cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/OpenArm_Object",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.055), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_LIFT_CUBE_SPAWN,
+        task_group=TASK_OPENARM_LIFT,
     )
 
     # -- Group 1: Franka Stack (differential-IK) ------------------------------
-    # assigned_env_ids set in __post_init__
-    franka_stack_robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Franka_Robot")
+    franka_stack_robot = FRANKA_PANDA_HIGH_PD_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Franka_Robot", task_group=TASK_FRANKA_STACK
+    )
     franka_stack_table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Franka_Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0), rot=(0.0, 0.0, 0.707, 0.707)),
         spawn=_TABLE_SPAWN,
+        task_group=TASK_FRANKA_STACK,
     )
     franka_cube_1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Franka_Cube_1",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_STACK_CUBE_1_SPAWN,
+        task_group=TASK_FRANKA_STACK,
     )
     franka_cube_2 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Franka_Cube_2",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.05, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_STACK_CUBE_2_SPAWN,
+        task_group=TASK_FRANKA_STACK,
     )
     franka_cube_3 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Franka_Cube_3",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, -0.1, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
         spawn=_STACK_CUBE_3_SPAWN,
+        task_group=TASK_FRANKA_STACK,
     )
 
     # -- Group 2: UR10 Reach (IK controller, no gripper, no objects) ----------
-    # assigned_env_ids set in __post_init__
-    ur10_reach_robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/UR10_Robot")
+    ur10_reach_robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/UR10_Robot", task_group=TASK_UR10_REACH)
     ur10_reach_table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/UR10_Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0), rot=(0.0, 0.0, 0.707, 0.707)),
         spawn=_TABLE_SPAWN,
+        task_group=TASK_UR10_REACH,
     )
 
 
@@ -288,10 +283,9 @@ class FlatEventsCfg:
 class FlatMultiRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
     """Hand-written multi-robot env with three heterogeneous groups.
 
-
-    ``__post_init__`` partitions ``num_envs`` across groups and sets
-    ``assigned_env_ids`` on every per-group scene asset so the cloner
-    only replicates each asset into the environments it belongs to.
+    Task groups and per-asset ``task_group`` declarations are defined in
+    the scene config.  Env-id partitioning is handled automatically by
+    :class:`InteractiveScene`.
 
     Group 0: OpenArm  -- lift cube          (differential-IK actions)
     Group 1: Franka   -- stack 3 cubes      (differential-IK actions)
@@ -313,23 +307,3 @@ class FlatMultiRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 60.0
         self.sim.render_interval = self.decimation
         self.sim.physics = MultitaskPhysicsCfg()
-
-        groups = _partition_env_ids(self.scene.num_envs, NUM_GROUPS)
-
-        # Group 0: OpenArm lift
-        for asset in (self.scene.openarm_robot, self.scene.openarm_table, self.scene.openarm_cube):
-            asset.assigned_env_ids = groups[TASK_OPENARM_LIFT]
-
-        # Group 1: Franka stack
-        for asset in (
-            self.scene.franka_stack_robot,
-            self.scene.franka_stack_table,
-            self.scene.franka_cube_1,
-            self.scene.franka_cube_2,
-            self.scene.franka_cube_3,
-        ):
-            asset.assigned_env_ids = groups[TASK_FRANKA_STACK]
-
-        # Group 2: UR10 reach
-        for asset in (self.scene.ur10_reach_robot, self.scene.ur10_reach_table):
-            asset.assigned_env_ids = groups[TASK_UR10_REACH]

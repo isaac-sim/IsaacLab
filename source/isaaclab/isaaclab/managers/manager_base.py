@@ -13,8 +13,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import torch
-
 import isaaclab.utils.string as string_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils import class_to_dict, string_to_callable
@@ -69,8 +67,9 @@ class ManagerTermBase(ABC):
         # store the inputs
         self.cfg = cfg
         self._env = env
-        self._assigned_envs: tuple[int, ...] = ()
-        self._env_id_lookup: torch.Tensor | None = None
+        # Layout key — set by subclass or manager to enable centralized
+        # env-id mapping via ``env.scene.layout``.
+        self._layout_key: str | None = None
 
     """
     Properties.
@@ -80,11 +79,13 @@ class ManagerTermBase(ABC):
     def num_envs(self) -> int:
         """Number of environments managed by this term.
 
-        When :attr:`is_heterogeneous` is ``True`` the term only manages a
-        subset of environments, so this returns the size of that subset
-        rather than the total environment count.
+        When a layout key is set, the term only manages a subset of
+        environments, so this returns the size of that subset rather
+        than the total environment count.
         """
-        return self._env.num_envs if len(self._assigned_envs) == 0 else len(self._assigned_envs)
+        if self._layout_key is not None:
+            return self._env.scene.layout.num_envs_for(self._layout_key)
+        return self._env.num_envs
 
     @property
     def device(self) -> str:
@@ -134,51 +135,6 @@ class ManagerTermBase(ABC):
             The value of the term.
         """
         raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
-
-    @property
-    def assigned_envs(self) -> tuple[int, ...]:
-        """Global environment indices handled by this term."""
-        return self._assigned_envs
-
-    @property
-    def is_heterogeneous(self) -> bool:
-        """Whether the term only manages a subset of environments."""
-        return len(self._assigned_envs) > 0
-
-    def _filter_env_ids(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> torch.Tensor:
-        """Map global environment indices to local (term-internal) indices.
-
-        When the term only manages a subset of environments
-        (:attr:`is_heterogeneous` is ``True``), callers pass *global* env
-        indices but the internal buffers are indexed *locally*
-        (0 .. ``num_envs - 1``).  This method filters out env indices that
-        do not belong to this term and returns the corresponding local
-        indices.
-
-        Args:
-            env_ids: Global env indices. If ``None``, returns all local
-                indices.
-
-        Returns:
-            1-D long tensor of local indices into this term's buffers.
-        """
-        if env_ids is None:
-            return torch.arange(len(self._assigned_envs), dtype=torch.long, device=self.device)
-        if not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        lookup = self._get_env_id_lookup(env_ids.device)
-        max_id = lookup.shape[0] - 1
-        clamped = env_ids.clamp(max=max_id)
-        valid = (env_ids <= max_id) & (lookup[clamped] >= 0)
-        return lookup[env_ids[valid]]
-
-    def _get_env_id_lookup(self, device: torch.device | str) -> torch.Tensor:
-        """Return the cached global-to-local env-id lookup table, building it on first call."""
-        if self._env_id_lookup is None or self._env_id_lookup.device != torch.device(device):
-            assigned = torch.tensor(self._assigned_envs, device=device, dtype=torch.long)
-            self._env_id_lookup = torch.full((int(assigned.max().item()) + 1,), -1, dtype=torch.long, device=device)
-            self._env_id_lookup[assigned] = torch.arange(len(assigned), device=device)
-        return self._env_id_lookup
 
 
 class ManagerBase(ABC):

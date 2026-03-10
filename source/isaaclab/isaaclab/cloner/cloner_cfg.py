@@ -90,5 +90,5 @@ class TemplateCloneCfg:
     in this dict are cloned into **all** environments.
 
     This is populated automatically by :class:`~isaaclab.scene.InteractiveScene`
-    from :attr:`~isaaclab.assets.AssetBaseCfg.assigned_env_ids`.
+    when an asset declares a :attr:`~isaaclab.assets.AssetBaseCfg.task_group`.
     """

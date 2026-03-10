@@ -124,3 +124,18 @@ class InteractiveSceneCfg:
         default to ``False``.
 
     """
+
+    task_groups: dict[str, int] | None = None
+    """Named task groups with relative weights for heterogeneous multi-task scenes. Defaults to None.
+
+    When set, :class:`InteractiveScene` calls :func:`~isaaclab.scene.partition_env_ids` to
+    split ``num_envs`` across the declared groups and pre-registers every group in the
+    centralized :class:`~isaaclab.scene.EnvLayout`.  Assets and command terms can then
+    reference a group by setting ``task_group`` to one of the keys defined here.
+
+    Example::
+
+        task_groups = {"lift": 1, "stack": 1, "reach": 1}
+        # Splits 24 envs into 3 equal groups of 8.
+
+    """

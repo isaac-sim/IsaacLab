@@ -63,8 +63,8 @@ class ActionTerm(ManagerTermBase):
         self._debug_vis_handle = None
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
-        # resolve assigned environment indices from the underlying asset
-        self._assigned_envs = getattr(self._asset, "assigned_envs", self._assigned_envs)
+        # resolve layout key from the underlying asset
+        self._layout_key = self._asset._layout_key
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
@@ -368,9 +368,21 @@ class ActionManager(ManagerBase):
         # reset the action history
         self._prev_action[env_ids] = 0.0
         self._action[env_ids] = 0.0
-        # reset all action terms
-        for term in self._terms.values():
-            term.reset(env_ids=env_ids)
+        # reset all action terms — dispatch through layout
+        layout = self._env.scene.layout
+        if layout.is_heterogeneous and not isinstance(env_ids, slice):
+            env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+            for term in self._terms.values():
+                key = term._layout_key
+                if key and layout.is_partial(key):
+                    local = layout.global_to_local(key, env_ids_t)
+                    if local.numel() > 0:
+                        term.reset(env_ids=local)
+                else:
+                    term.reset(env_ids=env_ids)
+        else:
+            for term in self._terms.values():
+                term.reset(env_ids=env_ids)
         # nothing to log here
         return {}
 
@@ -391,13 +403,11 @@ class ActionManager(ManagerBase):
         self._action[:] = action.to(self.device)
 
         # split the actions and apply to each tensor
+        layout = self._env.scene.layout
         idx = 0
         for term in self._terms.values():
-            term_assigned_envs = term.assigned_envs
-            if len(term_assigned_envs) == 0:
-                term_actions = action[:, idx : idx + term.action_dim]
-            else:
-                term_actions = action[list(term_assigned_envs), idx : idx + term.action_dim]
+            env_sel = layout.env_slice(term._layout_key) if term._layout_key else slice(None)
+            term_actions = action[env_sel, idx : idx + term.action_dim]
             term.process_actions(term_actions)
             idx += term.action_dim
         assert idx == self.total_action_dim, (

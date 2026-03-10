@@ -194,6 +194,4 @@ class NonHolonomicAction(ActionTerm):
         self._asset.set_joint_velocity_target_index(target=self._joint_vel_command, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        if self.is_heterogeneous:
-            env_ids = self._filter_env_ids(env_ids)
         self._raw_actions[env_ids] = 0.0
