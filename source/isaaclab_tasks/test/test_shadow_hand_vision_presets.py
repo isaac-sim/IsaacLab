@@ -171,7 +171,6 @@ def test_invalid_combinations_raise_value_error(renderer_type, data_types, enabl
         cfg.validate_config()
 
 
-
 # ---------------------------------------------------------------------------
 # Preset resolution — camera data types
 # ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ from .feature_extractor import FeatureExtractor
 if TYPE_CHECKING:
     from .shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
+
 class ShadowHandVisionEnv(InHandManipulationEnv):
     cfg: ShadowHandVisionEnvCfg
 
