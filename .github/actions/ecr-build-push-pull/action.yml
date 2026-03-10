@@ -191,7 +191,6 @@ runs:
           "${{ inputs.dockerfile-path }}"
           isaaclab.sh
           environment.yml
-          pyproject.toml
           tools
           source/isaaclab/isaaclab/cli
         )
