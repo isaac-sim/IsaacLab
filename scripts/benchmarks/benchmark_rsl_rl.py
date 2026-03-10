@@ -63,6 +63,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 imports_time_begin = time.perf_counter_ns()
 
+import importlib.metadata as metadata
 from datetime import datetime
 
 import gymnasium as gym
@@ -74,7 +75,7 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
@@ -199,6 +200,9 @@ def main(
 
     task_startup_time_end = time.perf_counter_ns()
 
+    # handle deprecated configurations (e.g. legacy policy -> actor/critic migration)
+    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
+
     # create runner from rsl-rl
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     # write git state to logs
@@ -232,13 +236,13 @@ def main(
         # prepare RL timing dict
         collection_fps = (
             1
-            / (np.array(log_data["Perf/collection time"]))
+            / (np.array(log_data["Perf/collection_time"]))
             * env.unwrapped.num_envs
             * agent_cfg.num_steps_per_env
             * world_size
         )
         rl_training_times = {
-            "Collection Time": (np.array(log_data["Perf/collection time"]) / 1000).tolist(),
+            "Collection Time": (np.array(log_data["Perf/collection_time"]) / 1000).tolist(),
             "Learning Time": (np.array(log_data["Perf/learning_time"]) / 1000).tolist(),
             "Collection FPS": collection_fps.tolist(),
             "Total FPS": log_data["Perf/total_fps"] * world_size,

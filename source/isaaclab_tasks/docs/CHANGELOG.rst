@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+1.5.4 (2026-03-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified all task MDP ``__init__.py`` files to call ``lazy_export()`` without
+  arguments. Fallback packages are now inferred from ``__init__.pyi`` stubs.
+
+Added
+^^^^^
+
+* Added ``from isaaclab.envs.mdp import *`` wildcard re-exports to all task MDP
+  ``__init__.pyi`` stubs, fixing broken type hints for base MDP symbols.
+
+* Added ``test_lazy_export_stubs.py`` to enforce that ``lazy_export()`` is called
+  without arguments across the codebase.
+
+1.5.3 (2026-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``TypeError: 'NoneType' object is not iterable`` in
+  :func:`~isaaclab_tasks.utils.hydra.apply_overrides` when a preset value is
+  ``None`` (e.g. ``default = None`` in a :class:`~isaaclab_tasks.utils.PresetCfg`).
+
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 

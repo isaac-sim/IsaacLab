@@ -14,48 +14,91 @@ from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 
 #########################
-# Policy configurations #
+# Model configurations #
 #########################
 
 
 @configclass
-class RslRlPpoActorCriticCfg:
-    """Configuration for the PPO actor-critic networks."""
+class RslRlMLPModelCfg:
+    """Configuration for the MLP model."""
 
-    class_name: str = "ActorCritic"
-    """The policy class name. Default is ActorCritic."""
+    class_name: str = "MLPModel"
+    """The model class name. Default is MLPModel."""
 
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the policy."""
-
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Default is scalar."""
-
-    state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Default is False."""
-
-    actor_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the actor network."""
-
-    critic_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the critic network."""
-
-    actor_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the actor network."""
-
-    critic_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the critic network."""
+    hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the MLP network."""
 
     activation: str = MISSING
-    """The activation function for the actor and critic networks."""
+    """The activation function for the MLP network."""
+
+    obs_normalization: bool = False
+    """Whether to normalize the observation for the model. Default is False."""
+
+    distribution_cfg: DistributionCfg | None = None
+    """The configuration for the output distribution. Default is None, in which case no distribution is used."""
+
+    @configclass
+    class DistributionCfg:
+        """Configuration for the output distribution."""
+
+        class_name: str = MISSING
+        """The distribution class name."""
+
+    @configclass
+    class GaussianDistributionCfg(DistributionCfg):
+        """Configuration for the Gaussian output distribution."""
+
+        class_name: str = "GaussianDistribution"
+        """The distribution class name. Default is GaussianDistribution."""
+
+        init_std: float = MISSING
+        """The initial standard deviation of the output distribution."""
+
+        std_type: Literal["scalar", "log"] = "scalar"
+        """The parameterization type of the output distribution's standard deviation. Default is scalar."""
+
+    @configclass
+    class HeteroscedasticGaussianDistributionCfg(GaussianDistributionCfg):
+        """Configuration for the heteroscedastic Gaussian output distribution."""
+
+        class_name: str = "HeteroscedasticGaussianDistribution"
+        """The distribution class name. Default is HeteroscedasticGaussianDistribution."""
+
+    stochastic: bool = MISSING
+    """Whether the model output is stochastic.
+
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None
+    for deterministic output or to a valid configuration class, e.g., `GaussianDistributionCfg` for stochastic output.
+    """
+
+    init_noise_std: float = MISSING
+    """The initial noise standard deviation for the model.
+
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
+    `init_std` field of the distribution configuration to specify the initial noise standard deviation.
+    """
+
+    noise_std_type: Literal["scalar", "log"] = "scalar"
+    """The type of noise standard deviation for the model. Default is scalar.
+
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
+    `std_type` field of the distribution configuration to specify the type of noise standard deviation.
+    """
+
+    state_dependent_std: bool = False
+    """Whether to use state-dependent standard deviation for the policy. Default is False.
+
+    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
+    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.
+    """
 
 
 @configclass
-class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
-    """Configuration for the PPO actor-critic networks with recurrent layers."""
+class RslRlRNNModelCfg(RslRlMLPModelCfg):
+    """Configuration for RNN model."""
 
-    class_name: str = "ActorCriticRecurrent"
-    """The policy class name. Default is ActorCriticRecurrent."""
+    class_name: str = "RNNModel"
+    """The model class name. Default is RNNModel."""
 
     rnn_type: str = MISSING
     """The type of RNN to use. Either "lstm" or "gru"."""
@@ -65,6 +108,49 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
 
     rnn_num_layers: int = MISSING
     """The number of RNN layers."""
+
+
+@configclass
+class RslRlCNNModelCfg(RslRlMLPModelCfg):
+    """Configuration for CNN model."""
+
+    class_name: str = "CNNModel"
+    """The model class name. Default is CNNModel."""
+
+    @configclass
+    class CNNCfg:
+        output_channels: tuple[int] | list[int] = MISSING
+        """The number of output channels for each convolutional layer for the CNN."""
+
+        kernel_size: int | tuple[int] | list[int] = MISSING
+        """The kernel size for the CNN."""
+
+        stride: int | tuple[int] | list[int] = 1
+        """The stride for the CNN."""
+
+        dilation: int | tuple[int] | list[int] = 1
+        """The dilation for the CNN."""
+
+        padding: Literal["none", "zeros", "reflect", "replicate", "circular"] = "none"
+        """The padding for the CNN."""
+
+        norm: Literal["none", "batch", "layer"] | tuple[str] | list[str] = "none"
+        """The normalization for the CNN."""
+
+        activation: str = MISSING
+        """The activation function for the CNN."""
+
+        max_pool: bool | tuple[bool] | list[bool] = False
+        """Whether to use max pooling for the CNN."""
+
+        global_pool: Literal["none", "max", "avg"] = "none"
+        """The global pooling for the CNN."""
+
+        flatten: bool = True
+        """Whether to flatten the output of the CNN."""
+
+    cnn_cfg: CNNCfg = MISSING
+    """The configuration for the CNN(s)."""
 
 
 ############################
@@ -106,6 +192,9 @@ class RslRlPpoAlgorithmCfg:
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
 
+    optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
+    """The optimizer to use."""
+
     value_loss_coef: float = MISSING
     """The coefficient for the value loss."""
 
@@ -121,6 +210,9 @@ class RslRlPpoAlgorithmCfg:
     If True, the advantage is normalized over the mini-batches only.
     Otherwise, the advantage is normalized over the entire collected trajectories.
     """
+
+    share_cnn_encoders: bool = False
+    """Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False."""
 
     rnd_cfg: RslRlRndCfg | None = None
     """The RND configuration. Default is None, in which case RND is not used."""
@@ -150,10 +242,11 @@ class RslRlBaseRunnerCfg:
     max_iterations: int = MISSING
     """The maximum number of iterations."""
 
-    empirical_normalization: bool | None = None
+    empirical_normalization: bool = MISSING
     """This parameter is deprecated and will be removed in the future.
 
-    Use `actor_obs_normalization` and `critic_obs_normalization` instead.
+    For rsl-rl < 4.0.0, use `actor_obs_normalization` and `critic_obs_normalization` of the policy instead.
+    For rsl-rl >= 4.0.0, use `obs_normalization` of the model instead.
     """
 
     obs_groups: dict[str, list[str]] = MISSING
@@ -168,11 +261,11 @@ class RslRlBaseRunnerCfg:
     .. code-block:: python
 
         obs_groups = {
-            "policy": ["policy", "images"],
+            "actor": ["policy", "images"],
             "critic": ["policy", "privileged"],
         }
 
-    This way, the policy will receive the "policy" and "images" observations, and the critic will
+    This way, the actor will receive the "policy" and "images" observations, and the critic will
     receive the "policy" and "privileged" observations.
 
     For more details, please check ``vec_env.py`` in the rsl_rl library.
@@ -184,6 +277,9 @@ class RslRlBaseRunnerCfg:
     .. note::
         This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.
     """
+
+    check_for_nan: bool = True
+    """Whether to check for NaN values coming from the environment."""
 
     save_interval: int = MISSING
     """The number of iterations between saves."""
@@ -234,8 +330,78 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     class_name: str = "OnPolicyRunner"
     """The runner class name. Default is OnPolicyRunner."""
 
-    policy: RslRlPpoActorCriticCfg = MISSING
-    """The policy configuration."""
+    actor: RslRlMLPModelCfg = MISSING
+    """The actor configuration."""
+
+    critic: RslRlMLPModelCfg = MISSING
+    """The critic configuration."""
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
+
+    policy: RslRlPpoActorCriticCfg = MISSING
+    """The policy configuration.
+
+    For rsl-rl >= 4.0.0, this configuration is is deprecated. Please use `actor` and `critic` model configurations
+    instead.
+    """
+
+
+#############################
+# Deprecated configurations #
+#############################
+
+
+@configclass
+class RslRlPpoActorCriticCfg:
+    """Configuration for the PPO actor-critic networks.
+
+    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.
+    """
+
+    class_name: str = "ActorCritic"
+    """The policy class name. Default is ActorCritic."""
+
+    init_noise_std: float = MISSING
+    """The initial noise standard deviation for the policy."""
+
+    noise_std_type: Literal["scalar", "log"] = "scalar"
+    """The type of noise standard deviation for the policy. Default is scalar."""
+
+    state_dependent_std: bool = False
+    """Whether to use state-dependent standard deviation for the policy. Default is False."""
+
+    actor_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the actor network."""
+
+    critic_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the critic network."""
+
+    actor_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the actor network."""
+
+    critic_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the critic network."""
+
+    activation: str = MISSING
+    """The activation function for the actor and critic networks."""
+
+
+@configclass
+class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the PPO actor-critic networks with recurrent layers.
+
+    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlRNNModelCfg` instead.
+    """
+
+    class_name: str = "ActorCriticRecurrent"
+    """The policy class name. Default is ActorCriticRecurrent."""
+
+    rnn_type: str = MISSING
+    """The type of RNN to use. Either "lstm" or "gru"."""
+
+    rnn_hidden_dim: int = MISSING
+    """The dimension of the RNN layers."""
+
+    rnn_num_layers: int = MISSING
+    """The number of RNN layers."""

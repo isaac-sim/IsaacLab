@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import argparse
+
 import pytest
 
 import isaaclab.app.app_launcher as app_launcher_module
@@ -68,3 +70,25 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
 
     launcher = AppLauncher.__new__(AppLauncher)
     launcher._set_visualizer_settings({"visualizer": ["viser"], "visualizer_max_worlds": 3})
+
+
+def test_parse_visualizer_csv_accepts_comma_delimited_values():
+    parsed = app_launcher_module._parse_visualizer_csv("kit,newton,rerun,viser")
+    assert parsed == ["kit", "newton", "rerun", "viser"]
+
+
+def test_parse_visualizer_csv_rejects_spaces_between_entries():
+    with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
+        app_launcher_module._parse_visualizer_csv("kit, newton")
+
+
+def test_visualizer_csv_does_not_swallow_hydra_overrides():
+    parser = argparse.ArgumentParser(add_help=False)
+    app_launcher_module.AppLauncher.add_app_launcher_args(parser)
+
+    args, hydra_args = parser.parse_known_args(
+        ["--visualizer", "kit,newton,rerun", "presets=newton", "env.episode_length=10"]
+    )
+
+    assert args.visualizer == ["kit", "newton", "rerun"]
+    assert hydra_args == ["presets=newton", "env.episode_length=10"]

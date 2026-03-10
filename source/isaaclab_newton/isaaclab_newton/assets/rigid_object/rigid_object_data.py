@@ -203,7 +203,7 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_com_vel_w,
                     self.root_link_pose_w,
-                    self.body_com_pose_b,
+                    self.body_com_pos_b,
                 ],
                 outputs=[
                     self._root_link_vel_w.data,
@@ -229,7 +229,7 @@ class RigidObjectData(BaseRigidObjectData):
                 dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w,
-                    self.body_com_pose_b,
+                    self.body_com_pos_b,
                 ],
                 outputs=[
                     self._root_com_pose_w.data,
@@ -261,7 +261,7 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1, 1), dtype = wp.float32.
         In torch this resolves to (num_instances, 1, 1).
         """
-        return self._body_mass
+        return self._sim_bind_body_mass
 
     @property
     def body_inertia(self) -> wp.array:
@@ -270,7 +270,7 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1, 9), dtype = wp.float32.
         In torch this resolves to (num_instances, 1, 9).
         """
-        return self._body_inertia
+        return self._sim_bind_body_inertia
 
     @property
     def body_link_pose_w(self) -> wp.array:
@@ -427,6 +427,10 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
+        if self._root_link_lin_vel_b is None:
+            self._root_link_lin_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -446,6 +450,10 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
+        if self._root_link_ang_vel_b is None:
+            self._root_link_ang_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -465,6 +473,10 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
+        if self._root_com_lin_vel_b is None:
+            self._root_com_lin_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -484,6 +496,10 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
+        if self._root_com_ang_vel_b is None:
+            self._root_com_ang_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -681,6 +697,10 @@ class RigidObjectData(BaseRigidObjectData):
         .. caution:: This is possible if and only if the properties that we access are strided from newton and not
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
+        # Short-hand for the number of instances, number of links, and number of joints.
+        self._num_instances = self._root_view.count
+        self._num_bodies = self._root_view.link_count
+
         # -- root properties
         if self._root_view.is_fixed_base:
             self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[
@@ -699,7 +719,18 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        _inertia_mat33 = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        if _inertia_mat33.ptr is not None and _inertia_mat33.ndim == 4:
+            self._sim_bind_body_inertia = wp.array(
+                ptr=_inertia_mat33.ptr,
+                dtype=wp.float32,
+                shape=(_inertia_mat33.shape[0], _inertia_mat33.shape[1], 9),
+                strides=(_inertia_mat33.strides[0], _inertia_mat33.strides[1], _inertia_mat33.strides[3]),
+                device=_inertia_mat33.device,
+                copy=False,
+            )
+        else:
+            self._sim_bind_body_inertia = _inertia_mat33
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
@@ -724,10 +755,6 @@ class RigidObjectData(BaseRigidObjectData):
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-
-        # -- Body properties
-        self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
 
         # Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(SimulationManager.get_state_0()))[
@@ -758,6 +785,9 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_com_acc_w = TimestampedBuffer(
             shape=(self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device
         )
+        self._body_com_pose_b = TimestampedBuffer(
+            shape=(self._num_instances, 1), dtype=wp.transformf, device=self.device
+        )
         # Empty memory pre-allocations
         self._root_state_w = None
         self._root_link_state_w = None
@@ -785,7 +815,6 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_com_ang_vel_w = None
         self._body_com_lin_acc_w = None
         self._body_com_ang_acc_w = None
-        self._body_com_pose_b = None
 
     """
     Internal helpers.
@@ -802,7 +831,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if transform.is_contiguous():
+            if transform.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -813,34 +842,27 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((transform.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches transform.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(transform.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the position part of the transform.
-        if not transform.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not transform.is_contiguous:
+            # Launch the right kernel based on the shape of the transform array.
+            if len(transform.shape) > 1:
                 wp.launch(
                     shared_kernels.split_transform_to_pos_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_transform_to_pos_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
         return source
@@ -856,7 +878,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if transform.is_contiguous():
+            if transform.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -867,34 +889,27 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((transform.shape[0], 4), dtype=wp.quatf, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches transform.shape since each element is quatf (already contains 4 floats)
+                source = wp.zeros(transform.shape, dtype=wp.quatf, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the quaternion part of the transform.
-        if not transform.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not transform.is_contiguous:
+            # Launch the right kernel based on the shape of the transform array.
+            if len(transform.shape) > 1:
                 wp.launch(
                     shared_kernels.split_transform_to_quat_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_transform_to_quat_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
@@ -913,7 +928,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if spatial_vector.is_contiguous():
+            if spatial_vector.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -924,34 +939,27 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((spatial_vector.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the top part of the spatial vector.
-        if not spatial_vector.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not spatial_vector.is_contiguous:
+            # Launch the right kernel based on the shape of the spatial_vector array.
+            if len(spatial_vector.shape) > 1:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_top_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_top_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
@@ -970,7 +978,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if spatial_vector.is_contiguous():
+            if spatial_vector.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -981,34 +989,27 @@ class RigidObjectData(BaseRigidObjectData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((spatial_vector.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the bottom part of the spatial vector.
-        if not spatial_vector.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not spatial_vector.is_contiguous:
+            # Launch the right kernel based on the shape of the spatial_vector array.
+            if len(spatial_vector.shape) > 1:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_bottom_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_bottom_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
@@ -1027,6 +1028,10 @@ class RigidObjectData(BaseRigidObjectData):
             DeprecationWarning,
             stacklevel=2,
         )
+        if self._root_state_w is None:
+            self._root_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1053,6 +1058,10 @@ class RigidObjectData(BaseRigidObjectData):
             DeprecationWarning,
             stacklevel=2,
         )
+        if self._root_link_state_w is None:
+            self._root_link_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1079,6 +1088,10 @@ class RigidObjectData(BaseRigidObjectData):
             DeprecationWarning,
             stacklevel=2,
         )
+        if self._root_com_state_w is None:
+            self._root_com_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1135,6 +1148,10 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
+        if self._root_state_w is None:
+            self._root_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1161,6 +1178,10 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
+        if self._root_link_state_w is None:
+            self._root_link_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1186,6 +1207,10 @@ class RigidObjectData(BaseRigidObjectData):
             DeprecationWarning,
             stacklevel=2,
         )
+        if self._root_com_state_w is None:
+            self._root_com_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,

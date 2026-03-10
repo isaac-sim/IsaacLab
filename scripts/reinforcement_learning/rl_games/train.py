@@ -221,15 +221,16 @@ def main():
                 wandb.config.update({"env_cfg": env_cfg.to_dict()})
                 wandb.config.update({"agent_cfg": agent_cfg})
 
-        if args_cli.checkpoint is not None:
-            runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
-        else:
-            runner.run({"train": True, "play": False, "sigma": train_sigma})
-
-        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-
-        # close the simulator
-        env.close()
+        try:
+            if args_cli.checkpoint is not None:
+                runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+            else:
+                runner.run({"train": True, "play": False, "sigma": train_sigma})
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            # close the simulator
+            env.close()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

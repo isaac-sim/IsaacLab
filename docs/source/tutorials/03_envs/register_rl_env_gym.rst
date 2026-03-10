@@ -136,7 +136,7 @@ and whether to render, are used to override the default configuration.
 
 .. literalinclude:: ../../../../scripts/environments/random_agent.py
    :language: python
-   :start-at: # create environment configuration
+   :start-at: # parse configuration via Hydra
    :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
 
 Once creating the environment, the rest of the execution follows the standard resetting and stepping.

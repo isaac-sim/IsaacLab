@@ -159,9 +159,23 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
-                changed, self.renderer._light_color = imgui.color_edit3("Light Color", self.renderer._light_color)
-                changed, self.renderer.sky_upper = imgui.color_edit3("Upper Sky Color", self.renderer.sky_upper)
-                changed, self.renderer.sky_lower = imgui.color_edit3("Lower Sky Color", self.renderer.sky_lower)
+                def _to_imvec4(color):
+                    if hasattr(color, "x"):
+                        return color
+                    return imgui.ImVec4(float(color[0]), float(color[1]), float(color[2]), 1.0)
+
+                def _from_imvec4(color):
+                    return (float(color.x), float(color.y), float(color.z))
+
+                changed, c = imgui.color_edit3("Light Color", _to_imvec4(self.renderer._light_color))
+                if changed:
+                    self.renderer._light_color = _from_imvec4(c)
+                changed, c = imgui.color_edit3("Upper Sky Color", _to_imvec4(self.renderer.sky_upper))
+                if changed:
+                    self.renderer.sky_upper = _from_imvec4(c)
+                changed, c = imgui.color_edit3("Lower Sky Color", _to_imvec4(self.renderer.sky_lower))
+                if changed:
+                    self.renderer.sky_lower = _from_imvec4(c)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
@@ -278,7 +292,6 @@ class NewtonVisualizer(BaseVisualizer):
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
-                ("headless_fallback_no_viewer", self._headless_no_viewer),
             ],
         )
         self._is_initialized = True

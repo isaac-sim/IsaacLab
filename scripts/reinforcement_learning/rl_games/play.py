@@ -169,28 +169,31 @@ def main():
         if agent.is_rnn:
             agent.init_rnn()
         # simulate environment
-        while True:
-            start_time = time.time()
-            with torch.inference_mode():
-                obs = agent.obs_to_torch(obs)
-                actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
-                obs, _, dones, _ = env.step(actions)
+        try:
+            while True:
+                start_time = time.time()
+                with torch.inference_mode():
+                    obs = agent.obs_to_torch(obs)
+                    actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
+                    obs, _, dones, _ = env.step(actions)
 
-                if len(dones) > 0:
-                    if agent.is_rnn and agent.states is not None:
-                        for s in agent.states:
-                            s[:, dones, :] = 0.0
-            if args_cli.video:
-                timestep += 1
-                if timestep == args_cli.video_length:
-                    break
+                    if len(dones) > 0:
+                        if agent.is_rnn and agent.states is not None:
+                            for s in agent.states:
+                                s[:, dones, :] = 0.0
+                if args_cli.video:
+                    timestep += 1
+                    if timestep == args_cli.video_length:
+                        break
 
-            sleep_time = dt - (time.time() - start_time)
-            if args_cli.real_time and sleep_time > 0:
-                time.sleep(sleep_time)
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
-        # close the simulator
-        env.close()
+            # close the simulator
+            env.close()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

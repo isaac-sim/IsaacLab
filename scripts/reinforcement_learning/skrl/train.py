@@ -208,12 +208,13 @@ def main():
             runner.agent.load(resume_path)
 
         # run training
-        runner.run()
-
-        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-
-        # close the simulator
-        env.close()
+        try:
+            runner.run()
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            # close the simulator
+            env.close()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

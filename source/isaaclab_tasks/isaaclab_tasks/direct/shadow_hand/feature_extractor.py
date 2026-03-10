@@ -37,10 +37,21 @@ _IMAGENET_NORM_TYPES: frozenset[str] = frozenset(
 )
 
 
+def _conv_out(size: int, kernel: int, stride: int, padding: int = 0) -> int:
+    """Compute the spatial output size of a single convolutional layer."""
+    return (size + 2 * padding - kernel) // stride + 1
+
+
 class FeatureExtractorNetwork(nn.Module):
     """CNN architecture used to regress keypoint positions of the in-hand cube from image data."""
 
-    def __init__(self, num_channel: int = 7, data_types: list[str] | None = None):
+    def __init__(
+        self,
+        num_channel: int = 7,
+        data_types: list[str] | None = None,
+        height: int = 120,
+        width: int = 120,
+    ):
         """Initialize the CNN.
 
         Args:
@@ -48,25 +59,35 @@ class FeatureExtractorNetwork(nn.Module):
             data_types: Ordered list of camera data types that form the channel stack.
                 Used to determine which channel ranges receive ImageNet normalization.
                 Defaults to ``["rgb", "depth", "semantic_segmentation"]``.
+            height: Input image height [px]. Used to compute :class:`~torch.nn.LayerNorm`
+                spatial dimensions. Default is ``120``.
+            width: Input image width [px]. Used to compute :class:`~torch.nn.LayerNorm`
+                spatial dimensions. Default is ``120``.
         """
         super().__init__()
         if data_types is None:
             data_types = ["rgb", "depth", "semantic_segmentation"]
 
+        # Compute spatial sizes after each conv to build resolution-adaptive LayerNorms.
+        h1, w1 = _conv_out(height, 6, 2), _conv_out(width, 6, 2)
+        h2, w2 = _conv_out(h1, 4, 2), _conv_out(w1, 4, 2)
+        h3, w3 = _conv_out(h2, 4, 2), _conv_out(w2, 4, 2)
+        h4, w4 = _conv_out(h3, 3, 2), _conv_out(w3, 3, 2)
+
         self.cnn = nn.Sequential(
             nn.Conv2d(num_channel, 16, kernel_size=6, stride=2, padding=0),
             nn.ReLU(),
-            nn.LayerNorm([16, 58, 58]),
+            nn.LayerNorm([16, h1, w1]),
             nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=0),
             nn.ReLU(),
-            nn.LayerNorm([32, 28, 28]),
+            nn.LayerNorm([32, h2, w2]),
             nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
             nn.ReLU(),
-            nn.LayerNorm([64, 13, 13]),
+            nn.LayerNorm([64, h3, w3]),
             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=0),
             nn.ReLU(),
-            nn.LayerNorm([128, 6, 6]),
-            nn.AvgPool2d(6),
+            nn.LayerNorm([128, h4, w4]),
+            nn.AdaptiveAvgPool2d(1),
         )
 
         self.linear = nn.Sequential(
@@ -89,7 +110,7 @@ class FeatureExtractorNetwork(nn.Module):
             channel_idx += n_ch
 
     def forward(self, x):
-        x = x.permute(0, 3, 1, 2)
+        x = x.permute(0, 3, 1, 2).clone()
         for start, end in self._imagenet_norm_ranges:
             x[:, start:end, :, :] = self.data_transforms(x[:, start:end, :, :])
         cnn_x = self.cnn(x)
@@ -138,6 +159,8 @@ class FeatureExtractor:
         device: str,
         data_types: list[str],
         log_dir: str | None = None,
+        height: int = 120,
+        width: int = 120,
     ):
         """Initialize the feature extractor model.
 
@@ -150,6 +173,10 @@ class FeatureExtractor:
                 :data:`_DATA_TYPE_CHANNELS`.
             log_dir: Directory to save checkpoints. Default is None, which uses the local
                 "logs" folder resolved relative to this file.
+            height: Camera image height [px]. Must match the tiled camera
+                :attr:`~isaaclab.sensors.TiledCameraCfg.height`. Default is ``120``.
+            width: Camera image width [px]. Must match the tiled camera
+                :attr:`~isaaclab.sensors.TiledCameraCfg.width`. Default is ``120``.
         """
         self.cfg = cfg
         self.device = device
@@ -159,7 +186,9 @@ class FeatureExtractor:
         num_channel = sum(_DATA_TYPE_CHANNELS.get(dt, 3) for dt in data_types)
 
         # Feature extractor model.
-        self.feature_extractor = FeatureExtractorNetwork(num_channel=num_channel, data_types=data_types)
+        self.feature_extractor = FeatureExtractorNetwork(
+            num_channel=num_channel, data_types=data_types, height=height, width=width
+        )
         self.feature_extractor.to(self.device)
 
         self.step_count = 0

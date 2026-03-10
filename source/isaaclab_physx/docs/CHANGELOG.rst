@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.7 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made several PhysX articulation tests more backend-agnostic by relaxing
+  PhysX-specific assumptions in ``test_articulation.py``.
+
+
 0.5.6 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 

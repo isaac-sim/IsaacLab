@@ -156,11 +156,11 @@ runs:
           # Copy test results with error handling
           echo "📋 Attempting to copy test results..."
           if docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>/dev/null; then
-            echo "✅ Test results copied successfully"
+            echo "✅ Test results copied successfully to $reports_dir/$result_file"
           else
             echo "❌ Failed to copy specific result file, trying to copy all test results..."
             if docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>/dev/null; then
-              echo "✅ All test results copied successfully"
+              echo "✅ All test results copied successfully to $reports_dir/"
               # Look for any XML files and use the first one found
               if [ -f "$reports_dir/full_report.xml" ]; then
                 mv "$reports_dir/full_report.xml" "$reports_dir/$result_file"
