@@ -523,7 +523,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_poses,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 env_ids,
                 body_ids,
                 full_data,
@@ -719,7 +719,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
-                self.data.body_com_pose_b,
+                self.data.body_com_pos_b,
                 self.data.body_link_pose_w,
                 env_ids,
                 body_ids,
