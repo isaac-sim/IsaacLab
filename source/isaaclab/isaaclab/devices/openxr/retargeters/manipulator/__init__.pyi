@@ -3,8 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the functions that are specific to the drone ARL environments."""
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator import *
