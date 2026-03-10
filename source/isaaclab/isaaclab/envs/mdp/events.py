@@ -621,9 +621,11 @@ class randomize_newton_physics_scene_gravity(ManagerTermBase):
         Args:
             env: The environment instance.
             env_ids: The environment IDs to randomize. If None, all environments are randomized.
-            gravity_distribution_params: Distribution parameters (cached, param ignored at runtime).
+            gravity_distribution_params: Distribution parameters as a tuple of two lists, each
+                with 3 floats corresponding to (x, y, z) gravity components. Updated into
+                pre-allocated tensors each call to support curriculum-driven range changes.
             operation: The operation to apply ('add', 'scale', or 'abs').
-            distribution: The distribution type (cached, param ignored at runtime).
+            distribution: The distribution type (cached at init, param ignored at runtime).
         """
         model = self.newton_manager.get_model()
         if model is None or model.gravity is None:

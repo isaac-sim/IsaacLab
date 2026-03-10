@@ -79,6 +79,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
         from isaaclab.markers import VisualizationMarkers
+
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
 

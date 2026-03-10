@@ -38,7 +38,7 @@ CNN_POLICY_CFG = RslRlCNNModelCfg(
         output_channels=[16, 32],
         kernel_size=[3, 3],
         activation="elu",
-        max_pool=[True, True, True],
+        max_pool=[True, True],
         norm="batch",
         global_pool="avg",
     ),

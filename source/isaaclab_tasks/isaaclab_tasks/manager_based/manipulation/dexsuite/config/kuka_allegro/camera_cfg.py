@@ -64,12 +64,24 @@ class BaseTiledCameraCfg(PresetCfg):
     albedo64 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
     albedo128 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
     albedo256 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
-    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_constant_diffuse"], width=64, height=64)
-    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_constant_diffuse"], width=128, height=128)
-    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_constant_diffuse"], width=256, height=256)
-    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_diffuse_mdl"], width=64, height=64)
-    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_diffuse_mdl"], width=128, height=128)
-    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_diffuse_mdl"], width=256, height=256)
+    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=64, height=64
+    )
+    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=128, height=128
+    )
+    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=256, height=256
+    )
+    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+    )
+    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+    )
+    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+    )
     simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
     simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
     simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
@@ -89,12 +101,24 @@ class WristTiledCameraCfg(PresetCfg):
     albedo64 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
     albedo128 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
     albedo256 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
-    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_constant_diffuse"], width=64, height=64)
-    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_constant_diffuse"], width=128, height=128)
-    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_constant_diffuse"], width=256, height=256)
-    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_diffuse_mdl"], width=64, height=64)
-    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_diffuse_mdl"], width=128, height=128)
-    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_diffuse_mdl"], width=256, height=256)
+    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=64, height=64
+    )
+    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=128, height=128
+    )
+    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=256, height=256
+    )
+    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+    )
+    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+    )
+    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+    )
     simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
     simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
     simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)

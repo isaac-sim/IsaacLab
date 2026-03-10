@@ -17,8 +17,8 @@ from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
-    from isaaclab.sensors import ContactSensor
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import ContactSensor
 
 
 def action_rate_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -44,7 +44,7 @@ def object_ee_distance(
 
     The reward is close to 1 when the distance is small. The reward is scaled by contact:
     - Full reward (1x) when good contact (thumb + finger)
-    - Half reward (0.5x) when no contact
+    - Reduced reward (0.1x) when no contact
 
     Args:
         env: The environment instance.
