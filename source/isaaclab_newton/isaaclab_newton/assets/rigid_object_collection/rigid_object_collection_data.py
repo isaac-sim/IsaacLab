@@ -596,9 +596,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", state_0)[:, :, 0]
         # -- Body mass: (num_envs, num_bodies, 1) float32 → squeeze to (num_envs, num_bodies)
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", model)[:, :, 0]
-        # -- Body inertia: (num_envs, num_bodies, 1) mat33f → squeeze, clone to contiguous, convert to float32
-        inertia_mat33 = self._root_view.get_attribute("body_inertia", model)[:, :, 0]
-        self._body_inertia = wp.clone(inertia_mat33).view(wp.float32).reshape((self.num_instances, self.num_bodies, 9))
+        # -- Body inertia: (num_envs, num_bodies, 1) mat33f → squeeze, reinterpret as (N, B, 9) float32.
+        # Both view() and reshape() are zero-copy pointer reinterpretations.
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", model)[:, :, 0]
+        self._body_inertia = _body_inertia_raw.view(wp.float32).reshape((self.num_instances, self.num_bodies, 9))
 
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""
