@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -49,7 +49,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -158,7 +158,6 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../develop/index.html" >develop</option>
             <option value="rl_cfg.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
@@ -208,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -633,7 +632,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the MLP model.&quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;MLPModel&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is MLPModel.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Defaults to MLPModel.&quot;&quot;&quot;</span>
 
     <span class="n">hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the MLP network.&quot;&quot;&quot;</span>
@@ -642,10 +641,10 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The activation function for the MLP network.&quot;&quot;&quot;</span>
 
     <span class="n">obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the model. Default is False.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the model. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">distribution_cfg</span><span class="p">:</span> <span class="n">DistributionCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the output distribution. Default is None, in which case no distribution is used.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the output distribution. Defaults to None, in which case no distribution is used.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="RslRlMLPModelCfg.DistributionCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">DistributionCfg</span><span class="p">:</span>
@@ -689,14 +688,14 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the model. Default is scalar.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the model. Defaults to scalar.</span>
 
 <span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the</span>
 <span class="sd">    `std_type` field of the distribution configuration to specify the type of noise standard deviation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">state_dependent_std</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Default is False.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Defaults to False.</span>
 
 <span class="sd">    For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use</span>
 <span class="sd">    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.</span>
@@ -708,7 +707,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for RNN model.&quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;RNNModel&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is RNNModel.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Defaults to RNNModel.&quot;&quot;&quot;</span>
 
     <span class="n">rnn_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of RNN to use. Either &quot;lstm&quot; or &quot;gru&quot;.&quot;&quot;&quot;</span>
@@ -725,7 +724,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for CNN model.&quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;CNNModel&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Default is CNNModel.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model class name. Defaults to CNNModel.&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="RslRlCNNModelCfg.CNNCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">CNNCfg</span><span class="p">:</span>
@@ -736,28 +735,28 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The kernel size for the CNN.&quot;&quot;&quot;</span>
 
         <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The stride for the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The stride for the CNN. Defaults to 1.&quot;&quot;&quot;</span>
 
         <span class="n">dilation</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The dilation for the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The dilation for the CNN. Defaults to 1.&quot;&quot;&quot;</span>
 
         <span class="n">padding</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;zeros&quot;</span><span class="p">,</span> <span class="s2">&quot;reflect&quot;</span><span class="p">,</span> <span class="s2">&quot;replicate&quot;</span><span class="p">,</span> <span class="s2">&quot;circular&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The padding for the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The padding for the CNN. Defaults to none.&quot;&quot;&quot;</span>
 
         <span class="n">norm</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;batch&quot;</span><span class="p">,</span> <span class="s2">&quot;layer&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The normalization for the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The normalization for the CNN. Defaults to none.&quot;&quot;&quot;</span>
 
         <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The activation function for the CNN.&quot;&quot;&quot;</span>
 
         <span class="n">max_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to use max pooling for the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to use max pooling for the CNN. Defaults to False.&quot;&quot;&quot;</span>
 
         <span class="n">global_pool</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="s2">&quot;avg&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The global pooling for the CNN.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The global pooling for the CNN. Defaults to none.&quot;&quot;&quot;</span>
 
         <span class="n">flatten</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to flatten the output of the CNN.&quot;&quot;&quot;</span></div>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to flatten the output of the CNN. Defaults to True.&quot;&quot;&quot;</span></div>
 
     <span class="n">cnn_cfg</span><span class="p">:</span> <span class="n">CNNCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the CNN(s).&quot;&quot;&quot;</span></div>
@@ -773,7 +772,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the PPO algorithm.&quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;PPO&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm class name. Default is PPO.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm class name. Defaults to PPO.&quot;&quot;&quot;</span>
 
     <span class="n">num_learning_epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of learning epochs per update.&quot;&quot;&quot;</span>
@@ -803,7 +802,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum gradient norm.&quot;&quot;&quot;</span>
 
     <span class="n">optimizer</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;adam&quot;</span><span class="p">,</span> <span class="s2">&quot;adamw&quot;</span><span class="p">,</span> <span class="s2">&quot;sgd&quot;</span><span class="p">,</span> <span class="s2">&quot;rmsprop&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;adam&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The optimizer to use.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The optimizer to use. Defaults to adam.&quot;&quot;&quot;</span>
 
     <span class="n">value_loss_coef</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The coefficient for the value loss.&quot;&quot;&quot;</span>
@@ -815,7 +814,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The clipping parameter for the policy.&quot;&quot;&quot;</span>
 
     <span class="n">normalize_advantage_per_mini_batch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the advantage per mini-batch. Default is False.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the advantage per mini-batch. Defaults to False.</span>
 
 <span class="sd">    If True, the advantage is normalized over the mini-batches only.</span>
 <span class="sd">    Otherwise, the advantage is normalized over the entire collected trajectories.</span>
@@ -825,10 +824,10 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">rnd_cfg</span><span class="p">:</span> <span class="n">RslRlRndCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The RND configuration. Default is None, in which case RND is not used.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The RND configuration. Defaults to None, in which case RND is not used.&quot;&quot;&quot;</span>
 
     <span class="n">symmetry_cfg</span><span class="p">:</span> <span class="n">RslRlSymmetryCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The symmetry configuration. Default is None, in which case symmetry is not used.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The symmetry configuration. Defaults to None, in which case symmetry is not used.&quot;&quot;&quot;</span></div>
 
 
 <span class="c1">#########################</span>
@@ -841,10 +840,10 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration of the runner.&quot;&quot;&quot;</span>
 
     <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The seed for the experiment. Default is 42.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The seed for the experiment. Defaults to 42.&quot;&quot;&quot;</span>
 
     <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The device for the rl-agent. Default is cuda:0.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The device for the rl-agent. Defaults to cuda:0.&quot;&quot;&quot;</span>
 
     <span class="n">num_steps_per_env</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of steps per environment per update.&quot;&quot;&quot;</span>
@@ -898,7 +897,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The experiment name.&quot;&quot;&quot;</span>
 
     <span class="n">run_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The run name. Default is empty string.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The run name. Defaults to empty string.</span>
 
 <span class="sd">    The name of the run directory is typically the time-stamp at execution. If the run name is not empty,</span>
 <span class="sd">    then it is appended to the run directory&#39;s name, i.e. the logging directory&#39;s name will become</span>
@@ -906,28 +905,28 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">logger</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;tensorboard&quot;</span><span class="p">,</span> <span class="s2">&quot;neptune&quot;</span><span class="p">,</span> <span class="s2">&quot;wandb&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;tensorboard&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The logger to use. Default is tensorboard.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The logger to use. Defaults to tensorboard.&quot;&quot;&quot;</span>
 
     <span class="n">neptune_project</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaaclab&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The neptune project name. Default is &quot;isaaclab&quot;.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The neptune project name. Defaults to &quot;isaaclab&quot;.&quot;&quot;&quot;</span>
 
     <span class="n">wandb_project</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;isaaclab&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The wandb project name. Default is &quot;isaaclab&quot;.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The wandb project name. Defaults to &quot;isaaclab&quot;.&quot;&quot;&quot;</span>
 
     <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to resume a previous training. Default is False.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to resume a previous training. Defaults to False.</span>
 
 <span class="sd">    This flag will be ignored for distillation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">load_run</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The run directory to load. Default is &quot;.*&quot; (all).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The run directory to load. Defaults to &quot;.*&quot; (all).</span>
 
 <span class="sd">    If regex expression, the latest (alphabetical order) matching run will be loaded.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">load_checkpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;model_.*.pt&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The checkpoint file to load. Default is ``&quot;model_.*.pt&quot;`` (all).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The checkpoint file to load. Defaults to ``&quot;model_.*.pt&quot;`` (all).</span>
 
 <span class="sd">    If regex expression, the latest (alphabetical order) matching file will be loaded.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
@@ -938,7 +937,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration of the runner for on-policy algorithms.&quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;OnPolicyRunner&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The runner class name. Default is OnPolicyRunner.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The runner class name. Defaults to OnPolicyRunner.&quot;&quot;&quot;</span>
 
     <span class="n">actor</span><span class="p">:</span> <span class="n">RslRlMLPModelCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The actor configuration.&quot;&quot;&quot;</span>
@@ -970,16 +969,16 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ActorCritic&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is ActorCritic.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Defaults to ActorCritic.&quot;&quot;&quot;</span>
 
     <span class="n">init_noise_std</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The initial noise standard deviation for the policy.&quot;&quot;&quot;</span>
 
     <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Defaults to scalar.&quot;&quot;&quot;</span>
 
     <span class="n">state_dependent_std</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Default is False.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use state-dependent standard deviation for the policy. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">actor_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the actor network.&quot;&quot;&quot;</span>
@@ -1005,7 +1004,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ActorCriticRecurrent&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Default is ActorCriticRecurrent.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy class name. Defaults to ActorCriticRecurrent.&quot;&quot;&quot;</span>
 
     <span class="n">rnn_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of RNN to use. Either &quot;lstm&quot; or &quot;gru&quot;.&quot;&quot;&quot;</span>

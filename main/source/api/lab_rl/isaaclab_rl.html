@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -159,7 +159,6 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../develop/source/api/lab_rl/isaaclab_rl.html" >develop</option>
             <option value="isaaclab_rl.html" selected>main</option>
             <option value="../../../../release/2.1.0/source/api/lab_rl/isaaclab_rl.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/api/lab_rl/isaaclab_rl.html" >release/2.2.0</option>
@@ -209,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -696,8 +695,8 @@
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.__init__()</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight_schedule</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.reward_normalization</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.state_normalization</span></code></a></li>
@@ -1146,6 +1145,15 @@ Thus, they should always be used in conjunction with the respective learning fra
 </tbody>
 </table>
 </div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([weight, weight_schedule, ...])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1176,15 +1184,6 @@ Thus, they should always be used in conjunction with the respective learning fra
 </tbody>
 </table>
 </div>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__" title="isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([weight, weight_schedule, ...])</p></td>
-<td><p></p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">WeightScheduleCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/rnd_cfg.html#RslRlRndCfg.WeightScheduleCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="Permalink to this definition">#</a></dt>
@@ -1211,7 +1210,7 @@ Thus, they should always be used in conjunction with the respective learning fra
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode">
 <span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg.mode" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of weight schedule. Default is “constant”.</p>
+<dd><p>The type of weight schedule. Defaults to “constant”.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1258,7 +1257,7 @@ between <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.Line
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode">
 <span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.mode" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of weight schedule. Default is “constant”.</p>
+<dd><p>The type of weight schedule. Defaults to “linear”.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1321,7 +1320,7 @@ between <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.Line
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode">
 <span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.mode" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of weight schedule. Default is “constant”.</p>
+<dd><p>The type of weight schedule. Defaults to “step”.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1344,59 +1343,59 @@ between <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.Line
 
 </dd></dl>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.weight">
-<span class="sig-name descname"><span class="pre">weight</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight" title="Permalink to this definition">#</a></dt>
-<dd><p>The weight for the RND reward (also known as intrinsic reward). Default is 0.0.</p>
-<p>Similar to other reward terms, the RND reward is scaled by this weight.</p>
-</dd></dl>
-
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weight:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weight_schedule:</span> <span class="pre">~isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg.WeightScheduleCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reward_normalization:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state_normalization:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_outputs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictor_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_hidden_dims:</span> <span class="pre">list[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__" title="Permalink to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.weight">
+<span class="sig-name descname"><span class="pre">weight</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight" title="Permalink to this definition">#</a></dt>
+<dd><p>The weight for the RND reward (also known as intrinsic reward). Defaults to 0.0.</p>
+<p>Similar to other reward terms, the RND reward is scaled by this weight.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule">
 <span class="sig-name descname"><span class="pre">weight_schedule</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.WeightScheduleCfg" title="isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg.WeightScheduleCfg"><span class="pre">WeightScheduleCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule" title="Permalink to this definition">#</a></dt>
-<dd><p>The weight schedule for the RND reward. Default is None, which means the weight is constant.</p>
+<dd><p>The weight schedule for the RND reward. Defaults to None, which means the weight is constant.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization">
 <span class="sig-name descname"><span class="pre">reward_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to normalize the RND reward. Default is False.</p>
+<dd><p>Whether to normalize the RND reward. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization">
 <span class="sig-name descname"><span class="pre">state_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to normalize the RND state. Default is False.</p>
+<dd><p>Whether to normalize the RND state. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate">
 <span class="sig-name descname"><span class="pre">learning_rate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.learning_rate" title="Permalink to this definition">#</a></dt>
-<dd><p>The learning rate for the RND module. Default is 1e-3.</p>
+<dd><p>The learning rate for the RND module. Defaults to 1e-3.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs">
 <span class="sig-name descname"><span class="pre">num_outputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.num_outputs" title="Permalink to this definition">#</a></dt>
-<dd><p>The number of outputs for the RND module. Default is 1.</p>
+<dd><p>The number of outputs for the RND module. Defaults to 1.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims">
 <span class="sig-name descname"><span class="pre">predictor_hidden_dims</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.predictor_hidden_dims" title="Permalink to this definition">#</a></dt>
-<dd><p>The hidden dimensions for the RND predictor network. Default is [-1].</p>
+<dd><p>The hidden dimensions for the RND predictor network. Defaults to [-1].</p>
 <p>If the list contains -1, then the hidden dimensions are the same as the input dimensions.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims">
 <span class="sig-name descname"><span class="pre">target_hidden_dims</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.target_hidden_dims" title="Permalink to this definition">#</a></dt>
-<dd><p>The hidden dimensions for the RND target network. Default is [-1].</p>
+<dd><p>The hidden dimensions for the RND target network. Defaults to [-1].</p>
 <p>If the list contains -1, then the hidden dimensions are the same as the input dimensions.</p>
 </dd></dl>
 
@@ -1445,13 +1444,13 @@ symmetry metrics. This is useful for performing ablations.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation">
 <span class="sig-name descname"><span class="pre">use_data_augmentation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_data_augmentation" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use symmetry-based data augmentation. Default is False.</p>
+<dd><p>Whether to use symmetry-based data augmentation. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss">
 <span class="sig-name descname"><span class="pre">use_mirror_loss</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use the symmetry-augmentation loss. Default is False.</p>
+<dd><p>Whether to use the symmetry-augmentation loss. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1482,7 +1481,7 @@ if their respective inputs are None.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff">
 <span class="sig-name descname"><span class="pre">mirror_loss_coeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.mirror_loss_coeff" title="Permalink to this definition">#</a></dt>
-<dd><p>The weight for the symmetry-mirror loss. Default is 0.0.</p>
+<dd><p>The weight for the symmetry-mirror loss. Defaults to 0.0.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1695,7 +1694,7 @@ wrapper.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.seed">
 <span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.seed" title="Permalink to this definition">#</a></dt>
-<dd><p>The seed for the experiment. Default is 42.</p>
+<dd><p>The seed for the experiment. Defaults to 42.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1706,7 +1705,7 @@ wrapper.</p>
 </ol>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The device for the rl-agent. Default is cuda</p>
+<dd class="field-odd"><p>The device for the rl-agent. Defaults to cuda</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1781,7 +1780,7 @@ receive the “policy” and “privileged” observations.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.run_name">
 <span class="sig-name descname"><span class="pre">run_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.run_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The run name. Default is empty string.</p>
+<dd><p>The run name. Defaults to empty string.</p>
 <p>The name of the run directory is typically the time-stamp at execution. If the run name is not empty,
 then it is appended to the run directory’s name, i.e. the logging directory’s name will become
 <code class="docutils literal notranslate"><span class="pre">{time-stamp}_{run_name}</span></code>.</p>
@@ -1790,39 +1789,39 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.logger">
 <span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'tensorboard'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'neptune'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'wandb'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.logger" title="Permalink to this definition">#</a></dt>
-<dd><p>The logger to use. Default is tensorboard.</p>
+<dd><p>The logger to use. Defaults to tensorboard.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.neptune_project">
 <span class="sig-name descname"><span class="pre">neptune_project</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.neptune_project" title="Permalink to this definition">#</a></dt>
-<dd><p>The neptune project name. Default is “isaaclab”.</p>
+<dd><p>The neptune project name. Defaults to “isaaclab”.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.wandb_project">
 <span class="sig-name descname"><span class="pre">wandb_project</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.wandb_project" title="Permalink to this definition">#</a></dt>
-<dd><p>The wandb project name. Default is “isaaclab”.</p>
+<dd><p>The wandb project name. Defaults to “isaaclab”.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.resume">
 <span class="sig-name descname"><span class="pre">resume</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.resume" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to resume a previous training. Default is False.</p>
+<dd><p>Whether to resume a previous training. Defaults to False.</p>
 <p>This flag will be ignored for distillation.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.load_run">
 <span class="sig-name descname"><span class="pre">load_run</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.load_run" title="Permalink to this definition">#</a></dt>
-<dd><p>The run directory to load. Default is “.*” (all).</p>
+<dd><p>The run directory to load. Defaults to “.*” (all).</p>
 <p>If regex expression, the latest (alphabetical order) matching run will be loaded.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.load_checkpoint">
 <span class="sig-name descname"><span class="pre">load_checkpoint</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.load_checkpoint" title="Permalink to this definition">#</a></dt>
-<dd><p>The checkpoint file to load. Default is <code class="docutils literal notranslate"><span class="pre">&quot;model_.*.pt&quot;</span></code> (all).</p>
+<dd><p>The checkpoint file to load. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;model_.*.pt&quot;</span></code> (all).</p>
 <p>If regex expression, the latest (alphabetical order) matching file will be loaded.</p>
 </dd></dl>
 
@@ -1890,7 +1889,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The model class name. Default is CNNModel.</p>
+<dd><p>The model class name. Defaults to CNNModel.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -1958,25 +1957,25 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.stride">
 <span class="sig-name descname"><span class="pre">stride</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.stride" title="Permalink to this definition">#</a></dt>
-<dd><p>The stride for the CNN.</p>
+<dd><p>The stride for the CNN. Defaults to 1.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.dilation">
 <span class="sig-name descname"><span class="pre">dilation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.dilation" title="Permalink to this definition">#</a></dt>
-<dd><p>The dilation for the CNN.</p>
+<dd><p>The dilation for the CNN. Defaults to 1.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.padding">
 <span class="sig-name descname"><span class="pre">padding</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'zeros'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'reflect'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'replicate'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'circular'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.padding" title="Permalink to this definition">#</a></dt>
-<dd><p>The padding for the CNN.</p>
+<dd><p>The padding for the CNN. Defaults to none.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.norm">
 <span class="sig-name descname"><span class="pre">norm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'batch'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'layer'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.norm" title="Permalink to this definition">#</a></dt>
-<dd><p>The normalization for the CNN.</p>
+<dd><p>The normalization for the CNN. Defaults to none.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1988,19 +1987,19 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.max_pool">
 <span class="sig-name descname"><span class="pre">max_pool</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.max_pool" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use max pooling for the CNN.</p>
+<dd><p>Whether to use max pooling for the CNN. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.global_pool">
 <span class="sig-name descname"><span class="pre">global_pool</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'max'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'avg'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.global_pool" title="Permalink to this definition">#</a></dt>
-<dd><p>The global pooling for the CNN.</p>
+<dd><p>The global pooling for the CNN. Defaults to none.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.flatten">
 <span class="sig-name descname"><span class="pre">flatten</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.CNNCfg.flatten" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to flatten the output of the CNN.</p>
+<dd><p>Whether to flatten the output of the CNN. Defaults to True.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2036,13 +2035,13 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.obs_normalization">
 <span class="sig-name descname"><span class="pre">obs_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.obs_normalization" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to normalize the observation for the model. Default is False.</p>
+<dd><p>Whether to normalize the observation for the model. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.distribution_cfg">
 <span class="sig-name descname"><span class="pre">distribution_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg" title="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg"><span class="pre">DistributionCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.distribution_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>The configuration for the output distribution. Default is None, in which case no distribution is used.</p>
+<dd><p>The configuration for the output distribution. Defaults to None, in which case no distribution is used.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2064,7 +2063,7 @@ for deterministic output or to a valid configuration class, e.g., <cite>Gaussian
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the model. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the model. Defaults to scalar.</p>
 <p>For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use <cite>distribution_cfg</cite> instead and use the
 <cite>std_type</cite> field of the distribution configuration to specify the type of noise standard deviation.</p>
 </dd></dl>
@@ -2072,7 +2071,7 @@ for deterministic output or to a valid configuration class, e.g., <cite>Gaussian
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlCNNModelCfg.state_dependent_std">
 <span class="sig-name descname"><span class="pre">state_dependent_std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlCNNModelCfg.state_dependent_std" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use state-dependent standard deviation for the policy. Default is False.</p>
+<dd><p>Whether to use state-dependent standard deviation for the policy. Defaults to False.</p>
 <p>For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use <cite>distribution_cfg</cite> instead and use
 the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent standard deviation is desired.</p>
 </dd></dl>
@@ -2123,7 +2122,7 @@ the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent stand
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The algorithm class name. Default is Distillation.</p>
+<dd><p>The algorithm class name. Defaults to Distillation.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2147,19 +2146,19 @@ the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent stand
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm">
 <span class="sig-name descname"><span class="pre">max_grad_norm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.max_grad_norm" title="Permalink to this definition">#</a></dt>
-<dd><p>The maximum norm the gradient is clipped to.</p>
+<dd><p>The maximum norm the gradient is clipped to. Defaults to None.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.optimizer">
 <span class="sig-name descname"><span class="pre">optimizer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'adam'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'adamw'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'sgd'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'rmsprop'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.optimizer" title="Permalink to this definition">#</a></dt>
-<dd><p>The optimizer to use for the student policy.</p>
+<dd><p>The optimizer to use for the student policy. Defaults to adam.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.loss_type">
 <span class="sig-name descname"><span class="pre">loss_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'mse'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'huber'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.loss_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The loss type to use for the student policy.</p>
+<dd><p>The loss type to use for the student policy. Defaults to mse.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2261,7 +2260,7 @@ the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent stand
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The runner class name. Default is DistillationRunner.</p>
+<dd><p>The runner class name. Defaults to DistillationRunner.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2298,7 +2297,7 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.seed">
 <span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.seed" title="Permalink to this definition">#</a></dt>
-<dd><p>The seed for the experiment. Default is 42.</p>
+<dd><p>The seed for the experiment. Defaults to 42.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2309,7 +2308,7 @@ instead.</p>
 </ol>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The device for the rl-agent. Default is cuda</p>
+<dd class="field-odd"><p>The device for the rl-agent. Defaults to cuda</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2384,7 +2383,7 @@ receive the “policy” and “privileged” observations.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.run_name">
 <span class="sig-name descname"><span class="pre">run_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.run_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The run name. Default is empty string.</p>
+<dd><p>The run name. Defaults to empty string.</p>
 <p>The name of the run directory is typically the time-stamp at execution. If the run name is not empty,
 then it is appended to the run directory’s name, i.e. the logging directory’s name will become
 <code class="docutils literal notranslate"><span class="pre">{time-stamp}_{run_name}</span></code>.</p>
@@ -2393,39 +2392,39 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.logger">
 <span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'tensorboard'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'neptune'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'wandb'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.logger" title="Permalink to this definition">#</a></dt>
-<dd><p>The logger to use. Default is tensorboard.</p>
+<dd><p>The logger to use. Defaults to tensorboard.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.neptune_project">
 <span class="sig-name descname"><span class="pre">neptune_project</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.neptune_project" title="Permalink to this definition">#</a></dt>
-<dd><p>The neptune project name. Default is “isaaclab”.</p>
+<dd><p>The neptune project name. Defaults to “isaaclab”.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.wandb_project">
 <span class="sig-name descname"><span class="pre">wandb_project</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.wandb_project" title="Permalink to this definition">#</a></dt>
-<dd><p>The wandb project name. Default is “isaaclab”.</p>
+<dd><p>The wandb project name. Defaults to “isaaclab”.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.resume">
 <span class="sig-name descname"><span class="pre">resume</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.resume" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to resume a previous training. Default is False.</p>
+<dd><p>Whether to resume a previous training. Defaults to False.</p>
 <p>This flag will be ignored for distillation.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.load_run">
 <span class="sig-name descname"><span class="pre">load_run</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.load_run" title="Permalink to this definition">#</a></dt>
-<dd><p>The run directory to load. Default is “.*” (all).</p>
+<dd><p>The run directory to load. Defaults to “.*” (all).</p>
 <p>If regex expression, the latest (alphabetical order) matching run will be loaded.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.load_checkpoint">
 <span class="sig-name descname"><span class="pre">load_checkpoint</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.load_checkpoint" title="Permalink to this definition">#</a></dt>
-<dd><p>The checkpoint file to load. Default is <code class="docutils literal notranslate"><span class="pre">&quot;model_.*.pt&quot;</span></code> (all).</p>
+<dd><p>The checkpoint file to load. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;model_.*.pt&quot;</span></code> (all).</p>
 <p>If regex expression, the latest (alphabetical order) matching file will be loaded.</p>
 </dd></dl>
 
@@ -2479,7 +2478,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The policy class name. Default is StudentTeacher.</p>
+<dd><p>The policy class name. Defaults to StudentTeacher.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2496,7 +2495,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the policy. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the policy. Defaults to scalar.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2602,7 +2601,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the policy. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the policy. Defaults to scalar.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2638,7 +2637,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The policy class name. Default is StudentTeacherRecurrent.</p>
+<dd><p>The policy class name. Defaults to StudentTeacherRecurrent.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2732,7 +2731,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The model class name. Default is MLPModel.</p>
+<dd><p>The model class name. Defaults to MLPModel.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2750,13 +2749,13 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.obs_normalization">
 <span class="sig-name descname"><span class="pre">obs_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.obs_normalization" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to normalize the observation for the model. Default is False.</p>
+<dd><p>Whether to normalize the observation for the model. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.distribution_cfg">
 <span class="sig-name descname"><span class="pre">distribution_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg" title="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg"><span class="pre">DistributionCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.distribution_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>The configuration for the output distribution. Default is None, in which case no distribution is used.</p>
+<dd><p>The configuration for the output distribution. Defaults to None, in which case no distribution is used.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -2922,7 +2921,7 @@ for deterministic output or to a valid configuration class, e.g., <cite>Gaussian
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the model. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the model. Defaults to scalar.</p>
 <p>For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use <cite>distribution_cfg</cite> instead and use the
 <cite>std_type</cite> field of the distribution configuration to specify the type of noise standard deviation.</p>
 </dd></dl>
@@ -2930,7 +2929,7 @@ for deterministic output or to a valid configuration class, e.g., <cite>Gaussian
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.state_dependent_std">
 <span class="sig-name descname"><span class="pre">state_dependent_std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.state_dependent_std" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use state-dependent standard deviation for the policy. Default is False.</p>
+<dd><p>Whether to use state-dependent standard deviation for the policy. Defaults to False.</p>
 <p>For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use <cite>distribution_cfg</cite> instead and use
 the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent standard deviation is desired.</p>
 </dd></dl>
@@ -3039,7 +3038,7 @@ the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent stand
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.seed">
 <span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.seed" title="Permalink to this definition">#</a></dt>
-<dd><p>The seed for the experiment. Default is 42.</p>
+<dd><p>The seed for the experiment. Defaults to 42.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3050,7 +3049,7 @@ the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent stand
 </ol>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The device for the rl-agent. Default is cuda</p>
+<dd class="field-odd"><p>The device for the rl-agent. Defaults to cuda</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3125,7 +3124,7 @@ receive the “policy” and “privileged” observations.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.run_name">
 <span class="sig-name descname"><span class="pre">run_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.run_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The run name. Default is empty string.</p>
+<dd><p>The run name. Defaults to empty string.</p>
 <p>The name of the run directory is typically the time-stamp at execution. If the run name is not empty,
 then it is appended to the run directory’s name, i.e. the logging directory’s name will become
 <code class="docutils literal notranslate"><span class="pre">{time-stamp}_{run_name}</span></code>.</p>
@@ -3134,46 +3133,46 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.logger">
 <span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'tensorboard'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'neptune'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'wandb'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.logger" title="Permalink to this definition">#</a></dt>
-<dd><p>The logger to use. Default is tensorboard.</p>
+<dd><p>The logger to use. Defaults to tensorboard.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.neptune_project">
 <span class="sig-name descname"><span class="pre">neptune_project</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.neptune_project" title="Permalink to this definition">#</a></dt>
-<dd><p>The neptune project name. Default is “isaaclab”.</p>
+<dd><p>The neptune project name. Defaults to “isaaclab”.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.wandb_project">
 <span class="sig-name descname"><span class="pre">wandb_project</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.wandb_project" title="Permalink to this definition">#</a></dt>
-<dd><p>The wandb project name. Default is “isaaclab”.</p>
+<dd><p>The wandb project name. Defaults to “isaaclab”.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.resume">
 <span class="sig-name descname"><span class="pre">resume</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.resume" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to resume a previous training. Default is False.</p>
+<dd><p>Whether to resume a previous training. Defaults to False.</p>
 <p>This flag will be ignored for distillation.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.load_run">
 <span class="sig-name descname"><span class="pre">load_run</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.load_run" title="Permalink to this definition">#</a></dt>
-<dd><p>The run directory to load. Default is “.*” (all).</p>
+<dd><p>The run directory to load. Defaults to “.*” (all).</p>
 <p>If regex expression, the latest (alphabetical order) matching run will be loaded.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.load_checkpoint">
 <span class="sig-name descname"><span class="pre">load_checkpoint</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.load_checkpoint" title="Permalink to this definition">#</a></dt>
-<dd><p>The checkpoint file to load. Default is <code class="docutils literal notranslate"><span class="pre">&quot;model_.*.pt&quot;</span></code> (all).</p>
+<dd><p>The checkpoint file to load. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;model_.*.pt&quot;</span></code> (all).</p>
 <p>If regex expression, the latest (alphabetical order) matching file will be loaded.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The runner class name. Default is OnPolicyRunner.</p>
+<dd><p>The runner class name. Defaults to OnPolicyRunner.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3260,7 +3259,7 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The policy class name. Default is ActorCritic.</p>
+<dd><p>The policy class name. Defaults to ActorCritic.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3272,13 +3271,13 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the policy. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the policy. Defaults to scalar.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.state_dependent_std">
 <span class="sig-name descname"><span class="pre">state_dependent_std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticCfg.state_dependent_std" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use state-dependent standard deviation for the policy. Default is False.</p>
+<dd><p>Whether to use state-dependent standard deviation for the policy. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3384,13 +3383,13 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the policy. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the policy. Defaults to scalar.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg.state_dependent_std">
 <span class="sig-name descname"><span class="pre">state_dependent_std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg.state_dependent_std" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use state-dependent standard deviation for the policy. Default is False.</p>
+<dd><p>Whether to use state-dependent standard deviation for the policy. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3426,7 +3425,7 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoActorCriticRecurrentCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The policy class name. Default is ActorCriticRecurrent.</p>
+<dd><p>The policy class name. Defaults to ActorCriticRecurrent.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3526,7 +3525,7 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The algorithm class name. Default is PPO.</p>
+<dd><p>The algorithm class name. Defaults to PPO.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3586,7 +3585,7 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.optimizer">
 <span class="sig-name descname"><span class="pre">optimizer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'adam'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'adamw'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'sgd'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'rmsprop'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.optimizer" title="Permalink to this definition">#</a></dt>
-<dd><p>The optimizer to use.</p>
+<dd><p>The optimizer to use. Defaults to adam.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3615,7 +3614,7 @@ instead.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch">
 <span class="sig-name descname"><span class="pre">normalize_advantage_per_mini_batch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to normalize the advantage per mini-batch. Default is False.</p>
+<dd><p>Whether to normalize the advantage per mini-batch. Defaults to False.</p>
 <p>If True, the advantage is normalized over the mini-batches only.
 Otherwise, the advantage is normalized over the entire collected trajectories.</p>
 </dd></dl>
@@ -3629,13 +3628,13 @@ Otherwise, the advantage is normalized over the entire collected trajectories.</
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg">
 <span class="sig-name descname"><span class="pre">rnd_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlRndCfg" title="isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg"><span class="pre">RslRlRndCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>The RND configuration. Default is None, in which case RND is not used.</p>
+<dd><p>The RND configuration. Defaults to None, in which case RND is not used.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg">
 <span class="sig-name descname"><span class="pre">symmetry_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlSymmetryCfg" title="isaaclab_rl.rsl_rl.symmetry_cfg.RslRlSymmetryCfg"><span class="pre">RslRlSymmetryCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>The symmetry configuration. Default is None, in which case symmetry is not used.</p>
+<dd><p>The symmetry configuration. Defaults to None, in which case symmetry is not used.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3699,7 +3698,7 @@ Otherwise, the advantage is normalized over the entire collected trajectories.</
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRNNModelCfg.class_name">
 <span class="sig-name descname"><span class="pre">class_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRNNModelCfg.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The model class name. Default is RNNModel.</p>
+<dd><p>The model class name. Defaults to RNNModel.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3740,13 +3739,13 @@ Otherwise, the advantage is normalized over the entire collected trajectories.</
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRNNModelCfg.obs_normalization">
 <span class="sig-name descname"><span class="pre">obs_normalization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRNNModelCfg.obs_normalization" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to normalize the observation for the model. Default is False.</p>
+<dd><p>Whether to normalize the observation for the model. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRNNModelCfg.distribution_cfg">
 <span class="sig-name descname"><span class="pre">distribution_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg" title="isaaclab_rl.rsl_rl.RslRlMLPModelCfg.DistributionCfg"><span class="pre">DistributionCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRNNModelCfg.distribution_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>The configuration for the output distribution. Default is None, in which case no distribution is used.</p>
+<dd><p>The configuration for the output distribution. Defaults to None, in which case no distribution is used.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3768,7 +3767,7 @@ for deterministic output or to a valid configuration class, e.g., <cite>Gaussian
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRNNModelCfg.noise_std_type">
 <span class="sig-name descname"><span class="pre">noise_std_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'scalar'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'log'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRNNModelCfg.noise_std_type" title="Permalink to this definition">#</a></dt>
-<dd><p>The type of noise standard deviation for the model. Default is scalar.</p>
+<dd><p>The type of noise standard deviation for the model. Defaults to scalar.</p>
 <p>For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use <cite>distribution_cfg</cite> instead and use the
 <cite>std_type</cite> field of the distribution configuration to specify the type of noise standard deviation.</p>
 </dd></dl>
@@ -3776,7 +3775,7 @@ for deterministic output or to a valid configuration class, e.g., <cite>Gaussian
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlRNNModelCfg.state_dependent_std">
 <span class="sig-name descname"><span class="pre">state_dependent_std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlRNNModelCfg.state_dependent_std" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use state-dependent standard deviation for the policy. Default is False.</p>
+<dd><p>Whether to use state-dependent standard deviation for the policy. Defaults to False.</p>
 <p>For rsl-rl &gt;= 5.0.0, this configuration is is deprecated. Please use <cite>distribution_cfg</cite> instead and use
 the <cite>HeteroscedasticGaussianDistributionCfg</cite> if state-dependent standard deviation is desired.</p>
 </dd></dl>
@@ -4165,8 +4164,8 @@ wrapper.</p>
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.StepWeightScheduleCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.StepWeightScheduleCfg.__init__()</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.weight_schedule"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.weight_schedule</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.reward_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.reward_normalization</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlRndCfg.state_normalization"><code class="docutils literal notranslate"><span class="pre">RslRlRndCfg.state_normalization</span></code></a></li>
