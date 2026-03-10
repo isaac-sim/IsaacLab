@@ -7,7 +7,6 @@
 
 import pytest
 import torch
-
 from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
     ANNOTATOR_CHANNEL_COUNTS,
     SEGMENTATION_COLORIZE_FIELDS,

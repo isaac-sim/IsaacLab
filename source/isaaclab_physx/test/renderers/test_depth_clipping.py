@@ -7,7 +7,6 @@
 
 import pytest
 import torch
-
 from isaaclab_physx.renderers.isaac_rtx_renderer_utils import DEPTH_DATA_TYPES, apply_depth_clipping
 
 CLIPPING_RANGE = (0.1, 100.0)
