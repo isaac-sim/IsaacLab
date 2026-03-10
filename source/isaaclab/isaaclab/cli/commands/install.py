@@ -376,6 +376,7 @@ def command_install(install_type: str = "all") -> None:
     # Extensions in INSTALL_NO_DEPS_SUBPACKAGES are excluded from the main loop and installed with --no-deps.
     no_deps_dirs = {f"isaaclab_{name}" for name in INSTALL_NO_DEPS_SUBPACKAGES}
     install_ovrtx = False
+    install_isaacsim = False
 
     if install_type == "all":
         extensions = None
