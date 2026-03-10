@@ -37,10 +37,7 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
-try:
-    from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
-except ModuleNotFoundError:
-    VisuoTactileSensorCfg = None
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -793,7 +790,7 @@ class InteractiveScene:
                     asset_cfg.filter_prim_paths_expr = [
                         p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
                     ]
-                elif VisuoTactileSensorCfg is not None and isinstance(asset_cfg, VisuoTactileSensorCfg):
+                elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
                             ENV_REGEX_NS=self.env_regex_ns
