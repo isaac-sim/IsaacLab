@@ -414,20 +414,6 @@ class Camera(SensorBase):
                 " rendering."
             )
 
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-            configure_isaac_rtx_settings,
-            resolve_simple_shading_mode,
-        )
-
-        import omni.replicator.core as rep
-        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
-
-        configure_isaac_rtx_settings(self.cfg.data_types)
-
-        simple_shading_mode = resolve_simple_shading_mode(self.cfg.data_types)
-        if simple_shading_mode is not None:
-            get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
-
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
@@ -446,92 +432,14 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Attach the sensor data types to render node
-        self._render_product_paths: list[str] = list()
-        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
-
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
-            # Obtain the prim path
             cam_prim_path = cam_prim.GetPath().pathString
-            # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
-            # Add to list
-            sensor_prim = UsdGeom.Camera(cam_prim)
-            self._sensor_prims.append(sensor_prim)
+            self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-            # Get render product
-            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
-            render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
-            if not isinstance(render_prod_path, str):
-                render_prod_path = render_prod_path.path
-            self._render_product_paths.append(render_prod_path)
-
-            # Check if semantic types or semantic filter predicate is provided
-            if isinstance(self.cfg.semantic_filter, list):
-                semantic_filter_predicate = ":*; ".join(self.cfg.semantic_filter) + ":*"
-            elif isinstance(self.cfg.semantic_filter, str):
-                semantic_filter_predicate = self.cfg.semantic_filter
-            else:
-                raise ValueError(f"Semantic types must be a list or a string. Received: {self.cfg.semantic_filter}.")
-            # set the semantic filter predicate
-            # copied from rep.scripts.writes_default.basic_writer.py
-            SyntheticData.Get().set_instance_mapping_semantic_filter(semantic_filter_predicate)
-
-            # Iterate over each data type and create annotator
-            # TODO: This will move out of the loop once Replicator supports multiple render products within a single
-            #  annotator, i.e.: rep_annotator.attach(self._render_product_paths)
-            for name in self.cfg.data_types:
-                # note: we are verbose here to make it easier to understand the code.
-                #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-                #   if colorize is false, the data is returned as a uint32 image with ids as values.
-                if name == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif name == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif name == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
-                else:
-                    init_params = None
-
-                # Resolve device name
-                if "cuda" in self._device:
-                    device_name = self._device.split(":")[0]
-                else:
-                    device_name = "cpu"
-
-                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
-                # once it's exposed, we can remove this
-                if name == "albedo":
-                    rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
-                    )
-                if name in self.SIMPLE_SHADING_MODES:
-                    rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
-                    )
-
-                # Map special cases to their corresponding annotator names
-                simple_shading_cases = {key: self.SIMPLE_SHADING_AOV for key in self.SIMPLE_SHADING_MODES}
-                special_cases = {
-                    "rgba": "rgb",
-                    "depth": "distance_to_image_plane",
-                    "albedo": "DiffuseAlbedoSD",
-                    **simple_shading_cases,
-                }
-                # Get the annotator name, falling back to the original name if not a special case
-                annotator_name = special_cases.get(name, name)
-                # Create the annotator node
-                rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_name, init_params, device=device_name)
-
-                # attach annotator to render product
-                rep_annotator.attach(render_prod_path)
-                # add to registry
-                self._rep_registry[name].append(rep_annotator)
+        self._initialize_replicator()
 
         # Create internal buffers
         self._create_buffers()
@@ -610,6 +518,98 @@ class Camera(SensorBase):
                 "\n\tHint: If you need to work with these sensor types, we recommend using their fast counterparts."
                 f"\n\t\tFast counterparts: {fast_common_elements}"
             )
+
+    def _initialize_replicator(self):
+        """Set up the Replicator annotator pipeline.
+
+        Creates render products and annotators for each camera prim.  Called by
+        :meth:`_initialize_impl` after sensor prims have been collected.
+        """
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+            configure_isaac_rtx_settings,
+            resolve_simple_shading_mode,
+        )
+
+        import omni.replicator.core as rep
+        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
+
+        configure_isaac_rtx_settings(self.cfg.data_types)
+
+        simple_shading_mode = resolve_simple_shading_mode(self.cfg.data_types)
+        if simple_shading_mode is not None:
+            get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+
+        self._render_product_paths: list[str] = list()
+        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
+
+        for sensor_prim in self._sensor_prims:
+            cam_prim_path = sensor_prim.GetPath().pathString
+
+            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
+            render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
+            if not isinstance(render_prod_path, str):
+                render_prod_path = render_prod_path.path
+            self._render_product_paths.append(render_prod_path)
+
+            # Check if semantic types or semantic filter predicate is provided
+            if isinstance(self.cfg.semantic_filter, list):
+                semantic_filter_predicate = ":*; ".join(self.cfg.semantic_filter) + ":*"
+            elif isinstance(self.cfg.semantic_filter, str):
+                semantic_filter_predicate = self.cfg.semantic_filter
+            else:
+                raise ValueError(f"Semantic types must be a list or a string. Received: {self.cfg.semantic_filter}.")
+            # copied from rep.scripts.writes_default.basic_writer.py
+            SyntheticData.Get().set_instance_mapping_semantic_filter(semantic_filter_predicate)
+
+            # Iterate over each data type and create annotator
+            # TODO: This will move out of the loop once Replicator supports multiple render products within a single
+            #  annotator, i.e.: rep_annotator.attach(self._render_product_paths)
+            for name in self.cfg.data_types:
+                # note: we are verbose here to make it easier to understand the code.
+                #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
+                #   if colorize is false, the data is returned as a uint32 image with ids as values.
+                if name == "semantic_segmentation":
+                    init_params = {
+                        "colorize": self.cfg.colorize_semantic_segmentation,
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                    }
+                elif name == "instance_segmentation_fast":
+                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
+                elif name == "instance_id_segmentation_fast":
+                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
+                else:
+                    init_params = None
+
+                # Resolve device name
+                if "cuda" in self._device:
+                    device_name = self._device.split(":")[0]
+                else:
+                    device_name = "cpu"
+
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                if name == "albedo":
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+                if name in self.SIMPLE_SHADING_MODES:
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
+                    )
+
+                # Map special cases to their corresponding annotator names
+                simple_shading_cases = {key: self.SIMPLE_SHADING_AOV for key in self.SIMPLE_SHADING_MODES}
+                special_cases = {
+                    "rgba": "rgb",
+                    "depth": "distance_to_image_plane",
+                    "albedo": "DiffuseAlbedoSD",
+                    **simple_shading_cases,
+                }
+                annotator_name = special_cases.get(name, name)
+                rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_name, init_params, device=device_name)
+
+                rep_annotator.attach(render_prod_path)
+                self._rep_registry[name].append(rep_annotator)
 
     def _create_buffers(self):
         """Create buffers for storing data."""
