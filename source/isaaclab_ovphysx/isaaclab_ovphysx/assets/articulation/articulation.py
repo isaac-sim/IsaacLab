@@ -228,6 +228,18 @@ class Articulation(BaseArticulation):
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
+        """Find bodies in the articulation based on the name keys.
+
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
+        information on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the body indices and names.
+        """
         return self._find_names(self._body_names, name_keys, preserve_order)
 
     def find_joints(
@@ -236,19 +248,63 @@ class Articulation(BaseArticulation):
         joint_subset: list[int] | None = None,
         preserve_order: bool = False,
     ) -> tuple[list[int], list[str]]:
+        """Find joints in the articulation based on the name keys.
+
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
+        information on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the joint names.
+            joint_subset: A subset of joint indices to search within. Defaults to None, which means all joints
+                in the articulation are searched.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the joint indices and names.
+        """
         names = [self._joint_names[i] for i in joint_subset] if joint_subset is not None else self._joint_names
         indices, matched = self._find_names(names, name_keys, preserve_order)
         if joint_subset is not None:
             indices = [joint_subset[i] for i in indices]
         return indices, matched
 
-    def find_fixed_tendons(self, name_keys, tendon_subsets=None, preserve_order=False):
+    def find_fixed_tendons(
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[int] | None = None,
+        preserve_order: bool = False,
+    ) -> tuple[list[int], list[str]]:
+        """Find fixed tendons in the articulation based on the name keys.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the tendon names.
+            tendon_subsets: A subset of tendon indices to search within. Defaults to None.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the tendon indices and names.
+        """
         names = self.fixed_tendon_names
         if not names:
             return [], []
         return self._find_names(names, name_keys, preserve_order)
 
-    def find_spatial_tendons(self, name_keys, tendon_subsets=None, preserve_order=False):
+    def find_spatial_tendons(
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[int] | None = None,
+        preserve_order: bool = False,
+    ) -> tuple[list[int], list[str]]:
+        """Find spatial tendons in the articulation based on the name keys.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the tendon names.
+            tendon_subsets: A subset of tendon indices to search within. Defaults to None.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the tendon indices and names.
+        """
         names = self.spatial_tendon_names
         if not names:
             return [], []
@@ -265,57 +321,155 @@ class Articulation(BaseArticulation):
             return len(env_ids)
         return env_ids.shape[0] if hasattr(env_ids, "shape") else len(env_ids)
 
-    def write_root_pose_to_sim_index(self, *, root_pose, env_ids=None) -> None:
+    def write_root_pose_to_sim_index(
+        self, *, root_pose: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set the root pose over selected environment indices into the simulation.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
         self._write_root_state(TT.ROOT_POSE, root_pose, env_ids)
 
-    def write_root_pose_to_sim_mask(self, *, root_pose, env_mask=None) -> None:
+    def write_root_pose_to_sim_mask(
+        self, *, root_pose: wp.array, env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root pose over masked environments into the simulation.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
         self._write_root_state(TT.ROOT_POSE, root_pose, mask=env_mask)
 
-    def write_root_link_pose_to_sim_index(self, *, root_pose, env_ids=None) -> None:
+    def write_root_link_pose_to_sim_index(
+        self, *, root_pose: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set the root link pose over selected environment indices into the simulation.
+
+        Args:
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
         self._write_root_state(TT.ROOT_POSE, root_pose, env_ids)
 
-    def write_root_link_pose_to_sim_mask(self, *, root_pose, env_mask=None) -> None:
+    def write_root_link_pose_to_sim_mask(
+        self, *, root_pose: wp.array, env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link pose over masked environments into the simulation.
+
+        Args:
+            root_pose: Root link poses in simulation frame. Shape is (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
         self._write_root_state(TT.ROOT_POSE, root_pose, mask=env_mask)
 
-    def write_root_com_pose_to_sim_index(self, *, root_pose, env_ids=None) -> None:
+    def write_root_com_pose_to_sim_index(
+        self, *, root_pose: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        Args:
+            root_pose: Root COM poses in simulation frame. Shape is (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_pose, (n,), wp.transformf, "root_pose")
         self._write_root_state(TT.ROOT_POSE, root_pose, env_ids)
 
-    def write_root_com_pose_to_sim_mask(self, *, root_pose, env_mask=None) -> None:
+    def write_root_com_pose_to_sim_mask(
+        self, *, root_pose: wp.array, env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass pose over masked environments into the simulation.
+
+        Args:
+            root_pose: Root COM poses in simulation frame. Shape is (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
         self._write_root_state(TT.ROOT_POSE, root_pose, mask=env_mask)
 
-    def write_root_velocity_to_sim_index(self, *, root_velocity, env_ids=None) -> None:
+    def write_root_velocity_to_sim_index(
+        self, *, root_velocity: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set the root velocity over selected environment indices into the simulation.
+
+        Args:
+            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids),) with
+                dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
         self._write_root_state(TT.ROOT_VELOCITY, root_velocity, env_ids)
 
-    def write_root_velocity_to_sim_mask(self, *, root_velocity, env_mask=None) -> None:
+    def write_root_velocity_to_sim_mask(
+        self, *, root_velocity: wp.array, env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root velocity over masked environments into the simulation.
+
+        Args:
+            root_velocity: Root velocities in simulation frame. Shape is (num_instances,) with
+                dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
         self._write_root_state(TT.ROOT_VELOCITY, root_velocity, mask=env_mask)
 
-    def write_root_com_velocity_to_sim_index(self, *, root_velocity, env_ids=None) -> None:
+    def write_root_com_velocity_to_sim_index(
+        self, *, root_velocity: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        Args:
+            root_velocity: Root COM velocities. Shape is (len(env_ids),) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
         self._write_root_state(TT.ROOT_VELOCITY, root_velocity, env_ids)
 
-    def write_root_com_velocity_to_sim_mask(self, *, root_velocity, env_mask=None) -> None:
+    def write_root_com_velocity_to_sim_mask(
+        self, *, root_velocity: wp.array, env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over masked environments into the simulation.
+
+        Args:
+            root_velocity: Root COM velocities. Shape is (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
         self._write_root_state(TT.ROOT_VELOCITY, root_velocity, mask=env_mask)
 
-    def write_root_link_velocity_to_sim_index(self, *, root_velocity, env_ids=None) -> None:
+    def write_root_link_velocity_to_sim_index(
+        self, *, root_velocity: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set the root link velocity over selected environment indices into the simulation.
+
+        Args:
+            root_velocity: Root link velocities. Shape is (len(env_ids),) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         self.assert_shape_and_dtype(root_velocity, (n,), wp.spatial_vectorf, "root_velocity")
         self._write_root_state(TT.ROOT_VELOCITY, root_velocity, env_ids)
 
-    def write_root_link_velocity_to_sim_mask(self, *, root_velocity, env_mask=None) -> None:
+    def write_root_link_velocity_to_sim_mask(
+        self, *, root_velocity: wp.array, env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link velocity over masked environments into the simulation.
+
+        Args:
+            root_velocity: Root link velocities. Shape is (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
         self._write_root_state(TT.ROOT_VELOCITY, root_velocity, mask=env_mask)
 
@@ -323,30 +477,96 @@ class Articulation(BaseArticulation):
     # Joint state writers (with shape validation)
     # ------------------------------------------------------------------
 
-    def write_joint_state_to_sim_mask(self, joint_pos, joint_vel, env_mask=None, joint_mask=None) -> None:
+    def write_joint_state_to_sim_mask(
+        self,
+        joint_pos: wp.array,
+        joint_vel: wp.array,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint positions and velocities over masked environments into the simulation.
+
+        Args:
+            joint_pos: Joint positions. Shape is (num_instances, num_joints).
+            joint_vel: Joint velocities. Shape is (num_instances, num_joints).
+            env_mask: Environment mask. If None, then all instances are updated.
+            joint_mask: Joint mask. If None, then all joints are updated.
+        """
         self.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask, joint_mask=joint_mask)
         self.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask, joint_mask=joint_mask)
 
-    def write_joint_position_to_sim_index(self, *, position, joint_ids=None, env_ids=None) -> None:
+    def write_joint_position_to_sim_index(
+        self,
+        *,
+        position: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint positions over selected environment and joint indices into the simulation.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(position, (n, d), wp.float32, "position")
         self._write_flat_tensor(TT.DOF_POSITION, position, env_ids, joint_ids)
         self.data._joint_pos_buf.timestamp = -1.0
 
-    def write_joint_position_to_sim_mask(self, *, position, joint_mask=None, env_mask=None) -> None:
+    def write_joint_position_to_sim_mask(
+        self,
+        *,
+        position: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint positions over masked environments into the simulation.
+
+        Args:
+            position: Joint positions. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
         self._write_flat_tensor_mask(TT.DOF_POSITION, position, env_mask, joint_mask)
         self.data._joint_pos_buf.timestamp = -1.0
 
-    def write_joint_velocity_to_sim_index(self, *, velocity, joint_ids=None, env_ids=None) -> None:
+    def write_joint_velocity_to_sim_index(
+        self,
+        *,
+        velocity: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint velocities over selected environment and joint indices into the simulation.
+
+        Args:
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(velocity, (n, d), wp.float32, "velocity")
         self._write_flat_tensor(TT.DOF_VELOCITY, velocity, env_ids, joint_ids)
         self.data._joint_vel_buf.timestamp = -1.0
 
-    def write_joint_velocity_to_sim_mask(self, *, velocity, joint_mask=None, env_mask=None) -> None:
+    def write_joint_velocity_to_sim_mask(
+        self,
+        *,
+        velocity: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint velocities over masked environments into the simulation.
+
+        Args:
+            velocity: Joint velocities. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
         self._write_flat_tensor_mask(TT.DOF_VELOCITY, velocity, env_mask, joint_mask)
         self.data._joint_vel_buf.timestamp = -1.0
@@ -355,29 +575,82 @@ class Articulation(BaseArticulation):
     # Joint property writers (with shape validation)
     # ------------------------------------------------------------------
 
-    def write_joint_stiffness_to_sim_index(self, *, stiffness, joint_ids=None, env_ids=None) -> None:
+    def write_joint_stiffness_to_sim_index(
+        self, *, stiffness: wp.array, joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint stiffness over selected indices into the simulation.
+
+        Args:
+            stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(stiffness, (n, d), wp.float32, "stiffness")
         self._write_flat_tensor(TT.DOF_STIFFNESS, stiffness, env_ids, joint_ids)
 
-    def write_joint_stiffness_to_sim_mask(self, *, stiffness, joint_mask=None, env_mask=None) -> None:
+    def write_joint_stiffness_to_sim_mask(
+        self, *, stiffness: wp.array, joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint stiffness over masked environments into the simulation.
+
+        Args:
+            stiffness: Joint stiffness. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(stiffness, (self._num_instances, self._num_joints), wp.float32, "stiffness")
         self._write_flat_tensor_mask(TT.DOF_STIFFNESS, stiffness, env_mask, joint_mask)
 
-    def write_joint_damping_to_sim_index(self, *, damping, joint_ids=None, env_ids=None) -> None:
+    def write_joint_damping_to_sim_index(
+        self, *, damping: wp.array, joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint damping over selected indices into the simulation.
+
+        Args:
+            damping: Joint damping. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(damping, (n, d), wp.float32, "damping")
         self._write_flat_tensor(TT.DOF_DAMPING, damping, env_ids, joint_ids)
 
-    def write_joint_damping_to_sim_mask(self, *, damping, joint_mask=None, env_mask=None) -> None:
+    def write_joint_damping_to_sim_mask(
+        self, *, damping: wp.array, joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint damping over masked environments into the simulation.
+
+        Args:
+            damping: Joint damping. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(damping, (self._num_instances, self._num_joints), wp.float32, "damping")
         self._write_flat_tensor_mask(TT.DOF_DAMPING, damping, env_mask, joint_mask)
 
     def write_joint_position_limit_to_sim_index(
-        self, *, limits, joint_ids=None, env_ids=None, warn_limit_violation=True
+        self,
+        *,
+        limits: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+        warn_limit_violation: bool = True,
     ) -> None:
+        """Write joint position limits over selected indices into the simulation.
+
+        Args:
+            limits: Joint position limits [rad or m]. Shape is (len(env_ids), len(joint_ids)) with dtype wp.vec2f.
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            warn_limit_violation: Whether to warn when limits are violated. Defaults to True.
+        """
         if isinstance(limits, (int, float)):
             raise ValueError("Float scalars are not supported for position limits (vec2f dtype)")
         n = self._n_envs_index(env_ids)
@@ -386,107 +659,281 @@ class Articulation(BaseArticulation):
         self._write_flat_tensor(TT.DOF_LIMIT, limits, env_ids, joint_ids)
 
     def write_joint_position_limit_to_sim_mask(
-        self, *, limits, joint_mask=None, env_mask=None, warn_limit_violation=True
+        self,
+        *,
+        limits: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        warn_limit_violation: bool = True,
     ) -> None:
+        """Write joint position limits over masked environments into the simulation.
+
+        Args:
+            limits: Joint position limits [rad or m]. Shape is (num_instances, num_joints) with dtype wp.vec2f.
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+            warn_limit_violation: Whether to warn when limits are violated. Defaults to True.
+        """
         if isinstance(limits, (int, float)):
             raise ValueError("Float scalars are not supported for position limits (vec2f dtype)")
         self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.vec2f, "limits")
         self._write_flat_tensor_mask(TT.DOF_LIMIT, limits, env_mask, joint_mask)
 
-    def write_joint_velocity_limit_to_sim_index(self, *, limits, joint_ids=None, env_ids=None) -> None:
+    def write_joint_velocity_limit_to_sim_index(
+        self,
+        *,
+        limits: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint velocity limits over selected indices into the simulation.
+
+        Args:
+            limits: Joint velocity limits [rad/s or m/s]. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(limits, (n, d), wp.float32, "limits")
         self._write_flat_tensor(TT.DOF_MAX_VELOCITY, limits, env_ids, joint_ids)
 
-    def write_joint_velocity_limit_to_sim_mask(self, *, limits, joint_mask=None, env_mask=None) -> None:
+    def write_joint_velocity_limit_to_sim_mask(
+        self,
+        *,
+        limits: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint velocity limits over masked environments into the simulation.
+
+        Args:
+            limits: Joint velocity limits [rad/s or m/s]. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.float32, "limits")
         self._write_flat_tensor_mask(TT.DOF_MAX_VELOCITY, limits, env_mask, joint_mask)
 
-    def write_joint_effort_limit_to_sim_index(self, *, limits, joint_ids=None, env_ids=None) -> None:
+    def write_joint_effort_limit_to_sim_index(
+        self,
+        *,
+        limits: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint effort limits over selected indices into the simulation.
+
+        Args:
+            limits: Joint effort limits [N or N*m]. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(limits, (n, d), wp.float32, "limits")
         self._write_flat_tensor(TT.DOF_MAX_FORCE, limits, env_ids, joint_ids)
 
-    def write_joint_effort_limit_to_sim_mask(self, *, limits, joint_mask=None, env_mask=None) -> None:
+    def write_joint_effort_limit_to_sim_mask(
+        self,
+        *,
+        limits: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint effort limits over masked environments into the simulation.
+
+        Args:
+            limits: Joint effort limits [N or N*m]. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(limits, (self._num_instances, self._num_joints), wp.float32, "limits")
         self._write_flat_tensor_mask(TT.DOF_MAX_FORCE, limits, env_mask, joint_mask)
 
-    def write_joint_armature_to_sim_index(self, *, armature, joint_ids=None, env_ids=None) -> None:
+    def write_joint_armature_to_sim_index(
+        self,
+        *,
+        armature: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Write joint armature over selected indices into the simulation.
+
+        Args:
+            armature: Joint armature [kg*m^2 or kg]. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(armature, (n, d), wp.float32, "armature")
         self._write_flat_tensor(TT.DOF_ARMATURE, armature, env_ids, joint_ids)
 
-    def write_joint_armature_to_sim_mask(self, *, armature, joint_mask=None, env_mask=None) -> None:
+    def write_joint_armature_to_sim_mask(
+        self,
+        *,
+        armature: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint armature over masked environments into the simulation.
+
+        Args:
+            armature: Joint armature [kg*m^2 or kg]. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(armature, (self._num_instances, self._num_joints), wp.float32, "armature")
         self._write_flat_tensor_mask(TT.DOF_ARMATURE, armature, env_mask, joint_mask)
 
     def write_joint_friction_coefficient_to_sim_index(
-        self, *, joint_friction_coeff, joint_ids=None, env_ids=None
+        self,
+        *,
+        joint_friction_coeff: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
     ) -> None:
+        """Write joint friction coefficients over selected indices into the simulation.
+
+        Args:
+            joint_friction_coeff: Joint friction coefficients. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         d = len(joint_ids) if joint_ids is not None else self._num_joints
         self.assert_shape_and_dtype(joint_friction_coeff, (n, d), wp.float32, "joint_friction_coeff")
         self._write_friction_column(joint_friction_coeff, env_ids, joint_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
-        self, *, joint_friction_coeff, joint_mask=None, env_mask=None
+        self,
+        *,
+        joint_friction_coeff: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
+        """Write joint friction coefficients over masked environments into the simulation.
+
+        Args:
+            joint_friction_coeff: Joint friction coefficients. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(
             joint_friction_coeff, (self._num_instances, self._num_joints), wp.float32, "joint_friction_coeff"
         )
         self._write_friction_column_mask(joint_friction_coeff, env_mask, joint_mask)
 
     # ------------------------------------------------------------------
-    # Deprecated combined-state writers (required by ABC)
-    # ------------------------------------------------------------------
-
-    def write_root_state_to_sim(self, root_state, env_ids=None) -> None:
-        self.write_root_pose_to_sim_index(root_pose=root_state, env_ids=env_ids)
-
-    def write_root_com_state_to_sim(self, root_state, env_ids=None) -> None:
-        self.write_root_com_pose_to_sim_index(root_pose=root_state, env_ids=env_ids)
-
-    def write_root_link_state_to_sim(self, root_state, env_ids=None) -> None:
-        self.write_root_link_pose_to_sim_index(root_pose=root_state, env_ids=env_ids)
-
-    def write_joint_state_to_sim(self, position, velocity, joint_ids=None, env_ids=None) -> None:
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
-
-    # ------------------------------------------------------------------
     # Body setters
     # ------------------------------------------------------------------
 
-    def set_masses_index(self, *, masses, body_ids=None, env_ids=None) -> None:
+    def set_masses_index(
+        self,
+        *,
+        masses: wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set body masses over selected indices into the simulation.
+
+        Args:
+            masses: Body masses [kg]. Shape is (len(env_ids), len(body_ids)).
+            body_ids: Body indices. If None, then all bodies are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         b = len(body_ids) if body_ids is not None else self._num_bodies
         self.assert_shape_and_dtype(masses, (n, b), wp.float32, "masses")
         self._write_flat_tensor(TT.BODY_MASS, masses, env_ids, body_ids)
 
-    def set_masses_mask(self, *, masses, body_mask=None, env_mask=None) -> None:
+    def set_masses_mask(
+        self,
+        *,
+        masses: wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set body masses over masked environments into the simulation.
+
+        Args:
+            masses: Body masses [kg]. Shape is (num_instances, num_bodies).
+            body_mask: Body mask. If None, then all bodies are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
         self._write_flat_tensor_mask(TT.BODY_MASS, masses, env_mask, body_mask)
 
-    def set_coms_index(self, *, coms, body_ids=None, env_ids=None) -> None:
+    def set_coms_index(
+        self,
+        *,
+        coms: wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set body center-of-mass poses over selected indices into the simulation.
+
+        Args:
+            coms: Body COM poses. Shape is (len(env_ids), len(body_ids)) with dtype wp.transformf.
+            body_ids: Body indices. If None, then all bodies are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         b = len(body_ids) if body_ids is not None else self._num_bodies
         self.assert_shape_and_dtype(coms, (n, b), wp.transformf, "coms")
         self._write_flat_tensor(TT.BODY_COM_POSE, coms, env_ids, body_ids)
 
-    def set_coms_mask(self, *, coms, body_mask=None, env_mask=None) -> None:
+    def set_coms_mask(
+        self,
+        *,
+        coms: wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set body center-of-mass poses over masked environments into the simulation.
+
+        Args:
+            coms: Body COM poses. Shape is (num_instances, num_bodies) with dtype wp.transformf.
+            body_mask: Body mask. If None, then all bodies are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         self._write_flat_tensor_mask(TT.BODY_COM_POSE, coms, env_mask, body_mask)
 
-    def set_inertias_index(self, *, inertias, body_ids=None, env_ids=None) -> None:
+    def set_inertias_index(
+        self,
+        *,
+        inertias: wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set body inertias over selected indices into the simulation.
+
+        Args:
+            inertias: Body inertias [kg*m^2]. Shape is (len(env_ids), len(body_ids), 9).
+            body_ids: Body indices. If None, then all bodies are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         n = self._n_envs_index(env_ids)
         b = len(body_ids) if body_ids is not None else self._num_bodies
         self.assert_shape_and_dtype(inertias, (n, b, 9), wp.float32, "inertias")
         self._write_flat_tensor(TT.BODY_INERTIA, inertias, env_ids, body_ids)
 
-    def set_inertias_mask(self, *, inertias, body_mask=None, env_mask=None) -> None:
+    def set_inertias_mask(
+        self,
+        *,
+        inertias: wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set body inertias over masked environments into the simulation.
+
+        Args:
+            inertias: Body inertias [kg*m^2]. Shape is (num_instances, num_bodies, 9).
+            body_mask: Body mask. If None, then all bodies are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
         self._write_flat_tensor_mask(TT.BODY_INERTIA, inertias, env_mask, body_mask)
 
@@ -494,26 +941,104 @@ class Articulation(BaseArticulation):
     # Joint target setters
     # ------------------------------------------------------------------
 
-    def set_joint_position_target_index(self, *, target, joint_ids=None, env_ids=None) -> None:
+    def set_joint_position_target_index(
+        self,
+        *,
+        target: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set joint position targets over selected indices.
+
+        Args:
+            target: Joint position targets [rad or m]. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         self._set_target_into_buffer(self._data._joint_pos_target, target, env_ids, joint_ids)
 
-    def set_joint_position_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
+    def set_joint_position_target_mask(
+        self,
+        *,
+        target: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set joint position targets over masked environments.
+
+        Args:
+            target: Joint position targets [rad or m]. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self._set_target_into_buffer_mask(self._data._joint_pos_target, target, env_mask, joint_mask)
 
-    def set_joint_velocity_target_index(self, *, target, joint_ids=None, env_ids=None) -> None:
+    def set_joint_velocity_target_index(
+        self,
+        *,
+        target: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set joint velocity targets over selected indices.
+
+        Args:
+            target: Joint velocity targets [rad/s or m/s]. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         self._set_target_into_buffer(self._data._joint_vel_target, target, env_ids, joint_ids)
 
-    def set_joint_velocity_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
+    def set_joint_velocity_target_mask(
+        self,
+        *,
+        target: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set joint velocity targets over masked environments.
+
+        Args:
+            target: Joint velocity targets [rad/s or m/s]. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self._set_target_into_buffer_mask(self._data._joint_vel_target, target, env_mask, joint_mask)
 
-    def set_joint_effort_target_index(self, *, target, joint_ids=None, env_ids=None) -> None:
+    def set_joint_effort_target_index(
+        self,
+        *,
+        target: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Set joint effort targets over selected indices.
+
+        Args:
+            target: Joint effort targets [N or N*m]. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         self._set_target_into_buffer(self._data._joint_effort_target, target, env_ids, joint_ids)
 
-    def set_joint_effort_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
+    def set_joint_effort_target_mask(
+        self,
+        *,
+        target: wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set joint effort targets over masked environments.
+
+        Args:
+            target: Joint effort targets [N or N*m]. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are updated.
+            env_mask: Environment mask. If None, then all instances are updated.
+        """
         self._set_target_into_buffer_mask(self._data._joint_effort_target, target, env_mask, joint_mask)
 
     # ------------------------------------------------------------------
-    # Tendon operations (stubs)
+    # Tendon operations
     # ------------------------------------------------------------------
 
     def _nft(self): return getattr(self, "_num_fixed_tendons", 0)
@@ -680,6 +1205,43 @@ class Articulation(BaseArticulation):
         ]:
             if buf is not None:
                 self._write_flat_tensor_mask(tt, buf, env_mask, spatial_tendon_mask)
+
+    # ------------------------------------------------------------------
+    # Deprecated in base class (required by ABC for backward compatibility)
+    # ------------------------------------------------------------------
+
+    def write_root_state_to_sim(
+        self, root_state: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Deprecated in base class. Use :meth:`write_root_pose_to_sim_index` and
+        :meth:`write_root_velocity_to_sim_index` instead."""
+        self.write_root_pose_to_sim_index(root_pose=root_state, env_ids=env_ids)
+
+    def write_root_com_state_to_sim(
+        self, root_state: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Deprecated in base class. Use :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index` instead."""
+        self.write_root_com_pose_to_sim_index(root_pose=root_state, env_ids=env_ids)
+
+    def write_root_link_state_to_sim(
+        self, root_state: wp.array, env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Deprecated in base class. Use :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index` instead."""
+        self.write_root_link_pose_to_sim_index(root_pose=root_state, env_ids=env_ids)
+
+    def write_joint_state_to_sim(
+        self,
+        position: wp.array,
+        velocity: wp.array,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
+    ) -> None:
+        """Deprecated in base class. Use :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index` instead."""
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
 
     # ------------------------------------------------------------------
     # Internal: initialization
