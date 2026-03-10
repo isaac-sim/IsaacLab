@@ -336,7 +336,6 @@ choose the tab that matches your hardware.
             python -m isaacteleop.cloudxr --cloudxr-env-config=~/custom.env
 
          See :ref:`cloudxr-runtime-configuration` for details.
-         See :ref:`cloudxr-runtime-configuration` for details.
 
       .. _build-apple-vision-pro:
 
