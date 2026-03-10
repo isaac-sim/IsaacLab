@@ -88,6 +88,13 @@ runs:
           REGISTRY=$(echo "${ECR_URL}" | cut -d'/' -f1)
           AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
 
+          # Validate ECR URL
+          if [ "${AWS_REGION}" = "${REGISTRY}" ]; then
+            echo "🔴 Invalid ECR URL — cannot extract AWS region: ${ECR_URL}"
+            echo "🔴 Expected format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo>"
+            exit 1
+          fi
+
           # Derive ECR image tag by slugifying the local image-tag
           # (colons/slashes not valid in ECR tags)
           ECR_TAG=$(echo "${IMAGE_TAG}" | tr ':/' '--')
