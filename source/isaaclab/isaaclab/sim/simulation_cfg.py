@@ -18,7 +18,6 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-# some dummy edit to check if deps-hash is working :lolcal:x3
 
 @configclass
 class RenderCfg:

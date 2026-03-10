@@ -162,13 +162,13 @@ runs:
       if: steps.resolve-ecr.outputs.available == 'true'
       shell: bash
       run: |
-        echo "🟢 Checking for existing image ${ECR_IMAGE} in ECR..."
+        echo "🟢 Trying to pull commit--tagged ${ECR_IMAGE} from ECR..."
         if docker pull "${ECR_IMAGE}" 2>/dev/null; then
           docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
-          echo "🟢 Image pulled and tagged as: ${{ inputs.image-tag }} — skipping build."
+          echo "🟢 Commit-taged image puled, skipping build!"
           echo "hit=true" >> "$GITHUB_OUTPUT"
         else
-          echo "🟠 Image not found in ECR, proceeding..."
+          echo "🟠 Image ${ECR_IMAGE} not found in ECR, will try deps-cache..."
         fi
 
     ##### 5: Compute deps hash and try overlay #####
@@ -176,7 +176,7 @@ runs:
     # Hashes installation-relevant files + the base image digest to produce a stable
     # deps-<hash> ECR tag. If it exists, builds only the thin final-COPY overlay
     # (seconds) instead of the full image (40-60 min).
-    
+
     # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install
     # inputs change (new packages, new manifests, etc.).
 
@@ -217,10 +217,11 @@ runs:
           | sha256sum | cut -c1-16)
         DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_STR}" | sha256sum | cut -c1-16)
         DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
-        echo "🟢 Deps hash: ${DEPS_HASH} → ${DEPS_ECR_IMAGE}"
+        echo "🟢 Deps hash: ${DEPS_HASH}"
+        echo "🟢 Trying to pull deps image ${DEPS_ECR_IMAGE} from ECR..."
 
         if docker pull "${DEPS_ECR_IMAGE}" 2>/dev/null; then
-          echo "🟢 Deps cache HIT — building thin overlay (final COPY only)..."
+          echo "🟢 Deps cache HIT!!! Building thin overlay (final COPY only)..."
           OVERLAY_BUILDER="ci-builder-overlay-${{ github.run_id }}-${{ github.job }}"
           docker buildx create --use --driver docker-container --name "${OVERLAY_BUILDER}" \
             || docker buildx use "${OVERLAY_BUILDER}"
@@ -234,9 +235,10 @@ runs:
             --load \
             .
           docker buildx rm "${OVERLAY_BUILDER}" || true
+          echo "🟢 Overlay build complete!"
           docker tag "${{ inputs.image-tag }}" "${ECR_IMAGE}"
+          echo "🟢 Pushing overlay image ${ECR_IMAGE} to ECR for future reuse..."
           docker push "${ECR_IMAGE}"
-          echo "🟢 Fast path complete — full build skipped."
           echo "overlay-built=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS (${DEPS_HASH}) — will do full build."
