@@ -54,7 +54,7 @@ For tasks that benefit from the use of an extended reality (XR) device with hand
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --visualizer kit
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --visualizer kit --xr
 
 .. note::
 
