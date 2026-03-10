@@ -19,7 +19,6 @@ import warp as wp
 from isaaclab.renderers import BaseRenderer
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
-from isaaclab.visualizers import VisualizerCfg
 
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
@@ -203,4 +202,4 @@ class NewtonWarpRenderer(BaseRenderer):
             render_data.sensor = None
 
     def get_scene_data_provider(self) -> BaseSceneDataProvider:
-        return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])
+        return SimulationContext.instance().initialize_scene_data_provider()

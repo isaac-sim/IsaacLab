@@ -1,15 +1,27 @@
 Changelog
 ---------
 
-0.5.4 (2026-03-09)
+0.5.4 (2026-02-28)
 ~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added :meth:`~isaaclab_newton.physics.NewtonManager.set_gravity` class method to support
-  runtime gravity updates, enabling :class:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`
-  with the Newton backend.
+* Added contact sensor support via :class:`newton.sensors.SensorContact` with
+  Isaac Lab pattern conversion (``.*`` to fnmatch, USD path normalization)
+  inlined in :meth:`~isaaclab_newton.physics.NewtonManager.add_contact_sensor`.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensor` to
+  flatten Newton's per-world nested ``sensing_objs`` and ``counterparts``
+  attributes.
+
+Fixed
+^^^^^
+
+* Fixed ``RigidObjectData.body_inertia`` shape from ``(N, B, 3, 3)`` to ``(N, B, 9)``.
 
 
 0.5.3 (2026-03-09)

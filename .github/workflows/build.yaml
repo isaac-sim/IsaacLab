@@ -36,8 +36,6 @@ env:
   ISAACSIM_BASE_IMAGE: nvcr.io/nvidian/isaac-sim #${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' #${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  ECR_REPOSITORY: isaaclab-ci
-  ECR_REGION: us-west-2
 
 jobs:
   build:
@@ -57,8 +55,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     # ECR images must be pruned with a lifecycle policy.
@@ -83,8 +79,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-curobo
 
     # ECR images must be pruned with a lifecycle policy.
@@ -113,8 +107,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests
@@ -176,8 +168,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests 2
@@ -238,8 +228,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     - name: Run General Tests
@@ -301,8 +289,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-curobo
 
     - name: Run cuRobo and SkillGen Tests

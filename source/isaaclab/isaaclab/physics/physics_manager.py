@@ -318,18 +318,6 @@ class PhysicsManager(ABC):
         """Get the tensor backend being used ("numpy" or "torch")."""
         return "torch" if "cuda" in PhysicsManager._device else "numpy"
 
-    @classmethod
-    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
-        """Set the gravity vector in the physics simulation at runtime.
-
-        Subclasses must override this to apply the gravity change to the
-        backend-specific solver state.
-
-        Args:
-            gravity: Gravity vector [m/s^2], shape (3,).
-        """
-        raise NotImplementedError(f"{cls.__name__} does not implement set_gravity().")
-
     @staticmethod
     def safe_callback_invoke(fn: Callable, *args, physics_manager: type[PhysicsManager] | None = None) -> None:
         """Invoke a callback, catching exceptions that would be swallowed by external event buses.

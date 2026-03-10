@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 import warp as wp
@@ -125,6 +127,56 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     )
     scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())
+
+
+def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pytest.MonkeyPatch):
+    """Non-cfg clone path should execute visualizer clone callback with replicate args."""
+    scene = object.__new__(InteractiveScene)
+    scene.cfg = SimpleNamespace(replicate_physics=False, num_envs=3)
+    scene.stage = object()
+    scene.env_fmt = "/World/envs/env_{}"
+    scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
+    scene._default_env_origins = torch.zeros((3, 3), dtype=torch.float32)
+    scene._is_scene_setup_from_cfg = lambda: False
+
+    # Avoid binding this unit test to global SimulationContext singleton state.
+    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+
+    physics_calls = []
+    visualizer_calls = []
+    usd_calls = []
+
+    def _physics_clone_fn(stage, *args, **kwargs):
+        physics_calls.append((stage, args, kwargs))
+
+    def _visualizer_clone_fn(stage, *args, **kwargs):
+        visualizer_calls.append((stage, args, kwargs))
+
+    def _usd_replicate(stage, *args, **kwargs):
+        usd_calls.append((stage, args, kwargs))
+
+    scene.cloner_cfg = SimpleNamespace(
+        device="cpu",
+        physics_clone_fn=_physics_clone_fn,
+        visualizer_clone_fn=_visualizer_clone_fn,
+    )
+    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.usd_replicate", _usd_replicate)
+
+    scene.clone_environments(copy_from_source=False)
+    assert len(physics_calls) == 1
+    assert len(visualizer_calls) == 1
+    assert len(usd_calls) == 1
+    mapping = physics_calls[0][1][3]
+    assert mapping.dtype == torch.bool
+    assert mapping.shape == (1, scene.num_envs)
+
+    physics_calls.clear()
+    visualizer_calls.clear()
+    usd_calls.clear()
+    scene.clone_environments(copy_from_source=True)
+    assert len(physics_calls) == 0
+    assert len(visualizer_calls) == 1
+    assert len(usd_calls) == 1
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

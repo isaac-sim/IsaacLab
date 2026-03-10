@@ -29,7 +29,11 @@ class BaseVisualizer(ABC):
     """
 
     def __init__(self, cfg: VisualizerCfg):
-        """Initialize visualizer with config."""
+        """Initialize visualizer with config.
+
+        Args:
+            cfg: Visualizer configuration.
+        """
         self.cfg = cfg
         self._scene_data_provider = None
         self._is_initialized = False
@@ -37,7 +41,11 @@ class BaseVisualizer(ABC):
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
-        """Initialize visualizer resources."""
+        """Initialize visualizer resources.
+
+        Args:
+            scene_data_provider: Scene data provider used by the visualizer.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -56,15 +64,27 @@ class BaseVisualizer(ABC):
 
     @abstractmethod
     def is_running(self) -> bool:
-        """Check if visualizer is still running (e.g., window not closed)."""
+        """Check if visualizer is still running (e.g., window not closed).
+
+        Returns:
+            ``True`` if the visualizer is running, otherwise ``False``.
+        """
         raise NotImplementedError
 
     def is_training_paused(self) -> bool:
-        """Check if training is paused by visualizer controls."""
+        """Check if training is paused by visualizer controls.
+
+        Returns:
+            ``True`` if training is paused, otherwise ``False``.
+        """
         return False
 
     def is_rendering_paused(self) -> bool:
-        """Check if rendering is paused by visualizer controls."""
+        """Check if rendering is paused by visualizer controls.
+
+        Returns:
+            ``True`` if rendering is paused, otherwise ``False``.
+        """
         return False
 
     @property
@@ -78,15 +98,27 @@ class BaseVisualizer(ABC):
         return self._is_closed
 
     def supports_markers(self) -> bool:
-        """Check if visualizer supports VisualizationMarkers."""
+        """Check if visualizer supports VisualizationMarkers.
+
+        Returns:
+            ``True`` if marker rendering is supported, otherwise ``False``.
+        """
         return False
 
     def supports_live_plots(self) -> bool:
-        """Check if visualizer supports LivePlots."""
+        """Check if visualizer supports LivePlots.
+
+        Returns:
+            ``True`` if live plots are supported, otherwise ``False``.
+        """
         return False
 
     def requires_forward_before_step(self) -> bool:
-        """Whether simulation should run forward() before step()."""
+        """Whether simulation should run forward() before step().
+
+        Returns:
+            ``True`` when forward kinematics should run before stepping.
+        """
         return False
 
     def pumps_app_update(self) -> bool:
@@ -99,11 +131,19 @@ class BaseVisualizer(ABC):
         return False
 
     def get_visualized_env_ids(self) -> list[int] | None:
-        """Return env IDs this visualizer is displaying, if any."""
+        """Return env IDs this visualizer is displaying, if any.
+
+        Returns:
+            Visualized environment ids, or ``None`` for all environments.
+        """
         return getattr(self, "_env_ids", None)
 
     def _compute_visualized_env_ids(self) -> list[int] | None:
-        """Compute which env indices to show from config."""
+        """Compute which environment indices to visualize from config.
+
+        Returns:
+            Selected environment ids, or ``None`` to visualize all environments.
+        """
         if self._scene_data_provider is None:
             return None
         filter_mode = getattr(self.cfg, "env_filter_mode", "none")
@@ -131,17 +171,33 @@ class BaseVisualizer(ABC):
         return None
 
     def get_rendering_dt(self) -> float | None:
-        """Get rendering time step. Returns None to use interface default."""
+        """Get rendering time step.
+
+        Returns:
+            Rendering time step override, or ``None`` to use interface default.
+        """
         return None
 
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
-        """Set camera view position. No-op by default."""
+        """Set camera view position.
+
+        Args:
+            eye: Camera eye position.
+            target: Camera target position.
+        """
         pass
 
     def _resolve_camera_pose_from_usd_path(
         self, usd_path: str
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-        """Resolve camera pose/target from provider camera transforms."""
+        """Resolve camera pose/target from provider camera transforms.
+
+        Args:
+            usd_path: Concrete USD camera path.
+
+        Returns:
+            Eye/target tuple when available, otherwise ``None``.
+        """
         if self._scene_data_provider is None:
             return None
         transforms = self._scene_data_provider.get_camera_transforms()
@@ -161,7 +217,14 @@ class BaseVisualizer(ABC):
         return pos_t, target
 
     def _resolve_template_camera_path(self, usd_path: str) -> tuple[int, str]:
-        """Normalize concrete env camera path to templated camera path."""
+        """Normalize concrete env camera path to templated camera path.
+
+        Args:
+            usd_path: Concrete USD camera path.
+
+        Returns:
+            Tuple of environment id and templated camera path.
+        """
         env_pattern = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
         if match := env_pattern.match(usd_path):
             return int(match.group("id")), match.group("root") + "%d" + match.group("path")
@@ -170,7 +233,16 @@ class BaseVisualizer(ABC):
     def _lookup_camera_transform(
         self, transforms: dict[str, Any], template_path: str, env_id: int
     ) -> tuple[list[float], list[float]] | None:
-        """Fetch (position, orientation) for a templated camera path and env index."""
+        """Fetch camera position/orientation for a templated path and environment.
+
+        Args:
+            transforms: Camera transform dictionary from provider.
+            template_path: Templated camera path.
+            env_id: Environment id to query.
+
+        Returns:
+            Position/orientation tuple when available, otherwise ``None``.
+        """
         order = transforms.get("order", [])
         positions = transforms.get("positions", [])
         orientations = transforms.get("orientations", [])
@@ -192,6 +264,15 @@ class BaseVisualizer(ABC):
     def _quat_rotate_vec(
         quat_xyzw: tuple[float, float, float, float], vec: tuple[float, float, float]
     ) -> tuple[float, float, float]:
+        """Rotate a vector by a quaternion.
+
+        Args:
+            quat_xyzw: Quaternion in xyzw order.
+            vec: Input vector.
+
+        Returns:
+            Rotated vector.
+        """
         import torch
 
         from isaaclab.utils.math import quat_apply
@@ -202,11 +283,21 @@ class BaseVisualizer(ABC):
         return (float(rotated[0]), float(rotated[1]), float(rotated[2]))
 
     def reset(self, soft: bool = False) -> None:
-        """Reset visualizer state. No-op by default."""
+        """Reset visualizer state.
+
+        Args:
+            soft: Whether to perform a soft reset.
+        """
         pass
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
-        """Log a compact initialization table for a visualizer."""
+        """Log a compact initialization table for a visualizer.
+
+        Args:
+            logger: Logger used to emit the table.
+            title: Table title.
+            rows: Table row key/value pairs.
+        """
         from prettytable import PrettyTable
 
         table = PrettyTable()
