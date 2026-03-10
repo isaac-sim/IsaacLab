@@ -332,8 +332,10 @@ choose the tab that matches your hardware.
 
          .. code-block:: bash
 
+            echo "NV_DEVICE_PROFILE=auto-native" > ~/custom.env
             python -m isaacteleop.cloudxr --cloudxr-env-config=~/custom.env
 
+         See :ref:`cloudxr-runtime-configuration` for details.
          See :ref:`cloudxr-runtime-configuration` for details.
 
       .. _build-apple-vision-pro:
