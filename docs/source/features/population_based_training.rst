@@ -49,7 +49,7 @@ Example Config
      num_policies: 8
      directory: .
      workspace: "pbt_workspace"
-     objective: episode.Curriculum/difficulty_level
+     objective: episode.consecutive_successes
      interval_steps: 50000000
      threshold_std: 0.1
      threshold_abs: 0.025
@@ -66,8 +66,13 @@ Example Config
        agent.params.config.tau: "mutate_discount"
 
 
-``objective: episode.Curriculum/difficulty_level`` is the dotted expression that uses
-``infos["episode"]["Curriculum/difficulty_level"]`` as the scalar to **rank policies** (higher is better).
+``objective: episode.consecutive_successes`` is a dotted expression that resolves to
+``infos["episode"]["consecutive_successes"]`` as the scalar to **rank policies** (higher is better).
+
+.. note::
+   The rl_games wrapper remaps ``extras["log"]`` to ``extras["episode"]``, so objectives
+   should use the ``episode.`` prefix even though the environment writes to ``extras["log"]``.
+
 With ``num_policies: 8``, launch eight processes sharing the same ``workspace`` and unique ``policy_idx`` (0-7).
 
 
