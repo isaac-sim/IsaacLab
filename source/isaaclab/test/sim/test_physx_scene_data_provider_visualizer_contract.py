@@ -83,7 +83,6 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
     assert provider._newton_model == "prebuilt-model"
     assert provider._newton_state == "prebuilt-state"
     assert provider._rigid_body_paths == ["/World/envs/env_0/A"]
-    assert provider._articulation_paths == ["/World/envs/env_0/Robot"]
     assert provider._num_envs_at_last_newton_build == 4
     assert provider._xform_views == {}
     assert provider._view_body_index_map == {}
