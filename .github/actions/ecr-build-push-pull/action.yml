@@ -208,7 +208,7 @@ runs:
           echo "🟠 Could not resolve base image digest, falling back to tag string"
           BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
         fi
-        
+
         echo "🟢 Base image ID: ${BASE_IMAGE_UNIQ_ID}"
 
         MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
