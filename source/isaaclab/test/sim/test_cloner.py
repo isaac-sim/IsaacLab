@@ -21,6 +21,8 @@ from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import usd_replicate
+from isaaclab.cloner.cloner_utils import resolve_visualizer_clone_fn
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.sim import build_simulation_context
 
 
@@ -217,3 +219,37 @@ def test_clone_decorator_wildcard_patterns(
         f"Expected {len(parent_paths)} matching prims, got {len(all_matching)}. "
         "Spurious parent prims were likely created by the @clone decorator."
     )
+
+
+def test_resolve_visualizer_clone_fn_returns_none_when_not_physx_backend():
+    """Resolver should ignore non-PhysX backends."""
+    hook = resolve_visualizer_clone_fn(
+        physics_backend="newton",
+        requirements=SceneDataRequirement(requires_newton_model=True),
+        stage=object(),
+        set_visualizer_artifact=lambda artifact: artifact,
+    )
+    assert hook is None
+
+
+def test_resolve_visualizer_clone_fn_returns_none_when_newton_model_not_required():
+    """Resolver should not load optional hook when requirement is not requested."""
+    hook = resolve_visualizer_clone_fn(
+        physics_backend="physx",
+        requirements=SceneDataRequirement(requires_newton_model=False),
+        stage=object(),
+        set_visualizer_artifact=lambda artifact: artifact,
+    )
+    assert hook is None
+
+
+def test_resolve_visualizer_clone_fn_returns_callable_when_available(sim):
+    """Resolver should return a callable hook when backend helper is available."""
+    pytest.importorskip("isaaclab_newton.cloner.newton_replicate")
+    hook = resolve_visualizer_clone_fn(
+        physics_backend="physx",
+        requirements=SceneDataRequirement(requires_newton_model=True),
+        stage=sim_utils.get_current_stage(),
+        set_visualizer_artifact=lambda artifact: artifact,
+    )
+    assert callable(hook)

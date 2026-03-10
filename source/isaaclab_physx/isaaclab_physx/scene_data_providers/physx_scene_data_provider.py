@@ -140,6 +140,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._xform_mask_buf = None
         # View index order as device tensors for vectorized scatter in _apply_view_poses.
         self._view_order_tensors: dict[str, Any] = {}
+        # Last full-model build source for tests/debugging ("prebuilt", "usd_fallback", "error").
+        self._last_newton_model_build_source: str | None = None
 
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
@@ -221,7 +223,9 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # is complete for full and partial visualization model-build paths.
         try:
             if self._try_use_prebuilt_newton_artifact():
+                self._last_newton_model_build_source = "prebuilt"
                 return
+            self._last_newton_model_build_source = "usd_fallback"
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
@@ -253,12 +257,14 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_env_ids_key = None
             self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
+            self._last_newton_model_build_source = "error"
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun/viser visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
+            self._last_newton_model_build_source = "error"
             logger.error(f"[PhysxSceneDataProvider] Failed to build Newton model from USD: {exc}")
             self._newton_model = None
             self._newton_state = None
