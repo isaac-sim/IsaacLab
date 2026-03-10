@@ -40,6 +40,7 @@ Fixed
 * Marked ``physx-warp-rgb`` and ``physx-warp-depth`` Shadow Hand vision preset
   render tests as expected failures. The standard Shadow Hand USD contains PhysX
   tendon schemas that Newton's ``ModelBuilder`` cannot parse.
+
 1.5.5 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
