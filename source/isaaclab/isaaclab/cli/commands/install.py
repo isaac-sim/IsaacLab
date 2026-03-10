@@ -266,32 +266,26 @@ def _install_isaaclab_extensions(
     # packages like isaaclab_visualizers depend on the local isaaclab package.
     install_items.sort(key=lambda item: (item.name != "isaaclab", item.name))
 
+    pip_cmd = get_pip_command(python_exe)
     for item in install_items:
         print_info(f"Installing extension: {item.name}")
         extras_suffix = (extension_extras or {}).get(item.name, "")
         install_target = f"{item}{extras_suffix}"
-        run_command(
-            [
-                python_exe,
-                "-m",
-                "pip",
-                "install",
-                "--editable",
-                install_target,
-            ]
-        )
+        run_command(pip_cmd + ["install", "--editable", install_target])
 
 
 def _install_ovrtx_dependency() -> None:
     """Install the ovrtx dependency (for use with isaaclab_ov)."""
     python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
     print_info("Installing ovrtx dependency for isaaclab_ov...")
-    run_command([python_exe, "-m", "pip", "install", OVRTX_PIP_SPEC])
+    run_command(pip_cmd + ["install", OVRTX_PIP_SPEC])
 
 
 def _install_no_deps_extensions() -> None:
     """Install extensions listed in INSTALL_NO_DEPS_SUBPACKAGES with --no-deps."""
     python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
     source_dir = ISAACLAB_ROOT / "source"
     for short_name in INSTALL_NO_DEPS_SUBPACKAGES:
         pkg_name = f"isaaclab_{short_name}"
@@ -299,17 +293,7 @@ def _install_no_deps_extensions() -> None:
         if not (pkg_path.is_dir() and (pkg_path / "setup.py").exists()):
             continue
         print_info(f"Installing {pkg_name} (no dependencies) for importability...")
-        run_command(
-            [
-                python_exe,
-                "-m",
-                "pip",
-                "install",
-                "--editable",
-                str(pkg_path),
-                "--no-deps",
-            ]
-        )
+        run_command(pip_cmd + ["install", "--editable", str(pkg_path), "--no-deps"])
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
