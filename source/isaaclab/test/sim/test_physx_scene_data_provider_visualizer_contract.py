@@ -16,6 +16,7 @@ from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 
 def _make_provider():
     provider = object.__new__(PhysxSceneDataProvider)
+    provider._force_usd_fallback_for_newton_model_build = False
     return provider
 
 
@@ -102,7 +103,7 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
 def test_try_use_prebuilt_artifact_respects_force_usd_fallback_flag():
     """Force flag should disable prebuilt fast path even when artifact is available."""
     provider = _make_provider()
-    provider._force_usd_fallback = True
+    provider._force_usd_fallback_for_newton_model_build = True
     artifact = VisualizerPrebuiltArtifacts(
         model="prebuilt-model",
         state="prebuilt-state",
