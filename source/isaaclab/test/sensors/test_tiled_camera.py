@@ -1809,6 +1809,10 @@ def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls
         device=camera.device,
     )
     camera.set_world_poses_from_view(eyes_close, target)
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
     for _ in range(5):
         sim.step()
     camera.update(dt)
