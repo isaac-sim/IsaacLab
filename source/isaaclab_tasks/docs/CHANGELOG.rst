@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+1.5.5 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified Dexsuite gravity randomization to use the unified
+  :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity` term, removing the
+  backend-specific ``GravityRandomizationCfg`` preset.
+
+Added
+^^^^^
+
+* Added Dexsuite multi-hand dexterous manipulation environments with Kuka Allegro configurations for lift and
+  reorientation tasks.
+
+
 1.5.4 (2026-03-07)
 ~~~~~~~~~~~~~~~~~~
 
