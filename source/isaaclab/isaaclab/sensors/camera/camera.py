@@ -589,21 +589,24 @@ class Camera(SensorBase):
     """
 
     def _check_supported_data_types(self, cfg: CameraCfg):
-        """Checks if the data types are supported by the ray-caster camera."""
-        # check if there is any intersection in unsupported types
-        # reason: these use np structured data types which we can't yet convert to torch tensor
+        """Checks if the data types are supported by the camera.
+
+        Args:
+            cfg: The camera configuration to validate.
+
+        Raises:
+            ValueError: If any requested data types are in :attr:`UNSUPPORTED_TYPES`.
+        """
         common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
         if common_elements:
-            # provide alternative fast counterparts
             fast_common_elements = []
             for item in common_elements:
                 if "instance_segmentation" in item or "instance_id_segmentation" in item:
                     fast_common_elements.append(item + "_fast")
-            # raise error
             raise ValueError(
-                f"Camera class does not support the following sensor types: {common_elements}."
+                f"{type(self).__name__} does not support the following sensor types: {common_elements}."
                 "\n\tThis is because these sensor types output numpy structured data types which"
-                "can't be converted to torch tensors easily."
+                " can't be converted to torch tensors easily."
                 "\n\tHint: If you need to work with these sensor types, we recommend using their fast counterparts."
                 f"\n\t\tFast counterparts: {fast_common_elements}"
             )

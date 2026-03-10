@@ -229,26 +229,6 @@ class TiledCamera(Camera):
     Private Helpers
     """
 
-    def _check_supported_data_types(self, cfg: TiledCameraCfg):
-        """Checks if the data types are supported by the ray-caster camera."""
-        # check if there is any intersection in unsupported types
-        # reason: these use np structured data types which we can't yet convert to torch tensor
-        common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
-        if common_elements:
-            # provide alternative fast counterparts
-            fast_common_elements = []
-            for item in common_elements:
-                if "instance_segmentation" in item or "instance_id_segmentation" in item:
-                    fast_common_elements.append(item + "_fast")
-            # raise error
-            raise ValueError(
-                f"TiledCamera class does not support the following sensor types: {common_elements}."
-                "\n\tThis is because these sensor types output numpy structured data types which"
-                "can't be converted to torch tensors easily."
-                "\n\tHint: If you need to work with these sensor types, we recommend using their fast counterparts."
-                f"\n\t\tFast counterparts: {fast_common_elements}"
-            )
-
     def _create_buffers(self):
         """Create buffers for storing data."""
         # create the data object
