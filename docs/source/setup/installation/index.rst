@@ -204,10 +204,9 @@ The ``physx`` sub-package is always required — task configs import from
 ``isaaclab_physx`` regardless of physics backend.
 
 Replace ``rsl_rl`` with any supported RL framework (``skrl``, ``sb3``,
-``rl_games``, ``robomimic``), or omit it to install without an RL framework.
+Choosing an Installation Method
+--------------------------------
 
-
-Install Options Reference
 -------------------------
 
 ``./isaaclab.sh -i`` accepts comma-separated values:
