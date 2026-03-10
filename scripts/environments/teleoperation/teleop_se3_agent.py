@@ -301,9 +301,7 @@ def main() -> None:
 if __name__ == "__main__":
     # run the main function
     main()
-    # Close the USD stage and pump the event loop so the viewport widget
-    # processes the closure before the app teardown destroys it.
-    sim_utils.close_stage()
+    # env.close() already closes the USD stage via sim.clear_instance().
+    # Pump the event loop so the viewport processes closure, then close the app.
     simulation_app.update()
-    # close sim app
     simulation_app.close()

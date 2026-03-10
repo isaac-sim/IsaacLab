@@ -1,15 +1,21 @@
 Changelog
 ---------
 
-4.5.16 (2026-03-10)
-~~~~~~~~~~~~~~~~~~~
+4.5.17 (2026-03-11)
+~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
-* Added recursive resolution of nested :class:`~isaaclab.managers.ManagerTermBaseCfg` inside
-  :meth:`~isaaclab.managers.ManagerBase._resolve_param_value` so that ``params`` containing
-  manager term configs in dicts or lists have their ``func`` references and class-based
-  managers resolved automatically.
+
+* Fixed "[Error] [omni.usd] Stage opening or closing already in progress" on
+  shutdown when running with Kit: ``env.close()`` already closes the stage, so
+  the additional call to :func:`~isaaclab.sim.utils.stage.close_stage` from
+  :meth:`~isaaclab.sim.SimulationContext.clear_instance` was removed as
+  redundant (it triggered the error).
+
+
+4.5.16 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
 
 
 4.5.15 (2026-03-10)
@@ -40,6 +46,17 @@ Fixed
   :class:`~isaaclab.envs.DirectMARLEnv`, and :class:`~isaaclab.envs.ManagerBasedEnv`
   now call ``clear_instance()`` on the context when initialization raises, preventing
   cascading "Simulation context already exists" errors in test suites and training loops.
+
+
+4.5.13 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Added recursive resolution of nested :class:`~isaaclab.managers.ManagerTermBaseCfg` inside
+  :meth:`~isaaclab.managers.ManagerBase._resolve_param_value` so that ``params`` containing
+  manager term configs in dicts or lists have their ``func`` references and class-based
+  managers resolved automatically.
 
 
 4.5.12 (2026-03-10)
