@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+4.5.13 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.sensors.camera.Camera` to use the shared
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_depth_clipping`
+  helper instead of inline depth clipping logic.
+
+* Consolidated :meth:`~isaaclab.sensors.camera.Camera._check_supported_data_types`
+  so subclasses (e.g. ``TiledCamera``) inherit it instead of duplicating the logic.
+  The error message now uses the actual class name dynamically.
+
+* Moved ``renderer`` and ``render_data`` attribute initialization from
+  :class:`~isaaclab.sensors.camera.tiled_camera.TiledCamera` up to
+  :class:`~isaaclab.sensors.camera.Camera` so the attributes exist at the
+  base-class level. No behavioral change -- ``Camera.renderer`` defaults to
+  ``None`` and the legacy Replicator code path is still used.
+
+* Extracted :meth:`~isaaclab.sensors.camera.Camera._initialize_replicator` from
+  :meth:`~isaaclab.sensors.camera.Camera._initialize_impl` to isolate the
+  Replicator annotator pipeline setup into a dedicated helper method.
+
 4.5.12 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -36,7 +60,6 @@ Changed
 * Refactored :func:`~isaaclab.utils.module.lazy_export` to infer fallback packages
   and relative wildcard re-exports from the ``.pyi`` stub, making the stub the
   single source of truth. The ``packages`` argument is deprecated.
-
 
 4.5.9 (2026-03-08)
 ~~~~~~~~~~~~~~~~~~
