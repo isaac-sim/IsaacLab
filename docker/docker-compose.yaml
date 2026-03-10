@@ -102,6 +102,12 @@ services:
     volumes: *default-isaac-lab-volumes
     network_mode: host
     deploy: *default-isaac-lab-deploy
+    pids_limit: 0
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65536
+        hard: 65536
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
@@ -131,6 +137,12 @@ services:
     volumes: *default-isaac-lab-volumes
     network_mode: host
     deploy: *default-isaac-lab-deploy
+    pids_limit: 0
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65536
+        hard: 65536
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
