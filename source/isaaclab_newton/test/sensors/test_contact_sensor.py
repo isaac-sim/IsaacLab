@@ -141,9 +141,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
 
         forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
         for env_idx in range(num_envs):
-            assert forces[env_idx].max().item() < 0.01, (
-                f"Env {env_idx}: No contact should be detected while in air."
-            )
+            assert forces[env_idx].max().item() < 0.01, f"Env {env_idx}: No contact should be detected while in air."
 
         for tick in range(5, total_fall_steps):
             perform_sim_step(sim, scene, SIM_DT)
@@ -327,9 +325,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
-        rigid_props = sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False, linear_damping=0.5, angular_damping=0.5
-        )
+        rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)
 
         scene_cfg.object_a = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/BoxA",
@@ -505,9 +501,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
 
-        rigid_props_a = sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False, linear_damping=0.5, angular_damping=0.5
-        )
+        rigid_props_a = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)
         scene_cfg.object_a = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ObjectA",
             spawn=sim_utils.CuboidCfg(
@@ -520,9 +514,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
         )
 
-        rigid_props_b = sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False, linear_damping=2.0, angular_damping=2.0
-        )
+        rigid_props_b = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=2.0, angular_damping=2.0)
         scene_cfg.object_b = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ObjectB",
             spawn=sim_utils.CuboidCfg(
