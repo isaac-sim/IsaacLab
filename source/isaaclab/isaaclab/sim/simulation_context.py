@@ -22,6 +22,11 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
+from isaaclab.physics.scene_data_requirements import (
+    SceneDataRequirement,
+    VisualizerPrebuiltArtifacts,
+    resolve_scene_data_requirements,
+)
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -155,6 +160,8 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
+        self._scene_data_requirements = SceneDataRequirement()
+        self._visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -422,13 +429,8 @@ class SimulationContext:
                 cfg.max_worlds = max_worlds_override
 
     def resolve_visualizer_types(self) -> list[str]:
-        """Resolve visualizer types from config or CLI settings."""
-        visualizer_cfgs = self.cfg.visualizer_cfgs
-        if visualizer_cfgs is None:
-            return self._get_cli_visualizer_types()
-
-        if not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
+        """Resolve effective visualizer types with CLI overrides applied."""
+        visualizer_cfgs = self._resolve_visualizer_cfgs()
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
@@ -472,7 +474,13 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
-        self.initialize_scene_data_provider(visualizer_cfgs)
+        # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
+        visualizer_types = [
+            cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
+        ]
+        requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
+        self._scene_data_requirements = requirements
+        self.initialize_scene_data_provider()
         self._visualizers = []
 
         for cfg in visualizer_cfgs:
@@ -494,10 +502,34 @@ class SimulationContext:
                 close_provider()
             self._scene_data_provider = None
 
-    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> BaseSceneDataProvider:
+    def initialize_scene_data_provider(self) -> BaseSceneDataProvider:
         if self._scene_data_provider is None:
-            self._scene_data_provider = SceneDataProvider(visualizer_cfgs, self.stage, self)
+            self._scene_data_provider = SceneDataProvider(self.stage, self)
         return self._scene_data_provider
+
+    def get_scene_data_requirements(self) -> SceneDataRequirement:
+        """Return scene-data requirements resolved from visualizers/renderers."""
+        return self._scene_data_requirements
+
+    def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:
+        """Update scene-data requirements."""
+        self._scene_data_requirements = requirements
+
+    def get_scene_data_visualizer_prebuilt_artifact(self) -> VisualizerPrebuiltArtifacts | None:
+        """Return optional prebuilt visualizer artifact."""
+        return self._visualizer_prebuilt_artifact
+
+    def set_scene_data_visualizer_prebuilt_artifact(self, artifact: VisualizerPrebuiltArtifacts | None) -> None:
+        """Set or clear the optional visualizer prebuilt artifact.
+
+        The scene (clone flow) writes this once, and providers can read it
+        during initialization as a fast path.
+        """
+        self._visualizer_prebuilt_artifact = artifact
+
+    def clear_scene_data_visualizer_prebuilt_artifact(self) -> None:
+        """Clear optional prebuilt artifact in provider context."""
+        self.set_scene_data_visualizer_prebuilt_artifact(None)
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:

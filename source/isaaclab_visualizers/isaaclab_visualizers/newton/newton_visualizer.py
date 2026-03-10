@@ -34,6 +34,14 @@ class NewtonViewerGL(ViewerGL):
         update_frequency: int = 1,
         **kwargs,
     ):
+        """Initialize Newton viewer wrapper state.
+
+        Args:
+            *args: Positional arguments forwarded to ``ViewerGL``.
+            metadata: Optional metadata shown in viewer panels.
+            update_frequency: Viewer refresh cadence in simulation frames.
+            **kwargs: Keyword arguments forwarded to ``ViewerGL``.
+        """
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
@@ -48,12 +56,15 @@ class NewtonViewerGL(ViewerGL):
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused by viewer controls."""
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
     def _render_training_controls(self, imgui):
+        """Render Isaac Lab-specific control widgets in the Newton viewer UI."""
         imgui.separator()
         imgui.text("IsaacLab Controls")
 
@@ -81,11 +92,13 @@ class NewtonViewerGL(ViewerGL):
             )
 
     def on_key_press(self, symbol, modifiers):
+        """Forward key presses unless UI is currently capturing input."""
         if self.ui.is_capturing():
             return
         super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
+        """Render default UI and fallback control window when callback hooks are unavailable."""
         if not self._fallback_draw_controls:
             return super()._render_ui()
 
@@ -231,6 +244,11 @@ class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
 
     def __init__(self, cfg: NewtonVisualizerCfg):
+        """Initialize Newton visualizer state.
+
+        Args:
+            cfg: Newton visualizer configuration.
+        """
         super().__init__(cfg)
         self.cfg: NewtonVisualizerCfg = cfg
         self._viewer: NewtonViewerGL | None = None
@@ -244,6 +262,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._headless_no_viewer = False
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+        """Initialize viewer resources and bind scene data provider.
+
+        Args:
+            scene_data_provider: Scene data provider used to fetch model/state data.
+        """
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
@@ -324,6 +347,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
+        """Advance visualization by one simulation step.
+
+        Args:
+            dt: Simulation time-step in seconds.
+        """
         if not self._is_initialized or self._is_closed:
             return
 
@@ -373,6 +401,7 @@ class NewtonVisualizer(BaseVisualizer):
             logger.debug("[NewtonVisualizer] Viewer update failed: %s", exc)
 
     def close(self) -> None:
+        """Release viewer resources."""
         if self._is_closed:
             return
         if self._viewer is not None:
@@ -380,6 +409,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._is_closed = True
 
     def is_running(self) -> bool:
+        """Return whether the visualizer should continue stepping.
+
+        Returns:
+            ``True`` while the visualizer is active, otherwise ``False``.
+        """
         if not self._is_initialized or self._is_closed:
             return False
         if self._headless_no_viewer and self._viewer is None:
@@ -389,6 +423,11 @@ class NewtonVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """Resolve initial camera pose from config or USD camera path.
+
+        Returns:
+            Camera eye and target tuples.
+        """
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
             if pose is not None:
@@ -400,6 +439,11 @@ class NewtonVisualizer(BaseVisualizer):
         return self.cfg.camera_position, self.cfg.camera_target
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
+        """Apply camera eye/target pose to the Newton viewer.
+
+        Args:
+            pose: Camera eye and target tuples.
+        """
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
@@ -415,6 +459,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._last_camera_pose = (cam_pos, cam_target)
 
     def _update_camera_from_usd_path(self) -> None:
+        """Refresh camera pose from configured USD camera path when it changes."""
         pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
         if pose is None:
             return
@@ -423,17 +468,21 @@ class NewtonVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
+        """Newton OpenGL viewer does not implement Isaac Lab marker primitives."""
         return False
 
     def supports_live_plots(self) -> bool:
+        """Newton OpenGL viewer does not provide live-plot panels."""
         return False
 
     def is_training_paused(self) -> bool:
+        """Return whether training is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_training_paused()
 
     def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused from viewer controls."""
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
