@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import contextlib
 import glob
 import os
+import time as _time
 
+import numpy as _np
 from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, ListMeasurement, SingleMeasurement
@@ -140,3 +143,92 @@ def log_rl_policy_episode_lengths(benchmark: BaseIsaacLabBenchmark, value: list)
     # log max episode length
     measurement = SingleMeasurement(name="Max Episode Lengths", value=max(value), unit="float")
     benchmark.add_measurement("train", measurement=measurement)
+
+
+########################################
+# step-time recording via monkey-patch #
+########################################
+
+
+class StepTimeRecorder:
+    """Records physics-sim and scene-update step times via instance-level monkey-patching.
+
+    Patches ``sim.step``, ``sim.render``, and ``scene.update`` at the instance level so
+    class methods are not modified.  Call :meth:`uninstall` to restore the originals.
+    """
+
+    def __init__(self):
+        self._sim_step_times_ns: list[int] = []
+        self._sim_render_times_ns: list[int] = []
+        self._scene_update_times_ns: list[int] = []
+        self._sim = None
+        self._scene = None
+
+    def install(self, sim, scene) -> None:
+        """Install timing wrappers on *sim* and *scene* instances."""
+        self._sim = sim
+        self._scene = scene
+
+        # -- sim.step --
+        orig_sim_step = sim.step
+        _buf = self._sim_step_times_ns
+
+        def _timed_sim_step(render: bool = True) -> None:
+            t0 = _time.perf_counter_ns()
+            orig_sim_step(render=render)
+            _buf.append(_time.perf_counter_ns() - t0)
+
+        sim.step = _timed_sim_step
+
+        # -- sim.render (optional) --
+        if callable(getattr(sim, "render", None)):
+            orig_sim_render = sim.render
+            _rbuf = self._sim_render_times_ns
+
+            def _timed_sim_render() -> None:
+                t0 = _time.perf_counter_ns()
+                orig_sim_render()
+                _rbuf.append(_time.perf_counter_ns() - t0)
+
+            sim.render = _timed_sim_render
+
+        # -- scene.update --
+        orig_scene_update = scene.update
+        _sbuf = self._scene_update_times_ns
+
+        def _timed_scene_update(dt: float) -> None:
+            t0 = _time.perf_counter_ns()
+            orig_scene_update(dt=dt)
+            _sbuf.append(_time.perf_counter_ns() - t0)
+
+        scene.update = _timed_scene_update
+
+    def uninstall(self) -> None:
+        """Remove instance-level patches, restoring the original class methods."""
+        if self._sim is not None:
+            for attr in ("step", "render"):
+                with contextlib.suppress(AttributeError):
+                    delattr(self._sim, attr)
+        if self._scene is not None:
+            with contextlib.suppress(AttributeError):
+                delattr(self._scene, "update")
+
+    def get_step_times_ms(self) -> dict[str, list[float]]:
+        """Return collected step times in milliseconds keyed by measurement name."""
+        result: dict[str, list[float]] = {}
+        if self._sim_step_times_ns:
+            result["Physics Step Time"] = (_np.array(self._sim_step_times_ns) / 1e6).tolist()
+        if self._sim_render_times_ns:
+            result["Render Step Time"] = (_np.array(self._sim_render_times_ns) / 1e6).tolist()
+        if self._scene_update_times_ns:
+            result["Scene Update Time"] = (_np.array(self._scene_update_times_ns) / 1e6).tolist()
+        return result
+
+
+def log_step_time_breakdown(benchmark: BaseIsaacLabBenchmark, recorder: StepTimeRecorder) -> None:
+    """Log per-step physics, render, and scene-update times from *recorder* into *benchmark*."""
+    step_times = recorder.get_step_times_ms()
+    if step_times:
+        measurement = DictMeasurement(name="Step Time Breakdown", value=step_times)
+        benchmark.add_measurement("runtime", measurement=measurement)
+        log_min_max_mean_stats(benchmark, step_times)

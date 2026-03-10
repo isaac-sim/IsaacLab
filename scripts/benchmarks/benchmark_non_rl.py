@@ -61,6 +61,7 @@ from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    StepTimeRecorder,
     get_backend_type,
     get_preset_string,
     log_app_start_time,
@@ -68,6 +69,7 @@ from scripts.benchmarks.utils import (
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
+    log_step_time_breakdown,
     log_task_start_time,
     log_total_start_time,
 )
@@ -160,6 +162,12 @@ def main(
 
     env.reset()
 
+    # install step-time recorder before the benchmark loop
+    recorder = StepTimeRecorder()
+    _base_env = env.unwrapped
+    if hasattr(_base_env, "sim") and hasattr(_base_env, "scene"):
+        recorder.install(_base_env.sim, _base_env.scene)
+
     # counter for number of frames to run for
     num_frames = 0
     # log frame times
@@ -182,6 +190,8 @@ def main(
             step_times.append(end_step_time_end - env_step_time_begin)
 
             num_frames += 1
+
+    recorder.uninstall()
 
     if world_rank == 0:
         # Final update after loop completes
@@ -206,6 +216,7 @@ def main(
         log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, environment_step_times, compute_stats=True)
+        log_step_time_breakdown(benchmark, recorder)
 
         benchmark._finalize_impl()
 

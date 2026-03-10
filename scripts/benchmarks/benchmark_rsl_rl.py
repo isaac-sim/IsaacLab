@@ -86,6 +86,7 @@ from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    StepTimeRecorder,
     get_backend_type,
     get_preset_string,
     log_app_start_time,
@@ -95,6 +96,7 @@ from scripts.benchmarks.utils import (
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
+    log_step_time_breakdown,
     log_task_start_time,
     log_total_start_time,
     parse_tf_logs,
@@ -198,6 +200,12 @@ def main(
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 
+    # install step-time recorder before training
+    recorder = StepTimeRecorder()
+    _base_env = env.unwrapped
+    if hasattr(_base_env, "sim") and hasattr(_base_env, "scene"):
+        recorder.install(_base_env.sim, _base_env.scene)
+
     task_startup_time_end = time.perf_counter_ns()
 
     # handle deprecated configurations (e.g. legacy policy -> actor/critic migration)
@@ -225,6 +233,8 @@ def main(
     # run training with continuous benchmark monitoring
     with BenchmarkMonitor(benchmark, interval=1.0):
         runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+
+    recorder.uninstall()
 
     if world_rank == 0:
         # Final update after training completes
@@ -256,6 +266,7 @@ def main(
         log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
+        log_step_time_breakdown(benchmark, recorder)
         log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])
         log_rl_policy_episode_lengths(benchmark, log_data["Train/mean_episode_length"])
 

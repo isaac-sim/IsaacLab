@@ -1,7 +1,16 @@
-Configuring Rendering Settings
-==============================
+Configuring RTX Rendering Settings
+====================================
 
-Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
+.. note::
+
+   This guide covers the **RTX renderer** settings, which are used when running Isaac Lab with
+   Isaac Sim. The RTX renderer is based on NVIDIA's Omniverse RTX rendering pipeline and is
+   available for all camera sensors in the PhysX backend.
+
+   For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
+   :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
+
+Isaac Lab's RTX renderer offers 3 preset rendering modes: performance, balanced, and quality.
 You can select a mode via a command line argument or from within a script, and customize settings as needed.
 Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
 
@@ -123,7 +132,8 @@ There are 2 ways to provide settings that overwrite presets.
 
    Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
 
-   In addition, the RTX documentation can be found here - https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
+   In addition, the full NVIDIA RTX renderer documentation can be found at
+   https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
 
    An example usage of ``carb_settings``.
 
