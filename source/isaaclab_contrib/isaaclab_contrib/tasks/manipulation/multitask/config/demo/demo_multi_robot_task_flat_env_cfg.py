@@ -232,6 +232,29 @@ class FlatMultiRobotActionsCfg:
 
 
 @configclass
+class FlatCommandsCfg:
+    """Command terms – reach target for the UR10 end-effector.
+
+    The command is generated for every env in Group 2 (UR10_REACH) task.
+    """
+
+    ee_pose = mdp.UniformPoseCommandCfg(
+        asset_name="ur10_reach_robot",
+        body_name="ee_link",
+        resampling_time_range=(4.0, 4.0),
+        debug_vis=True,
+        ranges=mdp.UniformPoseCommandCfg.Ranges(
+            pos_x=(0.35, 0.65),
+            pos_y=(-0.2, 0.2),
+            pos_z=(0.15, 0.5),
+            roll=(0.0, 0.0),
+            pitch=(0.0, 0.0),
+            yaw=(-3.14, 3.14),
+        ),
+    )
+
+
+@configclass
 class FlatObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
@@ -275,6 +298,7 @@ class FlatMultiRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
 
     scene: FlatMultiRobotSceneCfg = FlatMultiRobotSceneCfg(num_envs=NUM_ENVS, env_spacing=2.0, replicate_physics=False)
     actions: FlatMultiRobotActionsCfg = FlatMultiRobotActionsCfg()
+    commands: FlatCommandsCfg = FlatCommandsCfg()
     observations: FlatObservationsCfg = FlatObservationsCfg()
     rewards: FlatRewardsCfg = FlatRewardsCfg()
     terminations: FlatTerminationsCfg = FlatTerminationsCfg()

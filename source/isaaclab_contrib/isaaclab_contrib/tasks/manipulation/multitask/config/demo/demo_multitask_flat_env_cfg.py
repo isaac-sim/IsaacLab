@@ -278,6 +278,29 @@ class FlatSingleRobotActionsCfg:
 
 
 @configclass
+class FlatCommandsCfg:
+    """Command terms – reach target for the shared Franka end-effector.
+
+    The command is generated for every env in Group 2 (REACH) task.
+    """
+
+    ee_pose = mdp.UniformPoseCommandCfg(
+        asset_name="robot",
+        body_name="panda_hand",
+        resampling_time_range=(4.0, 4.0),
+        debug_vis=True,
+        ranges=mdp.UniformPoseCommandCfg.Ranges(
+            pos_x=(0.35, 0.65),
+            pos_y=(-0.2, 0.2),
+            pos_z=(0.15, 0.5),
+            roll=(0.0, 0.0),
+            pitch=(0.0, 0.0),
+            yaw=(-3.14, 3.14),
+        ),
+    )
+
+
+@configclass
 class FlatObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
@@ -349,6 +372,7 @@ class FlatSingleRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
         num_envs=NUM_ENVS, env_spacing=2.0, replicate_physics=False
     )
     actions: FlatSingleRobotActionsCfg = FlatSingleRobotActionsCfg()
+    commands: FlatCommandsCfg = FlatCommandsCfg()
     observations: FlatObservationsCfg = FlatObservationsCfg()
     rewards: FlatRewardsCfg = FlatRewardsCfg()
     terminations: FlatTerminationsCfg = FlatTerminationsCfg()
@@ -386,3 +410,6 @@ class FlatSingleRobotMultiTaskEnvCfg(ManagerBasedRLEnvCfg):
         self.scene.stack_cube_1.assigned_env_ids = groups[TASK_STACK]
         self.scene.stack_cube_2.assigned_env_ids = groups[TASK_STACK]
         self.scene.stack_cube_3.assigned_env_ids = groups[TASK_STACK]
+
+        # --- assign command to their group environments -------------
+        self.commands.ee_pose.assigned_env_ids = groups[TASK_REACH]

@@ -59,6 +59,7 @@ class UniformPoseCommand(CommandTerm):
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
+        self._robot_data_slice = self._resolve_asset_data_indices(self.robot)
 
         # create buffers
         # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
@@ -92,10 +93,12 @@ class UniformPoseCommand(CommandTerm):
     """
 
     def _update_metrics(self):
+        # slice robot data to match command buffer size (heterogeneous support)
+        s = self._robot_data_slice
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            wp.to_torch(self.robot.data.root_pos_w),
-            wp.to_torch(self.robot.data.root_quat_w),
+            wp.to_torch(self.robot.data.root_pos_w)[s],
+            wp.to_torch(self.robot.data.root_quat_w)[s],
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
@@ -103,8 +106,8 @@ class UniformPoseCommand(CommandTerm):
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx],
-            wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx],
+            wp.to_torch(self.robot.data.body_pos_w)[s, self.body_idx],
+            wp.to_torch(self.robot.data.body_quat_w)[s, self.body_idx],
         )
         self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
@@ -150,8 +153,9 @@ class UniformPoseCommand(CommandTerm):
         if not self.robot.is_initialized:
             return
         # update the markers
+        s = self._robot_data_slice
         # -- goal pose
         self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
         # -- current body pose
-        body_link_pose_w = wp.to_torch(self.robot.data.body_link_pose_w)[:, self.body_idx]
+        body_link_pose_w = wp.to_torch(self.robot.data.body_link_pose_w)[s, self.body_idx]
         self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])

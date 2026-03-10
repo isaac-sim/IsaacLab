@@ -50,6 +50,16 @@ class CommandTerm(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
+        # resolve assigned environment indices
+        # priority: explicit cfg.assigned_env_ids > asset's assigned_envs
+        if cfg.assigned_env_ids is not None:
+            self._assigned_envs = tuple(cfg.assigned_env_ids)
+        else:
+            asset_name = getattr(cfg, "asset_name", None)
+            if asset_name is not None:
+                asset = env.scene[asset_name]
+                self._assigned_envs = getattr(asset, "assigned_envs", self._assigned_envs)
+
         # create buffers to store the command
         # -- metrics that can be used for logging
         self.metrics = dict()
@@ -133,22 +143,29 @@ class CommandTerm(ManagerTermBase):
         Returns:
             A dictionary containing the information to log under the "{name}" key.
         """
-        # resolve the environment IDs
-        if env_ids is None:
-            env_ids = slice(None)
+        # resolve the environment IDs – map global to local for heterogeneous terms
+        if self.is_heterogeneous:
+            local_ids = self._filter_env_ids(env_ids)
+            if len(local_ids) == 0:
+                return {}
+        else:
+            if env_ids is None:
+                local_ids = slice(None)
+            else:
+                local_ids = env_ids
 
         # add logging metrics
         extras = {}
         for metric_name, metric_value in self.metrics.items():
             # compute the mean metric value
-            extras[metric_name] = torch.mean(metric_value[env_ids]).item()
+            extras[metric_name] = torch.mean(metric_value[local_ids]).item()
             # reset the metric value
-            metric_value[env_ids] = 0.0
+            metric_value[local_ids] = 0.0
 
         # set the command counter to zero
-        self.command_counter[env_ids] = 0
+        self.command_counter[local_ids] = 0
         # resample the command
-        self._resample(env_ids)
+        self._resample(local_ids)
 
         return extras
 
@@ -189,6 +206,29 @@ class CommandTerm(ManagerTermBase):
             self._resample_command(env_ids)
             # increment the command counter
             self.command_counter[env_ids] += 1
+
+    def _resolve_asset_data_indices(self, asset) -> torch.Tensor | slice:
+        """Return indices to slice asset data so it aligns with this term's buffers.
+
+        When the command term manages a subset of environments (via
+        :attr:`~CommandTermCfg.assigned_env_ids`) but the referenced asset
+        spans *all* environments, the asset's data tensors have more rows than
+        the command buffers.  This helper returns the global env indices needed
+        to select the matching rows.
+
+        Args:
+            asset: The scene asset whose data tensors may need slicing.
+
+        Returns:
+            A 1-D long tensor of global indices, or ``slice(None)`` when no
+            slicing is needed (i.e. the shapes already agree).
+        """
+        if not self.is_heterogeneous:
+            return slice(None)
+        asset_assigned = getattr(asset, "assigned_envs", ())
+        if len(asset_assigned) == 0:
+            return torch.tensor(self._assigned_envs, dtype=torch.long, device=self.device)
+        return slice(None)
 
     """
     Implementation specific functions.
