@@ -713,7 +713,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(
                 body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
             )
-        # Access body_com_pose_b and body_link_pose_w to ensure they are current.
+        # Access body_com_pos_b and body_link_pose_w to ensure they are current.
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim,
             dim=(env_ids.shape[0], body_ids.shape[0]),
