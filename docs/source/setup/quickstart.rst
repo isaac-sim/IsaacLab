@@ -166,6 +166,37 @@ This will train the mujoco ant to "run".  You can see the various launch option 
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
 (so long as those definitions are part of a ``@configclass``, see below).
 
+Selecting the Physics Backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the ``presets=`` argument to select the physics backend at runtime:
+
+.. code-block:: bash
+
+   # Newton (Kit-less) with Newton visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer newton
+
+   # PhysX (Kit) — requires Isaac Sim installed
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=physx
+
+   # Newton with a specific visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer viser
+
+Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.
+Multiple visualizers can be combined: ``--visualizer newton,rerun``.
+
+
 List Available Environments
 -----------------------------
 
