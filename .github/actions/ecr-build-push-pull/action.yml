@@ -46,14 +46,26 @@ runs:
   using: composite
   steps:
 
-    ##### 1: Login to nvcr.io #####
+    ##### 1: Setup docker config + Login to nvcr.io #####
 
-    # Done early so the auth is available for base-image digest resolution (step 5)
-    # and is preserved when the ECR docker config is set up (step 3).
+    # Create a temp docker config with credsStore disabled before any login.
+    # The runner's credential store backend is broken ("not implemented") and
+    # causes all docker login calls to fail unless we bypass it upfront.
+    # The temp config is exported as DOCKER_CONFIG so all subsequent steps
+    # (including ECR login in step 3) inherit it automatically.
 
-    - name: Login to nvcr.io
+    - name: Setup docker config and login to nvcr.io
       shell: bash
       run: |
+        DOCKER_CONFIG_DIR=$(mktemp -d)
+        if [ -f "${HOME}/.docker/config.json" ]; then
+          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
+        else
+          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        fi
+        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
         if [ -n "${{ env.NGC_API_KEY }}" ]; then
           echo "🟢 Logging into nvcr.io..."
           docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
@@ -113,8 +125,8 @@ runs:
 
     ##### 3: Setup ECR authentication #####
 
-    # Validates the ECR URL, derives ECR image tags, creates a temp docker config
-    # (preserving nvcr.io auth from step 1), and logs into the ECR registry.
+    # Validates the ECR URL, derives ECR image tags, and logs into ECR.
+    # DOCKER_CONFIG (with credsStore disabled) is already set by step 1.
 
     - name: Setup ECR authentication
       if: steps.resolve-ecr.outputs.available == 'true'
@@ -133,19 +145,8 @@ runs:
         ECR_IMAGE="${ECR_URL}:${ECR_TAG}"
         CACHE_IMAGE="${ECR_URL}:${{ inputs.cache-tag }}"
 
-        # The runner's credential store is broken ("not implemented"), so use a temp config dir
-        # with credsStore disabled. Copy existing ~/.docker/config.json first to preserve
-        # registry auths already written (e.g. nvcr.io from step 1), then strip credsStore.
-        DOCKER_CONFIG_DIR=$(mktemp -d)
-        if [ -f "${HOME}/.docker/config.json" ]; then
-          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-        else
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-        fi
-
-        echo "ECR_IMAGE=${ECR_IMAGE}"         >> "$GITHUB_ENV"
-        echo "CACHE_IMAGE=${CACHE_IMAGE}"     >> "$GITHUB_ENV"
-        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+        echo "ECR_IMAGE=${ECR_IMAGE}"     >> "$GITHUB_ENV"
+        echo "CACHE_IMAGE=${CACHE_IMAGE}" >> "$GITHUB_ENV"
 
         echo "🟢 Logging into ECR registry..."
         aws ecr get-login-password --region "${AWS_REGION}" | \
