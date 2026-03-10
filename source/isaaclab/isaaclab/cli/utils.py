@@ -393,8 +393,8 @@ def extract_isaacsim_exe() -> list[str]:
         # python environment, so we can directly use 'python' here.
         python_exe = sys.executable
         try:
-            result = run_command([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
-            if "isaacsim-rl" in result.stdout:
+            result = run_command([python_exe, "-c", "import isaacsim"], capture_output=True, text=True, check=False)
+            if result.returncode == 0:
                 # Isaac Sim - Python packages entry point.
                 return ["isaacsim", "isaacsim.exp.full"]
         except Exception:
