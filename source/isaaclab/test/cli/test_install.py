@@ -327,7 +327,7 @@ def uv_venv(tmp_path_factory):
         f"-e{src / 'isaaclab_visualizers'}",
         f"-e{src / 'isaaclab_rl'}",
     ]
-    _uv("pip", "install", *packages, "--python", str(venv_dir / "bin" / "python"))
+    _uv("pip", "install", *packages, "--python", str(_python_in_venv(venv_dir)))
 
     return venv_dir
 
