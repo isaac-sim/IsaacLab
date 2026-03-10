@@ -26,10 +26,13 @@ from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import (  # noqa: 
     ShadowHandVisionEnv,
 )
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
-    ShadowHandVisionBenchmarkEnvCfg,
     ShadowHandVisionEnvCfg,
 )
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
+
+# HDC_TODO: add test for Isaac-Dexsuite-Kuka-Allegro-Lift
+#
+# - python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Dexsuite-Kuka-Allegro-Lift-v0 presets=cube,newton,singe_camera,newton_renderer,depth64
 
 
 @pytest.fixture(scope="module")
@@ -150,7 +153,7 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
     presets = shadow_hand_vision_presets
     camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
     camera_cfg.renderer_cfg = copy.deepcopy(presets["tiled_camera.renderer_cfg"][renderer])
-    env_cfg = ShadowHandVisionBenchmarkEnvCfg()  # HDC_TODO: use ShadowHandVisionEnvCfg with feature_extractor disabled explicitly
+    env_cfg = ShadowHandVisionEnvCfg()
     env_cfg.tiled_camera = camera_cfg
     if physics_backend == "newton":
         env_cfg.sim.physics = copy.deepcopy(presets["sim.physics"]["newton"])
@@ -158,8 +161,16 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
         env_cfg.object_cfg = copy.deepcopy(presets["object_cfg"]["newton"])
         if "events" in presets:
             env_cfg.events = copy.deepcopy(presets["events"]["newton"])
+
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
+    env_cfg.feature_extractor.write_image_to_file = True
+    env_cfg.seed = 42
+
+    if data_type == "depth":
+        # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
+        env_cfg.feature_extractor.enabled = False
+
     env = ShadowHandVisionEnv(env_cfg)
     env.reset()
     actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
@@ -189,6 +200,8 @@ def cartpole_camera_env(request, cartpole_presets):
             env_cfg.events = copy.deepcopy(presets["events"]["newton"])
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
+    env_cfg.write_image_to_file = True
+    env_cfg.seed = 42
     env = CartpoleCameraEnv(env_cfg)
     env.reset()
     actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
