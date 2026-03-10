@@ -25,11 +25,31 @@ class SceneDataRequirement:
 
 
 @dataclass(frozen=True)
-class SceneDataBootstrap:
-    """Provider bootstrap payload set by scene/simulation orchestration."""
+class VisualizerPrebuiltArtifacts:
+    """Prebuilt model/state payload shared from scene setup to providers.
+
+    This gets produced during clone-time visualizer prebuild and then read by
+    scene data providers as a fast path (instead of rebuilding from USD).
+    """
+
+    model: Any
+    state: Any
+    rigid_body_paths: list[str]
+    articulation_paths: list[str]
+    num_envs: int
+
+
+@dataclass(frozen=True)
+class SceneDataProviderContext:
+    """Runtime context shared between scene setup and scene-data providers.
+
+    The scene writes this once it knows what data consumers need. Providers then
+    read it during init/update to decide whether to build/sync extra data.
+    """
 
     requirements: SceneDataRequirement = field(default_factory=SceneDataRequirement)
-    visualizer_artifact: dict[str, Any] | None = None
+    # Optional prebuilt payload used by providers that can consume it.
+    visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
 
 
 _VISUALIZER_REQUIREMENTS: dict[str, SceneDataRequirement] = {

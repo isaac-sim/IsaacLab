@@ -9,14 +9,14 @@ import itertools
 import logging
 import math
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
 
 if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
@@ -390,7 +390,7 @@ def resolve_visualizer_clone_fn(
     physics_backend: str,
     requirements: SceneDataRequirement,
     stage,
-    set_visualizer_artifact: Callable[[dict[str, Any] | None], None],
+    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
 ):
     """Return an optional visualizer prebuild hook for clone workflows."""
     if "physx" not in physics_backend or not requirements.requires_newton_model:

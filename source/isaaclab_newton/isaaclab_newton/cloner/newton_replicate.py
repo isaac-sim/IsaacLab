@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 import torch
 import warp as wp
@@ -14,6 +13,8 @@ from newton import ModelBuilder, solvers
 from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
+
+from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -171,7 +172,7 @@ def newton_visualizer_prebuild(
 
 def create_newton_visualizer_prebuild_clone_fn(
     stage,
-    set_visualizer_artifact: Callable[[dict[str, Any] | None], None],
+    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
 ):
     """Create a cloner callback that prebuilds Newton visualizer artifacts."""
     up_axis = UsdGeom.GetStageUpAxis(stage)
@@ -198,15 +199,15 @@ def create_newton_visualizer_prebuild_clone_fn(
             up_axis=up_axis,
         )
         set_visualizer_artifact(
-            {
-                "model": model,
-                "state": state,
-                "rigid_body_paths": list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
-                "articulation_paths": list(
+            VisualizerPrebuiltArtifacts(
+                model=model,
+                state=state,
+                rigid_body_paths=list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
+                articulation_paths=list(
                     getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
                 ),
-                "num_envs": int(mapping.size(1)),
-            }
+                num_envs=int(mapping.size(1)),
+            )
         )
 
     return _visualizer_clone_fn

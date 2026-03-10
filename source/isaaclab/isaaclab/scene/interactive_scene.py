@@ -138,7 +138,7 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        self.sim.clear_scene_data_artifact()
+        self.sim.clear_scene_data_visualizer_prebuilt_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         visualizer_clone_fn = None
         requested_viz_types = set(self.sim.resolve_visualizer_types())
@@ -191,7 +191,7 @@ class InteractiveScene:
             physics_backend=self.physics_backend,
             requirements=requirements,
             stage=self.stage,
-            set_visualizer_artifact=self.sim.set_scene_data_visualizer_artifact,
+            set_visualizer_artifact=self.sim.set_scene_data_visualizer_prebuilt_artifact,
         )
         if visualizer_clone_fn is not None:
             logger.debug(

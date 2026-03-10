@@ -24,8 +24,9 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
-    SceneDataBootstrap,
+    SceneDataProviderContext,
     SceneDataRequirement,
+    VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
 from isaaclab.sim.utils import create_new_stage
@@ -161,7 +162,7 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
-        self._scene_data_bootstrap = SceneDataBootstrap()
+        self._scene_data_provider_context = SceneDataProviderContext()
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -479,8 +480,8 @@ class SimulationContext:
             cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
         ]
         requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
-        self._scene_data_bootstrap = replace(
-            self._scene_data_bootstrap,
+        self._scene_data_provider_context = replace(
+            self._scene_data_provider_context,
             requirements=requirements,
         )
         self.initialize_scene_data_provider()
@@ -510,25 +511,28 @@ class SimulationContext:
             self._scene_data_provider = SceneDataProvider(self.stage, self)
         return self._scene_data_provider
 
-    def get_scene_data_bootstrap(self) -> SceneDataBootstrap:
-        """Return provider bootstrap payload (requirements + optional prebuilt artifact)."""
-        return self._scene_data_bootstrap
-
-    def set_scene_data_bootstrap(self, bootstrap: SceneDataBootstrap) -> None:
-        """Set provider bootstrap payload (requirements + optional prebuilt artifact)."""
-        self._scene_data_bootstrap = bootstrap
+    def get_scene_data_provider_context(self) -> SceneDataProviderContext:
+        """Return the runtime context consumed by scene data providers."""
+        return self._scene_data_provider_context
 
     def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:
-        """Update only scene-data requirements in the provider bootstrap payload."""
-        self._scene_data_bootstrap = replace(self._scene_data_bootstrap, requirements=requirements)
+        """Update only requirements in the scene data provider context."""
+        self._scene_data_provider_context = replace(self._scene_data_provider_context, requirements=requirements)
 
-    def set_scene_data_visualizer_artifact(self, artifact: dict[str, Any] | None) -> None:
-        """Set optional prebuilt visualizer artifact used by scene data providers."""
-        self._scene_data_bootstrap = replace(self._scene_data_bootstrap, visualizer_artifact=artifact)
+    def set_scene_data_visualizer_prebuilt_artifact(self, artifact: VisualizerPrebuiltArtifacts | None) -> None:
+        """Set or clear the optional visualizer prebuilt artifact.
 
-    def clear_scene_data_artifact(self) -> None:
-        """Clear optional prebuilt visualizer artifact in bootstrap payload."""
-        self.set_scene_data_visualizer_artifact(None)
+        The scene (clone flow) writes this once, and providers can read it
+        during initialization as a fast path.
+        """
+        self._scene_data_provider_context = replace(
+            self._scene_data_provider_context,
+            visualizer_prebuilt_artifact=artifact,
+        )
+
+    def clear_scene_data_visualizer_prebuilt_artifact(self) -> None:
+        """Clear optional prebuilt artifact in provider context."""
+        self.set_scene_data_visualizer_prebuilt_artifact(None)
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:

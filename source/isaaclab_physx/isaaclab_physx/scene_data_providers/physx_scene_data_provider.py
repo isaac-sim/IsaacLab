@@ -106,8 +106,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._num_envs: int | None = None
 
         # Determine if newton model sync is required for selected renderers and visualizers
-        bootstrap = self._simulation_context.get_scene_data_bootstrap()
-        self._needs_newton_sync = bool(bootstrap.requirements.requires_newton_model)
+        context = self._simulation_context.get_scene_data_provider_context()
+        self._needs_newton_sync = bool(context.requirements.requires_newton_model)
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -185,19 +185,19 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def _try_use_prebuilt_newton_artifact(self) -> bool:
         """Use scene-time prebuilt Newton visualizer artifact when available."""
-        artifact = self._simulation_context.get_scene_data_bootstrap().visualizer_artifact
+        artifact = self._simulation_context.get_scene_data_provider_context().visualizer_prebuilt_artifact
         if not artifact:
             return False
 
-        model = artifact.get("model")
-        state = artifact.get("state")
+        model = artifact.model
+        state = artifact.state
         if model is None or state is None:
             return False
 
         self._newton_model = model
         self._newton_state = state
-        self._rigid_body_paths = list(artifact.get("rigid_body_paths", [])) or self._model_body_paths(model)
-        self._articulation_paths = list(artifact.get("articulation_paths", [])) or self._model_articulation_paths(model)
+        self._rigid_body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
+        self._articulation_paths = list(artifact.articulation_paths) or self._model_articulation_paths(model)
 
         self._xform_views.clear()
         self._view_body_index_map = {}
@@ -208,7 +208,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._covered_buf = None
         self._xform_mask_buf = None
         self._env_id_to_body_indices = {}
-        self._num_envs_at_last_newton_build = int(artifact.get("num_envs", self.get_num_envs()))
+        self._num_envs_at_last_newton_build = int(artifact.num_envs)
         self._filtered_newton_model = None
         self._filtered_newton_state = None
         self._filtered_env_ids_key = None
