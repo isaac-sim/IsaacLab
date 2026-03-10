@@ -179,6 +179,34 @@ This method installs Isaac Sim via pip and Isaac Lab from source.
 If you are new to Isaac Lab, start here.
 
 
+Installation Configurations
+---------------------------
+
+Isaac Lab has two configuration axes:
+
+- **Runtime**: Kit (Isaac Sim) for RTX rendering, or Kit-less (no Isaac Sim) for lightweight/headless use
+- **Physics backend**: PhysX or Newton (MuJoCo/Warp)
+
+Common install paths using ``./isaaclab.sh -i``:
+
++--------------------+---------------------------------------+---------+---------------------+------------+
+| Install path       | Command                               | Physics | Rendering           | Isaac Sim? |
++====================+=======================================+=========+=====================+============+
+| Newton, Kit-less   | ``newton,physx,tasks,assets,rsl_rl``  | Newton  | Newton / Viser /    | No         |
+|                    |                                       |         | Rerun               |            |
++--------------------+---------------------------------------+---------+---------------------+------------+
+| Newton + Kit       | ``isaacsim,newton,rsl_rl``            | Newton  | RTX + Newton        | Yes        |
++--------------------+---------------------------------------+---------+---------------------+------------+
+| PhysX + Kit        | ``isaacsim,rsl_rl``                   | PhysX   | RTX                 | Yes        |
++--------------------+---------------------------------------+---------+---------------------+------------+
+
+The ``physx`` sub-package is always required — task configs import from
+``isaaclab_physx`` regardless of physics backend.
+
+Replace ``rsl_rl`` with any supported RL framework (``skrl``, ``sb3``,
+``rl_games``, ``robomimic``), or omit it to install without an RL framework.
+
+
 Choosing an Installation Method
 --------------------------------
 
