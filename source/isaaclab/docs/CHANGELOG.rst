@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.18 (2026-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added reward convergence checking to benchmark scripts. New ``--check_convergence``
+  flag loads thresholds from ``configs.yaml`` automatically. Also accepts
+  ``--reward_threshold`` for manual override and ``--convergence_config`` to select
+  config section (default: ``full``). Adds ``check_convergence()`` and
+  ``log_convergence()`` to benchmark utils.
+
+
 4.5.17 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~~
 
