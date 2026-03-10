@@ -242,7 +242,7 @@ runs:
           docker push "${ECR_IMAGE}"
           echo "overlay-built=true" >> "$GITHUB_OUTPUT"
         else
-          echo "🟠 Deps cache MISS (${DEPS_HASH}) — will do full build."
+          echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"
           echo "DEPS_ECR_IMAGE=${DEPS_ECR_IMAGE}" >> "$GITHUB_ENV"
           echo "PUSH_DEPS_IMAGE=true"             >> "$GITHUB_ENV"
         fi
