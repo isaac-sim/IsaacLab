@@ -746,7 +746,6 @@ Download the files and place them under ``<PATH_TO_USD_ASSET>``, then run the fo
        --visualizer kit \
        --background_usd_path <PATH_TO_USD_ASSET>/stage.usdz \
        --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml \
-       --sensor_camera_view \
        --randomize_placement \
        --high_res_video
 
@@ -755,7 +754,7 @@ The key parameters are:
 - ``--background_usd_path``: Path to the NuRec USD asset.
 - ``--background_occupancy_yaml_file``: Path to the occupancy map file.
 - ``--high_res_video``: Generate a higher resolution video (540x960) for the ego-centric camera view.
-- ``--sensor_camera_view``: Set the Sim GUI viewport to the ``robot_pov_cam`` sensor view.
+- ``--sensor_camera_view``: Optionally set the Sim GUI viewport to the ``robot_pov_cam`` sensor view.
 
 On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
 the ego-centric camera view to MP4.
