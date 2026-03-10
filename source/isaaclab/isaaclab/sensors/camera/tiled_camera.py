@@ -171,7 +171,9 @@ class TiledCamera(Camera):
         self.renderer.prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor
-        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        self._view = XformPrimView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

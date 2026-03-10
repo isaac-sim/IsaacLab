@@ -1764,6 +1764,97 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
     del camera_usd
 
 
+@pytest.mark.parametrize(
+    "camera_cls,cfg_cls",
+    [(TiledCamera, TiledCameraCfg), (Camera, CameraCfg)],
+    ids=["tiled", "non_tiled"],
+)
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
+def test_camera_pose_update_reflected_in_render(
+    setup_camera, device, camera_cls, cfg_cls
+):
+    """Test that moving a camera is reflected in rendered depth.
+
+    Both camera types must produce different depth images when the
+    camera is repositioned from close to far.
+    """
+    sim, _, dt = setup_camera
+    cam_cfg = cfg_cls(
+        prim_path="/World/PoseTestCam",
+        height=128,
+        width=256,
+        update_period=0,
+        update_latest_camera_pose=True,
+        data_types=["distance_to_camera"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+    )
+    camera = camera_cls(cam_cfg)
+
+    sim.reset()
+
+    target = torch.tensor(
+        [[0.0, 0.0, 0.0]],
+        dtype=torch.float32,
+        device=camera.device,
+    )
+
+    # Position A: close to scene objects
+    eyes_close = torch.tensor(
+        [[2.0, 2.0, 2.0]],
+        dtype=torch.float32,
+        device=camera.device,
+    )
+    camera.set_world_poses_from_view(eyes_close, target)
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+    depth_close = (
+        camera.data.output["distance_to_camera"].clone()
+    )
+
+    # Position B: far from scene objects
+    eyes_far = torch.tensor(
+        [[8.0, 8.0, 8.0]],
+        dtype=torch.float32,
+        device=camera.device,
+    )
+    camera.set_world_poses_from_view(eyes_far, target)
+    for _ in range(2):
+        sim.step()
+    camera.update(dt)
+    depth_far = (
+        camera.data.output["distance_to_camera"].clone()
+    )
+
+    max_range = cam_cfg.spawn.clipping_range[1]
+    valid_close = depth_close[depth_close < max_range]
+    valid_far = depth_far[depth_far < max_range]
+
+    assert valid_close.numel() > 0, (
+        "No valid depth pixels from close position"
+    )
+    assert valid_far.numel() > 0, (
+        "No valid depth pixels from far position"
+    )
+
+    mean_close = valid_close.mean().item()
+    mean_far = valid_far.mean().item()
+
+    assert mean_far > mean_close * 1.5, (
+        f"Mean depth from far ({mean_far:.2f}) should be"
+        f" >= 1.5x close ({mean_close:.2f}). Renderer may"
+        " not be observing the updated camera pose."
+    )
+
+    del camera
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_camera, device):
