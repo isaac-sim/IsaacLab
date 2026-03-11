@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Ray Job Dispatch and Tuning &#8212; Isaac Lab Documentation</title>
   
@@ -30,13 +31,13 @@
   <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 <link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5774970f" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
   
   <!-- So that users can add custom icons -->
   <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -44,16 +45,16 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
-    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
-    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/ray';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -63,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.1" />
-    <meta name="docbuild:last-update" content="Mar 10, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 11, 2026"/>
   </head>
   
   
@@ -158,7 +159,6 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../develop/source/features/ray.html" >develop</option>
             <option value="../../../main/source/features/ray.html" >main</option>
             <option value="../../../release/2.1.0/source/features/ray.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/features/ray.html" >release/2.2.0</option>
@@ -208,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -238,7 +238,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
 <ul class="nav bd-sidenav">
@@ -448,9 +448,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -576,7 +576,7 @@
 
 
 <button onclick="toggleFullScreen()"
-  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  class="btn btn-sm btn-fullscreen-button"
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
@@ -600,9 +600,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -649,7 +649,7 @@
                 <article class="bd-article">
                   
   <section id="ray-job-dispatch-and-tuning">
-<h1>Ray Job Dispatch and Tuning<a class="headerlink" href="#ray-job-dispatch-and-tuning" title="Link to this heading">#</a></h1>
+<h1>Ray Job Dispatch and Tuning<a class="headerlink" href="#ray-job-dispatch-and-tuning" title="Permalink to this heading">#</a></h1>
 <p>Isaac Lab supports <a class="reference external" href="https://docs.ray.io/en/latest/index.html">Ray</a> for streamlining dispatching multiple training jobs (in parallel and in series),
 and hyperparameter tuning, both on local and remote configurations.</p>
 <p>This <a class="reference external" href="https://youtu.be/z7MDgSga2Ho?feature=shared">independent community contributed walkthrough video</a>
@@ -682,7 +682,7 @@ the general workflow is the same.</p>
 </ul>
 </nav>
 <section id="overview">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
 <p>The Ray integration is useful for the following.</p>
 <ul class="simple">
 <li><p>Dispatching several training jobs in parallel or sequentially with minimal interaction.</p></li>
@@ -1956,7 +1956,7 @@ resource requirements.</p>
 </div>
 </details></section>
 <section id="docker-based-local-quickstart">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Docker-based Local Quickstart</a><a class="headerlink" href="#docker-based-local-quickstart" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Docker-based Local Quickstart</a><a class="headerlink" href="#docker-based-local-quickstart" title="Permalink to this heading">#</a></h2>
 <p>First, follow the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/deployment/docker.html">Docker Guide</a>
 to set up the NVIDIA Container Toolkit and Docker Compose.</p>
 <p>Then, run the following steps to start a tuning run.</p>
@@ -2244,10 +2244,10 @@ environment entrypoints and hydra arguments, although other workflows will work 
 </div>
 </details></section>
 <section id="remote-clusters">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Remote Clusters</a><a class="headerlink" href="#remote-clusters" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Remote Clusters</a><a class="headerlink" href="#remote-clusters" title="Permalink to this heading">#</a></h2>
 <p>Select one of the following methods to create a Ray cluster to accept and execute dispatched jobs.</p>
 <section id="kuberay-setup">
-<h3><a class="toc-backref" href="#id5" role="doc-backlink">KubeRay Setup</a><a class="headerlink" href="#kuberay-setup" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">KubeRay Setup</a><a class="headerlink" href="#kuberay-setup" title="Permalink to this heading">#</a></h3>
 <p>If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
 the following dependencies are also needed.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>kubernetes<span class="w"> </span>Jinja2
@@ -2286,7 +2286,7 @@ Google Cloud, which can be referenced for the format and MLFlow integration).</p
 </ul>
 </section>
 <section id="ray-clusters-without-kubernetes-setup">
-<h3><a class="toc-backref" href="#id6" role="doc-backlink">Ray Clusters (Without Kubernetes) Setup</a><a class="headerlink" href="#ray-clusters-without-kubernetes-setup" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Ray Clusters (Without Kubernetes) Setup</a><a class="headerlink" href="#ray-clusters-without-kubernetes-setup" title="Permalink to this heading">#</a></h3>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>Modify the Ray command to use Isaac Python like in KubeRay clusters, and follow the same
@@ -2298,7 +2298,7 @@ steps for creating an image/cluster permissions.</p>
 host and cluster have access to.</p>
 </section>
 <section id="shared-steps-between-kuberay-and-pure-ray-part-i">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">Shared Steps Between KubeRay and Pure Ray Part I</a><a class="headerlink" href="#shared-steps-between-kuberay-and-pure-ray-part-i" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Shared Steps Between KubeRay and Pure Ray Part I</a><a class="headerlink" href="#shared-steps-between-kuberay-and-pure-ray-part-i" title="Permalink to this heading">#</a></h3>
 <p>1.) Install Ray on your local machine.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ray<span class="o">[</span>default<span class="o">]==</span><span class="m">2</span>.31.0
 </pre></div>
@@ -2314,7 +2314,7 @@ docker<span class="w"> </span>push<span class="w"> </span>&lt;REGISTRY/IMAGE_NAM
 </div>
 </section>
 <section id="kuberay-clusters-only">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">KubeRay Clusters Only</a><a class="headerlink" href="#kuberay-clusters-only" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">KubeRay Clusters Only</a><a class="headerlink" href="#kuberay-clusters-only" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://github.com/derailed/k9s">k9s</a> is a great tool for monitoring your clusters that can
 easily be installed with <code class="docutils literal notranslate"><span class="pre">snap</span> <span class="pre">install</span> <span class="pre">k9s</span> <span class="pre">--devmode</span></code>.</p>
 <p>1.) Verify cluster access, and that the correct operators are installed.</p>
@@ -3019,7 +3019,7 @@ printed.</p>
 </div>
 </details></section>
 <section id="ray-clusters-only-without-kubernetes">
-<h3><a class="toc-backref" href="#id9" role="doc-backlink">Ray Clusters Only (Without Kubernetes)</a><a class="headerlink" href="#ray-clusters-only-without-kubernetes" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">Ray Clusters Only (Without Kubernetes)</a><a class="headerlink" href="#ray-clusters-only-without-kubernetes" title="Permalink to this heading">#</a></h3>
 <p>1.) Verify cluster access.</p>
 <p>2.) Create a <code class="docutils literal notranslate"><span class="pre">~/.cluster_config</span></code> file, where <code class="docutils literal notranslate"><span class="pre">name:</span> <span class="pre">&lt;NAME&gt;</span> <span class="pre">address:</span> <span class="pre">http://&lt;IP&gt;:&lt;PORT&gt;</span></code> is on
 a new line for each unique cluster. For one cluster, there should only be one line in this file.</p>
@@ -3027,7 +3027,7 @@ a new line for each unique cluster. For one cluster, there should only be one li
 and determine the server URI.</p>
 </section>
 <section id="dispatching-steps-shared-between-kuberay-and-pure-ray-part-ii">
-<h3><a class="toc-backref" href="#id10" role="doc-backlink">Dispatching Steps Shared Between KubeRay and Pure Ray Part II</a><a class="headerlink" href="#dispatching-steps-shared-between-kuberay-and-pure-ray-part-ii" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">Dispatching Steps Shared Between KubeRay and Pure Ray Part II</a><a class="headerlink" href="#dispatching-steps-shared-between-kuberay-and-pure-ray-part-ii" title="Permalink to this heading">#</a></h3>
 <p>1.) Test that your cluster is operational with the following.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test that NVIDIA GPUs are visible and that Ray is operation with the following command:</span>
 python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<span class="w"> </span>--aggregate_jobs<span class="w"> </span>wrap_resources.py<span class="w"> </span>--test
@@ -3287,7 +3287,7 @@ this following command.</p>
 <p><code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span> <span class="pre">scripts/reinforcement_learning/ray/mlflow_to_local_tensorboard.py</span> <span class="pre">\</span>
 <span class="pre">--uri</span> <span class="pre">http://localhost:5000</span> <span class="pre">--experiment-name</span> <span class="pre">IsaacRay-&lt;CLASS_JOB_CFG&gt;-tune</span> <span class="pre">--download-dir</span> <span class="pre">test</span></code></p>
 <section id="kubernetes-cluster-cleanup">
-<h4><a class="toc-backref" href="#id11" role="doc-backlink">Kubernetes Cluster Cleanup</a><a class="headerlink" href="#kubernetes-cluster-cleanup" title="Link to this heading">#</a></h4>
+<h4><a class="toc-backref" href="#id11" role="doc-backlink">Kubernetes Cluster Cleanup</a><a class="headerlink" href="#kubernetes-cluster-cleanup" title="Permalink to this heading">#</a></h4>
 <p>For the sake of conserving resources, and potentially freeing precious GPU resources for other people to use
 on shared compute platforms, please destroy the Ray cluster after use. They can be easily
 recreated! For KubeRay clusters, this can be done as follows.</p>
@@ -3342,12 +3342,11 @@ kubectl<span class="w"> </span>get<span class="w"> </span>services<span class="w
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
-  <div class="sidebar-secondary-item"><div
-    id="pst-page-navigation-heading-2"
-    class="page-toc tocsection onthispage">
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> Contents
   </div>
-  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+  <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-based-local-quickstart">Docker-based Local Quickstart</a></li>
@@ -3396,7 +3395,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 10, 2026.
+  Last updated on Mar 11, 2026.
   <br/>
 </p>
   </div>

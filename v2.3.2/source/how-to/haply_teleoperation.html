@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Setting up Haply Teleoperation &#8212; Isaac Lab Documentation</title>
   
@@ -30,13 +31,13 @@
   <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 <link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5774970f" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
   
   <!-- So that users can add custom icons -->
   <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -44,16 +45,16 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
-    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
-    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/how-to/haply_teleoperation';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -158,7 +159,6 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../develop/source/how-to/haply_teleoperation.html" >develop</option>
             <option value="../../../main/source/how-to/haply_teleoperation.html" >main</option>
             <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/index.html" >release/2.2.0</option>
@@ -208,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -238,7 +238,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
 <ul class="nav bd-sidenav">
@@ -495,9 +495,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -623,7 +623,7 @@
 
 
 <button onclick="toggleFullScreen()"
-  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  class="btn btn-sm btn-fullscreen-button"
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
@@ -647,9 +647,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -712,7 +712,7 @@
                 <article class="bd-article">
                   
   <section id="setting-up-haply-teleoperation">
-<span id="haply-teleoperation"></span><h1>Setting up Haply Teleoperation<a class="headerlink" href="#setting-up-haply-teleoperation" title="Link to this heading">#</a></h1>
+<span id="haply-teleoperation"></span><h1>Setting up Haply Teleoperation<a class="headerlink" href="#setting-up-haply-teleoperation" title="Permalink to this heading">#</a></h1>
 <p><a class="reference external" href="https://haply.co/">Haply Devices</a> provides haptic devices that enable intuitive robot teleoperation with
 directional force feedback. The Haply Inverse3 paired with the VerseGrip creates an
 end-effector control system with force feedback capabilities.</p>
@@ -721,7 +721,7 @@ control with haptic feedback. This enables operators to feel contact forces duri
 tasks, improving control quality and task performance.</p>
 <p>This guide explains how to set up and use Haply devices with Isaac Lab for robot teleoperation.</p>
 <section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
 <p>Using Haply with Isaac Lab involves the following components:</p>
 <ul class="simple">
 <li><p><strong>Isaac Lab</strong> simulates the robot environment and streams contact forces back to the operator</p></li>
@@ -739,9 +739,9 @@ tasks, improving control quality and task performance.</p>
 </ul>
 </section>
 <section id="system-requirements">
-<span id="haply-system-requirements"></span><h2>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading">#</a></h2>
+<span id="haply-system-requirements"></span><h2>System Requirements<a class="headerlink" href="#system-requirements" title="Permalink to this heading">#</a></h2>
 <section id="hardware-requirements">
-<h3>Hardware Requirements<a class="headerlink" href="#hardware-requirements" title="Link to this heading">#</a></h3>
+<h3>Hardware Requirements<a class="headerlink" href="#hardware-requirements" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
 <li><p><strong>Isaac Lab Workstation</strong></p>
 <ul>
@@ -766,7 +766,7 @@ tasks, improving control quality and task performance.</p>
 </ul>
 </section>
 <section id="software-requirements">
-<h3>Software Requirements<a class="headerlink" href="#software-requirements" title="Link to this heading">#</a></h3>
+<h3>Software Requirements<a class="headerlink" href="#software-requirements" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Isaac Lab (follow the <a class="reference internal" href="../setup/installation/index.html#isaaclab-installation-root"><span class="std std-ref">installation guide</span></a>)</p></li>
 <li><p>Haply SDK (provided by Haply Robotics)</p></li>
@@ -776,27 +776,27 @@ tasks, improving control quality and task performance.</p>
 </section>
 </section>
 <section id="installation">
-<span id="haply-installation"></span><h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
+<span id="haply-installation"></span><h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
 <section id="install-isaac-lab">
-<h3>1. Install Isaac Lab<a class="headerlink" href="#install-isaac-lab" title="Link to this heading">#</a></h3>
+<h3>1. Install Isaac Lab<a class="headerlink" href="#install-isaac-lab" title="Permalink to this heading">#</a></h3>
 <p>Follow the Isaac Lab <a class="reference internal" href="../setup/installation/index.html#isaaclab-installation-root"><span class="std std-ref">installation guide</span></a> to set up your environment.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">websockets</span></code> dependency is automatically included in Isaac Lab’s requirements.</p>
 </section>
 <section id="install-haply-sdk">
-<h3>2. Install Haply SDK<a class="headerlink" href="#install-haply-sdk" title="Link to this heading">#</a></h3>
+<h3>2. Install Haply SDK<a class="headerlink" href="#install-haply-sdk" title="Permalink to this heading">#</a></h3>
 <p>Download the Haply SDK from the <a class="reference external" href="https://haply.co/">Haply Devices</a> website.
 Install the SDK software and configure the devices.</p>
 </section>
 <section id="verify-installation">
-<h3>3. Verify Installation<a class="headerlink" href="#verify-installation" title="Link to this heading">#</a></h3>
+<h3>3. Verify Installation<a class="headerlink" href="#verify-installation" title="Permalink to this heading">#</a></h3>
 <p>Test that your Haply devices are detected by the Haply Device Manager.
 You should see both Inverse3 and VerseGrip as connected.</p>
 </section>
 </section>
 <section id="device-setup">
-<span id="haply-device-setup"></span><h2>Device Setup<a class="headerlink" href="#device-setup" title="Link to this heading">#</a></h2>
+<span id="haply-device-setup"></span><h2>Device Setup<a class="headerlink" href="#device-setup" title="Permalink to this heading">#</a></h2>
 <section id="physical-setup">
-<h3>1. Physical Setup<a class="headerlink" href="#physical-setup" title="Link to this heading">#</a></h3>
+<h3>1. Physical Setup<a class="headerlink" href="#physical-setup" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Place the Haply Inverse3 on a stable surface</p></li>
 <li><p>Ensure the VerseGrip is charged and paired</p></li>
@@ -805,7 +805,7 @@ You should see both Inverse3 and VerseGrip as connected.</p>
 </ul>
 </section>
 <section id="start-haply-sdk">
-<h3>2. Start Haply SDK<a class="headerlink" href="#start-haply-sdk" title="Link to this heading">#</a></h3>
+<h3>2. Start Haply SDK<a class="headerlink" href="#start-haply-sdk" title="Permalink to this heading">#</a></h3>
 <p>Launch the Haply SDK according to Haply’s documentation. The SDK typically:</p>
 <ul class="simple">
 <li><p>Runs a WebSocket server on <code class="docutils literal notranslate"><span class="pre">localhost:10001</span></code></p></li>
@@ -814,7 +814,7 @@ You should see both Inverse3 and VerseGrip as connected.</p>
 </ul>
 </section>
 <section id="test-communication">
-<h3>3. Test Communication<a class="headerlink" href="#test-communication" title="Link to this heading">#</a></h3>
+<h3>3. Test Communication<a class="headerlink" href="#test-communication" title="Permalink to this heading">#</a></h3>
 <p>You can test the WebSocket connection using the following Python script:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">websockets</span>
@@ -835,11 +835,11 @@ You should see both Inverse3 and VerseGrip as connected.</p>
 </section>
 </section>
 <section id="running-the-demo">
-<span id="haply-running-demo"></span><h2>Running the Demo<a class="headerlink" href="#running-the-demo" title="Link to this heading">#</a></h2>
+<span id="haply-running-demo"></span><h2>Running the Demo<a class="headerlink" href="#running-the-demo" title="Permalink to this heading">#</a></h2>
 <p>The Haply teleoperation demo showcases robot manipulation with force feedback using
 a Franka Panda arm.</p>
 <section id="basic-usage">
-<h3>Basic Usage<a class="headerlink" href="#basic-usage" title="Link to this heading">#</a></h3>
+<h3>Basic Usage<a class="headerlink" href="#basic-usage" title="Permalink to this heading">#</a></h3>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
@@ -867,7 +867,7 @@ isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localh
 </ol>
 </section>
 <section id="controls">
-<h3>Controls<a class="headerlink" href="#controls" title="Link to this heading">#</a></h3>
+<h3>Controls<a class="headerlink" href="#controls" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
 <li><p><strong>Move Inverse3</strong>: Controls the robot end-effector position</p></li>
 <li><p><strong>VerseGrip Button A</strong>: Open gripper</p></li>
@@ -876,7 +876,7 @@ isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localh
 </ul>
 </section>
 <section id="advanced-options">
-<h3>Advanced Options<a class="headerlink" href="#advanced-options" title="Link to this heading">#</a></h3>
+<h3>Advanced Options<a class="headerlink" href="#advanced-options" title="Permalink to this heading">#</a></h3>
 <p>Customize the demo with command-line arguments:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use custom WebSocket URI</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/haply_teleoperation.py<span class="w"> </span><span class="se">\</span>
@@ -890,7 +890,7 @@ isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localh
 </div>
 </section>
 <section id="demo-features">
-<h3>Demo Features<a class="headerlink" href="#demo-features" title="Link to this heading">#</a></h3>
+<h3>Demo Features<a class="headerlink" href="#demo-features" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
 <li><p><strong>Workspace Mapping</strong>: Haply workspace is mapped to robot reachable space with safety limits</p></li>
 <li><p><strong>Inverse Kinematics</strong>: Inverse Kinematics (IK) computes joint positions for desired end-effector pose</p></li>
@@ -899,9 +899,9 @@ isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localh
 </section>
 </section>
 <section id="troubleshooting">
-<span id="haply-troubleshooting"></span><h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<span id="haply-troubleshooting"></span><h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading">#</a></h2>
 <section id="no-haptic-feedback">
-<h3>No Haptic Feedback<a class="headerlink" href="#no-haptic-feedback" title="Link to this heading">#</a></h3>
+<h3>No Haptic Feedback<a class="headerlink" href="#no-haptic-feedback" title="Permalink to this heading">#</a></h3>
 <p><strong>Problem</strong>: No haptic feedback felt on Inverse3</p>
 <p>Solutions:</p>
 <ul class="simple">
@@ -912,7 +912,7 @@ isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localh
 </section>
 </section>
 <section id="next-steps">
-<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p><strong>Customize the demo</strong>: Modify the workspace mapping or add custom button behaviors</p></li>
 <li><p><strong>Implement your own controller</strong>: Use <code class="xref py py-class docutils literal notranslate"><span class="pre">HaplyDevice</span></code> in your own scripts</p></li>
@@ -961,12 +961,11 @@ isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localh
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
-  <div class="sidebar-secondary-item"><div
-    id="pst-page-navigation-heading-2"
-    class="page-toc tocsection onthispage">
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> Contents
   </div>
-  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+  <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a><ul class="nav section-nav flex-column">

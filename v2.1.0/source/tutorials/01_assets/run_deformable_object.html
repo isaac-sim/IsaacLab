@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Interacting with a deformable object &#8212; Isaac Lab Documentation</title>
   
@@ -30,13 +31,13 @@
   <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 <link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
   
   <!-- So that users can add custom icons -->
   <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -44,16 +45,16 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
-    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
-    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/01_assets/run_deformable_object';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -63,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Mar 10, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 11, 2026"/>
   </head>
   
   
@@ -158,7 +159,6 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../develop/source/tutorials/01_assets/run_deformable_object.html" >develop</option>
             <option value="../../../../main/source/tutorials/01_assets/run_deformable_object.html" >main</option>
             <option value="../../../../release/2.1.0/source/tutorials/01_assets/run_deformable_object.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/tutorials/01_assets/run_deformable_object.html" >release/2.2.0</option>
@@ -208,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -238,7 +238,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -434,9 +434,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -562,7 +562,7 @@
 
 
 <button onclick="toggleFullScreen()"
-  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  class="btn btn-sm btn-fullscreen-button"
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
@@ -586,9 +586,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -633,7 +633,7 @@
                 <article class="bd-article">
                   
   <section id="interacting-with-a-deformable-object">
-<span id="tutorial-interact-deformable-object"></span><h1>Interacting with a deformable object<a class="headerlink" href="#interacting-with-a-deformable-object" title="Link to this heading">#</a></h1>
+<span id="tutorial-interact-deformable-object"></span><h1>Interacting with a deformable object<a class="headerlink" href="#interacting-with-a-deformable-object" title="Permalink to this heading">#</a></h1>
 <p>While deformable objects sometimes refer to a broader class of objects, such as cloths, fluids and soft bodies,
 in PhysX, deformable objects syntactically correspond to soft bodies. Unlike rigid objects, soft bodies can deform
 under external forces and collisions.</p>
@@ -645,7 +645,7 @@ For more details, please check the <a class="reference external" href="https://n
 set of soft cubes and see how to set their nodal positions and velocities, along with apply kinematic
 commands to the mesh nodes to move the soft body.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">run_deformable_object.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/01_assets</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
@@ -823,9 +823,9 @@ commands to the mesh nodes to move the soft body.</p>
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <section id="designing-the-scene">
-<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Link to this heading">#</a></h3>
+<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Permalink to this heading">#</a></h3>
 <p>Similar to the <a class="reference internal" href="run_rigid_object.html#tutorial-interact-rigid-object"><span class="std std-ref">Interacting with a rigid object</span></a> tutorial, we populate the scene with a ground plane
 and a light source. In addition, we add a deformable object to the scene using the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject" title="isaaclab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject</span></code></a>
 class. This class is responsible for spawning the prims at the input path and initializes their corresponding
@@ -866,11 +866,11 @@ an instance of the <a class="reference internal" href="../../api/lab/isaaclab.as
 </div>
 </section>
 <section id="running-the-simulation-loop">
-<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Link to this heading">#</a></h3>
+<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
 <p>Continuing from the rigid body tutorial, we reset the simulation at regular intervals, apply kinematic commands
 to the deformable body, step the simulation, and update the deformable object’s internal buffers.</p>
 <section id="resetting-the-simulation-state">
-<h4>Resetting the simulation state<a class="headerlink" href="#resetting-the-simulation-state" title="Link to this heading">#</a></h4>
+<h4>Resetting the simulation state<a class="headerlink" href="#resetting-the-simulation-state" title="Permalink to this heading">#</a></h4>
 <p>Unlike rigid bodies and articulations, deformable objects have a different state representation. The state of a
 deformable object is defined by the nodal positions and velocities of the mesh. The nodal positions and velocities
 are defined in the <strong>simulation world frame</strong> and are stored in the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.data" title="isaaclab.assets.DeformableObject.data"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute.</p>
@@ -912,7 +912,7 @@ kinematic targets in the next section.</p>
 </div>
 </section>
 <section id="stepping-the-simulation">
-<h4>Stepping the simulation<a class="headerlink" href="#stepping-the-simulation" title="Link to this heading">#</a></h4>
+<h4>Stepping the simulation<a class="headerlink" href="#stepping-the-simulation" title="Permalink to this heading">#</a></h4>
 <p>Deformable bodies support user-driven kinematic control where a user can specify position targets for some of
 the mesh nodes while the rest of the nodes are simulated using the FEM solver. This <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies">partial kinematic</a> control
 is useful for applications where the user wants to interact with the deformable object in a controlled manner.</p>
@@ -941,7 +941,7 @@ However, we keep this method for completeness and future extensions.</p>
 </div>
 </section>
 <section id="updating-the-state">
-<h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Link to this heading">#</a></h4>
+<h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Permalink to this heading">#</a></h4>
 <p>After stepping the simulation, we update the internal buffers of the deformable object prims to reflect their new state
 inside the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.data" title="isaaclab.assets.DeformableObject.data"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.DeformableObject.data</span></code></a> attribute. This is done using the <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.update" title="isaaclab.assets.DeformableObject.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.DeformableObject.update()</span></code></a> method.</p>
 <p>At a fixed interval, we print the root position of the deformable object to the terminal. As mentioned
@@ -958,7 +958,7 @@ the average position of all the nodes in the mesh.</p>
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/01_assets/run_deformable_object.py
 </pre></div>
@@ -1017,12 +1017,11 @@ a scene using the <code class="xref py py-class docutils literal notranslate"><s
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
-  <div class="sidebar-secondary-item"><div
-    id="pst-page-navigation-heading-2"
-    class="page-toc tocsection onthispage">
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> Contents
   </div>
-  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+  <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code">The Code</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-explained">The Code Explained</a><ul class="nav section-nav flex-column">
@@ -1069,7 +1068,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 10, 2026.
+  Last updated on Mar 11, 2026.
   <br/>
 </p>
   </div>
