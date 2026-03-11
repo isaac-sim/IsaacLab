@@ -229,7 +229,9 @@ launch an Isaac Lab teleoperation script:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-Abs-v0
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit \
+       --xr
 
 Then in the Isaac Sim UI:
 

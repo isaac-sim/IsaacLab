@@ -543,7 +543,9 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task Isaac-PickPlace-GR1T2-Abs-v0
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit \
+       --xr
 
 The workflow is:
 

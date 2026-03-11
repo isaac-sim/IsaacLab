@@ -81,6 +81,7 @@ Collect five demonstrations by running the following command:
    ./isaaclab.sh -p scripts/tools/record_demos.py \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --visualizer kit \
+   --xr \
    --device cpu \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
