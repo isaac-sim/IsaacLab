@@ -200,14 +200,17 @@ def run_command(
 def get_pip_command(python_exe: str | None = None) -> list[str]:
     """Return the base pip command tokens for the current environment.
 
-    When ``uv`` is available, returns ``["uv", "pip"]``.  Otherwise returns
-    ``[python_exe, "-m", "pip"]``.
+    When ``uv`` is available and a virtual environment is active, returns
+    ``["uv", "pip"]``.  Otherwise returns ``[python_exe, "-m", "pip"]``
+    so that the target interpreter's own pip is used (e.g. Isaac Sim's
+    bundled ``python.sh``).
 
     Args:
         python_exe: Python executable path.  Resolved via
             :func:`extract_python_exe` when ``None``.
     """
-    if shutil.which("uv"):
+    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX"))
+    if shutil.which("uv") and in_venv:
         return ["uv", "pip"]
 
     if python_exe is None:
