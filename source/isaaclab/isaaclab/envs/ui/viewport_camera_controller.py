@@ -197,7 +197,7 @@ class ViewportCameraController:
         self.cfg.origin_type = "asset_body"
         # update the camera origins (convert Warp array to torch tensor first, then index)
         body_pos = wp.to_torch(self._env.scene[self.cfg.asset_name].data.body_pos_w)
-        self.viewer_origin = body_pos[self.cfg.env_index, body_id]
+        self.viewer_origin = body_pos[self.cfg.env_index, body_id].squeeze(0)
         # update the camera view
         self.update_view_location()
 
