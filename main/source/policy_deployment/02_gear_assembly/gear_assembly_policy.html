@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Training a Gear Insertion Policy and ROS Deployment &#8212; Isaac Lab Documentation</title>
   
@@ -31,13 +30,13 @@
   <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 <link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
   
   <!-- So that users can add custom icons -->
   <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -45,16 +44,16 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/policy_deployment/02_gear_assembly/gear_assembly_policy';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -64,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.2" />
-    <meta name="docbuild:last-update" content="Mar 10, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 11, 2026"/>
   </head>
   
   
@@ -159,6 +158,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../develop/source/policy_deployment/02_gear_assembly/gear_assembly_policy.html" >develop</option>
             <option value="gear_assembly_policy.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
@@ -208,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -238,7 +238,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
 <ul class="nav bd-sidenav">
@@ -494,9 +494,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -622,7 +622,7 @@
 
 
 <button onclick="toggleFullScreen()"
-  class="btn btn-sm btn-fullscreen-button"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
@@ -646,9 +646,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -708,7 +708,7 @@
                 <article class="bd-article">
                   
   <section id="training-a-gear-insertion-policy-and-ros-deployment">
-<span id="walkthrough-sim-to-real"></span><h1>Training a Gear Insertion Policy and ROS Deployment<a class="headerlink" href="#training-a-gear-insertion-policy-and-ros-deployment" title="Permalink to this heading">#</a></h1>
+<span id="walkthrough-sim-to-real"></span><h1>Training a Gear Insertion Policy and ROS Deployment<a class="headerlink" href="#training-a-gear-insertion-policy-and-ros-deployment" title="Link to this heading">#</a></h1>
 <p>This tutorial walks you through how to train a gear insertion assembly reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:</p>
 <ol class="arabic simple">
 <li><p><strong>Simulation Training in Isaac Lab</strong>: Train the policy in a high-fidelity physics simulation with domain randomization</p></li>
@@ -731,14 +731,14 @@
 <a href="../../../_images/gear_assembly_sim_real.webm">Comparison of gear assembly in simulation versus real hardware</a>
 </video>
 <figcaption>
-<p><span class="caption-text">Sim-to-real transfer: Gear assembly policy trained in Isaac Lab (left) successfully deployed on real UR10e robot (right).</span><a class="headerlink" href="#id1" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">Sim-to-real transfer: Gear assembly policy trained in Isaac Lab (left) successfully deployed on real UR10e robot (right).</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <p>This environment has been successfully deployed on real UR10e robots without an IsaacLab dependency.</p>
 <p><strong>Scope of This Tutorial:</strong></p>
 <p>This tutorial focuses exclusively on the <strong>training part</strong> of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the <a class="reference external" href="https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_manipulator_ur_dnn_policy/index.html">Isaac ROS Documentation</a>.</p>
 <section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
 <p>Successful sim-to-real transfer requires addressing three fundamental aspects:</p>
 <ol class="arabic simple">
 <li><p><strong>Input Consistency</strong>: Ensuring the observations your policy receives in simulation match those available on the real robot</p></li>
@@ -749,20 +749,20 @@
 <p><strong>Debugging Tip</strong>: When your policy fails on the real robot, the best approach to debug is to set up the real robot with the same initial observations as in simulation, then compare how the controller/system respond. This isolates whether the problem is from observation mismatch (Input Consistency) or physics/controller mismatch (System Response Consistency).</p>
 </section>
 <section id="part-1-input-consistency">
-<h2>Part 1: Input Consistency<a class="headerlink" href="#part-1-input-consistency" title="Permalink to this heading">#</a></h2>
+<h2>Part 1: Input Consistency<a class="headerlink" href="#part-1-input-consistency" title="Link to this heading">#</a></h2>
 <p>The observations your policy receives must be consistent between simulation and reality. This means:</p>
 <ol class="arabic simple">
 <li><p>The observation space should only include information available from real sensors</p></li>
 <li><p>Sensor noise and delays should be modeled appropriately</p></li>
 </ol>
 <section id="using-real-robot-available-observations">
-<h3>Using Real-Robot-Available Observations<a class="headerlink" href="#using-real-robot-available-observations" title="Permalink to this heading">#</a></h3>
+<h3>Using Real-Robot-Available Observations<a class="headerlink" href="#using-real-robot-available-observations" title="Link to this heading">#</a></h3>
 <p>Your simulation environment should only use observations that are available on the real robot and not use “privileged” information that wouldn’t be available in deployment.</p>
 <section id="observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0">
-<h4>Observation Specification: Isaac-Deploy-GearAssembly-UR10e-2F140-v0<a class="headerlink" href="#observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0" title="Permalink to this heading">#</a></h4>
+<h4>Observation Specification: Isaac-Deploy-GearAssembly-UR10e-2F140-v0<a class="headerlink" href="#observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0" title="Link to this heading">#</a></h4>
 <p>The Gear Assembly environment uses both proprioceptive and exteroceptive (vision) observations:</p>
 <div class="pst-scrollable-table-container"><table class="table" id="id2">
-<caption><span class="caption-text">Gear Assembly Environment Observations</span><a class="headerlink" href="#id2" title="Permalink to this table">#</a></caption>
+<caption><span class="caption-text">Gear Assembly Environment Observations</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 25.0%" />
@@ -847,7 +847,7 @@
 </section>
 </section>
 <section id="part-2-system-response-consistency">
-<h2>Part 2: System Response Consistency<a class="headerlink" href="#part-2-system-response-consistency" title="Permalink to this heading">#</a></h2>
+<h2>Part 2: System Response Consistency<a class="headerlink" href="#part-2-system-response-consistency" title="Link to this heading">#</a></h2>
 <p>Once your observations are consistent, you need to ensure the simulated robot and environment respond to actions the same way the real system does. In this use case, this involves three main aspects:</p>
 <ol class="arabic simple">
 <li><p>Physics simulation parameters (friction, contact properties)</p></li>
@@ -855,7 +855,7 @@
 <li><p>Domain randomization</p></li>
 </ol>
 <section id="physics-parameter-tuning">
-<h3>Physics Parameter Tuning<a class="headerlink" href="#physics-parameter-tuning" title="Permalink to this heading">#</a></h3>
+<h3>Physics Parameter Tuning<a class="headerlink" href="#physics-parameter-tuning" title="Link to this heading">#</a></h3>
 <p>Accurate physics simulation is critical for contact-rich tasks. Key parameters include:</p>
 <ul class="simple">
 <li><p>Friction coefficients (static and dynamic)</p></li>
@@ -950,7 +950,7 @@
 </div>
 </section>
 <section id="actuator-modeling">
-<h3>Actuator Modeling<a class="headerlink" href="#actuator-modeling" title="Permalink to this heading">#</a></h3>
+<h3>Actuator Modeling<a class="headerlink" href="#actuator-modeling" title="Link to this heading">#</a></h3>
 <p>Accurate actuator modeling ensures the simulated robot moves like the real one. This includes:</p>
 <ul class="simple">
 <li><p>PD controller gains (stiffness and damping)</p></li>
@@ -1016,7 +1016,7 @@
 <p>To help the policy overcome stiction on the real robot, we also increased the output action scaling. The Isaac ROS documentation notes that a higher action scale (0.0325 vs 0.025) is needed to overcome the higher static friction (stiction) compared to the 2F-85 gripper. This increased scaling ensures the policy commands are large enough to overcome the friction forces observed in the step response analysis.</p>
 </section>
 <section id="action-space-design">
-<h3>Action Space Design<a class="headerlink" href="#action-space-design" title="Permalink to this heading">#</a></h3>
+<h3>Action Space Design<a class="headerlink" href="#action-space-design" title="Link to this heading">#</a></h3>
 <p>Your action space should match what the real robot controller can execute. For this task we found that <strong>incremental joint position control</strong> is the most reliable approach.</p>
 <p><strong>Example: Gear Assembly Action Configuration</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># For contact-rich manipulation, smaller action scale for more precise control</span>
@@ -1038,7 +1038,7 @@
 </ul>
 </section>
 <section id="domain-randomization-strategy">
-<h3>Domain Randomization Strategy<a class="headerlink" href="#domain-randomization-strategy" title="Permalink to this heading">#</a></h3>
+<h3>Domain Randomization Strategy<a class="headerlink" href="#domain-randomization-strategy" title="Link to this heading">#</a></h3>
 <p>Domain randomization should cover the range of conditions in which you want the real robot to perform. Increasing randomization ranges makes it harder for the policy to learn, but allows for larger variations in inputs and system parameters. The key is to balance training difficulty with robustness: randomize enough to cover real-world variations, but not so much that the policy cannot learn effectively.</p>
 <p><strong>Pose Randomization</strong></p>
 <p>For manipulation tasks, randomize object poses to ensure the policy works across the workspace:</p>
@@ -1090,10 +1090,10 @@
 </section>
 </section>
 <section id="part-3-training-the-policy-in-isaac-lab">
-<h2>Part 3: Training the Policy in Isaac Lab<a class="headerlink" href="#part-3-training-the-policy-in-isaac-lab" title="Permalink to this heading">#</a></h2>
+<h2>Part 3: Training the Policy in Isaac Lab<a class="headerlink" href="#part-3-training-the-policy-in-isaac-lab" title="Link to this heading">#</a></h2>
 <p>Now that we’ve covered the key principles for sim-to-real transfer, let’s train the gear assembly policy in Isaac Lab.</p>
 <section id="step-1-visualize-the-environment">
-<h3>Step 1: Visualize the Environment<a class="headerlink" href="#step-1-visualize-the-environment" title="Permalink to this heading">#</a></h3>
+<h3>Step 1: Visualize the Environment<a class="headerlink" href="#step-1-visualize-the-environment" title="Link to this heading">#</a></h3>
 <p>First, launch the training with a small number of environments and visualization enabled to verify that the environment is set up correctly:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch training with visualization</span>
 python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
@@ -1109,14 +1109,14 @@ python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<spa
 <figure class="align-center" id="id3" style="width: 100%">
 <img alt="Gear assembly training visualization in Isaac Lab" src="../../../_images/sim_real_gear_assembly_train.jpg" />
 <figcaption>
-<p><span class="caption-text">Training visualization showing multiple parallel environments with robots grasping gears.</span><a class="headerlink" href="#id3" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">Training visualization showing multiple parallel environments with robots grasping gears.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <p><strong>What to Expect:</strong></p>
 <p>In the early stages of training, you should see the robots moving around with the gears grasped by the grippers, but they won’t be successfully inserting the gears yet. This is expected behavior as the policy is still learning. The robots will move the grasped gear in various directions. Once you’ve verified the environment looks correct, stop the training (Ctrl+C) and proceed to full-scale training.</p>
 </section>
 <section id="step-2-full-scale-training-with-video-recording">
-<h3>Step 2: Full-Scale Training with Video Recording<a class="headerlink" href="#step-2-full-scale-training-with-video-recording" title="Permalink to this heading">#</a></h3>
+<h3>Step 2: Full-Scale Training with Video Recording<a class="headerlink" href="#step-2-full-scale-training-with-video-recording" title="Link to this heading">#</a></h3>
 <p>Now launch the full training run with more parallel environments in headless mode for faster training. We’ll also enable video recording to monitor progress:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Full training with video recording</span>
 python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
@@ -1146,7 +1146,7 @@ python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<spa
 <p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;log_dir&gt;</span></code> with the path to your training logs (e.g., <code class="docutils literal notranslate"><span class="pre">logs/rsl_rl/gear_assembly_ur10e/2025-11-19_19-31-01</span></code>). TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.</p>
 </section>
 <section id="step-3-deploy-on-real-robot">
-<h3>Step 3: Deploy on Real Robot<a class="headerlink" href="#step-3-deploy-on-real-robot" title="Permalink to this heading">#</a></h3>
+<h3>Step 3: Deploy on Real Robot<a class="headerlink" href="#step-3-deploy-on-real-robot" title="Link to this heading">#</a></h3>
 <p>Once training is complete, follow the <a class="reference external" href="https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_manipulator_ur_dnn_policy/index.html">Isaac ROS inference documentation</a> to deploy your policy.</p>
 <p>The Isaac ROS deployment pipeline directly uses the trained model checkpoint (<code class="docutils literal notranslate"><span class="pre">.pt</span></code> file) along with the <code class="docutils literal notranslate"><span class="pre">agent.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">env.yaml</span></code> configuration files generated during training. No additional export step is required.</p>
 <p>The deployment pipeline uses Isaac ROS and a custom ROS inference node to run the policy on real hardware. The pipeline includes:</p>
@@ -1159,10 +1159,10 @@ python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<spa
 </section>
 </section>
 <section id="troubleshooting">
-<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading">#</a></h2>
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <p>This section covers common errors you may encounter during training and their solutions.</p>
 <section id="physx-collision-stack-overflow">
-<h3>PhysX Collision Stack Overflow<a class="headerlink" href="#physx-collision-stack-overflow" title="Permalink to this heading">#</a></h3>
+<h3>PhysX Collision Stack Overflow<a class="headerlink" href="#physx-collision-stack-overflow" title="Link to this heading">#</a></h3>
 <p><strong>Error Message:</strong></p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PhysX error: PxGpuDynamicsMemoryConfig::collisionStackSize buffer overflow detected,
 please increase its size to at least 269452544 in the scene desc!
@@ -1184,7 +1184,7 @@ Contacts have been dropped.
 <p>The error message will suggest a minimum size. Set <code class="docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code> to at least the recommended value (e.g., if the error says “at least 269452544”, set it to <code class="docutils literal notranslate"><span class="pre">2**28</span></code> or <code class="docutils literal notranslate"><span class="pre">2**29</span></code>). Note that increasing this value increases GPU memory usage.</p>
 </section>
 <section id="cuda-out-of-memory">
-<h3>CUDA Out of Memory<a class="headerlink" href="#cuda-out-of-memory" title="Permalink to this heading">#</a></h3>
+<h3>CUDA Out of Memory<a class="headerlink" href="#cuda-out-of-memory" title="Link to this heading">#</a></h3>
 <p><strong>Error Message:</strong></p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>torch.OutOfMemoryError: CUDA out of memory.
 </pre></div>
@@ -1230,7 +1230,7 @@ Contacts have been dropped.
 </section>
 </section>
 <section id="further-resources">
-<h2>Further Resources<a class="headerlink" href="#further-resources" title="Permalink to this heading">#</a></h2>
+<h2>Further Resources<a class="headerlink" href="#further-resources" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p><a class="reference external" href="https://arxiv.org/abs/2305.17110">IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality</a></p></li>
 <li><p><a class="reference external" href="https://arxiv.org/abs/2408.04587">FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty</a></p></li>
@@ -1282,11 +1282,12 @@ Contacts have been dropped.
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> Contents
   </div>
-  <nav class="bd-toc-nav page-toc">
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-input-consistency">Part 1: Input Consistency</a><ul class="nav section-nav flex-column">
@@ -1348,7 +1349,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 10, 2026.
+  Last updated on Mar 11, 2026.
   <br/>
 </p>
   </div>

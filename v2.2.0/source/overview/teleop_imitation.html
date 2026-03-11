@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Teleoperation and Imitation Learning with Isaac Lab Mimic &#8212; Isaac Lab Documentation</title>
   
@@ -31,13 +30,13 @@
   <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 <link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5774970f" />
   
   <!-- So that users can add custom icons -->
   <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -45,16 +44,16 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
-    <script src="../../_static/doctools.js"></script>
-    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
-    <script src="../../_static/clipboard.min.js"></script>
-    <script src="../../_static/copybutton.js"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../_static/design-tabs.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/overview/teleop_imitation';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -159,6 +158,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../develop/index.html" >develop</option>
             <option value="../../../main/index.html" >main</option>
             <option value="../../../release/2.1.0/source/overview/teleop_imitation.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/overview/teleop_imitation.html" >release/2.2.0</option>
@@ -208,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -238,7 +238,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
 <ul class="nav bd-sidenav">
@@ -454,9 +454,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -582,7 +582,7 @@
 
 
 <button onclick="toggleFullScreen()"
-  class="btn btn-sm btn-fullscreen-button"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
@@ -606,9 +606,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -682,9 +682,9 @@
                 <article class="bd-article">
                   
   <section id="teleoperation-and-imitation-learning-with-isaac-lab-mimic">
-<span id="teleoperation-imitation-learning"></span><h1>Teleoperation and Imitation Learning with Isaac Lab Mimic<a class="headerlink" href="#teleoperation-and-imitation-learning-with-isaac-lab-mimic" title="Permalink to this heading">#</a></h1>
+<span id="teleoperation-imitation-learning"></span><h1>Teleoperation and Imitation Learning with Isaac Lab Mimic<a class="headerlink" href="#teleoperation-and-imitation-learning-with-isaac-lab-mimic" title="Link to this heading">#</a></h1>
 <section id="teleoperation">
-<h2>Teleoperation<a class="headerlink" href="#teleoperation" title="Permalink to this heading">#</a></h2>
+<h2>Teleoperation<a class="headerlink" href="#teleoperation" title="Link to this heading">#</a></h2>
 <p>We provide interfaces for providing commands in SE(2) and SE(3) space
 for robot control. In case of SE(2) teleoperation, the returned command
 is the linear x-y velocity and yaw rate, while in SE(3), the returned
@@ -752,11 +752,11 @@ these are as follows:</p>
 <p>The next section describes how teleoperation devices can be used for data collection for imitation learning.</p>
 </section>
 <section id="imitation-learning-with-isaac-lab-mimic">
-<h2>Imitation Learning with Isaac Lab Mimic<a class="headerlink" href="#imitation-learning-with-isaac-lab-mimic" title="Permalink to this heading">#</a></h2>
+<h2>Imitation Learning with Isaac Lab Mimic<a class="headerlink" href="#imitation-learning-with-isaac-lab-mimic" title="Link to this heading">#</a></h2>
 <p>Using the teleoperation devices, it is also possible to collect data for
 learning from demonstrations (LfD). For this, we provide scripts to collect data into the open HDF5 format.</p>
 <section id="collecting-demonstrations">
-<h3>Collecting demonstrations<a class="headerlink" href="#collecting-demonstrations" title="Permalink to this heading">#</a></h3>
+<h3>Collecting demonstrations<a class="headerlink" href="#collecting-demonstrations" title="Link to this heading">#</a></h3>
 <p>To collect demonstrations with teleoperation for the environment <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code>, use the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># step a: create folder for datasets</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span>datasets
@@ -789,7 +789,7 @@ mkdir<span class="w"> </span>-p<span class="w"> </span>datasets
 </div>
 </section>
 <section id="pre-recorded-demonstrations">
-<h3>Pre-recorded demonstrations<a class="headerlink" href="#pre-recorded-demonstrations" title="Permalink to this heading">#</a></h3>
+<h3>Pre-recorded demonstrations<a class="headerlink" href="#pre-recorded-demonstrations" title="Link to this heading">#</a></h3>
 <p>We provide a pre-recorded <code class="docutils literal notranslate"><span class="pre">dataset.hdf5</span></code> containing 10 human demonstrations for <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code>
 <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5">here</a>.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.</p>
@@ -799,7 +799,7 @@ This dataset may be downloaded and used in the remaining tutorial steps if you d
 </div>
 </section>
 <section id="generating-additional-demonstrations-with-isaac-lab-mimic">
-<h3>Generating additional demonstrations with Isaac Lab Mimic<a class="headerlink" href="#generating-additional-demonstrations-with-isaac-lab-mimic" title="Permalink to this heading">#</a></h3>
+<h3>Generating additional demonstrations with Isaac Lab Mimic<a class="headerlink" href="#generating-additional-demonstrations-with-isaac-lab-mimic" title="Link to this heading">#</a></h3>
 <p>Additional demonstrations can be generated using Isaac Lab Mimic.</p>
 <p>Isaac Lab Mimic is a feature in Isaac Lab that allows generation of additional demonstrations automatically, allowing a policy to learn successfully even from just a handful of manual demonstrations.</p>
 <p>In the following example, we will show how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train either a state-based policy
@@ -881,7 +881,7 @@ The suggested number of 10 can be executed on a moderate laptop GPU.
 On a more powerful desktop machine, use a larger number of environments for a significant speedup of this step.</p>
 </section>
 <section id="robomimic-setup">
-<h3>Robomimic setup<a class="headerlink" href="#robomimic-setup" title="Permalink to this heading">#</a></h3>
+<h3>Robomimic setup<a class="headerlink" href="#robomimic-setup" title="Link to this heading">#</a></h3>
 <p>As an example, we will train a BC agent implemented in <a class="reference external" href="https://robomimic.github.io/">Robomimic</a> to train a policy. Any other framework or training method could be used.</p>
 <p>To install the robomimic framework, use the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install the dependencies</span>
@@ -892,7 +892,7 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
 </div>
 </section>
 <section id="training-an-agent">
-<h3>Training an agent<a class="headerlink" href="#training-an-agent" title="Permalink to this heading">#</a></h3>
+<h3>Training an agent<a class="headerlink" href="#training-an-agent" title="Link to this heading">#</a></h3>
 <p>Using the Mimic generated data we can now train a state-based BC agent for <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code>, or a visuomotor BC agent for <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0</span></code>:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-6" name="sd-tab-set-3" type="radio">
@@ -920,7 +920,7 @@ Visuomotor policy</label><div class="sd-tab-content docutils">
 </div>
 </section>
 <section id="visualizing-results">
-<h3>Visualizing results<a class="headerlink" href="#visualizing-results" title="Permalink to this heading">#</a></h3>
+<h3>Visualizing results<a class="headerlink" href="#visualizing-results" title="Link to this heading">#</a></h3>
 <p>By inferencing using the generated model, we can visualize the results of the policy:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-8" name="sd-tab-set-4" type="radio">
@@ -945,16 +945,17 @@ Visuomotor policy</label><div class="sd-tab-content docutils">
 </section>
 </section>
 <section id="demo-1-data-generation-and-policy-training-for-a-humanoid-robot">
-<h2>Demo 1: Data Generation and Policy Training for a Humanoid Robot<a class="headerlink" href="#demo-1-data-generation-and-policy-training-for-a-humanoid-robot" title="Permalink to this heading">#</a></h2>
+<h2>Demo 1: Data Generation and Policy Training for a Humanoid Robot<a class="headerlink" href="#demo-1-data-generation-and-policy-training-for-a-humanoid-robot" title="Link to this heading">#</a></h2>
 <figure class="align-center">
-<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place.gif"><img alt="GR-1 humanoid robot performing a pick and place task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place.gif" style="width: 100%;" /></a>
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place.gif"><img alt="GR-1 humanoid robot performing a pick and place task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place.gif" style="width: 100%;" />
+</a>
 </figure>
 <p>Isaac Lab Mimic supports data generation for robots with multiple end effectors. In the following demonstration, we will show how to generate data
 to train a Fourier GR-1 humanoid robot to perform a pick and place task.</p>
 <section id="optional-collect-and-annotate-demonstrations">
-<h3>Optional: Collect and annotate demonstrations<a class="headerlink" href="#optional-collect-and-annotate-demonstrations" title="Permalink to this heading">#</a></h3>
+<h3>Optional: Collect and annotate demonstrations<a class="headerlink" href="#optional-collect-and-annotate-demonstrations" title="Link to this heading">#</a></h3>
 <section id="collect-human-demonstrations">
-<h4>Collect human demonstrations<a class="headerlink" href="#collect-human-demonstrations" title="Permalink to this heading">#</a></h4>
+<h4>Collect human demonstrations<a class="headerlink" href="#collect-human-demonstrations" title="Link to this heading">#</a></h4>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Data collection for the GR-1 humanoid robot environment requires use of an Apple Vision Pro headset. If you do not have access to
@@ -1009,14 +1010,15 @@ on the Apple Vision Pro or via voice control by saying “reset”. See <a class
 </div>
 </section>
 <section id="annotate-the-demonstrations">
-<h4>Annotate the demonstrations<a class="headerlink" href="#annotate-the-demonstrations" title="Permalink to this heading">#</a></h4>
+<h4>Annotate the demonstrations<a class="headerlink" href="#annotate-the-demonstrations" title="Link to this heading">#</a></h4>
 <p>Unlike the prior Franka stacking task, the GR-1 pick and place task uses manual annotation to define subtasks.</p>
 <p>The pick and place task has one subtask for the left arm (pick) and two subtasks for the right arm (idle, place).
 Annotations denote the end of a subtask. For the pick and place task, this means there are no annotations for the left arm and one annotation for the right arm (the end of the final subtask is always implicit).</p>
 <p>Each demo requires a single annotation between the first and second subtask of the right arm. This annotation (“S” button press) should be done when the right robot arm finishes the “idle” subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:</p>
 <figure class="align-center">
-<a class="reference internal image-reference" href="../../_images/gr-1_pick_place_annotation.jpg"><img alt="../../_images/gr-1_pick_place_annotation.jpg" src="../../_images/gr-1_pick_place_annotation.jpg" style="width: 100%;" /></a>
+<a class="reference internal image-reference" href="../../_images/gr-1_pick_place_annotation.jpg"><img alt="../../_images/gr-1_pick_place_annotation.jpg" src="../../_images/gr-1_pick_place_annotation.jpg" style="width: 100%;" />
+</a>
 </figure>
 <p>Annotate the demonstrations by running the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/annotate_demos.py<span class="w"> </span><span class="se">\</span>
@@ -1048,7 +1050,7 @@ move towards the target object. An example of a correct annotation is shown belo
 </section>
 </section>
 <section id="generate-the-dataset">
-<h3>Generate the dataset<a class="headerlink" href="#generate-the-dataset" title="Permalink to this heading">#</a></h3>
+<h3>Generate the dataset<a class="headerlink" href="#generate-the-dataset" title="Link to this heading">#</a></h3>
 <p>If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset <code class="docutils literal notranslate"><span class="pre">dataset_annotated_gr1.hdf5</span></code> from
 <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5">here</a>.
 Place the file under <code class="docutils literal notranslate"><span class="pre">IsaacLab/datasets</span></code> and run the following command to generate a new dataset with 1000 demonstrations.</p>
@@ -1059,7 +1061,7 @@ Place the file under <code class="docutils literal notranslate"><span class="pre
 </div>
 </section>
 <section id="train-a-policy">
-<h3>Train a policy<a class="headerlink" href="#train-a-policy" title="Permalink to this heading">#</a></h3>
+<h3>Train a policy<a class="headerlink" href="#train-a-policy" title="Link to this heading">#</a></h3>
 <p>Use <a class="reference external" href="https://robomimic.github.io/">Robomimic</a> to train a policy for the generated dataset.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/train.py<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0<span class="w"> </span>--algo<span class="w"> </span>bc<span class="w"> </span><span class="se">\</span>
@@ -1076,7 +1078,7 @@ Record the normalization parameters for later use in the visualization step.</p>
 </div>
 </section>
 <section id="visualize-the-results">
-<h3>Visualize the results<a class="headerlink" href="#visualize-the-results" title="Permalink to this heading">#</a></h3>
+<h3>Visualize the results<a class="headerlink" href="#visualize-the-results" title="Link to this heading">#</a></h3>
 <p>Visualize the results of the trained policy by running the following command, using the normalization parameters recorded in the prior training step:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
@@ -1094,17 +1096,18 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p>Change the <code class="docutils literal notranslate"><span class="pre">NORM_FACTOR</span></code> in the above command with the values generated in the training step.</p>
 </div>
 <figure class="align-center" id="id5">
-<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif"><img alt="GR-1 humanoid robot performing a pick and place task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif" style="width: 100%;" /></a>
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif"><img alt="GR-1 humanoid robot performing a pick and place task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif" style="width: 100%;" />
+</a>
 <figcaption>
-<p><span class="caption-text">The trained policy performing the pick and place task in Isaac Lab.</span><a class="headerlink" href="#id5" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">The trained policy performing the pick and place task in Isaac Lab.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </section>
 </section>
 <section id="demo-2-visuomotor-policy-for-a-humanoid-robot">
-<h2>Demo 2: Visuomotor Policy for a Humanoid Robot<a class="headerlink" href="#demo-2-visuomotor-policy-for-a-humanoid-robot" title="Permalink to this heading">#</a></h2>
+<h2>Demo 2: Visuomotor Policy for a Humanoid Robot<a class="headerlink" href="#demo-2-visuomotor-policy-for-a-humanoid-robot" title="Link to this heading">#</a></h2>
 <section id="download-the-dataset">
-<h3>Download the Dataset<a class="headerlink" href="#download-the-dataset" title="Permalink to this heading">#</a></h3>
+<h3>Download the Dataset<a class="headerlink" href="#download-the-dataset" title="Link to this heading">#</a></h3>
 <p>Download the pre-generated dataset from <a class="reference external" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5">here</a> and place it under <code class="docutils literal notranslate"><span class="pre">IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5</span></code>.
 The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the <code class="docutils literal notranslate"><span class="pre">Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0</span></code> task.</p>
@@ -1157,7 +1160,7 @@ Make sure to annotate the right eef subtasks with different action indices.</p>
 </div>
 </section>
 <section id="id3">
-<h3>Train a policy<a class="headerlink" href="#id3" title="Permalink to this heading">#</a></h3>
+<h3>Train a policy<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
 <p>Use <a class="reference external" href="https://robomimic.github.io/">Robomimic</a> to train a visuomotor BC agent for the task.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/train.py<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-NutPour-GR1T2-Pink-IK-Abs-v0<span class="w"> </span>--algo<span class="w"> </span>bc<span class="w"> </span><span class="se">\</span>
@@ -1174,7 +1177,7 @@ Record the normalization parameters for later use in the visualization step.</p>
 </div>
 </section>
 <section id="visualize-results-demo-2">
-<span id="id4"></span><h3>Visualize the results<a class="headerlink" href="#visualize-results-demo-2" title="Permalink to this heading">#</a></h3>
+<span id="id4"></span><h3>Visualize the results<a class="headerlink" href="#visualize-results-demo-2" title="Link to this heading">#</a></h3>
 <p>Visualize the results of the trained policy by running the following command, using the normalization parameters recorded in the prior training step:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
@@ -1194,15 +1197,16 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p>Change the <code class="docutils literal notranslate"><span class="pre">NORM_FACTOR</span></code> in the above command with the values generated in the training step.</p>
 </div>
 <figure class="align-center" id="id6">
-<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif"><img alt="GR-1 humanoid robot performing a pouring task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif" style="width: 100%;" /></a>
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif"><img alt="GR-1 humanoid robot performing a pouring task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif" style="width: 100%;" />
+</a>
 <figcaption>
-<p><span class="caption-text">The trained visuomotor policy performing the pouring task in Isaac Lab.</span><a class="headerlink" href="#id6" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">The trained visuomotor policy performing the pouring task in Isaac Lab.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </section>
 </section>
 <section id="common-pitfalls-when-generating-data">
-<h2>Common Pitfalls when Generating Data<a class="headerlink" href="#common-pitfalls-when-generating-data" title="Permalink to this heading">#</a></h2>
+<h2>Common Pitfalls when Generating Data<a class="headerlink" href="#common-pitfalls-when-generating-data" title="Link to this heading">#</a></h2>
 <p><strong>Demonstrations are too long:</strong></p>
 <ul class="simple">
 <li><p>Longer time horizon is harder to learn for a policy</p></li>
@@ -1240,16 +1244,16 @@ Record the normalization parameters for later use in the visualization step.</p>
 </ul>
 </section>
 <section id="creating-your-own-isaac-lab-mimic-compatible-environments">
-<h2>Creating Your Own Isaac Lab Mimic Compatible Environments<a class="headerlink" href="#creating-your-own-isaac-lab-mimic-compatible-environments" title="Permalink to this heading">#</a></h2>
+<h2>Creating Your Own Isaac Lab Mimic Compatible Environments<a class="headerlink" href="#creating-your-own-isaac-lab-mimic-compatible-environments" title="Link to this heading">#</a></h2>
 <section id="how-it-works">
-<h3>How it works<a class="headerlink" href="#how-it-works" title="Permalink to this heading">#</a></h3>
+<h3>How it works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h3>
 <p>Isaac Lab Mimic works by splitting the input demonstrations into subtasks. Subtasks are user-defined segments in the demonstrations that are common to all demonstrations. Examples for subtasks are “grasp an object”, “move end effector to some pre-defined position”, “release object” etc.. Note that most subtasks are defined with respect to some object that the robot interacts with.</p>
 <p>Subtasks need to be defined, and then annotated for each input demonstration. Annotation can either happen algorithmically by defining heuristics for subtask detection, as was done in the example above, or it can be done manually.</p>
 <p>With subtasks defined and annotated, Isaac Lab Mimic utilizes a small number of helper methods to then transform the subtask segments, and generate new demonstrations by stitching them together to match the new task at hand.</p>
 <p>For each thusly generated candidate demonstration, Isaac Lab Mimic uses a boolean success criteria to determine whether the demonstration succeeded in performing the task, and if so, add it to the output dataset. Success rate of candidate demonstrations can be as high as 70% in simple cases, and as low as &lt;1%, depending on the difficulty of the task, and the complexity of the robot itself.</p>
 </section>
 <section id="configuration-and-subtask-definition">
-<h3>Configuration and subtask definition<a class="headerlink" href="#configuration-and-subtask-definition" title="Permalink to this heading">#</a></h3>
+<h3>Configuration and subtask definition<a class="headerlink" href="#configuration-and-subtask-definition" title="Link to this heading">#</a></h3>
 <p>Subtasks, among other configuration settings for Isaac Lab Mimic, are defined in a Mimic compatible environment configuration class that is created by extending the existing environment config with additional Mimic required parameters.</p>
 <p>All Mimic required config parameters are specified in the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.MimicEnvCfg" title="isaaclab.envs.MimicEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MimicEnvCfg</span></code></a> class.</p>
 <p>The config class <a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code></a> serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.</p>
@@ -1262,13 +1266,13 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p>For multi end-effector environments, subtask ordering between end-effectors can be enforced by specifying subtask constraints. These constraints are defined in the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConstraintConfig" title="isaaclab.envs.SubTaskConstraintConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTaskConstraintConfig</span></code></a> class.</p>
 </section>
 <section id="subtask-annotation">
-<h3>Subtask annotation<a class="headerlink" href="#subtask-annotation" title="Permalink to this heading">#</a></h3>
+<h3>Subtask annotation<a class="headerlink" href="#subtask-annotation" title="Link to this heading">#</a></h3>
 <p>Once the subtasks are defined, they need to be annotated in the source data. There are two methods to annotate source demonstrations for subtask boundaries: Manual annotation or using heuristics.</p>
 <p>It is often easiest to perform manual annotations, since the number of input demonstrations is usually very small. To perform manual annotations, use the <code class="docutils literal notranslate"><span class="pre">annotate_demos.py</span></code> script without the <code class="docutils literal notranslate"><span class="pre">--auto</span></code> flag. Then press <code class="docutils literal notranslate"><span class="pre">B</span></code> to pause, <code class="docutils literal notranslate"><span class="pre">N</span></code> to continue, and <code class="docutils literal notranslate"><span class="pre">S</span></code> to annotate a subtask boundary.</p>
 <p>For more accurate boundaries, or to speed up repeated processing of a given task for experiments, heuristics can be implemented to perform the same task. Heuristics are observations in the environment. An example how to add subtask terms can be found in <code class="docutils literal notranslate"><span class="pre">source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/stack_env_cfg.py</span></code>, where they are added as an observation group called <code class="docutils literal notranslate"><span class="pre">SubtaskCfg</span></code>. This example is using prebuilt heuristics, but custom heuristics are easily implemented.</p>
 </section>
 <section id="helpers-for-demonstration-generation">
-<h3>Helpers for demonstration generation<a class="headerlink" href="#helpers-for-demonstration-generation" title="Permalink to this heading">#</a></h3>
+<h3>Helpers for demonstration generation<a class="headerlink" href="#helpers-for-demonstration-generation" title="Link to this heading">#</a></h3>
 <p>Helpers needed for Isaac Lab Mimic are defined in the environment. All tasks that are to be used with Isaac Lab Mimic are derived from the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv" title="isaaclab.envs.ManagerBasedRLMimicEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv</span></code></a> base class, and must implement the following functions:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">get_robot_eef_pose</span></code>: Returns the current robot end effector pose in the same frame as used by the robot end effector controller.</p></li>
@@ -1281,26 +1285,27 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p>The class <a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code></a> shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.</p>
 </section>
 <section id="registering-the-environment">
-<h3>Registering the environment<a class="headerlink" href="#registering-the-environment" title="Permalink to this heading">#</a></h3>
+<h3>Registering the environment<a class="headerlink" href="#registering-the-environment" title="Link to this heading">#</a></h3>
 <p>Once both Mimic compatible environment and environment config classes have been created, a new Mimic compatible environment can be registered using <code class="docutils literal notranslate"><span class="pre">gym.register</span></code>. For the Franka stacking task in the examples above, the Mimic environment is registered as <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0</span></code>.</p>
 <p>The registered environment is now ready to be used with Isaac Lab Mimic.</p>
 </section>
 </section>
 <section id="tips-for-successful-data-generation-with-isaac-lab-mimic">
-<h2>Tips for Successful Data Generation with Isaac Lab Mimic<a class="headerlink" href="#tips-for-successful-data-generation-with-isaac-lab-mimic" title="Permalink to this heading">#</a></h2>
+<h2>Tips for Successful Data Generation with Isaac Lab Mimic<a class="headerlink" href="#tips-for-successful-data-generation-with-isaac-lab-mimic" title="Link to this heading">#</a></h2>
 <section id="splitting-subtasks">
-<h3>Splitting subtasks<a class="headerlink" href="#splitting-subtasks" title="Permalink to this heading">#</a></h3>
+<h3>Splitting subtasks<a class="headerlink" href="#splitting-subtasks" title="Link to this heading">#</a></h3>
 <p>A general rule of thumb is to split the task into as few subtasks as possible, while still being able to complete the task. Isaac Lab Mimic data generation uses linear interpolation to bridge and stitch together subtask segments.
 More subtasks result in more stitching of trajectories which can result in less smooth motions and more failed demonstrations. For this reason, it is often best to annoatate subtask boundaries where the robot’s motion is unlikely to collide with other objects.</p>
 <p>For example, in the scenario below, there is a subtask partition after the robot’s left arm grasps the object. On the left, the subtask annotation is marked immediately after the grasp, while on the right, the annotation is marked after the robot has grasped and lifted the object.
 In the left case, the interpolation causes the robot’s left arm to collide with the table and it’s motion lags while on the right the motion is continuous and smooth.</p>
 <figure class="align-center">
-<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif"><img alt="Subtask splitting example" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif" style="width: 99%;" /></a>
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif"><img alt="Subtask splitting example" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif" style="width: 99%;" />
+</a>
 </figure>
 <p class="centered">
 <strong>Motion lag/collision caused by poor subtask splitting (left)</strong></p></section>
 <section id="selecting-number-of-interpolation-steps">
-<h3>Selecting number of interpolation steps<a class="headerlink" href="#selecting-number-of-interpolation-steps" title="Permalink to this heading">#</a></h3>
+<h3>Selecting number of interpolation steps<a class="headerlink" href="#selecting-number-of-interpolation-steps" title="Link to this heading">#</a></h3>
 <p>The number of interpolation steps between subtask segments can be specified in the <a class="reference internal" href="../api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig" title="isaaclab.envs.SubTaskConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTaskConfig</span></code></a> class. Once transformed, the subtask segments don’t start/end at the same spot, thus to create a continuous motion, Isaac Lab Mimic
 will apply linear interpolation between the last point of the previous subtask and the first point of the next subtask.</p>
 <p>The number of interpolation steps can be tuned to control the smoothness of the generated demonstrations during this stitching process.
@@ -1355,11 +1360,12 @@ smooth and natural.</p>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> Contents
   </div>
-  <nav class="bd-toc-nav page-toc">
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation">Teleoperation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#imitation-learning-with-isaac-lab-mimic">Imitation Learning with Isaac Lab Mimic</a><ul class="nav section-nav flex-column">
