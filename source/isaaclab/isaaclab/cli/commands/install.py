@@ -152,7 +152,7 @@ def _install_isaacsim() -> None:
 
 # Valid Isaac Lab submodule names that can be passed to --install.
 # Each Isaac Lab submodule maps to a source directory named "isaaclab_<name>" under source/.
-VALID_ISAACLAB_EDITABLES: set[str] = {
+VALID_ISAACLAB_SUBMODULES: set[str] = {
     "assets",
     "contrib",
     "mimic",
@@ -193,25 +193,25 @@ def _split_install_items(install_type: str) -> list[str]:
     return parts
 
 
-def _install_isaaclab_extensions(
-    isaaclab_editables: list[str] | None = None,
-    editable_extras: dict[str, str] | None = None,
+def _install_isaaclab_submodules(
+    isaaclab_submodules: list[str] | None = None,
+    submodule_extras: dict[str, str] | None = None,
     exclude: set[str] | None = None,
 ) -> None:
-    """Install Isaac Lab extensions from the source directory.
+    """Install Isaac Lab submodules from the source directory.
 
     Scans ``source/`` for sub-directories that contain a ``setup.py`` and
     installs each one as an editable pip package.
 
     Args:
-        isaaclab_editables: Optional, list of source directory names to install.
-            If ``None`` is provided, every extension found under ``source/``
+        isaaclab_submodules: Optional, list of source directory names to install.
+            If ``None`` is provided, every submodule found under ``source/``
             is installed (subject to *exclude*).
-        editable_extras: Optional mapping from extension source directory
+        submodule_extras: Optional mapping from submodule source directory
             name to pip editable selector (e.g.
             ``{"isaaclab_visualizers": "[rerun]"}``).
         exclude: Optional set of source directory names to skip even when
-            *isaaclab_editables* is ``None``.
+            *isaaclab_submodules* is ``None``.
     """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -220,12 +220,12 @@ def _install_isaaclab_extensions(
         print_warning(f"Source directory not found: {source_dir}")
         return
 
-    # Collect installable extensions from source/.
+    # Collect installable submodules from source/.
     install_items = []
     for item in source_dir.iterdir():
         if not (item.is_dir() and (item / "setup.py").exists()):
             continue
-        if isaaclab_editables is not None and item.name not in isaaclab_editables:
+        if isaaclab_submodules is not None and item.name not in isaaclab_submodules:
             continue
         if exclude and item.name in exclude:
             continue
@@ -237,8 +237,8 @@ def _install_isaaclab_extensions(
 
     pip_cmd = get_pip_command(python_exe)
     for item in install_items:
-        print_info(f"Installing extension: {item.name}")
-        editable = (editable_extras or {}).get(item.name, "")
+        print_info(f"Installing submodule: {item.name}")
+        editable = (submodule_extras or {}).get(item.name, "")
         install_target = f"{item}{editable}"
         run_command(pip_cmd + ["install", "--editable", install_target])
 
@@ -406,25 +406,25 @@ def command_install(install_type: str = "all") -> None:
     install_isaacsim = False
 
     if install_type == "all":
-        isaaclab_editables = None
+        isaaclab_submodules = None
         exclude = None
-        editable_extras = {"isaaclab_visualizers": "[all]"}
+        submodule_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = "all"
     elif install_type == "none":
-        isaaclab_editables = ["isaaclab"]
+        isaaclab_submodules = ["isaaclab"]
         exclude = None
-        editable_extras = {}
+        submodule_extras = {}
         framework_type = "none"
     elif install_type in VALID_RL_FRAMEWORKS:
-        isaaclab_editables = None
+        isaaclab_submodules = None
         exclude = None
-        editable_extras = {"isaaclab_visualizers": "[all]"}
+        submodule_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
         # Parse comma-separated submodule names and RL framework names.
-        isaaclab_editables = ["isaaclab"]  # core is always required
+        isaaclab_submodules = ["isaaclab"]  # core is always required
         exclude = None  # explicit selection — no exclusions
-        editable_extras = {}
+        submodule_extras = {}
         framework_type = "none"
         for token in _split_install_items(install_type):
             # Parse optional editable selector: "name[extra1,extra2]"
@@ -441,21 +441,21 @@ def command_install(install_type: str = "all") -> None:
             if name in VALID_RL_FRAMEWORKS:
                 framework_type = name
                 # Ensure isaaclab_rl is installed so the framework extra works.
-                if "isaaclab_rl" not in isaaclab_editables:
-                    isaaclab_editables.append("isaaclab_rl")
+                if "isaaclab_rl" not in isaaclab_submodules:
+                    isaaclab_submodules.append("isaaclab_rl")
                 continue
-            if name in VALID_ISAACLAB_EDITABLES:
+            if name in VALID_ISAACLAB_SUBMODULES:
                 pkg_dir = f"isaaclab_{name}"
-                if pkg_dir not in isaaclab_editables:
-                    isaaclab_editables.append(pkg_dir)
+                if pkg_dir not in isaaclab_submodules:
+                    isaaclab_submodules.append(pkg_dir)
                 if editable:
-                    editable_extras[pkg_dir] = editable
+                    submodule_extras[pkg_dir] = editable
                 # Auto-include the matching visualizer when installing a physics backend.
-                if name == "newton" and "isaaclab_visualizers" not in isaaclab_editables:
-                    isaaclab_editables.append("isaaclab_visualizers")
-                    editable_extras["isaaclab_visualizers"] = "[newton]"
+                if name == "newton" and "isaaclab_visualizers" not in isaaclab_submodules:
+                    isaaclab_submodules.append("isaaclab_visualizers")
+                    submodule_extras["isaaclab_visualizers"] = "[newton]"
             else:
-                valid = sorted(VALID_ISAACLAB_EDITABLES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
+                valid = sorted(VALID_ISAACLAB_SUBMODULES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
                 print_warning(f"Unknown Isaac Lab submodule '{name}'. Valid values: {', '.join(valid)}. Skipping.")
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
@@ -511,7 +511,7 @@ def command_install(install_type: str = "all") -> None:
         _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        _install_isaaclab_extensions(isaaclab_editables, editable_extras, exclude)
+        _install_isaaclab_submodules(isaaclab_submodules, submodule_extras, exclude)
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")
