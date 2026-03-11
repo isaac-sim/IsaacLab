@@ -31,7 +31,6 @@ Added
 * Added ``validate_config`` hook to :func:`~isaaclab.utils.configclass`. Configclass
   subclasses can now override ``validate_config(self)`` to perform domain-specific
   validation that runs automatically as part of :func:`_validate`.
-~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
