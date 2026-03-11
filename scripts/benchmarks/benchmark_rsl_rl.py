@@ -46,6 +46,15 @@ parser.add_argument(
     help="Benchmarking backend options, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
+parser.add_argument(
+    "--reward_threshold", type=float, default=None, help="Reward threshold for convergence (overrides config)."
+)
+parser.add_argument(
+    "--check_convergence", action="store_true", help="Check reward convergence using thresholds from configs.yaml."
+)
+parser.add_argument(
+    "--convergence_config", type=str, default="full", help="Config mode for convergence thresholds (default: full)."
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -89,6 +98,7 @@ from scripts.benchmarks.utils import (
     get_backend_type,
     get_preset_string,
     log_app_start_time,
+    log_convergence,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
     log_rl_policy_rewards,
@@ -258,6 +268,16 @@ def main(
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
         log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])
         log_rl_policy_episode_lengths(benchmark, log_data["Train/mean_episode_length"])
+
+        log_convergence(
+            benchmark,
+            log_data["Train/mean_reward"],
+            args_cli.task,
+            workflow="rsl_rl",
+            should_check_convergence=args_cli.check_convergence,
+            reward_threshold=args_cli.reward_threshold,
+            convergence_config=args_cli.convergence_config,
+        )
 
         benchmark._finalize_impl()
 
