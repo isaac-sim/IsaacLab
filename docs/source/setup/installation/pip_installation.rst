@@ -39,9 +39,9 @@ Installing dependencies
 
 .. note::
 
-    On aarch64 (e.g., DGX Spark), ``imgui-bundle`` and ``quadprog`` must be compiled from source because no
-    pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
-    **before** installing Isaac Lab:
+   On aarch64 (e.g., DGX Spark), ``imgui-bundle`` and ``quadprog`` must be compiled from source because no
+   pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
+   **before** installing Isaac Lab:
 
     .. code-block:: bash
 
