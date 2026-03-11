@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
+* Jessica Martinez
 * Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
@@ -135,6 +136,7 @@ Guidelines for modifications:
 * Paul Reeves
 * Peter Du
 * Philipp Reist
+* Piotr Barejko
 * Pulkit Goyal
 * Qian Wan
 * Qingyang Jiang
@@ -145,6 +147,7 @@ Guidelines for modifications:
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise
+* Ruben D'Sa
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
@@ -182,7 +185,6 @@ Guidelines for modifications:
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
-* Piotr Barejko
 
 ## Acknowledgements
 

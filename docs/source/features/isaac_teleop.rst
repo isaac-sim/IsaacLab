@@ -207,6 +207,158 @@ The built-in Isaac Lab environments use these retargeters as follows:
      - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``LocomotionRootCmdRetargeter``, ``TensorReorderer``
 
 
+.. _isaac-teleop-env-control-reference:
+
+Teleoperation Environment Reference
+------------------------------------
+
+The table below lists every built-in Isaac Lab environment that ships with an Isaac Teleop
+pipeline, what input mode it expects, and how the operator interacts with the robot.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 14 14 44
+
+   * - Task ID
+     - Input Mode
+     - Hands
+     - Operator Interaction
+   * - ``Isaac-Stack-Cube-Franka-IK-Abs-v0``
+     - Controllers
+     - Right
+     - **Arm:** right controller grip pose drives end-effector.
+       **Gripper:** right trigger.
+   * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0``
+     - Hand tracking
+     - Left
+     - **Arm:** left hand wrist position drives end-effector.
+       **Gripper:** thumb-index pinch distance.
+   * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+     - Hand tracking
+     - Right
+     - **Arm:** right hand wrist position drives end-effector.
+       **Gripper:** thumb-index pinch distance.
+   * - ``Isaac-PickPlace-GR1T2-Abs-v0``
+     - Hand tracking
+     - Both
+     - **Arms:** left/right hand wrist pose drives each end-effector.
+       **Hands:** full 26-joint hand tracking retargeted to 11 DOF per Fourier hand via ``DexHandRetargeter``.
+   * - ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``
+     - Hand tracking
+     - Both
+     - Same as ``Isaac-PickPlace-GR1T2-Abs-v0`` with waist DOFs enabled.
+   * - ``Isaac-NutPour-GR1T2-Pink-IK-Abs-v0``
+     - Hand tracking
+     - Both
+     - Same retargeting pipeline as ``Isaac-PickPlace-GR1T2-Abs-v0`` (different task scene).
+   * - ``Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0``
+     - Hand tracking
+     - Both
+     - Same retargeting pipeline as ``Isaac-PickPlace-GR1T2-Abs-v0`` (different task scene).
+   * - ``Isaac-PickPlace-G1-InspireFTP-Abs-v0``
+     - Hand tracking
+     - Both
+     - **Arms:** left/right hand wrist pose drives each end-effector.
+       **Hands:** full 26-joint hand tracking retargeted to 12 DOF per Inspire hand via ``DexHandRetargeter``.
+   * - ``Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0``
+     - Controllers
+     - Both
+     - **Arms:** left/right controller grip pose drives each end-effector.
+       **Hands:** trigger closes index, squeeze closes middle, both together close thumb (7 DOF TriHand per hand).
+   * - ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``
+     - Controllers
+     - Both
+     - **Arms:** same as fixed-base G1 above.
+       **Hands:** same TriHand mapping.
+       **Locomotion:** left thumbstick = linear velocity (x/y), right thumbstick X = rotational velocity, right thumbstick Y = hip height.
+
+.. tip::
+
+   **Controllers** provide a grip pose plus physical buttons (trigger, squeeze, thumbstick),
+   ideal for tasks that need a gripper or simple hand mapping. **Hand tracking** captures 26
+   wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.
+
+
+.. _isaac-teleop-switching-input-mode:
+
+Switch Between Controllers and Hand Tracking
+---------------------------------------------
+
+The retargeting pipeline determines whether an environment uses motion controllers or hand
+tracking. Switching input modes requires changing the ``pipeline_builder`` function in your
+environment config. No other environment-level changes are needed as long as the action
+space (``TensorReorderer`` output order) stays the same.
+
+**Controller to hand tracking**
+
+The key changes are:
+
+#. Create a ``HandsSource`` and apply the world-to-anchor transform to it (instead of
+   ``ControllersSource``).
+#. Point the ``Se3RetargeterConfig.input_device`` at the appropriate ``HandsSource`` key.
+#. Set ``use_wrist_rotation=True`` and ``use_wrist_position=True`` so that the SE3 retargeter
+   reads from the hand wrist joint rather than the controller grip pose.
+#. The ``GripperRetargeter`` already supports both inputs -- it uses the controller trigger
+   when connected to a ``ControllersSource`` or thumb-index pinch when connected to a
+   ``HandsSource``.
+
+Here is the Franka stack environment's controller-based pipeline alongside a hand-tracking
+variant for comparison.
+
+**Original (controller-based):**
+
+.. code-block:: python
+   :emphasize-lines: 4-5,10-12
+
+   # SE3: tracks right controller grip pose
+   se3_cfg = Se3RetargeterConfig(
+       input_device=ControllersSource.RIGHT,
+       use_wrist_rotation=False,
+       use_wrist_position=False,
+       target_offset_roll=90.0,
+   )
+   se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
+   connected_se3 = se3.connect({
+       ControllersSource.RIGHT: transformed_controllers.output(
+           ControllersSource.RIGHT
+       ),
+   })
+
+**Modified (hand-tracking-based):**
+
+.. code-block:: python
+   :emphasize-lines: 2-5,9-11
+
+   se3_cfg = Se3RetargeterConfig(
+       input_device=HandsSource.RIGHT,
+       use_wrist_rotation=True,
+       use_wrist_position=True,
+       target_offset_roll=0.0,
+   )
+   se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
+
+   transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
+   connected_se3 = se3.connect({
+       HandsSource.RIGHT: transformed_hands.output(HandsSource.RIGHT),
+   })
+
+The ``GripperRetargeter`` needs no changes -- it accepts both controller and hand inputs and
+uses whichever source is connected.
+
+**Hand tracking to controller**
+
+Reverse the steps above: set ``input_device`` to a ``ControllersSource`` key, transform the
+controllers instead of the hands, and set ``use_wrist_rotation=False`` and
+``use_wrist_position=False``. Adjust ``target_offset_roll/pitch/yaw`` to account for the
+controller grip frame orientation (typically 90 degrees roll for Franka-style grippers).
+
+.. note::
+
+   When switching between input modes, you may need to tune the ``target_offset_roll``,
+   ``target_offset_pitch``, and ``target_offset_yaw`` values. Controller grip frames and hand
+   wrist frames have different default orientations relative to the robot end-effector.
+
+
 .. _isaac-teleop-pipeline-builder:
 
 Build a Retargeting Pipeline
@@ -391,7 +543,9 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task Isaac-PickPlace-GR1T2-Abs-v0
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit \
+       --xr
 
 The workflow is:
 
