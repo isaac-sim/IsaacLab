@@ -43,6 +43,7 @@ class RetargeterBase(ABC):
         HAND_TRACKING = "hand_tracking"
         HEAD_TRACKING = "head_tracking"
         MOTION_CONTROLLER = "motion_controller"
+        BODY_TRACKING = "body_tracking"
 
     @abstractmethod
     def retarget(self, data: Any) -> Any:
