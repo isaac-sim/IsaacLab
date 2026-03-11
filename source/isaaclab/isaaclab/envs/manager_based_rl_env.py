@@ -20,6 +20,8 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+from .utils.video_recorder import VideoRecorder
+from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -86,6 +88,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
+
+        # instantiate the viewport recorder for rgb_array video capture
+        if self.cfg.video_recorder is not None:
+            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
+                self.cfg.video_recorder, self.scene
+            )
+        else:
+            self.video_recorder = None
+
         print("[INFO]: Completed setting up the environment...")
 
     """
@@ -273,8 +284,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # Prefer TiledCamera when available — works for all backends (kitless and Kit-based)
             # and produces consistent, scene-content frames.  Fall back to the omni.replicator
             # viewer-camera path only when no TiledCamera with RGB output exists in the scene.
-            if self._find_video_camera() is not None:
-                return self._render_tiled_camera_rgb_array()
+            if self.video_recorder is not None:
+                frame = self.video_recorder.render_rgb_array()
+                if frame is not None:
+                    return frame
             if not self.sim.has_gui and not self.sim.has_offscreen_render:
                 raise RuntimeError(
                     "Cannot render 'rgb_array': no TiledCamera sensor with RGB output was found in"
@@ -305,52 +318,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
             )
-
-    def _find_video_camera(self):
-        """
-            Locates and caches the first TiledCamera sensor with RGB output.
-            Previously used the omni.replicator viewer camera which had RGB output.
-            Returns ``None`` if absent.
-        """
-        if not hasattr(self, "_video_camera"):
-            from isaaclab.sensors.camera import TiledCamera
-
-            self._video_camera = None
-            for sensor in self.scene.sensors.values():
-                if isinstance(sensor, TiledCamera):
-                    output = sensor.data.output
-                    if "rgb" in output or "rgba" in output:
-                        self._video_camera = sensor
-                        break
-        return self._video_camera
-
-    def _render_tiled_camera_rgb_array(self) -> np.ndarray:
-        """Return a square tile-grid of RGB frames from the scene's TiledCamera.
-
-        Create a square grid of tiles. This method reads directly from the
-        TiledCamera sensor buffer to generate the tiles.
-
-        Returns:
-            RGB image of shape ``(G*H, G*W, 3)`` and dtype ``uint8``, where
-            ``G = ceil(sqrt(num_envs))`` and ``(H, W)`` is the per-tile resolution.
-        """
-        output = self._video_camera.data.output
-        # shape: [num_envs, H, W, 3], uint8
-        rgb_all = output["rgb"] if "rgb" in output else output["rgba"][..., :3]
-
-        n_envs = int(rgb_all.shape[0])
-        grid_size = math.ceil(math.sqrt(n_envs))
-        n_slots = grid_size * grid_size
-        tiles = rgb_all.cpu().numpy()  # [n_envs, H, W, 3]
-        H, W = tiles.shape[1], tiles.shape[2]
-        # Pad unused slots with black to fill the square grid.
-        pad = n_slots - n_envs
-        if pad > 0:
-            tiles = np.concatenate([tiles, np.zeros((pad, H, W, 3), dtype=tiles.dtype)], axis=0)
-        # [grid_size, grid_size, H, W, 3] → [grid_size*H, grid_size*W, 3]
-        grid = tiles.reshape(grid_size, grid_size, H, W, 3)
-        grid = grid.transpose(0, 2, 1, 3, 4)  # [grid_size, H, grid_size, W, 3]
-        return grid.reshape(grid_size * H, grid_size * W, 3)
 
     def close(self):
         if not self._is_closed:

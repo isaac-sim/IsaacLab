@@ -26,6 +26,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from .common import ViewerCfg
+from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 @configclass
@@ -163,3 +164,16 @@ class ManagerBasedEnvCfg:
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
+
+    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
+    """Configuration for the viewport recorder used when ``render_mode="rgb_array"``.
+
+    Defaults to a :class:`~isaaclab.envs.VideoRecorderCfg` that captures all environments
+    in a square tile-grid using :class:`~isaaclab.envs.VideoRecorder`.
+
+    Set :attr:`~isaaclab.envs.VideoRecorderCfg.class_type` to a custom subclass to swap the
+    capture implementation without modifying environment code.  Set to ``None`` to disable
+    TiledCamera-based recording entirely and fall back to the Kit-based omni.replicator path.
+
+    CLI example: ``env.video_recorder.video_num_tiles=9``
+    """
