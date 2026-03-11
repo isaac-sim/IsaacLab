@@ -67,9 +67,6 @@ class ManagerTermBase(ABC):
         # store the inputs
         self.cfg = cfg
         self._env = env
-        # Layout key — set by subclass or manager to enable centralized
-        # env-id mapping via ``env.scene.layout``.
-        self._layout_key: str | None = None
 
     """
     Properties.
@@ -77,14 +74,7 @@ class ManagerTermBase(ABC):
 
     @property
     def num_envs(self) -> int:
-        """Number of environments managed by this term.
-
-        When a layout key is set, the term only manages a subset of
-        environments, so this returns the size of that subset rather
-        than the total environment count.
-        """
-        if self._layout_key is not None:
-            return self._env.scene.layout.num_envs_for(self._layout_key)
+        """Number of environments managed by this term."""
         return self._env.num_envs
 
     @property

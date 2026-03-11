@@ -26,8 +26,8 @@ def reset_multitask_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor
     """
     layout = env.scene.layout
     # rigid bodies
-    for rigid_object in env.scene.rigid_objects.values():
-        key = rigid_object._layout_key
+    for name, rigid_object in env.scene.rigid_objects.items():
+        key = layout.group_for_asset(name)
         local_ids, global_ids = layout.filter_and_split(key, env_ids) if key else (env_ids, env_ids)
         if local_ids.numel() == 0:
             continue
@@ -37,8 +37,8 @@ def reset_multitask_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor
         rigid_object.write_root_pose_to_sim_index(root_pose=default_pose, env_ids=local_ids)
         rigid_object.write_root_velocity_to_sim_index(root_velocity=default_vel, env_ids=local_ids)
     # articulations
-    for articulation_asset in env.scene.articulations.values():
-        key = articulation_asset._layout_key
+    for name, articulation_asset in env.scene.articulations.items():
+        key = layout.group_for_asset(name)
         local_ids, global_ids = layout.filter_and_split(key, env_ids) if key else (env_ids, env_ids)
         if local_ids.numel() == 0:
             continue

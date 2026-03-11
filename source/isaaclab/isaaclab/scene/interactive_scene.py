@@ -446,57 +446,26 @@ class InteractiveScene:
                 Defaults to None (all instances).
         """
         layout = self._layout
-        if env_ids is not None and layout.is_heterogeneous:
-            env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-            for articulation in self._articulations.values():
-                key = articulation._layout_key
-                if key is not None:
-                    local = layout.global_to_local(key, env_ids_t)
-                    if local.numel() > 0:
-                        articulation.reset(local)
-                else:
-                    articulation.reset(env_ids)
-            for deformable_object in self._deformable_objects.values():
-                key = deformable_object._layout_key
-                if key is not None:
-                    local = layout.global_to_local(key, env_ids_t)
-                    if local.numel() > 0:
-                        deformable_object.reset(local)
-                else:
-                    deformable_object.reset(env_ids)
-            for rigid_object in self._rigid_objects.values():
-                key = rigid_object._layout_key
-                if key is not None:
-                    local = layout.global_to_local(key, env_ids_t)
-                    if local.numel() > 0:
-                        rigid_object.reset(local)
-                else:
-                    rigid_object.reset(env_ids)
-            for surface_gripper in self._surface_grippers.values():
-                key = surface_gripper._layout_key
-                if key is not None:
-                    local = layout.global_to_local(key, env_ids_t)
-                    if local.numel() > 0:
-                        surface_gripper.reset(local)
-                else:
-                    surface_gripper.reset(env_ids)
-            for rigid_object_collection in self._rigid_object_collections.values():
-                rigid_object_collection.reset(env_ids)
-            for sensor in self._sensors.values():
-                sensor.reset(env_ids)
-        else:
-            for articulation in self._articulations.values():
-                articulation.reset(env_ids)
-            for deformable_object in self._deformable_objects.values():
-                deformable_object.reset(env_ids)
-            for rigid_object in self._rigid_objects.values():
-                rigid_object.reset(env_ids)
-            for surface_gripper in self._surface_grippers.values():
-                surface_gripper.reset(env_ids)
-            for rigid_object_collection in self._rigid_object_collections.values():
-                rigid_object_collection.reset(env_ids)
-            for sensor in self._sensors.values():
-                sensor.reset(env_ids)
+        for name, articulation in self._articulations.items():
+            local = layout.resolve_asset_env_ids(name, env_ids)
+            if local is not None:
+                articulation.reset(local)
+        for name, deformable_object in self._deformable_objects.items():
+            local = layout.resolve_asset_env_ids(name, env_ids)
+            if local is not None:
+                deformable_object.reset(local)
+        for name, rigid_object in self._rigid_objects.items():
+            local = layout.resolve_asset_env_ids(name, env_ids)
+            if local is not None:
+                rigid_object.reset(local)
+        for name, surface_gripper in self._surface_grippers.items():
+            local = layout.resolve_asset_env_ids(name, env_ids)
+            if local is not None:
+                surface_gripper.reset(local)
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.reset(env_ids)
+        for sensor in self._sensors.values():
+            sensor.reset(env_ids)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
@@ -821,15 +790,18 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = layout_key
+                if layout_key is not None:
+                    self._layout.register_asset(asset_name, layout_key)
                 self._articulations[asset_name] = asset
             elif isinstance(asset_cfg, DeformableObjectCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = layout_key
+                if layout_key is not None:
+                    self._layout.register_asset(asset_name, layout_key)
                 self._deformable_objects[asset_name] = asset
             elif isinstance(asset_cfg, RigidObjectCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = layout_key
+                if layout_key is not None:
+                    self._layout.register_asset(asset_name, layout_key)
                 self._rigid_objects[asset_name] = asset
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
@@ -851,7 +823,8 @@ class InteractiveScene:
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
                 asset = asset_cfg.class_type(asset_cfg)
-                asset._layout_key = layout_key
+                if layout_key is not None:
+                    self._layout.register_asset(asset_name, layout_key)
                 self._surface_grippers[asset_name] = asset
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer

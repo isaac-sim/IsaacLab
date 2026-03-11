@@ -51,7 +51,7 @@ class UniformPose2dCommand(CommandTerm):
         # obtain the robot and terrain assets
         # -- robot
         self.robot: Articulation = env.scene[cfg.asset_name]
-        self._robot_data_slice = self._resolve_asset_data_indices(self.robot)
+        self._robot_data_slice = self._resolve_asset_data_indices(cfg.asset_name)
 
         # crete buffers to store the command
         # -- commands: (x, y, z, heading)

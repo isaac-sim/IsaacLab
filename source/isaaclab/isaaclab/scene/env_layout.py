@@ -55,6 +55,9 @@ class EnvLayout:
         self._masks: dict[tuple[int, ...], torch.Tensor] = {}
         # task-group partition (populated by apply_task_groups)
         self._task_group_partition: dict[str, list[int]] | None = None
+        # entity → group key mappings (centralized registry)
+        self._asset_groups: dict[str, str] = {}
+        self._term_groups: dict[str, str] = {}
 
     # ── properties ────────────────────────────────────────────────────────
 
@@ -124,6 +127,61 @@ class EnvLayout:
                 f"Available groups: {list(self._task_group_partition.keys())}"
             )
         return self._task_group_partition[task_group]
+
+    # ── entity registry ────────────────────────────────────────────────────
+
+    def register_asset(self, asset_name: str, group_key: str) -> None:
+        """Register an asset → group mapping.
+
+        Called by :class:`InteractiveScene` during setup so that managers
+        can later resolve layout information by asset name alone.
+
+        Args:
+            asset_name: Scene-level name of the asset.
+            group_key: The group key (must already be registered via
+                :meth:`register` or :meth:`apply_task_groups`).
+        """
+        self._asset_groups[asset_name] = group_key
+
+    def register_term(self, term_id: str, group_key: str) -> None:
+        """Register a manager-term → group mapping.
+
+        Called by managers during ``_prepare_terms`` so that subsequent
+        dispatch operations (reset, process_action, …) can resolve
+        layout information by term name alone.
+
+        Args:
+            term_id: Manager-level term name (the config attribute name).
+            group_key: The group key.
+        """
+        self._term_groups[term_id] = group_key
+
+    def group_for_asset(self, asset_name: str) -> str | None:
+        """Return the group key for an asset, or ``None`` if not registered."""
+        return self._asset_groups.get(asset_name)
+
+    def group_for_term(self, term_id: str) -> str | None:
+        """Return the group key for a manager term, or ``None``."""
+        return self._term_groups.get(term_id)
+
+    def resolve_group_key(self, *, task_group: str | None = None, asset_name: str | None = None) -> str | None:
+        """Resolve a group key from configuration parameters.
+
+        Priority: *task_group* (if it names a registered group) >
+        *asset_name* (via :meth:`group_for_asset`).
+
+        Args:
+            task_group: Explicit task-group name from the term config.
+            asset_name: Asset name whose group to inherit.
+
+        Returns:
+            The resolved group key, or ``None`` when homogeneous.
+        """
+        if task_group is not None and task_group in self._groups:
+            return task_group
+        if asset_name is not None:
+            return self._asset_groups.get(asset_name)
+        return None
 
     # ── registration ──────────────────────────────────────────────────────
 
@@ -289,6 +347,66 @@ class EnvLayout:
         if asset_key not in self._groups:
             return self.env_slice(term_key)
         return slice(None)
+
+    # ── high-level dispatch helpers ────────────────────────────────────────
+
+    def resolve_env_ids(
+        self, key: str | None, env_ids: Sequence[int] | slice | None
+    ) -> Sequence[int] | torch.Tensor | slice | None:
+        """Map global *env_ids* to local indices for a group.
+
+        Handles all edge cases so callers need no branching logic:
+
+        * ``env_ids`` is ``None`` or ``slice`` → returned as-is.
+        * *key* is ``None`` or unregistered → *env_ids* returned unchanged.
+        * Otherwise → :meth:`global_to_local` is applied; returns ``None``
+          when no environments match (caller should skip the term/asset).
+
+        Args:
+            key: Group key, or ``None`` for homogeneous entities.
+            env_ids: Global env indices, ``slice(None)``, or ``None``.
+
+        Returns:
+            Local env indices, ``slice(None)``/``None`` (pass-through),
+            or ``None`` if no environments belong to this group.
+        """
+        if key is None or key not in self._groups:
+            return env_ids
+        if env_ids is None or isinstance(env_ids, slice):
+            return env_ids
+        env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self._device)
+        local = self.global_to_local(key, env_ids_t)
+        return local if local.numel() > 0 else None
+
+    def resolve_term_env_ids(
+        self, term_id: str, env_ids: Sequence[int] | slice | None
+    ) -> Sequence[int] | torch.Tensor | slice | None:
+        """Convenience: :meth:`resolve_env_ids` keyed by term name."""
+        return self.resolve_env_ids(self._term_groups.get(term_id), env_ids)
+
+    def resolve_asset_env_ids(
+        self, asset_name: str, env_ids: Sequence[int] | slice | None
+    ) -> Sequence[int] | torch.Tensor | slice | None:
+        """Convenience: :meth:`resolve_env_ids` keyed by asset name."""
+        return self.resolve_env_ids(self._asset_groups.get(asset_name), env_ids)
+
+    def term_env_slice(self, term_id: str) -> slice | torch.Tensor:
+        """Return the env slice for a registered term.
+
+        Falls back to ``slice(None)`` when the term is not registered
+        or covers all environments.
+        """
+        return self.env_slice(self._term_groups.get(term_id))
+
+    def term_num_envs(self, term_id: str) -> int:
+        """Return the number of environments managed by a registered term."""
+        return self.num_envs_for(self._term_groups.get(term_id))
+
+    def term_cross_slice(self, term_id: str, asset_name: str) -> slice | torch.Tensor:
+        """Return a cross-slice aligning asset data with a term's buffers."""
+        term_key = self._term_groups.get(term_id)
+        asset_key = self._asset_groups.get(asset_name)
+        return self.cross_slice(term_key, asset_key)
 
     # ── metrics ───────────────────────────────────────────────────────────
 

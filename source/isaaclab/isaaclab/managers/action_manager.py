@@ -63,8 +63,6 @@ class ActionTerm(ManagerTermBase):
         self._debug_vis_handle = None
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
-        # resolve layout key from the underlying asset
-        self._layout_key = self._asset._layout_key
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
@@ -75,6 +73,17 @@ class ActionTerm(ManagerTermBase):
     """
     Properties.
     """
+
+    @property
+    def num_envs(self) -> int:
+        """Number of environments managed by this action term.
+
+        Resolves the subset count from the centralized :class:`EnvLayout`
+        based on the asset this term is applied to.
+        """
+        layout = self._env.scene.layout
+        key = layout.group_for_asset(self.cfg.asset_name)
+        return layout.num_envs_for(key)
 
     @property
     @abstractmethod
@@ -370,19 +379,10 @@ class ActionManager(ManagerBase):
         self._action[env_ids] = 0.0
         # reset all action terms — dispatch through layout
         layout = self._env.scene.layout
-        if layout.is_heterogeneous and not isinstance(env_ids, slice):
-            env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-            for term in self._terms.values():
-                key = term._layout_key
-                if key:
-                    local = layout.global_to_local(key, env_ids_t)
-                    if local.numel() > 0:
-                        term.reset(env_ids=local)
-                else:
-                    term.reset(env_ids=env_ids)
-        else:
-            for term in self._terms.values():
-                term.reset(env_ids=env_ids)
+        for term_name, term in self._terms.items():
+            local = layout.resolve_term_env_ids(term_name, env_ids)
+            if local is not None:
+                term.reset(env_ids=local)
         # nothing to log here
         return {}
 
@@ -405,8 +405,8 @@ class ActionManager(ManagerBase):
         # split the actions and apply to each tensor
         layout = self._env.scene.layout
         idx = 0
-        for term in self._terms.values():
-            env_sel = layout.env_slice(term._layout_key) if term._layout_key else slice(None)
+        for term_name, term in self._terms.items():
+            env_sel = layout.term_env_slice(term_name)
             term_actions = action[env_sel, idx : idx + term.action_dim]
             term.process_actions(term_actions)
             idx += term.action_dim
@@ -472,6 +472,11 @@ class ActionManager(ManagerBase):
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")
+            # register term → group mapping in the centralized layout
+            layout = self._env.scene.layout
+            group_key = layout.group_for_asset(term_cfg.asset_name)
+            if group_key is not None:
+                layout.register_term(term_name, group_key)
             # add term name and parameters
             self._term_names.append(term_name)
             self._terms[term_name] = term
