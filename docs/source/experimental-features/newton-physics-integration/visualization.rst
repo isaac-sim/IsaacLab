@@ -136,17 +136,17 @@ For the migration-focused summary and deprecation context, see
    :widths: 30 35 35
 
    * - CLI args
-     - ``SimulationCfg.visualizer_cfgs``
+     - visualizer configs
      - Effective behavior
    * - no ``--viz``
-     - ``None`` or ``[]``
+     - ``[]``
      - Run headless (no visualizers requested by CLI or config).
    * - no ``--viz``
      - ``[KitVisualizerCfg(...), NewtonVisualizerCfg(...)]``
      - Use config visualizers directly (see :ref:`visualization-configuration`).
    * - no ``--viz``
-     - ``[NewtonVisualizerCfg(...)]`` (no Kit)
-     - Run headless and launch non-Kit visualizers from config (see :ref:`visualization-configuration`).
+     - ``[NewtonVisualizerCfg(...)]``
+     - Run headless and launch visualizers from config (see :ref:`visualization-configuration`).
    * - ``--viz none``
      - any
      - Run headless with all visualizers disabled.

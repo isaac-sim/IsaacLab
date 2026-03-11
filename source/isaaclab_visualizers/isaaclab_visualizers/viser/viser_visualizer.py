@@ -248,6 +248,8 @@ class ViserVisualizer(BaseVisualizer):
             )
         max_worlds = self.cfg.max_worlds
         self._viewer.set_model(self._model, max_worlds=max_worlds)
+        # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
             _open_viser_web_viewer(self.cfg.port)
         self._set_viser_camera_view(self._resolve_initial_camera_pose())

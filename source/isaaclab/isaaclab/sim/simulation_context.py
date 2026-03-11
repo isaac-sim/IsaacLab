@@ -343,7 +343,7 @@ class SimulationContext:
             self._has_gui
             or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.get_setting("/isaaclab/visualizer/types"))
+            or bool(self.resolve_visualizer_types())
         )
 
     def get_physics_dt(self) -> float:
