@@ -472,7 +472,7 @@ def command_install(install_type: str = "all") -> None:
 
         # Install no-deps extensions (e.g. isaaclab_ov) with --no-deps so they are
         # importable without pulling in optional deps like ovrtx.
-        if install_type == "all" or install_type in VALID_RL_FRAMEWORKS:
+        if install_type == "all" or install_type in VALID_RL_FRAMEWORKS or install_ovrtx:
             _install_no_deps_extensions()
 
         # Install ovrtx when user requested -i ovrtx (the specific dependency for isaaclab_ov).

@@ -9,6 +9,7 @@ __all__ = [
     "load_cfg_from_registry",
     "parse_env_cfg",
     "PresetCfg",
+    "UnavailablePreset",
     "resolve_task_config",
     "hydra_task_config",
     "resolve_preset_defaults",
@@ -17,7 +18,7 @@ __all__ = [
     "compute_kit_requirements",
 ]
 
-from .hydra import PresetCfg, hydra_task_config, resolve_task_config
+from .hydra import PresetCfg, UnavailablePreset, hydra_task_config, resolve_task_config
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from .hydra import resolve_task_config, hydra_task_config, resolve_preset_defaults
