@@ -282,8 +282,6 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
 
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
-    env_cfg.feature_extractor.write_image_to_file = True
-    env_cfg.seed = 42
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -329,8 +327,6 @@ def cartpole_env(request, cartpole_camera_presets):
             env_cfg.events = copy.deepcopy(presets["events"]["newton"])
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
-    env_cfg.write_image_to_file = True
-    env_cfg.seed = 42
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
@@ -380,8 +376,6 @@ def dexsuite_kuka_allegro_lift_env(request, dexsuite_kuka_allegro_lift_presets, 
     env_cfg.observations = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["observations"]["single_camera"])
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
-    env_cfg.write_image_to_file = True
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
