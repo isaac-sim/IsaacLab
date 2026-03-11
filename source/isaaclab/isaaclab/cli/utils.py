@@ -209,7 +209,11 @@ def get_pip_command(python_exe: str | None = None) -> list[str]:
         python_exe: Python executable path.  Resolved via
             :func:`extract_python_exe` when ``None``.
     """
-    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX"))
+    in_venv = bool(
+        os.environ.get("VIRTUAL_ENV")
+        or os.environ.get("CONDA_PREFIX")
+        or (sys.prefix != sys.base_prefix)
+    )
     if shutil.which("uv") and in_venv:
         return ["uv", "pip"]
 
