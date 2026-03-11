@@ -9,9 +9,10 @@ Fixed
 
 * Fixed "[Error] [omni.usd] Stage opening or closing already in progress" on
   shutdown when running with Kit: ``env.close()`` already closes the stage, so
-  the additional call to :func:`~isaaclab.sim.utils.stage.close_stage` from
-  :meth:`~isaaclab.sim.SimulationContext.clear_instance` was removed as
-  redundant (it triggered the error).
+  the redundant explicit :func:`~isaaclab.sim.utils.stage.close_stage` calls
+  in the scripts were removed; :meth:`~isaaclab.sim.SimulationContext.clear_instance`
+  (invoked by ``env.close()``) already closes the stage, so the duplicate calls
+  in the shutdown block triggered the error.
 
 
 4.5.15 (2026-03-10)
