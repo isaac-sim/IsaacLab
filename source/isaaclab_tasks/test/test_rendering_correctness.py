@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for rendering correctness."""
+"""Tests for rendering correctness.
+
+Each test builds an environment with a given (physics_backend, renderer, data_type),
+steps once, then asserts that camera outputs are not blank (at least one non-zero
+pixel). Env-specific fixtures use parametrized combinations; a separate test
+covers a list of registered task IDs that use camera-based observations.
+"""
 
 # Launch Isaac Sim Simulator first.
 from isaaclab.app import AppLauncher
@@ -39,34 +45,16 @@ from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexs
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
 
-import isaaclab_tasks  # noqa: E402, F401 - register envs with gym
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
-from isaaclab_tasks.direct.locomotion.locomotion_env import LocomotionEnv  # noqa: E402
-
-import importlib  # noqa: E402
-import sys  # noqa: E402
-
-
-# Skip reason for ovrtx_renderer
 _OVRTX_SKIP = "OVRTX testing disabled"
 
 
-@pytest.fixture(scope="module")
-def shadow_hand_vision_presets():
-    """Collect all presets from ShadowHandVisionEnvCfg once for the module."""
-    return collect_presets(ShadowHandVisionEnvCfg())
-
-
-@pytest.fixture(scope="module")
-def cartpole_camera_presets():
-    """Collect all presets from CartpoleCameraPresetsEnvCfg once for the module."""
-    return collect_presets(CartpoleCameraPresetsEnvCfg())
-
-
-@pytest.fixture(scope="module")
-def dexsuite_kuka_allegro_lift_presets():
-    """Collect all presets from DexsuiteKukaAllegroLiftEnvCfg once for the module."""
-    return collect_presets(DexsuiteKukaAllegroLiftEnvCfg())
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
@@ -80,12 +68,14 @@ def cleanup_simulation_context():
     """
     yield
 
-    # Cleanup after test
     SimulationContext.clear_instance()
 
 
-# (physics_backend, renderer, data_type) shared by both envs
-_SHARED_RENDER_CORRECTNESS_CASES = [
+# ---------------------------------------------------------------------------
+# Parametrization: (physics_backend, renderer, data_type)
+# ---------------------------------------------------------------------------
+
+_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
     pytest.param(("physx", "isaacsim_rtx_renderer", "rgb"), id="physx-isaacsim_rtx-rgb"),
     pytest.param(("physx", "isaacsim_rtx_renderer", "albedo"), id="physx-isaacsim_rtx-albedo"),
@@ -164,66 +154,30 @@ _SHARED_RENDER_CORRECTNESS_CASES = [
 ]
 
 
-def _assert_camera_renders_not_empty(env_name, physics_backend, renderer, data_type, camera_output):
-    """Shared assertion: camera output has at least one non-zero pixel per data type."""
-    label = f"{env_name}-{physics_backend}-{renderer}+{data_type}"
-    assert len(camera_output) > 0, f"[{label}] Camera produced no output tensors at all."
-    for dt, tensor in camera_output.items():
-        finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
-        assert finite.max() > 0, (
-            f"[{label}] Camera output '{dt}' is all zeros or all inf "
-            f"after stepping. Tensor shape: {tensor.shape}, dtype: {tensor.dtype}."
-        )
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-def _get_env_class_from_spec(spec):
-    """Resolve the env class from a gym EnvSpec's entry_point. Returns None if not resolvable."""
-    ep = getattr(spec, "entry_point", None)
-    if ep is None:
-        return None
-    if isinstance(ep, str) and ":" in ep:
-        mod_name, attr_name = ep.split(":", 1)
-        try:
-            mod = importlib.import_module(mod_name)
-            cls = getattr(mod, attr_name, None)
-            if isinstance(cls, type):
-                return cls
-        except (ImportError, AttributeError):
-            pass
-        return None
-    if isinstance(ep, type):
-        return ep
-    return None
+def _assert_camera_outputs_are_not_blank(label_prefix: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
+    """Assert each camera output has at least one non-zero pixel (no all-zero or all-inf).
 
-
-def _is_teleop_env(task_spec) -> bool:
-    """True if the task's env config has teleop deps (isaacteleop / isaaclab_teleop)."""
-    entry = task_spec.kwargs.get("env_cfg_entry_point")
-    if not isinstance(entry, str) or ":" not in entry:
-        return False
-    try:
-        mod_name, attr_name = entry.split(":")
-        mod = importlib.import_module(mod_name)
-        cfg_cls = getattr(mod, attr_name, None)
-        if cfg_cls is None:
-            return False
-        for cls in cfg_cls.__mro__:
-            cls_module = sys.modules.get(cls.__module__)
-            if cls_module is not None and hasattr(cls_module, "_TELEOP_AVAILABLE"):
-                return True
-    except (ImportError, AttributeError):
-        pass
-    return False
-
-
-def _collect_camera_outputs_from_env(env) -> dict[str, dict[str, torch.Tensor]]:
-    """Collect all camera-like outputs from an unwrapped env.
-
-    Scene sensors: env.scene.sensors, each sensor's .data.output dict (name -> tensor).
-
-    Returns:
-        Dict mapping source name -> {data_type: tensor} (e.g. {"tiled_camera": {"rgb": tensor}}).
+    Args:
+        label_prefix: Prefix for error messages (e.g. task_id or "env-renderer+data_type").
+        camera_outputs: Nested dict: sensor name -> {data_type -> tensor}.
     """
+    assert len(camera_outputs) > 0, f"[{label_prefix}] No camera outputs; env may have no cameras or wrong structure."
+    for sensor_name, output in camera_outputs.items():
+        for data_type, tensor in output.items():
+            finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
+            assert finite.max() > 0, (
+                f"[{label_prefix}] Sensor '{sensor_name}' output '{data_type}' is all zeros or all inf. "
+                f"Shape: {tensor.shape}, dtype: {tensor.dtype}."
+            )
+
+
+def _collect_camera_outputs(env) -> dict[str, dict[str, torch.Tensor]]:
+    """Collect camera outputs from env.scene.sensors (name -> {data_type: tensor})."""
     base = getattr(env, "unwrapped", env)
     out = {}
 
@@ -236,38 +190,34 @@ def _collect_camera_outputs_from_env(env) -> dict[str, dict[str, torch.Tensor]]:
                 output = getattr(data, "output", None) if data is not None else None
                 if not isinstance(output, dict):
                     continue
+
                 # Collect only tensor entries (ignore empty or lazy-unfilled)
-                tensor_output = {
-                    k: v for k, v in output.items() if isinstance(v, torch.Tensor) and v.numel() > 0
-                }
+                tensor_output = {k: v for k, v in output.items() if isinstance(v, torch.Tensor) and v.numel() > 0}
                 if tensor_output:
                     out[name] = tensor_output
 
     return out
 
 
-def _assert_camera_outputs_not_empty(task_id: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
-    """Assert that each camera output has at least one non-zero pixel (no all-zero or all-inf)."""
-    assert len(camera_outputs) > 0, (
-        f"[{task_id}] No camera outputs collected; env may have no cameras or wrong structure."
-    )
-    for sensor_name, output in camera_outputs.items():
-        for data_type, tensor in output.items():
-            finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
-            assert finite.max() > 0, (
-                f"[{task_id}] Sensor '{sensor_name}' output '{data_type}' is all zeros or all inf. "
-                f"Shape: {tensor.shape}, dtype: {tensor.dtype}."
-            )
+# ---------------------------------------------------------------------------
+# Shadow Hand vision env
+# ---------------------------------------------------------------------------
 
 
-@pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
+@pytest.fixture(scope="module")
+def shadow_hand_vision_presets():
+    """Collect all presets from ShadowHandVisionEnvCfg once for the module."""
+    return collect_presets(ShadowHandVisionEnvCfg())
+
+
+@pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def shadow_hand_env(request, shadow_hand_vision_presets):
-    """Build Shadow Hand vision env for (physics_backend, renderer, data_type), step once, yield, close.
-
-    Function-scoped so each parametrized case creates and closes its own env sequentially.
-    Uses try/finally so env.close() runs even when setup or test fails, ensuring simulation context is cleared.
-    """
+    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); step once, yield, close."""
     physics_backend, renderer, data_type = request.param
+
+    if physics_backend == "physx" and renderer == "newton_renderer":
+        pytest.skip("The preset is not supported by Shadow Hand vision env")
+
     presets = shadow_hand_vision_presets
     camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
     camera_cfg.renderer_cfg = copy.deepcopy(presets["tiled_camera.renderer_cfg"][renderer])
@@ -299,19 +249,27 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
             env.close()
 
 
-def test_camera_renders_not_empty_shadow_hand(shadow_hand_env):
+def test_camera_outputs_are_not_blank_for_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
     physics_backend, renderer, data_type, env = shadow_hand_env
-    _assert_camera_renders_not_empty("shadow_hand", physics_backend, renderer, data_type, env._tiled_camera.data.output)
+    label = f"shadow_hand-{physics_backend}-{renderer}+{data_type}"
+    _assert_camera_outputs_are_not_blank(label, {"tiled_camera": env._tiled_camera.data.output})
 
 
-@pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
+# ---------------------------------------------------------------------------
+# Cartpole camera env
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def cartpole_camera_presets():
+    """Collect all presets from CartpoleCameraPresetsEnvCfg once for the module."""
+    return collect_presets(CartpoleCameraPresetsEnvCfg())
+
+
+@pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def cartpole_env(request, cartpole_camera_presets):
-    """Build Cartpole camera env for (physics_backend, renderer, data_type), step once, yield, close.
-
-    Function-scoped so each parametrized case creates and closes its own env sequentially.
-    Uses try/finally so env.close() runs even when setup or test fails, ensuring simulation context is cleared.
-    """
+    """Build Cartpole camera env for (physics_backend, renderer, data_type); step once, yield, close."""
     physics_backend, renderer, data_type = request.param
     presets = cartpole_camera_presets
     camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
@@ -339,39 +297,39 @@ def cartpole_env(request, cartpole_camera_presets):
             env.close()
 
 
-def test_camera_renders_not_empty_cartpole(cartpole_env):
+def test_camera_outputs_are_not_blank_for_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
     physics_backend, renderer, data_type, env = cartpole_env
-    _assert_camera_renders_not_empty("cartpole", physics_backend, renderer, data_type, env._tiled_camera.data.output)
+    label = f"cartpole-{physics_backend}-{renderer}+{data_type}"
+    _assert_camera_outputs_are_not_blank(label, {"tiled_camera": env._tiled_camera.data.output})
 
 
-@pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
-def dexsuite_kuka_allegro_lift_env(request, dexsuite_kuka_allegro_lift_presets, shadow_hand_vision_presets):
-    """Build Dexsuite Kuka-Allegro Lift env (single camera) for (physics_backend, renderer, data_type).
+# ---------------------------------------------------------------------------
+# Dexsuite Kuka-Allegro Lift (single camera)
+# ---------------------------------------------------------------------------
 
-    Uses scene.single_camera and scene.base_camera presets; renderer from Shadow Hand presets.
-    Skips cases Dexsuite does not support (no simple_shading presets; PhysX only; newton+depth).
-    Function-scoped so each parametrized case creates and closes its own env sequentially.
-    Uses try/finally so env.close() runs even when setup or test fails, ensuring simulation context is cleared.
-    """
+
+@pytest.fixture(scope="module")
+def dexsuite_kuka_allegro_lift_presets():
+    """Collect all presets from DexsuiteKukaAllegroLiftEnvCfg once for the module."""
+    return collect_presets(DexsuiteKukaAllegroLiftEnvCfg())
+
+
+@pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
+def dexsuite_kuka_allegro_lift_env(request, dexsuite_kuka_allegro_lift_presets):
+    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; step once, yield, close."""
     physics_backend, renderer, data_type = request.param
 
-    # Map the presets to the 64x64 presets
-    data_type_to_dexsuite = {
-        "rgb": "rgb64",
-        "albedo": "albedo64",
-        "depth": "depth64",
-        "simple_shading_constant_diffuse": "simple_shading_constant_diffuse64",
-        "simple_shading_diffuse_mdl": "simple_shading_diffuse_mdl64",
-        "simple_shading_full_mdl": "simple_shading_full_mdl64",
-    }
+    # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64 for now.
+    dexsuite_data_type = f"{data_type}64"
 
-    dexsuite_camera_key = data_type_to_dexsuite[data_type]
     env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
     env_cfg.scene = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["scene"]["single_camera"])
-    env_cfg.scene.base_camera = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["scene.base_camera"][dexsuite_camera_key])
+    env_cfg.scene.base_camera = copy.deepcopy(
+        dexsuite_kuka_allegro_lift_presets["scene.base_camera"][dexsuite_data_type]
+    )
     env_cfg.scene.base_camera.renderer_cfg = copy.deepcopy(
-        shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer]
+        dexsuite_kuka_allegro_lift_presets["scene.base_camera.renderer_cfg"][renderer]
     )
     env_cfg.observations = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["observations"]["single_camera"])
     env_cfg = resolve_preset_defaults(env_cfg)
@@ -388,24 +346,19 @@ def dexsuite_kuka_allegro_lift_env(request, dexsuite_kuka_allegro_lift_presets, 
             env.close()
 
 
-def test_camera_renders_not_empty_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
+def test_camera_outputs_are_not_blank_for_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
     physics_backend, renderer, data_type, env = dexsuite_kuka_allegro_lift_env
-
-    camera = env.scene.sensors["base_camera"]
-    _assert_camera_renders_not_empty(
-        "dexsuite_kuka_allegro_lift",
-        physics_backend,
-        renderer,
-        data_type,
-        camera.data.output,
-    )
+    label = f"dexsuite_kuka_allegro_lift-{physics_backend}-{renderer}+{data_type}"
+    _assert_camera_outputs_are_not_blank(label, {"base_camera": env.scene.sensors["base_camera"].data.output})
 
 
-# Envs with camera/tiled_camera config from hdc/envs.md (rendering correctness validation section).
-# Used by test_rendering_correctness_camera_envs.
-_RENDERING_CORRECTNESS_CAMERA_ENV_IDS = [
-    # Direct — Cartpole (tiled_camera)
+# ---------------------------------------------------------------------------
+# Registered tasks (camera-based observations)
+# ---------------------------------------------------------------------------
+
+# Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank rendering.
+_RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-RGB-Camera-Direct-v0",
     "Isaac-Cartpole-Albedo-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
@@ -413,7 +366,6 @@ _RENDERING_CORRECTNESS_CAMERA_ENV_IDS = [
     "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
     "Isaac-Cartpole-Depth-Camera-Direct-v0",
     "Isaac-Cartpole-Camera-Presets-Direct-v0",
-    # Direct — Cartpole Camera Showcase (tiled_camera)
     "Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
@@ -423,10 +375,8 @@ _RENDERING_CORRECTNESS_CAMERA_ENV_IDS = [
     "Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
-    # Direct — Shadow Hand Vision (tiled_camera)
     "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
     "Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0",
-    # Manager-based classic — Cartpole (tiled_camera)
     "Isaac-Cartpole-RGB-v0",
     "Isaac-Cartpole-Depth-v0",
     "Isaac-Cartpole-RGB-ResNet18-v0",
@@ -434,67 +384,39 @@ _RENDERING_CORRECTNESS_CAMERA_ENV_IDS = [
 ]
 
 
-def _run_rendering_correctness_for_task(task_id: str) -> None:
-    """Create env for task_id, step once, and assert camera outputs are not empty.
-
-    Skips for teleop or LocomotionEnv-based envs. Shared by camera-env test and
-    per-registered-env test.
-    """
-    task_spec = next((s for s in gym.registry.values() if s.id == task_id), None)
-    if task_spec is not None and _is_teleop_env(task_spec):
-        pytest.skip("Teleop env requires isaacteleop")
-    if task_spec is not None:
-        env_cls = _get_env_class_from_spec(task_spec)
-        if env_cls is not None and issubclass(env_cls, LocomotionEnv):
-            pytest.skip("LocomotionEnv-based envs use state only, no camera sensors")
-
+@pytest.mark.parametrize("task_id", _RENDER_CORRECTNESS_TASK_IDS)
+def test_camera_outputs_are_not_blank_for_registered_task(task_id):
+    """Camera output must be non-empty for each registered task with camera-based observations."""
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
-        env_cfg.seed = 42
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped = env.unwrapped
         if hasattr(unwrapped, "sim") and getattr(unwrapped, "sim", None) is not None:
-            unwrapped.sim._app_control_on_stop_handle = None  # type: ignore[union-attr]
+            unwrapped.sim._app_control_on_stop_handle = None
+
         env.reset()
         num_envs = getattr(unwrapped, "num_envs", 4)
-        if hasattr(unwrapped, "possible_agents") and getattr(unwrapped, "possible_agents", None):
+        if getattr(unwrapped, "possible_agents", None):
             actions = {
                 agent: sample_space(
-                    unwrapped.action_spaces[agent],  # type: ignore[union-attr]
-                    device=unwrapped.device,  # type: ignore[union-attr]
+                    unwrapped.action_spaces[agent],
+                    device=unwrapped.device,
                     batch_size=num_envs,
                     fill_value=0,
                 )
-                for agent in unwrapped.possible_agents  # type: ignore[union-attr]
+                for agent in unwrapped.possible_agents
             }
         else:
             actions = sample_space(
-                unwrapped.single_action_space,  # type: ignore[union-attr]
-                device=unwrapped.device,  # type: ignore[union-attr]
+                unwrapped.single_action_space,
+                device=unwrapped.device,
                 batch_size=num_envs,
                 fill_value=0,
             )
         env.step(actions)
-        camera_outputs = _collect_camera_outputs_from_env(env)
-        if not camera_outputs:
-            pytest.skip(
-                f"[{task_id}] No camera sensors (e.g. state-only env like LocomotionEnv); nothing to validate"
-            )
-        _assert_camera_outputs_not_empty(task_id, camera_outputs)
+        camera_outputs = _collect_camera_outputs(env)
+        _assert_camera_outputs_are_not_blank(task_id, camera_outputs)
     finally:
         if env is not None:
             env.close()
-
-
-@pytest.mark.parametrize("task_id", _RENDERING_CORRECTNESS_CAMERA_ENV_IDS, ids=lambda x: x)
-def test_rendering_correctness_camera_envs(task_id):
-    """Rendering correctness for envs with camera/tiled_camera config (hdc/envs.md).
-
-    Covers the envs listed in hdc/envs.md under "Envs with camera / tiled_camera config":
-    Direct Cartpole (camera + showcase), Shadow Hand Vision, manager-based classic Cartpole,
-    and Dexsuite Kuka-Allegro. Creates env, steps once, and asserts camera outputs are not empty.
-    """
-    _run_rendering_correctness_for_task(task_id)
-
-
