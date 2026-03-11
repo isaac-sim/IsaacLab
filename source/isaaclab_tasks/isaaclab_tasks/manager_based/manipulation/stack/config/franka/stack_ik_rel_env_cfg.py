@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-import mdp
-
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
+
+from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import mdp
 
 from . import stack_joint_pos_env_cfg
 
