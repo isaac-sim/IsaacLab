@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.5.9 (2026-03-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed device mismatch in
+  :class:`~isaaclab_physx.assets.RigidObjectCollectionData` where
+  ``_reshape_view_to_data_2d`` and ``_reshape_view_to_data_3d`` created
+  strided pointer views with the target GPU device instead of the source
+  array's device. PhysX returns masses, COMs, and inertias on CPU, so the
+  strided view incorrectly claimed a CPU pointer lived on GPU. This caused
+  ``CUDA error 1: invalid argument`` during ``wp.clone`` on GPUs without
+  HMM (Heterogeneous Memory Management).
+
+
 0.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
