@@ -17,3 +17,6 @@ ISAACLAB_NEWTON_METADATA = toml.load(os.path.join(ISAACLAB_NEWTON_EXT_DIR, "conf
 
 # Configure the module-level variables
 __version__ = ISAACLAB_NEWTON_METADATA["package"]["version"]
+
+# Import submodules
+from . import solvers  # noqa: E402, F401
