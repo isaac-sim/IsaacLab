@@ -36,19 +36,19 @@ def cli() -> None:
         nargs="?",
         const="all",
         help=(
-            "Install Isaac Lab sub-packages and RL frameworks.\n"
-            "Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.\n"
+            "Install Isaac Lab submodules and RL frameworks.\n"
+            "Accepts a comma-separated list of submodule names, one of the RL frameworks, or a special value.\n"
             "\n"
-            "Sub-packages: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.\n"
-            "Any sub-package accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
+            "Isaac Lab Submodules: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.\n"
+            "Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
             "RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.\n"
             "\n"
-            "Passing an RL framework name installs all sub-packages + that framework.\n"
+            "Passing an RL framework name installs all Isaac Lab submodules + that framework.\n"
             "\n"
             "Special values:\n"
-            "- all  - Install all sub-packages + all RL frameworks (default).\n"
+            "- all  - Install all Isaac Lab submodules + all RL frameworks (default).\n"
             "- none - Install only the core 'isaaclab' package.\n"
-            "- <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.\n"
+            "- <empty> (-i or --install without value) - Install all Isaac Lab submodules + all RL frameworks.\n"
         ),
     )
     parser.add_argument(

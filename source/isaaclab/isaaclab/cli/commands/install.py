@@ -150,8 +150,8 @@ def _install_isaacsim() -> None:
     )
 
 
-# Valid sub-package names that can be passed to --install.
-# Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
+# Valid Isaac Lab submodule names that can be passed to --install.
+# Each Isaac Lab submodule maps to a source directory named "isaaclab_<name>" under source/.
 VALID_ISAACLAB_EDITABLES: set[str] = {
     "assets",
     "contrib",
@@ -369,7 +369,7 @@ def _repoint_prebundle_packages() -> None:
 
 
 def command_install(install_type: str = "all") -> None:
-    """Install Isaac Lab extensions and optional sub-packages.
+    """Install Isaac Lab extensions and optional submodules.
 
     Args:
         install_type: Comma-separated list of extras to install, or one of the
@@ -380,7 +380,7 @@ def command_install(install_type: str = "all") -> None:
             * ``"none"`` — install only the "core" ``isaaclab`` package and skip
               RL frameworks.
             * Comma-separated extras, e.g. ``"mimic,assets"`` — install
-              only the "core" ``isaaclab`` package plus the listed sub-packages.
+              only the "core" ``isaaclab`` package plus the listed submodules.
     """
 
     # Install system dependencies first.
@@ -402,7 +402,7 @@ def command_install(install_type: str = "all") -> None:
     # "all"        : install everything + all RL frameworks
     # "none"       : core isaaclab only, no RL frameworks
     # RL framework : install everything + only that RL framework (e.g. "skrl")
-    # "a,b"        : core + selected sub-package directories, no RL frameworks
+    # "a,b"        : core + selected submodule directories, no RL frameworks
     install_isaacsim = False
 
     if install_type == "all":
@@ -421,7 +421,7 @@ def command_install(install_type: str = "all") -> None:
         editable_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
-        # Parse comma-separated sub-package names and RL framework names.
+        # Parse comma-separated submodule names and RL framework names.
         isaaclab_editables = ["isaaclab"]  # core is always required
         exclude = None  # explicit selection — no exclusions
         editable_extras = {}
@@ -456,7 +456,7 @@ def command_install(install_type: str = "all") -> None:
                     editable_extras["isaaclab_visualizers"] = "[newton]"
             else:
                 valid = sorted(VALID_ISAACLAB_EDITABLES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
-                print_warning(f"Unknown sub-package '{name}'. Valid values: {', '.join(valid)}. Skipping.")
+                print_warning(f"Unknown Isaac Lab submodule '{name}'. Valid values: {', '.join(valid)}. Skipping.")
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
     os.environ.setdefault("UV_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
