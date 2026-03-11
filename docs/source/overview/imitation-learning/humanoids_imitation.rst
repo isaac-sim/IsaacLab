@@ -768,3 +768,10 @@ the ego-centric camera view to MP4.
       --input_keys robot_pov_cam \
       --video_width 960 \
       --video_height 540
+
+To play the generated MP4 video on Ubuntu, install the following multimedia packages:
+
+.. code:: bash
+
+   sudo apt update
+   sudo apt install libavcodec-extra gstreamer1.0-libav gstreamer1.0-plugins-ugly
