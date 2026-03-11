@@ -116,10 +116,10 @@ parser.add_argument(
     help="Random seed for reproducibility.",
 )
 parser.add_argument(
-    "--init_camera_view",
+    "--sensor_camera_view",
     action="store_true",
     default=False,
-    help="Set the viewport camera behind the robot at the start of each episode.",
+    help="Set the Sim GUI viewport to the robot_pov_cam sensor view at the start of each episode.",
 )
 
 AppLauncher.add_app_launcher_args(parser)
@@ -138,6 +138,7 @@ import torch
 import warp as wp
 
 import omni.kit
+import omni.kit.viewport.utility
 import omni.usd
 
 from isaaclab.managers import DatasetExportMode
@@ -306,37 +307,12 @@ def sync_simulation_state(env: LocomanipulationSDGEnv):
     env.scene.update(dt=env.physics_dt)
 
 
-def _init_camera_view(env: LocomanipulationSDGEnv, cam_offset: tuple[float, float, float] = (-3.0, 0.0, 1.5)):
-    """Set the viewport camera behind the robot at episode start.
-
-    The camera offset is expressed in the robot's local frame (x=forward, y=left, z=up)
-    and is rotated into world frame using the robot's current yaw before being added to
-    the pelvis position.
-
-    Args:
-        env: The locomanipulation SDG environment
-        cam_offset: Camera position offset in robot local frame (x, y, z)
-    """
-    base_pose_2d = env.get_base().get_pose_2d()[0]  # [x, y, yaw]
-    base_pos = env.get_base().get_pose()[0, :3]  # [x, y, z]
-    yaw = base_pose_2d[2]
-
-    cos_yaw = torch.cos(yaw)
-    sin_yaw = torch.sin(yaw)
-    dx, dy, dz = cam_offset
-
-    # Rotate local offset into world frame
-    world_offset = torch.stack(
-        [
-            dx * cos_yaw - dy * sin_yaw,
-            dx * sin_yaw + dy * cos_yaw,
-            torch.tensor(dz, device=env.device),
-        ]
-    )
-
-    cam_eye = (base_pos + world_offset).cpu().numpy().tolist()
-    cam_target = (base_pos + torch.tensor([0.0, 0.0, 0.5], device=env.device)).cpu().numpy().tolist()
-    env.sim.set_camera_view(eye=cam_eye, target=cam_target)
+def _set_sensor_camera_view():
+    """Set the Sim GUI viewport to display the robot_pov_cam sensor view."""
+    viewport = omni.kit.viewport.utility.get_active_viewport()
+    if viewport is not None:
+        cam_prim_path = "/World/envs/env_0/Robot/torso_link/d435_link/camera"
+        viewport.set_active_camera(cam_prim_path)
 
 
 def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
@@ -352,10 +328,19 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data
     initial_state = env.load_input_data(input_episode_data, 0)
     recording_initial_state = input_episode_data.get_initial_state()
 
+    object = env.scene["object"]
+    current_object_pose = torch.cat(
+        [
+            torch.as_tensor(object.data.root_pos_w[0:1], device=env.device, dtype=torch.float32),
+            torch.as_tensor(object.data.root_quat_w[0:1], device=env.device, dtype=torch.float32),
+        ],
+        dim=-1,
+    )  # (1, 7)
+
     new_robot_pose = transform_mul(
-        env.get_start_fixture().get_pose(),
+        current_object_pose,
         transform_mul(
-            transform_inv(initial_state.fixture_pose.to(env.device)),
+            transform_inv(initial_state.object_pose.to(env.device)),
             initial_state.base_pose.to(env.device),
         ),
     )
@@ -487,11 +472,15 @@ def setup_navigation_scene(
         parent=base_goal,
     )
 
-    project_robot_state_into_env(env, input_episode_data)
+    sync_simulation_state(env)
     project_object_state_into_env(env, input_episode_data)
+    sync_simulation_state(env)
+    project_robot_state_into_env(env, input_episode_data)
     # Flush physics writes so scene data buffers reflect the projected poses before path planning.
     # Without this, env.get_base() would return the stale pre-projection position.
     sync_simulation_state(env)
+    env.sim.render()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
 
     nav_map = occupancy_map.buffered_meters(0.15)
     nav_fs = nav_map.freespace_mask()
@@ -851,7 +840,7 @@ def replay(
     angle_threshold: float = 0.2,
     approach_distance: float = 0.5,
     randomize_placement: bool = True,
-    init_camera_view: bool = False,
+    sensor_camera_view: bool = False,
 ) -> bool:
     """Replay a locomanipulation SDG episode with state machine control.
 
@@ -876,7 +865,7 @@ def replay(
         angle_threshold: Angular threshold for orientation control (rad)
         approach_distance: Buffer distance from final goal (m)
         randomize_placement: Whether to randomize obstacle placement
-        init_camera_view: Whether to set the viewport camera behind the robot at episode start
+        sensor_camera_view: Whether to set the Sim GUI viewport to the robot_pov_cam sensor view
 
     Returns:
         True if the episode ended with success termination, False otherwise.
@@ -909,8 +898,8 @@ def replay(
         print("Failed to setup navigation scene", flush=True)
         return False
 
-    if init_camera_view:
-        _init_camera_view(env)
+    if sensor_camera_view:
+        _set_sensor_camera_view()
 
     # Initialize state machine
     output_data = LocomanipulationSDGOutputData()
@@ -1059,7 +1048,7 @@ if __name__ == "__main__":
                 angle_threshold=args_cli.angle_threshold,
                 approach_distance=args_cli.approach_distance,
                 randomize_placement=args_cli.randomize_placement,
-                init_camera_view=args_cli.init_camera_view,
+                sensor_camera_view=args_cli.sensor_camera_view,
             )
 
             run_id += 1
