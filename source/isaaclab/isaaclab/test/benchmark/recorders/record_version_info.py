@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import importlib.metadata
 import os
 import subprocess
 
@@ -36,40 +37,64 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         except Exception:
             return None
 
+    def _get_pkg_version(self, pip_name: str) -> str | None:
+        """Get version via importlib.metadata (pip package name, no module import)."""
+        try:
+            return importlib.metadata.version(pip_name)
+        except Exception:
+            return None
+
+    def _record(self, key: str, version: str | None) -> None:
+        """Store a version entry only if version is non-empty."""
+        if version:
+            self._version_info[key] = version
+
     def _get_version_info(self) -> None:
         # isaaclab
-        version = self._get_version("isaaclab")
-        if version:
-            self._version_info["isaaclab"] = version
+        self._record("isaaclab", self._get_version("isaaclab"))
 
         # warp - try config.version first, then __version__
-        version = self._get_version("warp", "config.version")
-        if not version:
-            version = self._get_version("warp")
-        if version:
-            self._version_info["warp"] = version
+        version = self._get_version("warp", "config.version") or self._get_version("warp")
+        self._record("warp", version)
 
         # isaacsim
-        version = self._get_version("isaacsim")
-        if version:
-            self._version_info["isaacsim"] = version
+        self._record("isaacsim", self._get_version("isaacsim"))
 
         # kit (from omni.kit if available)
         version = self._get_version("omni.kit", "app.get_app().get_build_version")
         if not version:
             version = self._get_version("carb", "settings.get_settings().get('/app/version')")
-        if version:
-            self._version_info["kit"] = version
+        self._record("kit", version)
 
         # torch
-        version = self._get_version("torch")
-        if version:
-            self._version_info["torch"] = version
+        self._record("torch", self._get_version("torch"))
 
         # numpy
-        version = self._get_version("numpy")
-        if version:
-            self._version_info["numpy"] = version
+        self._record("numpy", self._get_version("numpy"))
+
+        # IsaacLab sub-packages
+        self._record("isaaclab_newton", self._get_pkg_version("isaaclab_newton"))
+        self._record("isaaclab_physx", self._get_pkg_version("isaaclab_physx"))
+        self._record("isaaclab_ov", self._get_pkg_version("isaaclab_ov"))
+        self._record("isaaclab_tasks", self._get_pkg_version("isaaclab_tasks"))
+        self._record("isaaclab_rl", self._get_pkg_version("isaaclab_rl"))
+
+        # Renderers & physics engines
+        self._record("ovrtx", self._get_pkg_version("ovrtx"))
+        self._record("newton", self._get_pkg_version("newton"))
+        self._record("mujoco", self._get_pkg_version("mujoco"))
+        self._record("mujoco_warp", self._get_pkg_version("mujoco-warp"))
+
+        # RL frameworks
+        self._record("rl_games", self._get_pkg_version("rl_games"))
+        self._record("rsl_rl", self._get_pkg_version("rsl-rl-lib"))
+        self._record("stable_baselines3", self._get_pkg_version("stable_baselines3"))
+        self._record("skrl", self._get_pkg_version("skrl"))
+
+        # Key dependencies
+        self._record("gymnasium", self._get_pkg_version("gymnasium"))
+        self._record("cuda_bindings", self._get_pkg_version("cuda-bindings"))
+        self._record("usd_core", self._get_pkg_version("usd-core"))
 
     def _get_git_info(self) -> None:
         """Get git repository information."""

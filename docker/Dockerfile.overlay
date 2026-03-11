@@ -1,0 +1,17 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Thin overlay: apply the final file copy on top of a pre-built deps image.
+# Used by ecr-build-push-pull when a deps cache hit is found in ECR,
+# skipping the expensive pip/apt installation steps.
+ARG DEPS_IMAGE
+FROM ${DEPS_IMAGE}
+
+ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
+ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
+
+# Overwrite with the current working tree (mirrors the final COPY in Dockerfile.base/curobo)
+COPY ../ ${ISAACLAB_PATH}/
+WORKDIR ${ISAACLAB_PATH}

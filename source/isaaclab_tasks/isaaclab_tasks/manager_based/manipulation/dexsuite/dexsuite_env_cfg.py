@@ -425,6 +425,32 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     events: EventCfg = MISSING  # type: ignore
     curriculum: CurriculumCfg | None = CurriculumCfg()
 
+    def validate_config(self):
+        """Check for invalid preset combinations after resolution."""
+        is_newton = not isinstance(self.sim.physics, PhysxCfg)
+        is_multi_asset = isinstance(self.scene.object.spawn, sim_utils.MultiAssetSpawnerCfg)
+
+        if is_newton and is_multi_asset:
+            raise ValueError(
+                "Newton physics does not support multi-asset spawning."
+                " Use a single-geometry object preset (e.g. presets=cube) instead of 'shapes'."
+            )
+
+        warp_supported = {"rgb", "depth", "distance_to_image_plane"}
+        for cam_attr in ("base_camera", "wrist_camera"):
+            cam = getattr(self.scene, cam_attr, None)
+            if cam is None:
+                continue
+            renderer_type = getattr(cam.renderer_cfg, "renderer_type", None)
+            if renderer_type == "newton_warp":
+                unsupported = set(cam.data_types) - warp_supported
+                if unsupported:
+                    raise ValueError(
+                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                        f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
+                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
+                    )
+
     def __post_init__(self):
         """Post initialization."""
         # general settings

@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.13 (2026-03-10)
+4.5.15 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -9,6 +9,30 @@ Fixed
 
 * Fixed semantic label warnings (``OgnSdSemanticLabelsMap: invalid input AOV``)
   by restoring standard ``SemanticsLabelsAPI`` usage in :func:`~isaaclab.sim.utils.prims.clone`.
+
+
+4.5.14 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``validate_config`` hook to :func:`~isaaclab.utils.configclass`. Configclass
+  subclasses can now override ``validate_config(self)`` to perform domain-specific
+  validation that runs automatically as part of :func:`_validate`.
+
+
+4.5.13 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``SimulationContext`` singleton leak when environment ``__init__`` fails
+  after creating the context. :class:`~isaaclab.envs.DirectRLEnv`,
+  :class:`~isaaclab.envs.DirectMARLEnv`, and :class:`~isaaclab.envs.ManagerBasedEnv`
+  now call ``clear_instance()`` on the context when initialization raises, preventing
+  cascading "Simulation context already exists" errors in test suites and training loops.
 
 
 4.5.12 (2026-03-10)

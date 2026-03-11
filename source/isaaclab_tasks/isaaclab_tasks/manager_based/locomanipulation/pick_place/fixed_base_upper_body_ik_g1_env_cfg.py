@@ -388,7 +388,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # IsaacTeleop-based teleoperation pipeline (resolved lazily at runtime).
         self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, -0.45),
+            anchor_pos=(0.0, 0.0, -0.30),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
 
