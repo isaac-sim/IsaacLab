@@ -270,15 +270,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            # Check for GUI, offscreen rendering, or visualizers
-            has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-            if not (self.sim.has_gui or self.sim.has_offscreen_render or has_visualizers):
+            # Prefer TiledCamera when available — works for all backends (kitless and Kit-based)
+            # and produces consistent, scene-content frames.  Fall back to the omni.replicator
+            # viewer-camera path only when no TiledCamera with RGB output exists in the scene.
+            if self._find_video_camera() is not None:
+                return self._render_tiled_camera_rgb_array()
+            if not self.sim.has_gui and not self.sim.has_offscreen_render:
                 raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
-                    " If running headless, make sure --enable_cameras is set."
+                    "Cannot render 'rgb_array': no TiledCamera sensor with RGB output was found in"
+                    " the scene, and neither GUI nor offscreen rendering is available."
+                    " Add a TiledCamera sensor to the scene configuration to enable video recording."
                 )
-            # create the annotator if it does not exist
+            # Kit-based fallback: use an omni.replicator annotator on the viewer camera.
             if not hasattr(self, "_rgb_annotator"):
                 import omni.replicator.core as rep
 
@@ -293,8 +296,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             rgb_data = self._rgb_annotator.get_data()
             # convert to numpy array
             rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # return the rgb data
-            # note: initially the renerer is warming up and returns empty data
+            # note: initially the renderer is warming up and returns empty data
             if rgb_data.size == 0:
                 return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
             else:
@@ -303,6 +305,52 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
             )
+
+    def _find_video_camera(self):
+        """
+            Locates and caches the first TiledCamera sensor with RGB output.
+            Previously used the omni.replicator viewer camera which had RGB output.
+            Returns ``None`` if absent.
+        """
+        if not hasattr(self, "_video_camera"):
+            from isaaclab.sensors.camera import TiledCamera
+
+            self._video_camera = None
+            for sensor in self.scene.sensors.values():
+                if isinstance(sensor, TiledCamera):
+                    output = sensor.data.output
+                    if "rgb" in output or "rgba" in output:
+                        self._video_camera = sensor
+                        break
+        return self._video_camera
+
+    def _render_tiled_camera_rgb_array(self) -> np.ndarray:
+        """Return a square tile-grid of RGB frames from the scene's TiledCamera.
+
+        Create a square grid of tiles. This method reads directly from the
+        TiledCamera sensor buffer to generate the tiles.
+
+        Returns:
+            RGB image of shape ``(G*H, G*W, 3)`` and dtype ``uint8``, where
+            ``G = ceil(sqrt(num_envs))`` and ``(H, W)`` is the per-tile resolution.
+        """
+        output = self._video_camera.data.output
+        # shape: [num_envs, H, W, 3], uint8
+        rgb_all = output["rgb"] if "rgb" in output else output["rgba"][..., :3]
+
+        n_envs = int(rgb_all.shape[0])
+        grid_size = math.ceil(math.sqrt(n_envs))
+        n_slots = grid_size * grid_size
+        tiles = rgb_all.cpu().numpy()  # [n_envs, H, W, 3]
+        H, W = tiles.shape[1], tiles.shape[2]
+        # Pad unused slots with black to fill the square grid.
+        pad = n_slots - n_envs
+        if pad > 0:
+            tiles = np.concatenate([tiles, np.zeros((pad, H, W, 3), dtype=tiles.dtype)], axis=0)
+        # [grid_size, grid_size, H, W, 3] → [grid_size*H, grid_size*W, 3]
+        grid = tiles.reshape(grid_size, grid_size, H, W, 3)
+        grid = grid.transpose(0, 2, 1, 3, 4)  # [grid_size, H, grid_size, W, 3]
+        return grid.reshape(grid_size * H, grid_size * W, 3)
 
     def close(self):
         if not self._is_closed:
