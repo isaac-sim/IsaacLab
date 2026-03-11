@@ -235,47 +235,16 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _forward_kamino(cls) -> None:
-        """Kamino-specific forward kinematics via ``solver.reset()``."""
-        device = PhysicsManager._device
-        if cls._kamino_has_free_joint:
-            # Floating-base: extract Kamino-format joint arrays (stripping free-joint coords)
-            num_worlds = cls._num_envs or 1
-            wp.launch(
-                _extract_strided_float_array,
-                dim=(num_worlds, cls._kamino_q_per_world),
-                inputs=[
-                    cls._state_0.joint_q,
-                    cls._kamino_joint_q,
-                    cls._kamino_newton_q_per_world,
-                    cls._kamino_q_per_world,
-                    cls._kamino_free_q_count,
-                ],
-                device=device,
-            )
-            wp.launch(
-                _extract_strided_float_array,
-                dim=(num_worlds, cls._kamino_dof_per_world),
-                inputs=[
-                    cls._state_0.joint_qd,
-                    cls._kamino_joint_u,
-                    cls._kamino_newton_dof_per_world,
-                    cls._kamino_dof_per_world,
-                    cls._kamino_free_dof_count,
-                ],
-                device=device,
-            )
-            cls._solver.reset(
-                state_out=cls._state_0,
-                joint_q=cls._kamino_joint_q,
-                joint_u=cls._kamino_joint_u,
-            )
-        else:
-            # Fixed-base: Newton joint_q matches Kamino joint_q directly
-            cls._solver.reset(
-                state_out=cls._state_0,
-                joint_q=cls._state_0.joint_q,
-                joint_u=cls._state_0.joint_qd,
-            )
+        """Kamino-specific forward kinematics via ``solver.reset()``.
+
+        Kamino's ``joint_q`` / ``joint_u`` include coordinates for **all** joints
+        (including free joints), so we pass Newton's full state arrays directly.
+        """
+        cls._solver.reset(
+            state_out=cls._state_0,
+            joint_q=cls._state_0.joint_q,
+            joint_u=cls._state_0.joint_qd,
+        )
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
