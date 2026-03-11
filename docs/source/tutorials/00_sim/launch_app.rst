@@ -87,7 +87,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --height HEIGHT       Height of the viewport and generated images. Defaults to 720
 
    app_launcher arguments:
-   --headless            [DEPRECATED] Disable visualizers and force host headless mode.
+   --headless            [DEPRECATED] Disable visualizers and force headless mode (display off).
    --livestream {0,1,2}
                          Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
    --enable_cameras      Enable cameras when running without a GUI.
@@ -114,8 +114,8 @@ for more examples.
 Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As noted in the help message, the :class:`~app.AppLauncher` arguments (for example ``--livestream``,
-``--visualizer``, and deprecated ``--headless``)
+As noted in the help message, the :class:`~app.AppLauncher` arguments (for example ``--livestream``
+and deprecated ``--headless``)
 have corresponding environment variables (envar) as well. These are detailed in :mod:`isaaclab.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.
@@ -174,7 +174,7 @@ This can be useful when we want to gather high-resolution video, or we can speci
 want our simulation to be more performant. The process can be killed by pressing ``Ctrl+C`` in the launching
 terminal.
 
-For more details on visualizer and headless precedence (including ``--viz none``), see
+For more details on headless mode and launching visualizers, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 

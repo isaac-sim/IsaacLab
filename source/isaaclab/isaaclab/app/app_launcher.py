@@ -52,12 +52,12 @@ def _parse_visualizer_csv(value: str) -> list[str]:
     token = (value or "").strip()
     if not token:
         raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --visualizer kit,newton."
+            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
         )
     if " " in token:
         raise argparse.ArgumentTypeError(
             "Invalid --visualizer value: spaces are not allowed. "
-            "Use a comma-separated list without spaces, e.g. --visualizer kit,newton,rerun,viser."
+            "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
         )
 
     names = [item.strip().lower() for item in token.split(",")]
@@ -260,7 +260,8 @@ class AppLauncher:
         Currently, it adds the following parameters to the argparser object:
 
         * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
-          Prefer ``--visualizer none`` (or ``--viz none``) for explicit headless execution.
+          To run headless by default, omit ``--viz``. To force headless when config visualizers may be enabled,
+          use ``--viz none``.
         * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
@@ -308,7 +309,7 @@ class AppLauncher:
           - ``kit``: Use Omniverse Kit visualizer.
           - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
-            ``--visualizer rerun,newton,viser``.
+            ``--viz rerun,newton,viser``.
 
         * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
           rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
@@ -361,8 +362,8 @@ class AppLauncher:
             action=ExplicitTrueAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
             help=(
-                "[DEPRECATED] Disable visualizers and force host headless mode."
-                " Use '--visualizer none' to disable all visualizers or '--visualizer ...' to pick specific backends."
+                "[DEPRECATED] Disable visualizers and force headless mode (display off)."
+                " Omit '--viz' for default headless, or use '--viz none' to force-disable visualizers."
             ),
         )
         arg_group.add_argument(
@@ -689,7 +690,8 @@ class AppLauncher:
         if headless_arg and headless_arg_explicit:
             print(
                 "[WARN][AppLauncher]: The '--headless' CLI argument is deprecated."
-                " Use '--visualizer none' to disable all visualizers or '--visualizer ...' to pick specific backends."
+                " Omit '--viz' for default headless. If config visualizers are enabled and you want to force"
+                " headless, use '--viz none'."
             )
             if self._cli_visualizer_explicit:
                 print(

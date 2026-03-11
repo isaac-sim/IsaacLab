@@ -29,8 +29,8 @@ and will be removed in the future.
 - ``--headless`` is deprecated but still supported; if provided, it disables visualizers and takes precedence.
 - ``--viz none`` also disables all visualizers, even if the user sets visualizers with ``SimulationCfg.visualizer_cfgs``.
 
-For the full behavior (CLI + ``SimulationCfg.visualizer_cfgs`` resolution), examples,
-and backend-specific guidance, see:
+For the full behavior (visualizer CLI arg + ``SimulationCfg.visualizer_cfgs`` resolution), examples,
+and general visualizer information, see:
 :doc:`/source/experimental-features/newton-physics-integration/visualization`.
 
 

@@ -83,12 +83,12 @@ Headless execution
 """"""""""""""""""
 
 When no visualizer is requested, no interactive visualizer window is opened during training. This is useful
-when training on a remote server or when you do not need live visual feedback, which adds some compute cost.
+when training on a remote server or when you do not need live visual feedback, which can add some compute cost.
 Rendering can still be active for sensor/camera data capture when enabled by the workflow.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --viz kit
 
 
 Headless execution with off-screen render
@@ -119,7 +119,7 @@ training script as follows:
   ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
 
 This will open the Isaac Sim window and you can see the agent training in the environment. However, this
-will usually slow down the training process because interactive visual feedback is enabled. As a workaround, you
+can slow down the training process because interactive visual feedback is enabled. As a workaround, you
 can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
 corner of the screen. To learn more about these render modes, please check the
 :class:`sim.SimulationContext.RenderMode` class.
