@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+1.5.8 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``FileNotFoundError`` for Dexsuite environments by removing stale
+  ``rl_games_cfg_entry_point`` from gym registrations. Benchmark config updated
+  to use RSL-RL.
+
+
+1.5.7 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``validate_config`` overrides to :class:`ShadowHandVisionEnvCfg` and
+  :class:`DexsuiteReorientEnvCfg` to catch invalid preset combinations early
+  (e.g. Warp renderer with unsupported data types, Newton physics with
+  multi-asset spawning).
+
+Changed
+^^^^^^^
+
+* Moved :class:`ShadowHandVisionEnvCfg` validation logic from the env constructor
+  into :meth:`~ShadowHandVisionEnvCfg.validate_config`, leveraging the new
+  ``configclass`` validation hook.
+
+
+1.5.6 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Marked ``physx-warp-rgb`` and ``physx-warp-depth`` Shadow Hand vision preset
+  render tests as expected failures. The standard Shadow Hand USD contains PhysX
+  tendon schemas that Newton's ``ModelBuilder`` cannot parse.
+
 1.5.5 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
