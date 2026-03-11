@@ -10,7 +10,9 @@ teleoperation in Isaac Lab. It provides standardized device interfaces, a flexib
 pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
 
 This guide walks you through installing Isaac Teleop, starting the CloudXR runtime, connecting an
-XR device, and running your first teleoperation session.
+XR device, and running your first teleoperation session. For the canonical step-by-step flow (install
+package, run CloudXR server, connect headset, run teleop example), refer to the `Isaac Teleop Quick
+Start <https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
 
 .. tip::
 
@@ -365,10 +367,40 @@ The recommended workflow:
 #. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
 
 
-Kubernetes Deployment
----------------------
+Run with Docker
+-------------------------
 
-For deploying XR teleoperation on a Kubernetes cluster, see :ref:`cloudxr-teleoperation-cluster`.
+Teleoperation runs in a **single container**. The base Docker image (``docker/Dockerfile.base``)
+installs the ``isaacteleop`` pip package by default. Build the image yourself and run
+a single container. Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x.
+All components run inside one container with Isaac Lab.
+
+Inside the container you have a single shell (e.g. one ``docker exec``). You need the CloudXR runtime
+running and the teleop script; the runtime cannot accept the EULA when run in the background, so use
+one of the following.
+
+**Option A — One terminal (after first-run EULA):**
+
+#. **First run only:** Run the CloudXR runtime in the **foreground** so you can accept the EULA when
+   prompted. After it prints that the runtime is started and the path to ``cloudxr.env``, stop it
+   with ``Ctrl+C``. Acceptance is saved (e.g. in ``~/.cloudxr/run/eula_accepted``), so you won't be
+   prompted again.
+
+#. On this or any later run, start the runtime in the **background**, then run the teleop script in
+   the same terminal:
+
+   .. code-block:: bash
+
+      python -m isaacteleop.cloudxr &
+      source ~/.cloudxr/run/cloudxr.env
+      ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-PickPlace-GR1T2-Abs-v0
+
+**Option B — Two shells into the same container:** Open a second shell (e.g. another
+``docker exec -it <container> bash``). In the first, run ``python -m isaacteleop.cloudxr``
+(foreground; accept EULA on first run). In the second, run ``source ~/.cloudxr/run/cloudxr.env`` then
+the ``./isaaclab.sh -p scripts/...`` command above.
+
+Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
 
 
 .. admonition:: Next Steps

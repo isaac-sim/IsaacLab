@@ -142,6 +142,14 @@ rendering without blocking.
   terms from an environment config. XR does not support additional cameras as they cause rendering
   conflicts.
 
+## Run with Docker
+
+Teleoperation with Isaac Lab runs in a **single container**. The base Docker image (`docker/Dockerfile.base`) installs the `isaacteleop` pip package by default. Build the image yourself and run a single container.
+
+**Do not use Docker Compose** for this workflow. We are not using a multi-container setup as we had in Isaac Lab 2.x. Everything runs inside one container with Isaac Lab.
+
+Inside the container you typically have one shell. The CloudXR runtime prompts for EULA acceptance interactively, so it cannot be run in the background on first run. **First run:** run `python -m isaacteleop.cloudxr` in the foreground, accept the EULA when prompted, wait for the runtime to start, then stop with Ctrl+C (acceptance is saved). **After that:** in the same terminal you can run `python -m isaacteleop.cloudxr &`, then `source ~/.cloudxr/run/cloudxr.env` and your teleop script (e.g. `./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-PickPlace-GR1T2-Abs-v0`). Alternatively use two shells into the same container (e.g. two `docker exec` sessions): CloudXR in one, script in the other. See [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html). In the Isaac Sim UI, set the AR panel to System OpenXR Runtime and click **Start XR**.
+
 ## Dependencies
 
 - **`isaaclab`** -- core Isaac Lab framework
