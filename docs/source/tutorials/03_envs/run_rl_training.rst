@@ -88,7 +88,7 @@ Rendering can still be active for sensor/camera data capture when enabled by the
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --viz kit
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
 
 
 Headless execution with off-screen render
@@ -116,9 +116,9 @@ training script as follows:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --viz kit
 
-This will open the Isaac Sim window and you can see the agent training in the environment. However, this
+This will open the Kit visualizer window and you can see the agent training in the environment. However, this
 can slow down the training process because interactive visual feedback is enabled. As a workaround, you
 can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
 corner of the screen. To learn more about these render modes, please check the
@@ -142,7 +142,7 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
+   ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint --viz kit
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

@@ -16,18 +16,13 @@ from Isaac Lab 2.x to Isaac Lab 3.0.
 Visualizer CLI and Headless Behavior
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In this update, headless mode is primarily determined by the ``--visualizer`` (or ``--viz``) argument.
-This lets you choose which visualizer apps to launch.
-You can also set visualizer options in your code using
-``SimulationCfg.visualizer_cfgs``.
+Headless and visualizer launch behavior now centers on the visualizer CLI argument
+(``--visualizer`` / ``--viz``), together with ``SimulationCfg.visualizer_cfgs``.
 
-The ``--headless`` argument still works, but it is deprecated
-and will be removed in the future.
-
-
-- ``--visualizer`` / ``--viz`` accepts a **comma-separated** value (for example ``--viz kit,newton``).
-- ``--headless`` is deprecated but still supported; if provided, it disables visualizers and takes precedence.
-- ``--viz none`` also disables all visualizers, even if the user sets visualizers with ``SimulationCfg.visualizer_cfgs``.
+- ``--visualizer`` / ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
+- If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
+- ``--viz none`` explicitly disables all visualizers, including config-defined ones.
+- ``--headless`` is deprecated (still supported) and overrides ``--viz`` by forcing headless mode.
 
 For the full behavior (visualizer CLI arg + ``SimulationCfg.visualizer_cfgs`` resolution), examples,
 and general visualizer information, see:

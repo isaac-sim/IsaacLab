@@ -124,9 +124,9 @@ Resolution Rules (CLI + Config)
 The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visualizer_cfgs``:
 
 - ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
+- If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 - ``--viz none`` explicitly disables all visualizers.
 - If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
-- If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
