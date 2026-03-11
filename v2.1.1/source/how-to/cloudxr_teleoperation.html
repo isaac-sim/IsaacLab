@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Setting up CloudXR Teleoperation &#8212; Isaac Lab Documentation</title>
   
@@ -31,13 +30,13 @@
   <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 <link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5774970f" />
   
   <!-- So that users can add custom icons -->
   <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -45,16 +44,16 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
-    <script src="../../_static/doctools.js"></script>
-    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
-    <script src="../../_static/clipboard.min.js"></script>
-    <script src="../../_static/copybutton.js"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../_static/design-tabs.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/how-to/cloudxr_teleoperation';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -159,6 +158,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../develop/source/how-to/cloudxr_teleoperation.html" >develop</option>
             <option value="../../../main/source/how-to/cloudxr_teleoperation.html" >main</option>
             <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/how-to/cloudxr_teleoperation.html" >release/2.2.0</option>
@@ -208,7 +208,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -238,7 +238,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
 <ul class="nav bd-sidenav">
@@ -448,9 +448,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -576,7 +576,7 @@
 
 
 <button onclick="toggleFullScreen()"
-  class="btn btn-sm btn-fullscreen-button"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
@@ -600,9 +600,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -658,7 +658,7 @@
                 <article class="bd-article">
                   
   <section id="setting-up-cloudxr-teleoperation">
-<span id="cloudxr-teleoperation"></span><h1>Setting up CloudXR Teleoperation<a class="headerlink" href="#setting-up-cloudxr-teleoperation" title="Permalink to this heading">#</a></h1>
+<span id="cloudxr-teleoperation"></span><h1>Setting up CloudXR Teleoperation<a class="headerlink" href="#setting-up-cloudxr-teleoperation" title="Link to this heading">#</a></h1>
 <p><a class="reference external" href="https://developer.nvidia.com/cloudxr-sdk">NVIDIA CloudXR</a> enables seamless, high-fidelity immersive streaming to extended reality (XR)
 devices over any network.</p>
 <p>Isaac Lab developers can use CloudXR with Isaac Lab to build teleoperation workflows that require
@@ -675,7 +675,7 @@ teleoperation in Isaac Lab.</p>
 <p>Support for additional devices is planned for future releases.</p>
 </div>
 <section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
 <p>Using CloudXR with Isaac Lab involves the following components:</p>
 <ul class="simple">
 <li><p><strong>Isaac Lab</strong> is used to simulate the robot environment and apply control data received from the
@@ -698,7 +698,7 @@ immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.<
 <p>As well as <a class="reference internal" href="#xr-known-issues"><span class="std std-ref">Known Issues</span></a>.</p>
 </section>
 <section id="system-requirements">
-<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Permalink to this heading">#</a></h2>
+<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading">#</a></h2>
 <p>Prior to using CloudXR with Isaac Lab, please review the following system requirements:</p>
 <blockquote>
 <div><ul class="simple">
@@ -741,7 +741,7 @@ in the Apple Vision Pro being unable to find the Isaac Lab workstation on the ne
 </div></blockquote>
 </section>
 <section id="run-isaac-lab-with-the-cloudxr-runtime">
-<span id="id1"></span><h2>Run Isaac Lab with the CloudXR Runtime<a class="headerlink" href="#run-isaac-lab-with-the-cloudxr-runtime" title="Permalink to this heading">#</a></h2>
+<span id="id1"></span><h2>Run Isaac Lab with the CloudXR Runtime<a class="headerlink" href="#run-isaac-lab-with-the-cloudxr-runtime" title="Link to this heading">#</a></h2>
 <p>The CloudXR Runtime runs in a Docker container on your Isaac Lab workstation, and is responsible for
 streaming the Isaac Lab simulation to a compatible XR device.</p>
 <p>Ensure that <a class="reference external" href="https://docs.docker.com/desktop/install/linux-install/">Docker</a>, <a class="reference external" href="https://docs.docker.com/compose/install/linux/#install-using-the-repository">Docker Compose</a>, and the <a class="reference external" href="https://github.com/NVIDIA/nvidia-container-toolkit">NVIDIA Container Toolkit</a> are installed on your
@@ -876,11 +876,11 @@ imitation learning workflows in Isaac Lab, see <a class="reference internal" hre
 </div>
 </section>
 <section id="use-apple-vision-pro-for-teleoperation">
-<span id="use-apple-vision-pro"></span><h2>Use Apple Vision Pro for Teleoperation<a class="headerlink" href="#use-apple-vision-pro-for-teleoperation" title="Permalink to this heading">#</a></h2>
+<span id="use-apple-vision-pro"></span><h2>Use Apple Vision Pro for Teleoperation<a class="headerlink" href="#use-apple-vision-pro-for-teleoperation" title="Link to this heading">#</a></h2>
 <p>This section will walk you through building and installing the Isaac XR Teleop Sample Client for
 Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.</p>
 <section id="build-and-install-the-isaac-xr-teleop-sample-client-app-for-apple-vision-pro">
-<span id="build-apple-vision-pro"></span><h3>Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro<a class="headerlink" href="#build-and-install-the-isaac-xr-teleop-sample-client-app-for-apple-vision-pro" title="Permalink to this heading">#</a></h3>
+<span id="build-apple-vision-pro"></span><h3>Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro<a class="headerlink" href="#build-and-install-the-isaac-xr-teleop-sample-client-app-for-apple-vision-pro" title="Link to this heading">#</a></h3>
 <p>On your Mac:</p>
 <ol class="arabic">
 <li><p>Clone the <a class="reference external" href="https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple">Isaac XR Teleop Sample Client</a> GitHub repository:</p>
@@ -892,7 +892,7 @@ Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.<
 </ol>
 </section>
 <section id="teleoperate-an-isaac-lab-robot-with-apple-vision-pro">
-<span id="teleoperate-apple-vision-pro"></span><h3>Teleoperate an Isaac Lab Robot with Apple Vision Pro<a class="headerlink" href="#teleoperate-an-isaac-lab-robot-with-apple-vision-pro" title="Permalink to this heading">#</a></h3>
+<span id="teleoperate-apple-vision-pro"></span><h3>Teleoperate an Isaac Lab Robot with Apple Vision Pro<a class="headerlink" href="#teleoperate-an-isaac-lab-robot-with-apple-vision-pro" title="Link to this heading">#</a></h3>
 <p>With the Isaac XR Teleop Sample Client installed on your Apple Vision Pro, you are ready to connect
 to Isaac Lab.</p>
 <p>On your Isaac Lab workstation:</p>
@@ -981,11 +981,11 @@ and build teleoperation and imitation learning workflows with Isaac Lab.</p>
 </section>
 </section>
 <section id="develop-for-xr-in-isaac-lab">
-<span id="develop-xr-isaac-lab"></span><h2>Develop for XR in Isaac Lab<a class="headerlink" href="#develop-for-xr-in-isaac-lab" title="Permalink to this heading">#</a></h2>
+<span id="develop-xr-isaac-lab"></span><h2>Develop for XR in Isaac Lab<a class="headerlink" href="#develop-for-xr-in-isaac-lab" title="Link to this heading">#</a></h2>
 <p>This section will walk you through how to develop XR environments in Isaac Lab for building
 teleoperation workflows.</p>
 <section id="run-isaac-lab-with-xr-extensions-enabled">
-<span id="run-isaac-lab-with-xr"></span><h3>Run Isaac Lab with XR Extensions Enabled<a class="headerlink" href="#run-isaac-lab-with-xr-extensions-enabled" title="Permalink to this heading">#</a></h3>
+<span id="run-isaac-lab-with-xr"></span><h3>Run Isaac Lab with XR Extensions Enabled<a class="headerlink" href="#run-isaac-lab-with-xr-extensions-enabled" title="Link to this heading">#</a></h3>
 <p>In order to enable extensions necessary for XR, and to see the AR Panel in the UI, Isaac Lab must be
 loaded with an XR experience file. This can be done automatically by passing the <code class="docutils literal notranslate"><span class="pre">--xr</span></code> flag to
 any Isaac Lab script that uses <a class="reference internal" href="../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a>.</p>
@@ -993,7 +993,7 @@ any Isaac Lab script that uses <a class="reference internal" href="../api/lab/is
 additional <code class="docutils literal notranslate"><span class="pre">--xr</span></code> flag.</p>
 </section>
 <section id="configure-xr-scene-placement">
-<span id="configure-scene-placement"></span><h3>Configure XR Scene Placement<a class="headerlink" href="#configure-xr-scene-placement" title="Permalink to this heading">#</a></h3>
+<span id="configure-scene-placement"></span><h3>Configure XR Scene Placement<a class="headerlink" href="#configure-xr-scene-placement" title="Link to this heading">#</a></h3>
 <p>Placement of the robot simulation within the XR device’s local coordinate frame can be achieved
 using an XR anchor, and is configurable using the <code class="docutils literal notranslate"><span class="pre">xr</span></code> field (type <code class="xref py py-class docutils literal notranslate"><span class="pre">openxr.XrCfg</span></code>) in the
 environment configuration.</p>
@@ -1017,7 +1017,7 @@ this explicitly.</p>
 </div>
 </section>
 <section id="optimize-xr-performance">
-<span id="id2"></span><h3>Optimize XR Performance<a class="headerlink" href="#optimize-xr-performance" title="Permalink to this heading">#</a></h3>
+<span id="id2"></span><h3>Optimize XR Performance<a class="headerlink" href="#optimize-xr-performance" title="Link to this heading">#</a></h3>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-text">Configure the physics and render time step</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -1056,11 +1056,11 @@ latency when only a single environment is present in the simulation.</p>
 </div>
 </details></section>
 <section id="control-the-robot-with-xr-device-inputs">
-<span id="control-robot-with-xr"></span><h3>Control the Robot with XR Device Inputs<a class="headerlink" href="#control-the-robot-with-xr-device-inputs" title="Permalink to this heading">#</a></h3>
+<span id="control-robot-with-xr"></span><h3>Control the Robot with XR Device Inputs<a class="headerlink" href="#control-the-robot-with-xr-device-inputs" title="Link to this heading">#</a></h3>
 <p>Isaac Lab provides a flexible architecture for using XR tracking data to control
 simulated robots. This section explains the components of this architecture and how they work together.</p>
 <section id="openxr-device">
-<span id="openxr-device-architecture"></span><h4>OpenXR Device<a class="headerlink" href="#openxr-device" title="Permalink to this heading">#</a></h4>
+<span id="openxr-device-architecture"></span><h4>OpenXR Device<a class="headerlink" href="#openxr-device" title="Link to this heading">#</a></h4>
 <p>The <a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.OpenXRDevice</span></code></a> is the core component that enables XR-based teleoperation in Isaac Lab.
 This device interfaces with CloudXR to receive tracking data from the XR headset and transform it into robot control
 commands.</p>
@@ -1072,7 +1072,7 @@ Retargeters that convert it into robot actions.</p>
 simulation events directly from their XR environment.</p>
 </section>
 <section id="retargeting-architecture">
-<span id="control-robot-with-xr-retargeters"></span><h4>Retargeting Architecture<a class="headerlink" href="#retargeting-architecture" title="Permalink to this heading">#</a></h4>
+<span id="control-robot-with-xr-retargeters"></span><h4>Retargeting Architecture<a class="headerlink" href="#retargeting-architecture" title="Link to this heading">#</a></h4>
 <p>Retargeters are specialized components that convert raw tracking data into meaningful control signals
 for robots. They implement the <a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase" title="isaaclab.devices.RetargeterBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.RetargeterBase</span></code></a> interface and are passed to
 the OpenXRDevice during initialization.</p>
@@ -1113,7 +1113,7 @@ the OpenXRDevice during initialization.</p>
 </details><p>Retargeters can be combined to control different robot functions simultaneously.</p>
 </section>
 <section id="using-retargeters-with-hand-tracking">
-<h4>Using Retargeters with Hand Tracking<a class="headerlink" href="#using-retargeters-with-hand-tracking" title="Permalink to this heading">#</a></h4>
+<h4>Using Retargeters with Hand Tracking<a class="headerlink" href="#using-retargeters-with-hand-tracking" title="Link to this heading">#</a></h4>
 <p>Here’s an example of setting up hand tracking:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRDevice</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.openxr.retargeters</span><span class="w"> </span><span class="kn">import</span> <span class="n">Se3AbsRetargeter</span><span class="p">,</span> <span class="n">GripperRetargeter</span>
@@ -1148,7 +1148,7 @@ the OpenXRDevice during initialization.</p>
 </div>
 </section>
 <section id="extending-the-retargeting-system">
-<h4>Extending the Retargeting System<a class="headerlink" href="#extending-the-retargeting-system" title="Permalink to this heading">#</a></h4>
+<h4>Extending the Retargeting System<a class="headerlink" href="#extending-the-retargeting-system" title="Link to this heading">#</a></h4>
 <p>The retargeting system is designed to be extensible. You can create custom retargeters by extending
 the <a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase" title="isaaclab.devices.RetargeterBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.RetargeterBase</span></code></a> class and implementing the <code class="docutils literal notranslate"><span class="pre">retarget</span></code> method that
 processes the incoming tracking data:</p>
@@ -1177,7 +1177,7 @@ processes the incoming tracking data:</p>
 additional retargeters can be developed to map this data to various robot control paradigms.</p>
 </section>
 <section id="adding-callbacks-for-xr-ui-events">
-<span id="control-robot-with-xr-callbacks"></span><h4>Adding Callbacks for XR UI Events<a class="headerlink" href="#adding-callbacks-for-xr-ui-events" title="Permalink to this heading">#</a></h4>
+<span id="control-robot-with-xr-callbacks"></span><h4>Adding Callbacks for XR UI Events<a class="headerlink" href="#adding-callbacks-for-xr-ui-events" title="Link to this heading">#</a></h4>
 <p>The OpenXRDevice can handle events triggered by user interactions with XR UI elements like buttons and menus.
 When a user interacts with these elements, the device triggers registered callback functions:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Register callbacks for teleop control events</span>
@@ -1194,7 +1194,7 @@ The custom keys can be any string value that matches the callback registration.<
 </section>
 </section>
 <section id="known-issues">
-<span id="xr-known-issues"></span><h2>Known Issues<a class="headerlink" href="#known-issues" title="Permalink to this heading">#</a></h2>
+<span id="xr-known-issues"></span><h2>Known Issues<a class="headerlink" href="#known-issues" title="Link to this heading">#</a></h2>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">[omni.kit.xr.system.openxr.plugin]</span> <span class="pre">Message</span> <span class="pre">received</span> <span class="pre">from</span> <span class="pre">CloudXR</span> <span class="pre">does</span> <span class="pre">not</span> <span class="pre">have</span> <span class="pre">a</span> <span class="pre">field</span> <span class="pre">called</span> <span class="pre">'type'</span></code></p>
 <p>This error message can be safely ignored. It is caused by a deprecated, non-backwards-compatible
@@ -1257,11 +1257,12 @@ typically be ignored.</p>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> Contents
   </div>
-  <nav class="bd-toc-nav page-toc">
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a></li>
