@@ -5,7 +5,7 @@ Setting up Isaac Teleop with CloudXR
 
 .. currentmodule:: isaaclab
 
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ is the unified framework for high-fidelity
+`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ (https://github.com/NVIDIA/IsaacTeleop) is the unified framework for high-fidelity
 teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
 pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
 
@@ -290,7 +290,7 @@ choose the tab that matches your hardware.
          connecting. Click the **Click https://<ip>:48322/ to accept cert** link that
          appears on the page.
 
-         .. image:: ../_static/setup/cloudxr_accept_cert.png
+         .. image:: ../_static/setup/cloudxr_accept_cert.jpg
             :alt: CloudXR.js certificate acceptance link
             :align: center
             :width: 400
@@ -298,17 +298,16 @@ choose the tab that matches your hardware.
          A new tab opens with a **"Your connection is not private"** warning. Click
          **Advanced**, then click **Proceed to <ip> (unsafe)**.
 
-         .. image:: ../_static/setup/cloudxr_accept_cert_not_private.png
+         .. image:: ../_static/setup/cloudxr_accept_cert_not_private.jpg
             :alt: Browser privacy warning for self-signed certificate
             :align: center
             :width: 500
 
-         The browser will show a **"This page isn't working"** error. This is expected --
-         the certificate has been accepted. Close this tab or press **Back** to return to
-         the CloudXR.js client page.
+         The browser will show a **"Certificate Accepted"** page confirming the certificate
+         has been accepted. Close this tab and return to the CloudXR.js client page.
 
-         .. image:: ../_static/setup/cloudxr_accept_cert_isnt_working.png
-            :alt: Expected error page after accepting the certificate
+         .. image:: ../_static/setup/cloudxr_accept_cert_accepted.jpg
+            :alt: Certificate accepted confirmation page
             :align: center
             :width: 400
 
