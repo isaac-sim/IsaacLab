@@ -228,16 +228,6 @@ pipeline, what input mode it expects, and how the operator interacts with the ro
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
-   * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0``
-     - Hand tracking
-     - Left
-     - **Arm:** left hand wrist position drives end-effector.
-       **Gripper:** thumb-index pinch distance.
-   * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
-     - Hand tracking
-     - Right
-     - **Arm:** right hand wrist position drives end-effector.
-       **Gripper:** thumb-index pinch distance.
    * - ``Isaac-PickPlace-GR1T2-Abs-v0``
      - Hand tracking
      - Both
@@ -547,11 +537,24 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
        --visualizer kit \
        --xr
 
+Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
+(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
+the input device:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/record_demos.py \
+       --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 \
+       --visualizer kit \
+       --teleop_device keyboard
+
 The workflow is:
 
-#. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`).
+#. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
+   or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
 #. Run ``record_demos.py`` with the task name.
-#. Start AR, connect your XR device, and teleoperate.
+#. For XR tasks: start AR, connect your XR device, and teleoperate.
+   For legacy tasks: use the configured input device directly.
 #. Demonstrations are recorded to HDF5 files.
 #. Use the recorded data with Isaac Lab Mimic or other imitation learning frameworks.
 
