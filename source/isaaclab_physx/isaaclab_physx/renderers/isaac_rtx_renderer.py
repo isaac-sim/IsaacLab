@@ -19,6 +19,7 @@ import warp as wp
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
+from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
@@ -178,9 +179,20 @@ class IsaacRtxRenderer(BaseRenderer):
         orientations: torch.Tensor,
         intrinsics: torch.Tensor,
     ):
-        """No-op for Replicator - uses USD camera prims directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
-        pass
+        """Write camera poses to USD so Replicator picks up the latest transforms.
+
+        Replicator reads camera transforms from USD prims, not Fabric.
+        TiledCamera disables ``sync_usd_on_fabric_write`` for performance, so
+        this method converts world-convention orientations back to the OpenGL
+        convention expected by USD camera prims and writes them directly.
+
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`.
+        """
+        sensor = render_data.sensor() if render_data.sensor else None
+        if sensor is None:
+            return
+        orientations_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
+        sensor._view._set_world_poses_usd(positions, orientations_opengl)
 
     def render(self, render_data: IsaacRtxRenderData):
         """Extract data from annotators and write to output buffers.
