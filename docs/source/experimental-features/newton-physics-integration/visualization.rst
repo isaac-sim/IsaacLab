@@ -131,6 +131,8 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
+.. _visualization-common-modes:
+
 .. list-table:: Common modes
    :header-rows: 1
    :widths: 30 35 35
@@ -140,22 +142,19 @@ For the migration-focused summary and deprecation context, see
      - Effective behavior
    * - no ``--viz``
      - ``[]``
-     - Run headless (no visualizers requested by CLI or config).
-   * - no ``--viz``
-     - ``[KitVisualizerCfg(...), NewtonVisualizerCfg(...)]``
-     - Use config visualizers directly.
-   * - no ``--viz``
-     - ``[NewtonVisualizerCfg(...)]``
-     - Use config visualizers directly.
-   * - ``--viz none``
-     - any
-     - Run headless with all visualizers disabled.
+     - Run headless.
    * - ``--viz kit,newton``
-     - ``[KitVisualizerCfg(...)]``
-     - Use custom Kit cfg and create default Newton cfg.
-   * - ``--viz rerun``
-     - ``[KitVisualizerCfg(...)]``
-     - Launch default Rerun only.
+     - ``[]``
+     - Launch default Kit and default Newton visualizers.
+   * - ``--viz kit,newton``
+     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - Launch default Kit and custom Newton; Rerun is not launched.
+   * - no ``--viz``
+     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - Launch custom Newton and custom Rerun visualizers from config.
+   * - ``--viz none``
+     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - Run headless with all visualizers disabled.
    * - ``--headless``
      - any
      - Run headless with deprecation warning.

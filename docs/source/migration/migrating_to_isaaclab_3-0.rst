@@ -30,9 +30,8 @@ The details below describe how CLI visualizer arguments resolve together with
 - ``--viz none`` explicitly disables all visualizers, including config-defined ones.
 - ``--headless`` is deprecated (still supported) and overrides ``--viz`` by forcing headless mode.
 
-For the full behavior (visualizer CLI arg + ``SimulationCfg.visualizer_cfgs`` resolution), examples,
-and general visualizer information, see:
-:doc:`/source/experimental-features/newton-physics-integration/visualization`.
+For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
+and ``--headless``, see :ref:`visualization-common-modes`.
 
 
 Multi-Backend Architecture
