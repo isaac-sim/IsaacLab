@@ -40,6 +40,7 @@ def cli() -> None:
             "Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.\n"
             "\n"
             "Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop, visualizers.\n"
+            "Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.\n"
             "Visualizer selectors: visualizers[all|kit|newton|rerun|viser].\n"
             "RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.\n"
             "\n"
@@ -49,7 +50,8 @@ def cli() -> None:
             "- all  - Install all sub-packages + all RL frameworks (default).\n"
             "- none - Install only the core 'isaaclab' package.\n"
             "- <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.\n"
-            "- quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.\n"
+            "\n"
+            "Quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.\n"
         ),
     )
     parser.add_argument(

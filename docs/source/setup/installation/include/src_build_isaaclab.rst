@@ -61,7 +61,7 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    To install only specific sub-packages, pass a comma-separated list of sub-package names. The available
-   sub-packages are: ``assets``, ``physx``, ``contrib``, ``mimic``, ``newton``, ``rl``, ``tasks``,
+   sub-packages are: ``assets``, ``physx``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``rl``, ``tasks``,
    ``teleop``. For example, to install only the ``mimic`` and ``assets`` sub-packages:
 
    .. tab-set::

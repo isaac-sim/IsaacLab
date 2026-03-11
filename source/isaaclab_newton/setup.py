@@ -22,7 +22,7 @@ INSTALL_REQUIRES = [
     # newton
     "mujoco==3.5.0",
     "mujoco-warp==3.5.0.2",
-    "newton==1.0.0rc3",
+    "newton==1.0.0",
     "PyOpenGL-accelerate==3.1.10",
 ]
 

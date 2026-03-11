@@ -28,6 +28,7 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
+from isaaclab.physics.scene_data_requirements import resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -137,15 +138,18 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
+        self.sim.clear_scene_data_visualizer_prebuilt_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
+        visualizer_clone_fn = None
+        requested_viz_types = set(self.sim.resolve_visualizer_types())
         if "physx" in self.physics_backend:
             from isaaclab_physx.cloner import physx_replicate
 
             physics_clone_fn = physx_replicate
         elif "newton" in self.physics_backend:
-            from isaaclab_newton.cloner import newton_replicate
+            from isaaclab_newton.cloner import newton_physics_replicate
 
-            physics_clone_fn = newton_replicate
+            physics_clone_fn = newton_physics_replicate
         else:
             raise ValueError(f"Unsupported physics backend: {self.physics_backend}")
         # physics scene path
@@ -158,6 +162,7 @@ class InteractiveScene:
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
             physics_clone_fn=physics_clone_fn,
+            visualizer_clone_fn=None,
         )
 
         # create source prim
@@ -173,8 +178,32 @@ class InteractiveScene:
         )
 
         self._global_prim_paths = list()
-        if self._is_scene_setup_from_cfg():
+        has_scene_cfg_entities = self._is_scene_setup_from_cfg()
+        if has_scene_cfg_entities:
             self._add_entities_from_cfg()
+
+        requirements = resolve_scene_data_requirements(
+            visualizer_types=requested_viz_types,
+            renderer_types=self._sensor_renderer_types(),
+        )
+        self.sim.update_scene_data_requirements(requirements)
+        visualizer_clone_fn = cloner.resolve_visualizer_clone_fn(
+            physics_backend=self.physics_backend,
+            requirements=requirements,
+            stage=self.stage,
+            set_visualizer_artifact=self.sim.set_scene_data_visualizer_prebuilt_artifact,
+        )
+        if visualizer_clone_fn is not None:
+            logger.debug(
+                "Enabling visualizer artifact prebuild for clone path "
+                "(backend=%s, requires_newton_model=%s, requires_usd_stage=%s).",
+                self.physics_backend,
+                requirements.requires_newton_model,
+                requirements.requires_usd_stage,
+            )
+            self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
+
+        if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
@@ -209,7 +238,21 @@ class InteractiveScene:
             if not copy_from_source:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
                 self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
+            if self.cloner_cfg.visualizer_clone_fn is not None:
+                self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
             cloner.usd_replicate(self.stage, *replicate_args)
+
+    def _sensor_renderer_types(self) -> list[str]:
+        """Return renderer type names used by scene sensors."""
+        renderer_types: list[str] = []
+        for sensor in self._sensors.values():
+            sensor_cfg = getattr(sensor, "cfg", None)
+            renderer_cfg = getattr(sensor_cfg, "renderer_cfg", None)
+            if renderer_cfg is None:
+                continue
+            renderer_type = getattr(renderer_cfg, "renderer_type", "default")
+            renderer_types.append(renderer_type)
+        return renderer_types
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

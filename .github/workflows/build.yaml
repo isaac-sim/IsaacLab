@@ -33,11 +33,10 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  ISAACSIM_BASE_IMAGE: nvcr.io/nvidian/isaac-sim #${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSION: 'latest-develop' #${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
+  # On merge to main defaults will point to "nvcr.io/nvidia/isaac-sim:6.0.0"
+  ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
+  ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  ECR_REPOSITORY: isaaclab-ci
-  ECR_REGION: us-west-2
 
 jobs:
   build:
@@ -57,8 +56,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     # ECR images must be pruned with a lifecycle policy.
@@ -83,8 +80,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-curobo
 
     # ECR images must be pruned with a lifecycle policy.
@@ -113,8 +108,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests
@@ -126,7 +119,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
+        include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_environments_newton.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
 
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4
@@ -176,8 +169,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     - name: Run IsaacLab Tasks Tests 2
@@ -189,7 +180,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py"
+        include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py,test_shadow_hand_vision_presets.py"
 
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4
@@ -238,8 +229,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-base
 
     - name: Run General Tests
@@ -301,8 +290,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
-        ecr-repository: ${{ env.ECR_REPOSITORY }}
-        aws-region: ${{ env.ECR_REGION }}
         cache-tag: cache-curobo
 
     - name: Run cuRobo and SkillGen Tests

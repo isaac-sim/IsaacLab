@@ -11,6 +11,7 @@ __all__ = [
     "filter_collisions",
     "grid_transforms",
     "make_clone_plan",
+    "resolve_visualizer_clone_fn",
     "usd_replicate",
 ]
 
@@ -21,5 +22,6 @@ from .cloner_utils import (
     filter_collisions,
     grid_transforms,
     make_clone_plan,
+    resolve_visualizer_clone_fn,
     usd_replicate,
 )

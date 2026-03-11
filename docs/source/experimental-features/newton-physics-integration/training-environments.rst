@@ -7,16 +7,16 @@ The currently supported tasks are as follows:
 
 * Isaac-Cartpole-Direct-v0
 * Isaac-Cartpole-v0
-* Isaac-Cartpole-RGB-Camera-Direct-v0
-* Isaac-Cartpole-Depth-Camera-Direct-v0
+* Isaac-Cartpole-Camera-Presets-Direct-v0
 * Isaac-Ant-Direct-v0
 * Isaac-Ant-v0
+* Isaac-Dexsuite-Kuka-Allegro-Lift-v0
+* Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
 * Isaac-Humanoid-Direct-v0
 * Isaac-Humanoid-v0
 * Isaac-Velocity-Flat-Anymal-B-v0
 * Isaac-Velocity-Flat-Anymal-C-v0
 * Isaac-Velocity-Flat-Anymal-D-v0
-* Isaac-Velocity-Flat-Cassie-v0
 * Isaac-Velocity-Flat-G1-v0
 * Isaac-Velocity-Flat-G1-v1 (Sim-to-Real tested)
 * Isaac-Velocity-Flat-H1-v0
@@ -33,24 +33,35 @@ New experimental warp-based enviromnets:
 * Isaac-Ant-Direct-Warp-v0
 * Isaac-Humanoid-Direct-Warp-v0
 
-To launch an environment and check that it loads as expected, we can start by trying it out with zero actions sent to its actuators.
-This can be done as follows, where ``TASK_NAME`` is the name of the task you’d like to run, and ``NUM_ENVS`` is the number of instances of the task that you’d like to create.
+Running any supported task with Newton is identical to the default PhysX workflow — just append
+``presets=newton``:
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task TASK_NAME --num_envs NUM_ENVS
+    # PhysX (default)
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
+
+    # Newton
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 presets=newton
+
+To launch an environment and check that it loads as expected, we can start by trying it out with zero actions sent to its actuators.
+This can be done as follows, where ``TASK_NAME`` is the name of the task you'd like to run, and ``NUM_ENVS`` is the number of instances of the task that you'd like to create.
+
+.. code-block:: shell
+
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task TASK_NAME --num_envs NUM_ENVS presets=newton
 
 For cartpole with 128 instances it would look like this:
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 presets=newton
 
 To run the same environment with random actions we can use a different script:
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128
+    ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 presets=newton
 
 To train the environment we provide hooks to different rl frameworks. See the `Reinforcement Learning Scripts documentation <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html>`_ for more information.
 
@@ -62,15 +73,15 @@ Available options are ``newton``, ``rerun``, and ``omniverse`` (requires Isaac S
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 presets=newton
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
+    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 presets=newton
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
+    ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 presets=newton
 
 Once a policy is trained we can visualize it by using the play scripts. But first, we need to find the checkpoint of the trained policy. Typically, these are stored under:
 ``logs/NAME_OF_RL_FRAMEWORK/TASK_NAME/DATE``.
@@ -82,8 +93,19 @@ To then run this policy we can use the following command, note that we reduced t
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --visualizer newton --checkpoint logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-Direct-v0 presets=newton --num_envs 128 --visualizer newton --checkpoint logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt
 
 The same approach applies to all other frameworks.
 
 Note that not all environments are supported in all frameworks. For example, several of the locomotion environments are only supported in the rsl_rl framework.
+
+.. note::
+
+   **Dexsuite environments** require the ``cube`` preset when running with Newton because Newton
+   does not support multi-asset spawning. Use ``presets=cube,newton`` instead of just
+   ``presets=newton``:
+
+   .. code-block:: shell
+
+       ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Dexsuite-Kuka-Allegro-Lift-v0 presets=cube,newton
+       ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 presets=cube,newton

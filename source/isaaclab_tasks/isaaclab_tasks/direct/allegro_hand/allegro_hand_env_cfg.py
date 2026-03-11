@@ -74,8 +74,6 @@ class PhysicsCfg(PresetCfg):
             cone="elliptic",
             update_data_interval=2,
             iterations=100,
-            ls_iterations=15,
-            ls_parallel=False,
             # save_to_mjcf="AllegroHand.xml",
         ),
         num_substeps=2,

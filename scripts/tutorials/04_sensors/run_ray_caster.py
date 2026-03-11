@@ -98,8 +98,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     balls: RigidObject = scene_entities["balls"]
 
     # define an initial position of the sensor
-    ball_default_state = wp.to_torch(balls.data.default_root_state).clone()
-    ball_default_state[:, :3] = torch.rand_like(ball_default_state[:, :3]) * 10
+    ball_default_pose = wp.to_torch(balls.data.default_root_pose).clone()
+    ball_default_pose[:, :3] = torch.rand_like(ball_default_pose[:, :3]) * 10
+    ball_default_vel = wp.to_torch(balls.data.default_root_vel).clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -108,8 +109,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Reset the scene
         if step_count % 250 == 0:
             # reset the balls
-            balls.write_root_pose_to_sim(ball_default_state[:, :7])
-            balls.write_root_velocity_to_sim(ball_default_state[:, 7:])
+            balls.write_root_pose_to_sim_index(root_pose=ball_default_pose)
+            balls.write_root_velocity_to_sim_index(root_velocity=ball_default_vel)
             # reset the sensor
             ray_caster.reset()
             # reset the counter

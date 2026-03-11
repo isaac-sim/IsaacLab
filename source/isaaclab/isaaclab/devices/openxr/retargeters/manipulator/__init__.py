@@ -7,4 +7,4 @@
 
 from isaaclab.utils.module import lazy_export
 
-lazy_export(packages=["isaaclab_teleop.deprecated.openxr.retargeters.manipulator"])
+lazy_export()
