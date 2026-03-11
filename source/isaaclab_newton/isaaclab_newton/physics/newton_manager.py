@@ -31,7 +31,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
+from newton.solvers import SolverBase, SolverFeatherstone, SolverKamino, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
@@ -66,6 +66,26 @@ def _set_fabric_transforms(
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
     fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+
+
+@wp.kernel(enable_backward=False)
+def _extract_strided_float_array(
+    src: wp.array(dtype=wp.float32),
+    dst: wp.array(dtype=wp.float32),
+    src_stride: int,
+    dst_stride: int,
+    src_offset: int,
+):
+    """Copy float data from src to dst with per-world stride and offset.
+
+    For each world ``w`` and element ``j`` (2D thread index ``(w, j)``):
+    ``dst[w * dst_stride + j] = src[w * src_stride + src_offset + j]``
+
+    Used to extract Kamino-format joint arrays from Newton state by stripping
+    free-joint (floating base) coordinates.
+    """
+    w, j = wp.tid()
+    dst[w * dst_stride + j] = src[w * src_stride + src_offset + j]
 
 
 class NewtonManager(PhysicsManager):
@@ -108,6 +128,20 @@ class NewtonManager(PhysicsManager):
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     _fk_dirty: bool = False
+
+    # Kamino solver: pending FK flag (set by write methods, consumed by step/forward)
+    _kamino_needs_fk: bool = False
+
+    # Kamino solver reset state (precomputed for forward() → solver.reset())
+    _kamino_has_free_joint: bool = False
+    _kamino_free_q_count: int = 0
+    _kamino_free_dof_count: int = 0
+    _kamino_newton_q_per_world: int = 0
+    _kamino_newton_dof_per_world: int = 0
+    _kamino_q_per_world: int = 0
+    _kamino_dof_per_world: int = 0
+    _kamino_joint_q = None  # Preallocated Kamino-format joint coords (only for floating-base)
+    _kamino_joint_u = None  # Preallocated Kamino-format joint velocities (only for floating-base)
 
     # CUDA graphing
     _graph = None
@@ -184,7 +218,13 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def forward(cls) -> None:
-        """Update articulation kinematics without stepping physics."""
+        """Update articulation kinematics without stepping physics.
+
+        Runs Newton's generic forward kinematics (``eval_fk``) to compute body poses
+        from joint coordinates. For :class:`SolverKamino`, the full solver reset
+        (which reinitialises internal state) is deferred to :meth:`step` via the
+        ``_kamino_needs_fk`` flag — see :meth:`notify_state_written`.
+        """
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
         cls._fk_dirty = False
 
@@ -192,6 +232,50 @@ class NewtonManager(PhysicsManager):
     def pre_render(cls) -> None:
         """Flush deferred Fabric writes before cameras/visualizers read the scene."""
         cls.sync_transforms_to_usd()
+
+    @classmethod
+    def _forward_kamino(cls) -> None:
+        """Kamino-specific forward kinematics via ``solver.reset()``."""
+        device = PhysicsManager._device
+        if cls._kamino_has_free_joint:
+            # Floating-base: extract Kamino-format joint arrays (stripping free-joint coords)
+            num_worlds = cls._num_envs or 1
+            wp.launch(
+                _extract_strided_float_array,
+                dim=(num_worlds, cls._kamino_q_per_world),
+                inputs=[
+                    cls._state_0.joint_q,
+                    cls._kamino_joint_q,
+                    cls._kamino_newton_q_per_world,
+                    cls._kamino_q_per_world,
+                    cls._kamino_free_q_count,
+                ],
+                device=device,
+            )
+            wp.launch(
+                _extract_strided_float_array,
+                dim=(num_worlds, cls._kamino_dof_per_world),
+                inputs=[
+                    cls._state_0.joint_qd,
+                    cls._kamino_joint_u,
+                    cls._kamino_newton_dof_per_world,
+                    cls._kamino_dof_per_world,
+                    cls._kamino_free_dof_count,
+                ],
+                device=device,
+            )
+            cls._solver.reset(
+                state_out=cls._state_0,
+                joint_q=cls._kamino_joint_q,
+                joint_u=cls._kamino_joint_u,
+            )
+        else:
+            # Fixed-base: Newton joint_q matches Kamino joint_q directly
+            cls._solver.reset(
+                state_out=cls._state_0,
+                joint_q=cls._state_0.joint_q,
+                joint_u=cls._state_0.joint_qd,
+            )
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -307,6 +391,12 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
+        # Kamino: run FK to make body poses consistent with joint_q before stepping.
+        # This handles mid-episode resets where forward() is not called after _reset_idx().
+        if cls._kamino_needs_fk:
+            cls._forward_kamino()
+            cls._kamino_needs_fk = False
+
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -410,6 +500,17 @@ class NewtonManager(PhysicsManager):
         cls._pending_extended_state_attributes = set()
         cls._pending_extended_contact_attributes = set()
         cls._views = []
+        # Kamino state
+        cls._kamino_needs_fk = False
+        cls._kamino_has_free_joint = False
+        cls._kamino_free_q_count = 0
+        cls._kamino_free_dof_count = 0
+        cls._kamino_newton_q_per_world = 0
+        cls._kamino_newton_dof_per_world = 0
+        cls._kamino_q_per_world = 0
+        cls._kamino_dof_per_world = 0
+        cls._kamino_joint_q = None
+        cls._kamino_joint_u = None
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
@@ -604,8 +705,14 @@ class NewtonManager(PhysicsManager):
         Called by articulation write methods that modify ``joint_q`` or root
         transforms.  The flag is checked in :meth:`step` before collision
         detection to ensure ``body_q`` is up-to-date.
+
+        For Kamino (maximal-coordinate solver), body poses are independent
+        state variables that must be made consistent with joint angles via
+        FK before the next solver step, so we also set the Kamino-specific flag.
         """
         cls._fk_dirty = True
+        if isinstance(cls._solver, SolverKamino):
+            cls._kamino_needs_fk = True
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -830,6 +937,64 @@ class NewtonManager(PhysicsManager):
             elif cls._solver_type == "featherstone":
                 cls._use_single_state = False
                 cls._solver = SolverFeatherstone(cls._model, **cfg_dict)
+            elif cls._solver_type == "kamino":
+                cls._use_single_state = False
+                from newton._src.solvers.kamino.config import (
+                    CollisionDetectorConfig,
+                    ConstrainedDynamicsConfig,
+                    ConstraintStabilizationConfig,
+                    PADMMSolverConfig,
+                )
+
+                # Build collision detector config if using Kamino's internal detector
+                collision_detector = None
+                if cfg_dict.get("use_collision_detector", False):
+                    cd_kwargs = {}
+                    cd_pipeline = cfg_dict.get("collision_detector_pipeline")
+                    if cd_pipeline is not None:
+                        cd_kwargs["pipeline"] = cd_pipeline
+                    cd_max_contacts = cfg_dict.get("collision_detector_max_contacts_per_pair")
+                    if cd_max_contacts is not None:
+                        cd_kwargs["max_contacts_per_pair"] = cd_max_contacts
+                    collision_detector = CollisionDetectorConfig(**cd_kwargs)
+
+                kamino_config = SolverKamino.Config(
+                    integrator=cfg_dict.get("integrator", "euler"),
+                    use_collision_detector=cfg_dict.get("use_collision_detector", False),
+                    use_fk_solver=cfg_dict.get("use_fk_solver", True),
+                    sparse_jacobian=cfg_dict.get("sparse_jacobian", False),
+                    sparse_dynamics=cfg_dict.get("sparse_dynamics", False),
+                    rotation_correction=cfg_dict.get("rotation_correction", "twopi"),
+                    angular_velocity_damping=cfg_dict.get("angular_velocity_damping", 0.0),
+                    collect_solver_info=cfg_dict.get("collect_solver_info", False),
+                    compute_solution_metrics=cfg_dict.get("compute_solution_metrics", False),
+                    collision_detector=collision_detector,
+                    constraints=ConstraintStabilizationConfig(
+                        alpha=cfg_dict.get("constraints_alpha", 0.01),
+                        beta=cfg_dict.get("constraints_beta", 0.01),
+                        gamma=cfg_dict.get("constraints_gamma", 0.01),
+                        delta=cfg_dict.get("constraints_delta", 1.0e-6),
+                    ),
+                    dynamics=ConstrainedDynamicsConfig(
+                        preconditioning=cfg_dict.get("dynamics_preconditioning", True),
+                    ),
+                    padmm=PADMMSolverConfig(
+                        max_iterations=cfg_dict.get("padmm_max_iterations", 200),
+                        primal_tolerance=cfg_dict.get("padmm_primal_tolerance", 1e-6),
+                        dual_tolerance=cfg_dict.get("padmm_dual_tolerance", 1e-6),
+                        compl_tolerance=cfg_dict.get("padmm_compl_tolerance", 1e-6),
+                        rho_0=cfg_dict.get("padmm_rho_0", 1.0),
+                        eta=cfg_dict.get("padmm_eta", 1e-5),
+                        use_acceleration=cfg_dict.get("padmm_use_acceleration", True),
+                        use_graph_conditionals=cfg_dict.get("padmm_use_graph_conditionals", True),
+                        warmstart_mode=cfg_dict.get("padmm_warmstart_mode", "containers"),
+                        contact_warmstart_method=cfg_dict.get(
+                            "padmm_contact_warmstart_method", "key_and_position"
+                        ),
+                    ),
+                )
+                cls._solver = SolverKamino(cls._model, kamino_config)
+                cls._setup_kamino_reset_state()
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
@@ -839,6 +1004,8 @@ class NewtonManager(PhysicsManager):
             # Determine if we need external collision detection
             # - SolverMuJoCo with use_mujoco_contacts=True: uses internal MuJoCo collision detection
             # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
+            # - SolverKamino with use_collision_detector=True: uses internal Kamino collision detection
+            # - SolverKamino with use_collision_detector=False: needs Newton's unified collision pipeline
             # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(cls._solver, SolverMuJoCo):
                 cls._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
@@ -847,6 +1014,8 @@ class NewtonManager(PhysicsManager):
                         "NewtonManager: collision_cfg cannot be set when use_mujoco_contacts=True."
                         " Either set use_mujoco_contacts=False or remove collision_cfg."
                     )
+            elif isinstance(cls._solver, SolverKamino):
+                cls._needs_collision_pipeline = not solver_cfg.use_collision_detector
             else:
                 cls._needs_collision_pipeline = True
 
@@ -879,6 +1048,14 @@ class NewtonManager(PhysicsManager):
                         cls._simulate()
                     cls._graph = capture.graph
                     logger.info("Newton CUDA graph captured (standard Warp mode)")
+
+                    # Kamino allocates internal state arrays (joint_q_prev, body_f_total,
+                    # joint_lambdas, FK solver arrays) during graph capture via wp.clone/wp.zeros.
+                    # These memory-pool allocations must be "pinned" by replaying the graph once
+                    # before any non-graphed Kamino operations (e.g. solver.reset()) can safely
+                    # access them.  Without this warm-up, pool-allocated addresses may be stale.
+                    if isinstance(cls._solver, SolverKamino):
+                        wp.capture_launch(cls._graph)
                 else:
                     # RTX is active during initialization — cudaImportExternalMemory and other
                     # non-capturable RTX ops run on background CUDA streams right now.
@@ -889,6 +1066,63 @@ class NewtonManager(PhysicsManager):
                     logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
             else:
                 cls._graph = None
+
+    @classmethod
+    def _setup_kamino_reset_state(cls) -> None:
+        """Precompute sizes and buffers for Kamino solver reset in ``forward()``.
+
+        Detects whether the model has a floating base (free joint) and precomputes
+        the per-world offsets needed to extract Kamino-format joint arrays from
+        Newton's state. For floating-base models, preallocates intermediate
+        arrays that strip the free-joint coordinates.
+        """
+        num_worlds = cls._num_envs or 1
+        device = PhysicsManager._device
+
+        # Get total joint coordinate and dof counts from the state arrays
+        newton_q_total = cls._state_0.joint_q.shape[0]
+        newton_dof_total = cls._state_0.joint_qd.shape[0]
+        newton_q_pw = newton_q_total // num_worlds
+        newton_dof_pw = newton_dof_total // num_worlds
+
+        # Detect free joint (floating base) by checking the first joint's coordinate count
+        joint_q_start = cls._model.joint_q_start.numpy()
+        joints_per_world = cls._model.joint_count // num_worlds
+        has_free = False
+        free_q = 0
+        free_dof = 0
+        if joints_per_world > 0:
+            first_joint_q_count = int(joint_q_start[1] - joint_q_start[0])
+            if first_joint_q_count == 7:  # Free joint: 3 pos + 4 quat
+                has_free = True
+                free_q = 7
+                free_dof = 6  # 3 linear + 3 angular
+
+        kamino_q_pw = newton_q_pw - free_q
+        kamino_dof_pw = newton_dof_pw - free_dof
+
+        cls._kamino_has_free_joint = has_free
+        cls._kamino_free_q_count = free_q
+        cls._kamino_free_dof_count = free_dof
+        cls._kamino_newton_q_per_world = newton_q_pw
+        cls._kamino_newton_dof_per_world = newton_dof_pw
+        cls._kamino_q_per_world = kamino_q_pw
+        cls._kamino_dof_per_world = kamino_dof_pw
+
+        if has_free:
+            kamino_q_total = kamino_q_pw * num_worlds
+            kamino_dof_total = kamino_dof_pw * num_worlds
+            cls._kamino_joint_q = wp.zeros(kamino_q_total, dtype=wp.float32, device=device)
+            cls._kamino_joint_u = wp.zeros(kamino_dof_total, dtype=wp.float32, device=device)
+            logger.info(
+                "Kamino reset: floating-base detected (free_q=%d, free_dof=%d), newton_q_pw=%d, kamino_q_pw=%d",
+                free_q,
+                free_dof,
+                newton_q_pw,
+                kamino_q_pw,
+            )
+        else:
+            logger.info("Kamino reset: fixed-base, newton_q_pw=%d", newton_q_pw)
 
     @classmethod
     def _capture_relaxed_graph(cls, device: str):
