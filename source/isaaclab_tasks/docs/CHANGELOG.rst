@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+1.5.9 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed headless Kit crash when using non-kit visualizers (``newton``,
+  ``rerun``, ``viser``).  :func:`~isaaclab_tasks.utils.sim_launcher.compute_kit_requirements`
+  now auto-enables ``enable_cameras`` when the rendering pipeline is required
+  by scene cameras or non-kit visualizers, ensuring the rendering-capable
+  headless experience file is selected.
+
+
 1.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 

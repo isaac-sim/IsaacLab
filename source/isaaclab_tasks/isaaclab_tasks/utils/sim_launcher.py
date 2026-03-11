@@ -103,24 +103,41 @@ def compute_kit_requirements(
     env_cfg,
     launcher_args: argparse.Namespace | dict | None = None,
 ) -> tuple[bool, bool, set[str]]:
-    """Compute whether Kit is needed and related flags.
+    """Compute whether Kit is needed, whether rendering is required, and which visualizers are active.
 
-    Uses the same logic as :func:`launch_simulation` to decide whether Isaac Sim
-    Kit must be launched.
+    When Kit is needed **and** the rendering pipeline is required (Kit cameras
+    or non-kit visualizers like ``newton``, ``rerun``, ``viser``), this function
+    auto-enables ``enable_cameras`` in *launcher_args* so that the
+    rendering-capable headless experience file is selected.
 
     Args:
         env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
-        launcher_args: Optional CLI args; if ``--visualizer`` includes ``kit``, needs_kit is True.
+        launcher_args: Optional CLI args.  May be mutated: ``enable_cameras``
+            is set to ``True`` when the rendering pipeline is required.
 
     Returns:
-        (needs_kit, has_kit_cameras, visualizer_types)
+        ``(needs_kit, needs_rendering, visualizer_types)`` where *needs_rendering*
+        is ``True`` when the rendering pipeline must be active.
     """
     is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
     needs_kit = has_kit_cameras or not is_newton
     visualizer_types = _get_visualizer_types(launcher_args)
     if "kit" in visualizer_types:
         needs_kit = True
-    return needs_kit, has_kit_cameras, visualizer_types
+    rendering_visualizers = visualizer_types - {"kit"}
+    needs_rendering = has_kit_cameras or bool(rendering_visualizers)
+
+    if needs_kit and needs_rendering:
+        if isinstance(launcher_args, argparse.Namespace):
+            if not getattr(launcher_args, "enable_cameras", False):
+                logger.info("Auto-enabling cameras: rendering pipeline required by scene cameras or visualizers.")
+                launcher_args.enable_cameras = True
+        elif isinstance(launcher_args, dict):
+            if not launcher_args.get("enable_cameras", False):
+                logger.info("Auto-enabling cameras: rendering pipeline required by scene cameras or visualizers.")
+                launcher_args["enable_cameras"] = True
+
+    return needs_kit, needs_rendering, visualizer_types
 
 
 @contextmanager
@@ -131,8 +148,10 @@ def launch_simulation(
     """Context manager that launches the appropriate simulation runtime for *env_cfg*.
 
     * Recursively scans the config tree to decide whether Isaac Sim Kit is needed.
-    * Auto-enables ``enable_cameras`` when the scene contains camera sensors
-      that use a Kit renderer (not Newton).
+    * Auto-enables ``enable_cameras`` when the rendering pipeline is required —
+      either because the scene contains Kit camera sensors or because non-kit
+      visualizers (``newton``, ``rerun``, ``viser``) are requested.  This ensures
+      the rendering-capable headless experience file is selected.
     * For Kit-based backends, launches ``AppLauncher`` and calls ``app.close()`` on exit.
     * For kitless backends (e.g. Newton with Newton Warp renderer only), this is a no-op.
     * For Newton Physics + RTX Renderer (with Kit cameras): Kit is launched
@@ -143,17 +162,7 @@ def launch_simulation(
         with launch_simulation(env_cfg, args_cli):
             main()
     """
-    needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
-
-    if needs_kit and has_kit_cameras:
-        if isinstance(launcher_args, argparse.Namespace):
-            if not getattr(launcher_args, "enable_cameras", False):
-                logger.info("Auto-enabling cameras: scene contains camera sensors with a Kit renderer.")
-                launcher_args.enable_cameras = True
-        elif isinstance(launcher_args, dict):
-            if not launcher_args.get("enable_cameras", False):
-                logger.info("Auto-enabling cameras: scene contains camera sensors with a Kit renderer.")
-                launcher_args["enable_cameras"] = True
+    needs_kit, _needs_rendering, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
 
     close_fn: Any = None
 
