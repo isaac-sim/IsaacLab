@@ -9,6 +9,9 @@ import os
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
@@ -55,6 +58,21 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
             use_relative_mode=self.use_relative_mode,
         )
 
+        # RmpFlow rel envs use legacy teleop (keyboard/spacemouse) instead of XR
+        self.isaac_teleop = None
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                ),
+                "spacemouse": Se3SpaceMouseCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                ),
+            }
+        )
+
         # Set the simulation parameters
         self.sim.dt = 1 / 60
         self.sim.render_interval = 6
@@ -87,6 +105,22 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
             use_relative_mode=self.use_relative_mode,
         )
+
+        # RmpFlow rel envs use legacy teleop (keyboard/spacemouse) instead of XR
+        self.isaac_teleop = None
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                ),
+                "spacemouse": Se3SpaceMouseCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                ),
+            }
+        )
+
         # Set the simulation parameters
         self.sim.dt = 1 / 120
         self.sim.render_interval = 6
