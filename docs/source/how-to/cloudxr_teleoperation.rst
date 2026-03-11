@@ -169,13 +169,19 @@ different location, pass the ``--cloudxr-install-dir`` flag:
 
 Common configuration options:
 
-* **Optical hand tracking from the XR headset** -- by default the runtime expects hand
-  tracking data from an external push device (e.g. Manus gloves). To use the headset's
-  built-in optical hand tracking instead, set:
+.. important::
 
-  .. code-block:: text
+   **Using optical hand tracking from the XR headset?** By default the runtime expects
+   hand tracking data from an external push device (e.g. Manus gloves). If you are using
+   the headset's built-in optical hand tracking (the most common setup for Quest 3 and
+   Pico 4 Ultra, and Apple Vision Pro), you **must** set the following in your ``.env`` config file:
 
-     NV_CXR_ENABLE_PUSH_DEVICES=0
+   .. code-block:: text
+
+      NV_CXR_ENABLE_PUSH_DEVICES=0
+
+   Without this, the runtime will not process hand tracking data from the headset and your
+   hands will not appear in the simulation.
 
 * **Apple Vision Pro** -- the Vision Pro uses the CloudXR native framework rather than
   WebXR. To connect with an Apple Vision Pro, set:
@@ -268,6 +274,13 @@ choose the tab that matches your hardware.
       `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_
       WebXR client. The built-in WSS proxy started by ``python -m isaacteleop.cloudxr``
       provides the HTTPS connection that the web client requires.
+
+      .. important::
+
+         If you are using the headset's built-in optical hand tracking (instead of
+         Manus gloves), make sure you started the CloudXR runtime with
+         ``NV_CXR_ENABLE_PUSH_DEVICES=0`` in your env config. See
+         :ref:`cloudxr-runtime-configuration` for details.
 
       .. note::
 
