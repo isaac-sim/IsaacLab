@@ -19,7 +19,7 @@ Visualizer CLI and Headless Behavior
 In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--visualizer`` / ``--viz``
 to determine whether viewer apps are launched with an Isaac Lab command.
 
-Visualizers are lightweight apps for monitoring, debugging, and recording workflows
+Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
 (see :doc:`/source/experimental-features/newton-physics-integration/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
