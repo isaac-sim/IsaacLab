@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.5.18 (2026-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updates default XR profile to AR by setting ``defaults.xr.activeProfile = "ar"`` in
+  ``apps/isaaclab.python.xr.openxr.kit``.
+
+
 4.5.17 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~~
 
