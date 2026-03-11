@@ -50,7 +50,8 @@ def cli() -> None:
             "- all  - Install all sub-packages + all RL frameworks (default).\n"
             "- none - Install only the core 'isaaclab' package.\n"
             "- <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.\n"
-            "- quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.\n"
+            "\n"
+            "Quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.\n"
         ),
     )
     parser.add_argument(

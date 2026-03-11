@@ -1,8 +1,51 @@
 Changelog
 ---------
 
-4.5.13 (2026-03-10)
+4.5.17 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed simulation hanging on exit by removing the prim-by-prim
+  ``clear_stage()`` call from :meth:`~isaaclab.sim.SimulationContext.clear_instance`.
+  The subsequent :func:`~isaaclab.sim.utils.close_stage` and app shutdown already
+  tear down the entire stage, making the per-prim deletion redundant and slow.
+* Fixed ``close_stage()`` ordering so that Kit's USD context is closed before
+  the stage cache is cleared, preventing the ``Removal of UsdStage from cache
+  failed`` error.
+
+
+4.5.16 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Added recursive resolution of nested :class:`~isaaclab.managers.ManagerTermBaseCfg` inside
+  :meth:`~isaaclab.managers.ManagerBase._resolve_param_value` so that ``params`` containing
+  manager term configs in dicts or lists have their ``func`` references and class-based
+  managers resolved automatically.
+
+
+4.5.15 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed semantic label warnings (``OgnSdSemanticLabelsMap: invalid input AOV``)
+  by restoring standard ``SemanticsLabelsAPI`` usage in :func:`~isaaclab.sim.utils.prims.clone`.
+
+
+4.5.14 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``validate_config`` hook to :func:`~isaaclab.utils.configclass`. Configclass
+  subclasses can now override ``validate_config(self)`` to perform domain-specific
+  validation that runs automatically as part of :func:`_validate`.
 
 Fixed
 ^^^^^
