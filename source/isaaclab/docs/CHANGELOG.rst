@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.5.15 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed semantic label warnings (``OgnSdSemanticLabelsMap: invalid input AOV``)
+  by restoring standard ``SemanticsLabelsAPI`` usage in :func:`~isaaclab.sim.utils.prims.clone`.
+
+
 4.5.14 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
