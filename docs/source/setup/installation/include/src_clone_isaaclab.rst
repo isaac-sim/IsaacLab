@@ -50,7 +50,6 @@ respectively that provides utilities to manage extensions.
                                  Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.
 
                                  Sub-packages: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.
-                                 Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.
                                  Any sub-package accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].
                                  RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.
 
@@ -89,8 +88,7 @@ respectively that provides utilities to manage extensions.
                                  Install Isaac Lab sub-packages and RL frameworks.
                                  Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.
 
-                                 Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop, visualizers.
-                                 Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.
+                                 Sub-packages: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.
                                  Any sub-package accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].
                                  RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.
 

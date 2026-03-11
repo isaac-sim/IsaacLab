@@ -154,23 +154,16 @@ def _install_isaacsim() -> None:
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
 VALID_ISAACLAB_EDITABLES: set[str] = {
     "assets",
-    "ovrtx",
-    "physx",
     "contrib",
     "mimic",
     "newton",
+    "ov",
+    "physx",
     "rl",
     "tasks",
     "teleop",
     "visualizers",
 }
-# Sub-packages that are always installed but with --no-deps when install_type is "all",
-# so they are importable (e.g. for config types) without pulling in optional heavy deps.
-INSTALL_NO_DEPS_SUBPACKAGES: set[str] = {"ov"}
-
-# -i ovrtx installs this dependency only (isaaclab_ov is already installed with --no-deps).
-# Keep in sync with isaaclab_ov/setup.py INSTALL_REQUIRES.
-OVRTX_PIP_SPEC: str = "ovrtx>=0.2.0,<0.3.0"
 
 # RL framework names accepted.
 # Passing one of these installs all extensions + that framework.
@@ -248,28 +241,6 @@ def _install_isaaclab_extensions(
         editable = (editable_extras or {}).get(item.name, "")
         install_target = f"{item}{editable}"
         run_command(pip_cmd + ["install", "--editable", install_target])
-
-
-def _install_ovrtx_dependency() -> None:
-    """Install the ovrtx dependency (for use with isaaclab_ov)."""
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    print_info("Installing ovrtx dependency for isaaclab_ov...")
-    run_command(pip_cmd + ["install", OVRTX_PIP_SPEC])
-
-
-def _install_no_deps_extensions() -> None:
-    """Install extensions listed in INSTALL_NO_DEPS_SUBPACKAGES with --no-deps."""
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-    for short_name in INSTALL_NO_DEPS_SUBPACKAGES:
-        pkg_name = f"isaaclab_{short_name}"
-        pkg_path = source_dir / pkg_name
-        if not (pkg_path.is_dir() and (pkg_path / "setup.py").exists()):
-            continue
-        print_info(f"Installing {pkg_name} (no dependencies) for importability...")
-        run_command(pip_cmd + ["install", "--editable", str(pkg_path), "--no-deps"])
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
@@ -428,18 +399,15 @@ def command_install(install_type: str = "all") -> None:
     print_info(f"Python executable: {python_exe}")
 
     # Decide which source directories (source/isaaclab/*) to install.
-    # "all"        : install everything + all RL frameworks (no-deps extensions installed separately with --no-deps)
+    # "all"        : install everything + all RL frameworks
     # "none"       : core isaaclab only, no RL frameworks
     # RL framework : install everything + only that RL framework (e.g. "skrl")
     # "a,b"        : core + selected sub-package directories, no RL frameworks
-    # Extensions in INSTALL_NO_DEPS_SUBPACKAGES are excluded from the main loop and installed with --no-deps.
-    no_deps_dirs = {f"isaaclab_{name}" for name in INSTALL_NO_DEPS_SUBPACKAGES}
-    install_ovrtx = False
     install_isaacsim = False
 
     if install_type == "all":
         isaaclab_editables = None
-        exclude = no_deps_dirs
+        exclude = None
         editable_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = "all"
     elif install_type == "none":
@@ -449,7 +417,7 @@ def command_install(install_type: str = "all") -> None:
         framework_type = "none"
     elif install_type in VALID_RL_FRAMEWORKS:
         isaaclab_editables = None
-        exclude = no_deps_dirs
+        exclude = None
         editable_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
@@ -477,18 +445,15 @@ def command_install(install_type: str = "all") -> None:
                     isaaclab_editables.append("isaaclab_rl")
                 continue
             if name in VALID_ISAACLAB_EDITABLES:
-                if name == "ovrtx":
-                    install_ovrtx = True  # install ovrtx dependency only; isaaclab_ov already present
-                else:
-                    pkg_dir = f"isaaclab_{name}"
-                    if pkg_dir not in isaaclab_editables:
-                        isaaclab_editables.append(pkg_dir)
-                    if editable:
-                        editable_extras[pkg_dir] = editable
-                    # Auto-include the matching visualizer when installing a physics backend.
-                    if name == "newton" and "isaaclab_visualizers" not in isaaclab_editables:
-                        isaaclab_editables.append("isaaclab_visualizers")
-                        editable_extras["isaaclab_visualizers"] = "[newton]"
+                pkg_dir = f"isaaclab_{name}"
+                if pkg_dir not in isaaclab_editables:
+                    isaaclab_editables.append(pkg_dir)
+                if editable:
+                    editable_extras[pkg_dir] = editable
+                # Auto-include the matching visualizer when installing a physics backend.
+                if name == "newton" and "isaaclab_visualizers" not in isaaclab_editables:
+                    isaaclab_editables.append("isaaclab_visualizers")
+                    editable_extras["isaaclab_visualizers"] = "[newton]"
             else:
                 valid = sorted(VALID_ISAACLAB_EDITABLES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
                 print_warning(f"Unknown sub-package '{name}'. Valid values: {', '.join(valid)}. Skipping.")
@@ -547,15 +512,6 @@ def command_install(install_type: str = "all") -> None:
 
         # Install the python modules for the extensions in Isaac Lab.
         _install_isaaclab_extensions(isaaclab_editables, editable_extras, exclude)
-
-        # Install no-deps extensions (e.g. isaaclab_ov) with --no-deps so they are
-        # importable without pulling in optional deps like ovrtx.
-        if install_type == "all" or install_type in VALID_RL_FRAMEWORKS or install_ovrtx:
-            _install_no_deps_extensions()
-
-        # Install ovrtx when user requested -i ovrtx (the specific dependency for isaaclab_ov).
-        if install_ovrtx:
-            _install_ovrtx_dependency()
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")
