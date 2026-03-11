@@ -134,11 +134,6 @@ def test_camera_init(setup_simulation):
     sim.reset()
     # Check if camera is initialized
     assert camera.is_initialized
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (1, 3)
     assert camera.data.quat_w_ros.shape == (1, 4)
@@ -169,11 +164,6 @@ def test_camera_resolution(setup_simulation):
     camera = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # Play sim
     sim.reset()
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
     # access image data and compare shapes
     for im_data in camera.data.output.values():
@@ -254,11 +244,6 @@ def test_multi_camera_init(setup_simulation):
     # play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(10):
         # perform rendering
@@ -336,11 +321,6 @@ def test_intrinsic_matrix(setup_simulation, height, width):
     rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
     # Set matrix into simulator
     camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(10):
         # perform rendering
@@ -378,11 +358,6 @@ def test_throughput(setup_simulation):
     targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
     camera.set_world_poses_from_view(eyes, targets)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(5):
         # perform rendering

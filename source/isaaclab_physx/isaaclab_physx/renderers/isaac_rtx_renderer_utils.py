@@ -7,13 +7,79 @@
 
 from __future__ import annotations
 
+import logging
+import time
+
 import isaaclab.sim as sim_utils
+
+logger = logging.getLogger(__name__)
 
 # Module-level dedup stamp: tracks the last (sim instance, physics step) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
 # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
 # any stale stamp from a previous instance.
 _last_render_update_key: tuple[int, int] = (0, -1)
+
+# ---------------------------------------------------------------------------
+# RTX streaming status tracking
+# ---------------------------------------------------------------------------
+_RTX_STREAMING_STATUS_EVENT: str = "omni.streamingstatus:streaming_status"
+
+_streaming_is_busy: bool = False
+_streaming_subscription = None
+_streaming_subscribed: bool = False
+
+_STREAMING_WAIT_TIMEOUT_S: float = 30.0
+
+
+def _on_streaming_status_event(event) -> None:
+    """Callback fired by the RTX renderer whenever streaming status changes."""
+    global _streaming_is_busy
+    try:
+        is_busy = event["isBusy"]
+        if is_busy is not None:
+            _streaming_is_busy = bool(is_busy)
+    except (KeyError, TypeError):
+        pass
+
+
+def _ensure_streaming_subscription() -> None:
+    """Subscribe to RTX streaming status events (idempotent)."""
+    global _streaming_subscription, _streaming_subscribed
+    if _streaming_subscribed:
+        return
+
+    _streaming_subscribed = True
+    try:
+        from carb.eventdispatcher import get_eventdispatcher
+
+        dispatcher = get_eventdispatcher()
+        if dispatcher is not None:
+            _streaming_subscription = dispatcher.observe_event(
+                observer_name="isaaclab_rtx_streaming_wait",
+                event_name=_RTX_STREAMING_STATUS_EVENT,
+                on_event=_on_streaming_status_event,
+            )
+    except (ImportError, AttributeError):
+        pass
+
+
+def _wait_for_streaming_complete() -> None:
+    """Pump ``app.update()`` until RTX streaming reports idle or timeout."""
+    import omni.kit.app
+
+    start = time.monotonic()
+    while _streaming_is_busy and (time.monotonic() - start) < _STREAMING_WAIT_TIMEOUT_S:
+        omni.kit.app.get_app().update()
+
+    elapsed = time.monotonic() - start
+    if _streaming_is_busy:
+        logger.warning(
+            "RTX streaming did not complete within %.1f s – proceeding anyway.",
+            _STREAMING_WAIT_TIMEOUT_S,
+        )
+    elif elapsed > 0.01:
+        logger.info("RTX streaming completed in %.2f s.", elapsed)
 
 
 def ensure_isaac_rtx_render_update() -> None:
@@ -30,6 +96,10 @@ def ensure_isaac_rtx_render_update() -> None:
     The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
     ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
     any stale stamp left over from a previous instance.
+
+    If RTX texture/geometry streaming is in progress, additional
+    ``app.update()`` calls are pumped until the streaming subsystem reports
+    idle (or a timeout is reached).
 
     No-op conditions:
         * Already called this step (dedup across camera instances).
@@ -54,6 +124,8 @@ def ensure_isaac_rtx_render_update() -> None:
     if not sim.is_rendering:
         return
 
+    _ensure_streaming_subscription()
+
     # Sync physics results → Fabric so RTX sees updated positions.
     # physics_manager.step() only runs simulate()/fetch_results() and does NOT
     # call _update_fabric(), so without this the render would lag one frame behind.
@@ -63,6 +135,10 @@ def ensure_isaac_rtx_render_update() -> None:
 
     sim.set_setting("/app/player/playSimulations", False)
     omni.kit.app.get_app().update()
+
+    if _streaming_is_busy:
+        _wait_for_streaming_complete()
+
     sim.set_setting("/app/player/playSimulations", True)
 
     _last_render_update_key = key
