@@ -89,6 +89,7 @@ class NewtonManager(PhysicsManager):
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _clone_physics_only = False
+    _transforms_dirty: bool = False
 
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
@@ -143,16 +144,22 @@ class NewtonManager(PhysicsManager):
     def sync_transforms_to_usd(cls) -> None:
         """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
 
-        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active).
-        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider` at render
-        cadence (Kit), and after each physics step when using Newton+RTX so the renderer sees
-        updated poses.
+        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active)
+        or when transforms have not changed since the last sync.
+
+        This method is called at render cadence by
+        :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider`.
+        Physics stepping marks transforms dirty via :meth:`_mark_transforms_dirty`
+        so that the expensive Fabric hierarchy update only runs once per render
+        frame rather than after every physics step.
 
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
         The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
         corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
+            return
+        if not cls._transforms_dirty:
             return
         try:
             import usdrt
@@ -180,8 +187,18 @@ class NewtonManager(PhysicsManager):
                     cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
                 )
                 fabric_hierarchy.update_world_xforms()
+            cls._transforms_dirty = False
         except Exception as exc:
             logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
+
+    @classmethod
+    def _mark_transforms_dirty(cls) -> None:
+        """Flag that physics state has changed and Fabric needs re-sync.
+
+        Called by :meth:`_simulate` after stepping. The actual sync is deferred
+        to :meth:`sync_transforms_to_usd`, which runs at render cadence.
+        """
+        cls._transforms_dirty = True
 
     @classmethod
     def step(cls) -> None:
@@ -254,6 +271,7 @@ class NewtonManager(PhysicsManager):
         cls._graph = None
         cls._newton_stage_path = None
         cls._usdrt_stage = None
+        cls._transforms_dirty = False
         cls._up_axis = "Z"
         cls._model_changes = set()
         cls._views = []
@@ -318,6 +336,7 @@ class NewtonManager(PhysicsManager):
                 if not xformable_prim.HasWorldXform():
                     xformable_prim.SetWorldXformFromUsd()
 
+            cls._mark_transforms_dirty()
             cls.sync_transforms_to_usd()
 
     @classmethod
@@ -530,9 +549,9 @@ class NewtonManager(PhysicsManager):
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls._state_0, eval_contacts)
 
-        # Sync Newton state to USD/Fabric for RTX rendering (e.g., Newton Physics + RTX Renderer preset)
+        # Mark transforms dirty so the next render-cadence sync picks them up.
         if cls._usdrt_stage is not None:
-            cls.sync_transforms_to_usd()
+            cls._mark_transforms_dirty()
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
