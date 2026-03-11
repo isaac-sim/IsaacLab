@@ -51,7 +51,7 @@ respectively that provides utilities to manage extensions.
 
                                  Sub-packages: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.
                                  Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.
-                                 Visualizer selectors: visualizers[all|kit|newton|rerun|viser].
+                                 Any sub-package accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].
                                  RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.
 
                                  Passing an RL framework name installs all sub-packages + that framework.
@@ -60,8 +60,6 @@ respectively that provides utilities to manage extensions.
                                  - all  - Install all sub-packages + all RL frameworks (default).
                                  - none - Install only the core 'isaaclab' package.
                                  - <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.
-
-                                 Quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.
            -f, --format          Run pre-commit to format the code and check lints.
            -p ..., --python ...  Run the python executable provided by Isaac Sim or virtual environment (if active).
            -s ..., --sim ...     Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
@@ -93,7 +91,7 @@ respectively that provides utilities to manage extensions.
 
                                  Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop, visualizers.
                                  Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.
-                                 Visualizer selectors: visualizers[all|kit|newton|rerun|viser].
+                                 Any sub-package accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].
                                  RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.
 
                                  Passing an RL framework name installs all sub-packages + that framework.
@@ -102,8 +100,6 @@ respectively that provides utilities to manage extensions.
                                  - all  - Install all sub-packages + all RL frameworks (default).
                                  - none - Install only the core 'isaaclab' package.
                                  - <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.
-
-                                 Quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.
            -f, --format          Run pre-commit to format the code and check lints.
            -p ..., --python ...  Run the python executable provided by Isaac Sim or virtual environment (if active).
            -s ..., --sim ...     Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.

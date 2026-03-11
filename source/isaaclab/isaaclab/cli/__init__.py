@@ -41,7 +41,7 @@ def cli() -> None:
             "\n"
             "Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop, visualizers.\n"
             "Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.\n"
-            "Visualizer selectors: visualizers[all|kit|newton|rerun|viser].\n"
+            "Any sub-package accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
             "RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.\n"
             "\n"
             "Passing an RL framework name installs all sub-packages + that framework.\n"
@@ -50,8 +50,6 @@ def cli() -> None:
             "- all  - Install all sub-packages + all RL frameworks (default).\n"
             "- none - Install only the core 'isaaclab' package.\n"
             "- <empty> (-i or --install without value) - Install all sub-packages + all RL frameworks.\n"
-            "\n"
-            "Quote visualizer selectors in bash, e.g. --install 'visualizers[rerun]'.\n"
         ),
     )
     parser.add_argument(
