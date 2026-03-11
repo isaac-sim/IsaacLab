@@ -216,14 +216,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._newton_model = model
         self._newton_state = state
         body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
-        # Merge articulation root paths into rigid body paths (deduplicated) so the
-        # RigidBodyView covers all bodies without needing a separate ArticulationView.
-        if artifact.articulation_paths:
-            seen = set(body_paths)
-            for path in artifact.articulation_paths:
-                if path not in seen:
-                    body_paths.append(path)
-                    seen.add(path)
         self._rigid_body_paths = body_paths
         self._xform_views.clear()
         self._view_body_index_map = {}

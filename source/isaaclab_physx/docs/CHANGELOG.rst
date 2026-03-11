@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.9 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed native ``malloc(): invalid size`` crash in
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider` caused
+  by passing articulation root prim paths to PhysX ``create_rigid_body_view``.
+  Prebuilt Newton artifacts now use only rigid body link paths for the view,
+  as articulation root prims are not valid rigid body entries.
+
+
 0.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 

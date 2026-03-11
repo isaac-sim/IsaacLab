@@ -2,6 +2,20 @@ Changelog
 ---------
 
 
+0.5.7 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` failing with
+  ``RuntimeError: NewtonWarpRenderer requires a Newton model`` when the
+  renderer was instantiated after the scene data provider.  The renderer now
+  proactively updates the global :class:`~isaaclab.sim.SimulationContext`
+  scene-data requirements before querying the provider, ensuring the Newton
+  model is built.
+
+
 0.5.6 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
