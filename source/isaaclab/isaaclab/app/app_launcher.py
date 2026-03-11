@@ -770,6 +770,7 @@ class AppLauncher:
             raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
 
         valid_visualizer_types = {"kit", "newton", "rerun", "viser", "none"}
+        # Secondary validation for the list path (kwargs); the string path is already validated by
         invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
         if invalid_visualizers:
             raise ValueError(
