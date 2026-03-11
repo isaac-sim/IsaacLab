@@ -95,7 +95,6 @@ def test_multi_tiled_camera_init(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
         assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
@@ -187,7 +186,6 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
         assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
-
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -284,7 +282,6 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         # Check if camera prim is set correctly and that it is a camera prim
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -409,7 +406,6 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
     # Play sim
     sim.reset()
-
 
     # Simulate physics
     for _ in range(10):

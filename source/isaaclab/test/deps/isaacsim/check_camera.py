@@ -168,7 +168,6 @@ def main():
         initial_joint_pos = view.get_joint_positions()
         initial_joint_vel = view.get_joint_velocities()
 
-
     # Counter
     count = 0
     prev_im = None

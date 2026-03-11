@@ -81,7 +81,6 @@ def test_single_camera_init(setup_camera, device):
     assert camera._sensor_prims[0].GetPath().pathString == camera_cfg.prim_path
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (1, 3)
     assert camera.data.quat_w_ros.shape == (1, 4)
@@ -133,7 +132,6 @@ def test_depth_clipping_max(setup_camera, device):
     # Play sim
     sim.reset()
 
-
     camera.update(dt)
 
     assert len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) == 0
@@ -168,7 +166,6 @@ def test_depth_clipping_none(setup_camera, device):
 
     # Play sim
     sim.reset()
-
 
     camera.update(dt)
 
@@ -209,7 +206,6 @@ def test_depth_clipping_zero(setup_camera, device):
     # Play sim
     sim.reset()
 
-
     camera.update(dt)
 
     assert len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) == 0
@@ -242,7 +238,6 @@ def test_multi_camera_init(setup_camera, device):
     # Check if camera prim is set correctly and that it is a camera prim
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -296,7 +291,6 @@ def test_rgb_only_camera(setup_camera, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["rgba", "rgb"]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -341,7 +335,6 @@ def test_data_types(setup_camera, device):
 
     # Play sim
     sim.reset()
-
 
     # Check if cameras are initialized
     assert camera_distance.is_initialized
@@ -388,7 +381,6 @@ def test_depth_only_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["distance_to_camera"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -438,7 +430,6 @@ def test_rgba_only_camera(setup_camera, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["rgba"]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -486,7 +477,6 @@ def test_albedo_only_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["albedo"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -540,7 +530,6 @@ def test_simple_shading_only_camera(setup_camera, device, data_type):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == [data_type]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -588,7 +577,6 @@ def test_distance_to_camera_only_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["distance_to_camera"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -638,7 +626,6 @@ def test_distance_to_image_plane_only_camera(setup_camera, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["distance_to_image_plane"]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -686,7 +673,6 @@ def test_normals_only_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["normals"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -739,7 +725,6 @@ def test_motion_vectors_only_camera(setup_camera, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["motion_vectors"]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -787,7 +772,6 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["semantic_segmentation"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -838,7 +822,6 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["instance_segmentation_fast"]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -887,7 +870,6 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera, device
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["instance_id_segmentation_fast"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -938,7 +920,6 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["semantic_segmentation"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -991,7 +972,6 @@ def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera, devic
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["instance_segmentation_fast"]
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -1040,7 +1020,6 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera, de
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert list(camera.data.output.keys()) == ["instance_id_segmentation_fast"]
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -1104,7 +1083,6 @@ def test_all_annotators_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -1205,7 +1183,6 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
 
-
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
@@ -1302,7 +1279,6 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
     assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
-
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -1527,7 +1503,6 @@ def test_throughput(setup_camera, device):
 
     # Play simulator
     sim.reset()
-
 
     # Simulate physics
     for _ in range(5):
