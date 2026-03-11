@@ -343,7 +343,7 @@ class AppLauncher:
         known, _ = parser.parse_known_args()
         config = vars(known)
         if len(config) == 0:
-            print(
+            logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
                 " If you have your own arguments, please load your own arguments before calling the"
                 " `AppLauncher.add_app_launcher_args` method. This allows the method to check the validity"
@@ -581,7 +581,7 @@ class AppLauncher:
                         " intended for the SimulationApp or change the name of the argument to avoid name conflicts."
                     )
                 # Print out values which will be used
-                print(f"[INFO][AppLauncher]: The argument '{key}' will be used to configure the SimulationApp.")
+                logger.info("The argument '%s' will be used to configure the SimulationApp.", key)
 
     def _config_resolution(self, launcher_args: dict):
         """Resolve the input arguments and environment variables.
@@ -632,9 +632,10 @@ class AppLauncher:
             if livestream_arg in livestream_valid_vals:
                 self._livestream = livestream_arg
                 # print info that we overrode the env-var
-                print(
-                    f"[INFO][AppLauncher]: Input keyword argument `livestream={livestream_arg}` has overridden"
-                    f" the environment variable `LIVESTREAM={livestream_env}`."
+                logger.info(
+                    "Input keyword argument `livestream=%s` has overridden the environment variable `LIVESTREAM=%s`.",
+                    livestream_arg,
+                    livestream_env,
                 )
             else:
                 raise ValueError(
@@ -688,15 +689,14 @@ class AppLauncher:
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
         if headless_arg and headless_arg_explicit:
-            print(
-                "[WARN][AppLauncher]: The '--headless' CLI argument is deprecated."
-                " Omit '--viz' for default headless. If config visualizers are enabled and you want to force"
-                " headless, use '--viz none'."
+            logger.warning(
+                "The '--headless' CLI argument is deprecated. Omit '--viz' for default headless. "
+                "If config visualizers are enabled and you want to force headless, use '--viz none'."
             )
             if self._cli_visualizer_explicit:
-                print(
-                    "[WARN][AppLauncher]: Both '--headless' and '--visualizer/--viz' were provided."
-                    " Deprecated '--headless' takes precedence and disables all visualizers."
+                logger.warning(
+                    "Both '--headless' and '--visualizer/--viz' were provided. "
+                    "Deprecated '--headless' takes precedence and disables all visualizers."
                 )
             self._cli_visualizer_disable_all = True
             self._cli_visualizer_types = []
@@ -709,14 +709,18 @@ class AppLauncher:
             self._headless = True
             # inform who has toggled the headless flag
             if self._livestream == livestream_arg:
-                print(
-                    f"[INFO][AppLauncher]: Input keyword argument `livestream={self._livestream}` has implicitly"
-                    f" overridden the environment variable `HEADLESS={headless_env}` to True."
+                logger.info(
+                    "Input keyword argument `livestream=%s` has implicitly overridden the "
+                    "environment variable `HEADLESS=%s` to True.",
+                    self._livestream,
+                    headless_env,
                 )
             elif self._livestream == livestream_env:
-                print(
-                    f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly"
-                    f" overridden the environment variable `HEADLESS={headless_env}` to True."
+                logger.info(
+                    "Environment variable `LIVESTREAM=%s` has implicitly overridden the "
+                    "environment variable `HEADLESS=%s` to True.",
+                    self._livestream,
+                    headless_env,
                 )
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
@@ -729,9 +733,9 @@ class AppLauncher:
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
                     if not self._headless:
-                        print(
-                            "[INFO][AppLauncher]: Forcing headless mode because visualizer selection excludes 'kit'"
-                            " and livestream is disabled."
+                        logger.debug(
+                            "Forcing headless mode because visualizer selection "
+                            "excludes 'kit' and livestream is disabled."
                         )
                     self._headless = True
             else:
@@ -740,10 +744,16 @@ class AppLauncher:
                 # - config visualizers without kit => headless
                 # - config includes kit => allow non-headless
                 if (not self._cfg_has_any_visualizers) or (not self._cfg_has_kit_visualizer):
+                    if not headless_arg_explicit:
+                        logger.info(
+                            "No visualizer was selected, so running in headless mode. "
+                            "To launch a visualizer app, pass '--viz <names>' "
+                            "(for example '--viz kit')."
+                        )
                     if not self._headless:
-                        print(
-                            "[INFO][AppLauncher]: Forcing headless mode because no Kit visualizer was requested"
-                            " via CLI or upstream visualizer config intent."
+                        logger.debug(
+                            "Forcing headless mode because no Kit visualizer was requested via CLI or upstream "
+                            "visualizer config intent."
                         )
                     self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
@@ -883,7 +893,7 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
-        print(f"[INFO][AppLauncher]: Using device: {device}")
+        logger.info("Using device: %s", device)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -942,7 +952,7 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
-        print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
+        logger.info("Loading experience file: %s", self._sim_experience_file)
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings."""
