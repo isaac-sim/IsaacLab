@@ -36,7 +36,7 @@ except ImportError:
     raise ImportError("Hydra not installed. Run: pip install hydra-core")
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.presets import PresetCfg, UnavailablePreset  # noqa: F401
