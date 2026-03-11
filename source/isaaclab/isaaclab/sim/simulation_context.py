@@ -704,9 +704,6 @@ class SimulationContext:
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
             cls._instance.physics_manager.close()
 
-            # Now safe to clear stage contents (PhysX is detached)
-            cls.clear_stage()
-
             # Close all visualizers
             for viz in cls._instance._visualizers:
                 viz.close()
@@ -717,7 +714,8 @@ class SimulationContext:
                     close_provider()
                 cls._instance._scene_data_provider = None
 
-            # Close the stage (clears cache, thread-local context, and Kit USD context)
+            # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
+            # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
 
             # Clear instance
