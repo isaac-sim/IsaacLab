@@ -25,13 +25,15 @@ from typing import Any, Literal
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+    from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# Suppress noisy debug-level websocket frame logs from the Kit LiveSync server
+logging.getLogger("websockets").setLevel(logging.WARNING)
 
 
 class ExplicitAction(argparse.Action):
@@ -183,6 +185,7 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+        self._visualizer_max_worlds: int | None  # Optional max worlds override for Newton-based visualizers
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -191,9 +194,6 @@ class AppLauncher:
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
-
-        # Internal: Override SimulationApp._start_app method to apply patches after app has started.
-        self.__patch_simulation_start_app(launcher_args)
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
@@ -260,7 +260,7 @@ class AppLauncher:
         Currently, it adds the following parameters to the argparser object:
 
         * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
-          Prefer omitting ``--visualizer`` for headless execution.
+          Prefer ``--visualizer none`` (or ``--viz none``) for explicit headless execution.
         * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
@@ -298,6 +298,21 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+
+        * ``visualizer`` (str): Visualizer backends to enable.
+          Valid options are:
+
+          - ``rerun``: Use Rerun visualizer.
+          - ``newton``: Use Newton visualizer.
+          - ``viser``: Use Viser visualizer.
+          - ``kit``: Use Omniverse Kit visualizer.
+          - ``none``: Disable all visualizers explicitly.
+          - Multiple visualizers can be specified as a comma-delimited list:
+            ``--visualizer rerun,newton,viser``.
+
+        * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
+          rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
+          config default.
 
 
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
@@ -1010,26 +1025,19 @@ class AppLauncher:
         initialize_carb_settings()
         settings = get_settings_manager()
 
-        # set carb setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
-        # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
-        # when the render() method is called.
+        # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
-        # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
-        # this flag is used by the SimulationContext class to enable the render_viewport pipeline
-        # when the render() method is called.
+        # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
-        # set carb setting to indicate no RTX sensors are used
-        # this flag is set to True when an RTX-rendering related sensor is created
-        # for example: the `Camera` sensor class
+        # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
-        # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
-        # for now, we use the custom loop runner from Isaac Sim to achieve this
+        # use fixed time stepping disabled; custom loop runner from Isaac Sim is used instead
         settings.set_bool("/app/player/useFixedTimeStepping", False)
 
     def _hide_stop_button(self):
@@ -1052,9 +1060,7 @@ class AppLauncher:
                 play_button_group._stop_button = None  # type: ignore
 
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Store RTX rendering mode in carb settings."""
-        import carb
-
+        """Store RTX rendering mode in settings."""
         rendering_mode = launcher_args.get("rendering_mode")
 
         if rendering_mode is None:
@@ -1063,15 +1069,10 @@ class AppLauncher:
                 return
             rendering_mode = ""
 
-        # store rendering mode in carb settings
-        carb_settings = carb.settings.get_settings()
-        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
+        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
-        """Store animation recording settings in carb settings."""
-        import carb
-
-        # check if recording is enabled
+        """Store animation recording settings in settings."""
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
         if not recording_enabled:
             return
@@ -1083,15 +1084,13 @@ class AppLauncher:
                 f" 'anim_recording_stop_time' {launcher_args.get('anim_recording_stop_time')}"
             )
 
-        # grab config
         start_time = launcher_args.get("anim_recording_start_time")
         stop_time = launcher_args.get("anim_recording_stop_time")
 
-        # store config in carb settings
-        carb_settings = carb.settings.get_settings()
-        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
-        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
-        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
+        settings = get_settings_manager()
+        settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
         """Store visualizer selection and max-worlds override in settings."""
@@ -1169,97 +1168,3 @@ class AppLauncher:
         """Handle the abort/segmentation/kill signals."""
         # close the app
         self._app.close()
-
-    def __patch_simulation_start_app(self, launcher_args: dict):
-        if not launcher_args.get("enable_pinocchio", False):
-            return
-
-        if launcher_args.get("disable_pinocchio_patch", False):
-            return
-
-        original_start_app = SimulationApp._start_app
-
-        def _start_app_patch(sim_app_instance, *args, **kwargs):
-            original_start_app(sim_app_instance, *args, **kwargs)
-            self.__patch_pxr_gf_matrix4d(launcher_args)
-
-        SimulationApp._start_app = _start_app_patch
-
-    def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
-        import traceback
-
-        from pxr import Gf
-
-        logger.warning(
-            "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
-            " into a list of floats."
-        )
-
-        # Store the original Matrix4d constructor
-        original_matrix4d = Gf.Matrix4d.__init__
-
-        # Define a wrapper function to handle different input types
-        def patch_matrix4d(self, *args, **kwargs):
-            try:
-                # Case 1: No arguments (identity matrix)
-                if len(args) == 0:
-                    original_matrix4d(self, *args, **kwargs)
-                    return
-
-                # Case 2: Single argument
-                elif len(args) == 1:
-                    arg = args[0]
-
-                    # Case 2a: Already a Matrix4d
-                    if isinstance(arg, Gf.Matrix4d):
-                        original_matrix4d(self, arg)
-                        return
-
-                    # Case 2b: Tuple of tuples (4x4 matrix) OR List of lists (4x4 matrix)
-                    elif (isinstance(arg, tuple) and len(arg) == 4 and all(isinstance(row, tuple) for row in arg)) or (
-                        isinstance(arg, list) and len(arg) == 4 and all(isinstance(row, list) for row in arg)
-                    ):
-                        float_list = [float(item) for row in arg for item in row]
-                        original_matrix4d(self, *float_list)
-                        return
-
-                    # Case 2c: Flat list of 16 elements
-                    elif isinstance(arg, (list, tuple)) and len(arg) == 16:
-                        float_list = [float(item) for item in arg]
-                        original_matrix4d(self, *float_list)
-                        return
-
-                    # Case 2d: Another matrix-like object with elements accessible via indexing
-                    elif hasattr(arg, "__getitem__") and hasattr(arg, "__len__"):
-                        with contextlib.suppress(IndexError, TypeError):
-                            if len(arg) == 16:
-                                float_list = [float(arg[i]) for i in range(16)]
-                                original_matrix4d(self, *float_list)
-                                return
-                            # Try to extract as 4x4 matrix
-                            elif len(arg) == 4 and all(len(row) == 4 for row in arg):
-                                float_list = [float(arg[i][j]) for i in range(4) for j in range(4)]
-                                original_matrix4d(self, *float_list)
-                                return
-
-                # Case 3: 16 separate arguments (individual matrix elements)
-                elif len(args) == 16:
-                    float_list = [float(arg) for arg in args]
-                    original_matrix4d(self, *float_list)
-                    return
-
-                # Default: Use original constructor
-                original_matrix4d(self, *args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Matrix4d wrapper error: {e}")
-                traceback.print_stack()
-                # Fall back to original constructor as last resort
-                try:
-                    original_matrix4d(self, *args, **kwargs)
-                except Exception as inner_e:
-                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
-                    # Initialize as identity matrix if all else fails
-                    original_matrix4d(self)
-
-        Gf.Matrix4d.__init__ = patch_matrix4d

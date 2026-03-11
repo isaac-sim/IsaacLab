@@ -109,6 +109,15 @@ For the migration-focused summary and deprecation context, see
    * - ``--viz none``
      - any
      - Run headless with all visualizers disabled.
+   * - no ``--viz``
+     - ``None`` or ``[]``
+     - Run headless (no visualizers requested by CLI or config).
+   * - no ``--viz``
+     - ``[NewtonVisualizerCfg(...)]`` (no Kit)
+     - Run headless and launch non-Kit visualizers from config.
+   * - ``--headless``
+     - any
+     - Run headless with deprecation warning.
    * - ``--headless --viz <names>``
      - any
      - Run headless; ``--headless`` takes precedence.
@@ -178,20 +187,6 @@ camera view and optional telemetry, without needing extra CLI flags every run:
 
     # Temporary override: only launch Rerun for a lightweight run
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun
-
-You can combine config defaults with CLI overrides:
-
-.. code-block:: bash
-
-    # Use visualizer_cfgs from SimulationCfg (no CLI override)
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
-
-    # Override config defaults with explicit CLI selection
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun
-
-    # Explicit headless mode (preferred over deprecated --headless)
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz none
-
 
 Visualizer Backends
 -------------------
