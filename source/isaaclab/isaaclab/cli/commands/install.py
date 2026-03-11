@@ -105,7 +105,7 @@ def _ensure_cuda_torch() -> None:
 
 
 # Isaac Sim install settings.
-ISAACSIM_VERSION_SPEC = ">=4.5.0"
+ISAACSIM_VERSION_SPEC = ">=6.0.0"
 ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
