@@ -50,18 +50,15 @@ def _ensure_streaming_subscription() -> None:
         return
 
     _streaming_subscribed = True
-    try:
-        from carb.eventdispatcher import get_eventdispatcher
 
-        dispatcher = get_eventdispatcher()
-        if dispatcher is not None:
-            _streaming_subscription = dispatcher.observe_event(
-                observer_name="isaaclab_rtx_streaming_wait",
-                event_name=_RTX_STREAMING_STATUS_EVENT,
-                on_event=_on_streaming_status_event,
-            )
-    except (ImportError, AttributeError):
-        pass
+    from carb.eventdispatcher import get_eventdispatcher
+    dispatcher = get_eventdispatcher()
+    if dispatcher is not None:
+        _streaming_subscription = dispatcher.observe_event(
+            observer_name="isaaclab_rtx_streaming_wait",
+            event_name=_RTX_STREAMING_STATUS_EVENT,
+            on_event=_on_streaming_status_event,
+        )
 
 
 def _wait_for_streaming_complete() -> None:
