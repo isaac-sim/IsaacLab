@@ -17,6 +17,7 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 
 from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
+from isaaclab.sim import SimulationContext  # noqa: E402
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import (  # noqa: E402
     CartpoleCameraEnv,
@@ -36,6 +37,10 @@ from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexs
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
 
 
+# Skip reason for ovrtx_renderer
+_OVRTX_SKIP = "OVRTX testing disabled"
+
+
 @pytest.fixture(scope="module")
 def shadow_hand_vision_presets():
     """Collect all presets from ShadowHandVisionEnvCfg once for the module."""
@@ -43,19 +48,24 @@ def shadow_hand_vision_presets():
 
 
 @pytest.fixture(scope="module")
-def cartpole_presets():
+def cartpole_camera_presets():
     """Collect all presets from CartpoleCameraPresetsEnvCfg once for the module."""
     return collect_presets(CartpoleCameraPresetsEnvCfg())
 
 
 @pytest.fixture(scope="module")
-def dexsuite_presets():
+def dexsuite_kuka_allegro_lift_presets():
     """Collect all presets from DexsuiteKukaAllegroLiftEnvCfg once for the module."""
     return collect_presets(DexsuiteKukaAllegroLiftEnvCfg())
 
 
-# Skip reason for ovrtx_renderer
-_OVRTX_SKIP = "OVRTX testing disabled"
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Fixture to ensure SimulationContext is cleared after each test."""
+    yield
+    # Cleanup after test
+    SimulationContext.clear_instance()
+
 
 # (physics_backend, renderer, data_type) shared by both envs
 _SHARED_RENDER_CORRECTNESS_CASES = [
@@ -154,6 +164,7 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
     """Build Shadow Hand vision env for (physics_backend, renderer, data_type), step once, yield, close.
 
     Function-scoped so each parametrized case creates and closes its own env sequentially.
+    Uses try/finally so env.close() runs even when setup or test fails, ensuring simulation context is cleared.
     """
     physics_backend, renderer, data_type = request.param
     presets = shadow_hand_vision_presets
@@ -177,22 +188,33 @@ def shadow_hand_env(request, shadow_hand_vision_presets):
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
         env_cfg.feature_extractor.enabled = False
 
-    env = ShadowHandVisionEnv(env_cfg)
-    env.reset()
-    actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-    env.step(actions)
-    yield physics_backend, renderer, data_type, env
-    env.close()
+    env = None
+    try:
+        env = ShadowHandVisionEnv(env_cfg)
+        env.reset()
+        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
+        env.step(actions)
+        yield physics_backend, renderer, data_type, env
+    finally:
+        if env is not None:
+            env.close()
+
+
+def test_camera_renders_not_empty_shadow_hand(shadow_hand_env):
+    """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
+    physics_backend, renderer, data_type, env = shadow_hand_env
+    _assert_camera_renders_not_empty("shadow_hand", physics_backend, renderer, data_type, env._tiled_camera.data.output)
 
 
 @pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
-def cartpole_camera_env(request, cartpole_presets):
+def cartpole_env(request, cartpole_camera_presets):
     """Build Cartpole camera env for (physics_backend, renderer, data_type), step once, yield, close.
 
     Function-scoped so each parametrized case creates and closes its own env sequentially.
+    Uses try/finally so env.close() runs even when setup or test fails, ensuring simulation context is cleared.
     """
     physics_backend, renderer, data_type = request.param
-    presets = cartpole_presets
+    presets = cartpole_camera_presets
     camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
     camera_cfg.renderer_cfg = copy.deepcopy(presets["tiled_camera.renderer_cfg"][renderer])
     env_cfg = CartpoleCameraPresetsEnvCfg()
@@ -208,33 +230,32 @@ def cartpole_camera_env(request, cartpole_presets):
     env_cfg.scene.num_envs = 4
     env_cfg.write_image_to_file = True
     env_cfg.seed = 42
-    env = CartpoleCameraEnv(env_cfg)
-    env.reset()
-    actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-    env.step(actions)
-    yield physics_backend, renderer, data_type, env
-    env.close()
+    env = None
+    try:
+        env = CartpoleCameraEnv(env_cfg)
+        env.reset()
+        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
+        env.step(actions)
+        yield physics_backend, renderer, data_type, env
+    finally:
+        if env is not None:
+            env.close()
 
 
-def test_camera_renders_not_empty_shadow_hand(shadow_hand_env):
-    """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
-    physics_backend, renderer, data_type, env = shadow_hand_env
-    _assert_camera_renders_not_empty("shadow_hand", physics_backend, renderer, data_type, env._tiled_camera.data.output)
-
-
-def test_camera_renders_not_empty_cartpole_camera(cartpole_camera_env):
+def test_camera_renders_not_empty_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
-    physics_backend, renderer, data_type, env = cartpole_camera_env
+    physics_backend, renderer, data_type, env = cartpole_env
     _assert_camera_renders_not_empty("cartpole", physics_backend, renderer, data_type, env._tiled_camera.data.output)
 
 
 @pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
-def dexsuite_kuka_allegro_lift_env(request, dexsuite_presets, shadow_hand_vision_presets):
+def dexsuite_kuka_allegro_lift_env(request, dexsuite_kuka_allegro_lift_presets, shadow_hand_vision_presets):
     """Build Dexsuite Kuka-Allegro Lift env (single camera) for (physics_backend, renderer, data_type).
 
     Uses scene.single_camera and scene.base_camera presets; renderer from Shadow Hand presets.
     Skips cases Dexsuite does not support (no simple_shading presets; PhysX only; newton+depth).
     Function-scoped so each parametrized case creates and closes its own env sequentially.
+    Uses try/finally so env.close() runs even when setup or test fails, ensuring simulation context is cleared.
     """
     physics_backend, renderer, data_type = request.param
 
@@ -250,22 +271,26 @@ def dexsuite_kuka_allegro_lift_env(request, dexsuite_presets, shadow_hand_vision
 
     dexsuite_camera_key = data_type_to_dexsuite[data_type]
     env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
-    env_cfg.scene = copy.deepcopy(dexsuite_presets["scene"]["single_camera"])
-    env_cfg.scene.base_camera = copy.deepcopy(dexsuite_presets["scene.base_camera"][dexsuite_camera_key])
+    env_cfg.scene = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["scene"]["single_camera"])
+    env_cfg.scene.base_camera = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["scene.base_camera"][dexsuite_camera_key])
     env_cfg.scene.base_camera.renderer_cfg = copy.deepcopy(
         shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer]
     )
-    env_cfg.observations = copy.deepcopy(dexsuite_presets["observations"]["single_camera"])
+    env_cfg.observations = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["observations"]["single_camera"])
     env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
     env_cfg.seed = 42
     env_cfg.write_image_to_file = True
-    env = ManagerBasedRLEnv(env_cfg)
-    env.reset()
-    actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-    env.step(actions)
-    yield physics_backend, renderer, data_type, env
-    env.close()
+    env = None
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+        env.reset()
+        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
+        env.step(actions)
+        yield physics_backend, renderer, data_type, env
+    finally:
+        if env is not None:
+            env.close()
 
 
 def test_camera_renders_not_empty_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
