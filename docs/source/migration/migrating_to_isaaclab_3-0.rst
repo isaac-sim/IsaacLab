@@ -13,6 +13,27 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
+Visualizer CLI and Headless Behavior
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In this update, headless mode is primarily determined by the ``--visualizer`` (or ``--viz``) argument.
+This lets you choose which visualizer apps to launch.
+You can also set visualizer options in your code using
+``SimulationCfg.visualizer_cfgs``.
+
+The ``--headless`` argument still works, but it is deprecated
+and will be removed in the future.
+
+
+- ``--visualizer`` / ``--viz`` accepts a **comma-separated** value (for example ``--viz kit,newton``).
+- ``--headless`` is deprecated but still supported; if provided, it disables visualizers and takes precedence.
+- ``--viz none`` also disables all visualizers, even if the user sets visualizers with ``SimulationCfg.visualizer_cfgs``.
+
+For the full behavior (CLI + ``SimulationCfg.visualizer_cfgs`` resolution), examples,
+and backend-specific guidance, see:
+:doc:`/source/experimental-features/newton-physics-integration/visualization`.
+
+
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

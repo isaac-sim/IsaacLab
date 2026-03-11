@@ -82,26 +82,25 @@ It is up to you to decide which one you prefer based on your use case.
 Headless execution
 """"""""""""""""""
 
-If the ``--headless`` flag is set, the simulation is not rendered during training. This is useful
-when training on a remote server or when you do not want to see the simulation. Typically, it speeds
-up the training process since only physics simulation step is performed.
+When no visualizer is requested, no interactive visualizer window is opened during training. This is useful
+when training on a remote server or when you do not need live visual feedback, which adds some compute cost.
+Rendering can still be active for sensor/camera data capture when enabled by the workflow.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
 
 
 Headless execution with off-screen render
 """""""""""""""""""""""""""""""""""""""""
 
-Since the above command does not render the simulation, it is not possible to visualize the agent's
-behavior during training. To visualize the agent's behavior, we pass the ``--enable_cameras`` which
-enables off-screen rendering. Additionally, we pass the flag ``--video`` which records a video of the
-agent's behavior during training.
+Since the above command does not open an interactive visualizer, it is not possible to monitor behavior
+live in a viewport window. To capture visual output during training, enable camera/sensor rendering
+in the workflow and pass ``--video`` to record the agent behavior.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --video
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -112,7 +111,7 @@ Interactive execution
 .. currentmodule:: isaaclab
 
 While the above two methods are useful for training the agent, they don't allow you to interact with the
-simulation to see what is happening. In this case, you can ignore the ``--headless`` flag and run the
+simulation to see what is happening. In this case, run the
 training script as follows:
 
 .. code-block:: bash
@@ -120,7 +119,7 @@ training script as follows:
   ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
 
 This will open the Isaac Sim window and you can see the agent training in the environment. However, this
-will slow down the training process since the simulation is rendered on the screen. As a workaround, you
+will usually slow down the training process because interactive visual feedback is enabled. As a workaround, you
 can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
 corner of the screen. To learn more about these render modes, please check the
 :class:`sim.SimulationContext.RenderMode` class.

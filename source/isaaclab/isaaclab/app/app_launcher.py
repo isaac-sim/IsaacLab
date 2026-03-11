@@ -25,15 +25,13 @@ from typing import Any, Literal
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
-    from isaacsim import SimulationApp
+
+from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
 # import logger
 logger = logging.getLogger(__name__)
-
-# Suppress noisy debug-level websocket frame logs from the Kit LiveSync server
-logging.getLogger("websockets").setLevel(logging.WARNING)
 
 
 class ExplicitAction(argparse.Action):
@@ -48,7 +46,7 @@ class ExplicitAction(argparse.Action):
 
 def _parse_visualizer_csv(value: str) -> list[str]:
     """Parse visualizer list from a single comma-delimited CLI token."""
-    valid = {"kit", "newton", "rerun", "viser"}
+    valid = {"kit", "newton", "rerun", "viser", "none"}
     token = (value or "").strip()
     if not token:
         raise argparse.ArgumentTypeError(
@@ -73,6 +71,41 @@ def _parse_visualizer_csv(value: str) -> list[str]:
         )
     # De-duplicate while preserving order.
     return list(dict.fromkeys(names))
+
+
+def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
+    """Normalize and validate upstream config visualizer intent payload.
+
+    The expected schema is:
+    ``{"has_any_visualizers": bool, "has_kit_visualizer": bool}``.
+    """
+    if intent is None:
+        return False, False
+    if not isinstance(intent, dict):
+        raise ValueError("Invalid value for `visualizer_intent`: expected dict or None.")
+
+    has_any = intent.get("has_any_visualizers", False)
+    has_kit = intent.get("has_kit_visualizer", False)
+    if not isinstance(has_any, bool) or not isinstance(has_kit, bool):
+        raise ValueError(
+            "Invalid `visualizer_intent` values: expected booleans for `has_any_visualizers` and `has_kit_visualizer`."
+        )
+    if has_kit and not has_any:
+        raise ValueError("Invalid `visualizer_intent`: `has_kit_visualizer=True` requires `has_any_visualizers=True`.")
+    return has_any, has_kit
+
+
+class ExplicitTrueAction(argparse.Action):
+    """Custom action to track explicit use of boolean flags."""
+
+    def __init__(self, option_strings, dest, default=False, required=False, help=None):
+        super().__init__(
+            option_strings=option_strings, dest=dest, nargs=0, default=default, required=required, help=help
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, True)
+        setattr(namespace, f"{self.dest}_explicit", True)
 
 
 class AppLauncher:
@@ -150,7 +183,6 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
-        self._visualizer_max_worlds: int | None  # Optional max worlds override for Newton-based visualizers
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -159,6 +191,9 @@ class AppLauncher:
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
+
+        # Internal: Override SimulationApp._start_app method to apply patches after app has started.
+        self.__patch_simulation_start_app(launcher_args)
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
@@ -224,9 +259,8 @@ class AppLauncher:
 
         Currently, it adds the following parameters to the argparser object:
 
-        * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
-          as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the
-          ``HEADLESS`` environment variable.
+        * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
+          Prefer omitting ``--visualizer`` for headless execution.
         * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
@@ -267,24 +301,6 @@ class AppLauncher:
 
 
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
-
-          - ``rerun``: Use Rerun visualizer.
-          - ``newton``: Use Newton visualizer.
-          - ``viser``: Use Viser visualizer.
-          - ``kit``: Use Omniverse Kit visualizer.
-          - Multiple visualizers can be specified as a comma-delimited list:
-            ``--visualizer rerun,newton,viser``
-          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
-
-          Note: If visualizer configs are not defined in the simulation config, default configs will be
-          automatically created with all default parameters.
-          If --headless is specified, it takes precedence and NO visualizers will be initialized.
-          When kit visualizer is specified, the app will launch in non-headless mode automatically.
-          When only non-GUI visualizers (rerun, newton, viser) are specified, headless mode is auto-enabled.
-
-        * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
-          rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
-          config default.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -327,9 +343,12 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--headless",
-            action="store_true",
+            action=ExplicitTrueAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
-            help="Force display off at all times.",
+            help=(
+                "[DEPRECATED] Disable visualizers and force host headless mode."
+                " Use '--visualizer none' to disable all visualizers or '--visualizer ...' to pick specific backends."
+            ),
         )
         arg_group.add_argument(
             "--livestream",
@@ -359,7 +378,9 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--visualizer",
+            "--viz",
             type=_parse_visualizer_csv,
+            action=ExplicitAction,
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
@@ -554,6 +575,7 @@ class AppLauncher:
         """
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
+        self._resolve_visualizer_settings(launcher_args)
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
         self._resolve_camera_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
@@ -642,12 +664,25 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
+        headless_arg_explicit = launcher_args.pop("headless_explicit", False)
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
+        if headless_arg and headless_arg_explicit:
+            print(
+                "[WARN][AppLauncher]: The '--headless' CLI argument is deprecated."
+                " Use '--visualizer none' to disable all visualizers or '--visualizer ...' to pick specific backends."
+            )
+            if self._cli_visualizer_explicit:
+                print(
+                    "[WARN][AppLauncher]: Both '--headless' and '--visualizer/--viz' were provided."
+                    " Deprecated '--headless' takes precedence and disables all visualizers."
+                )
+            self._cli_visualizer_disable_all = True
+            self._cli_visualizer_types = []
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -670,20 +705,65 @@ class AppLauncher:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
 
-        # If visualizers are explicitly requested and Kit viewport is not among them,
-        # force headless mode so Isaac Sim GUI does not launch unnecessarily.
-        visualizers_arg = launcher_args.get("visualizer")
-        if visualizers_arg:
-            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
-            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
-                if not self._headless:
-                    print(
-                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
-                        "'kit' and livestream is disabled."
-                    )
-                self._headless = True
+        # Resolve headless from visualizer intent when livestream is disabled.
+        if self._livestream == 0:
+            if self._cli_visualizer_explicit:
+                # Explicit CLI selection controls headless: only Kit implies non-headless.
+                requested_visualizers = set(self._cli_visualizer_types)
+                if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
+                    if not self._headless:
+                        print(
+                            "[INFO][AppLauncher]: Forcing headless mode because visualizer selection excludes 'kit'"
+                            " and livestream is disabled."
+                        )
+                    self._headless = True
+            else:
+                # No CLI visualizer selection: use upstream config intent defaults.
+                # - no config visualizers => headless
+                # - config visualizers without kit => headless
+                # - config includes kit => allow non-headless
+                if (not self._cfg_has_any_visualizers) or (not self._cfg_has_kit_visualizer):
+                    if not self._headless:
+                        print(
+                            "[INFO][AppLauncher]: Forcing headless mode because no Kit visualizer was requested"
+                            " via CLI or upstream visualizer config intent."
+                        )
+                    self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
+
+    def _resolve_visualizer_settings(self, launcher_args: dict) -> None:
+        """Resolve visualizer CLI semantics and normalize selection."""
+        raw_visualizers = launcher_args.get("visualizer")
+        cfg_has_any, cfg_has_kit = _normalize_visualizer_intent(launcher_args.pop("visualizer_intent", None))
+        self._cfg_has_any_visualizers = cfg_has_any
+        self._cfg_has_kit_visualizer = cfg_has_kit
+        visualizer_explicit = bool(launcher_args.pop("visualizer_explicit", False))
+        if not visualizer_explicit and "visualizer" in launcher_args:
+            visualizer_explicit = raw_visualizers is not None
+
+        visualizer_types: list[str] = []
+        if raw_visualizers is not None:
+            if isinstance(raw_visualizers, str):
+                visualizer_types = _parse_visualizer_csv(raw_visualizers)
+            else:
+                visualizer_types = [str(v).strip().lower() for v in raw_visualizers if str(v).strip()]
+
+        if visualizer_explicit and "none" in visualizer_types and len(visualizer_types) > 1:
+            raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
+
+        valid_visualizer_types = {"kit", "newton", "rerun", "viser", "none"}
+        invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
+        if invalid_visualizers:
+            raise ValueError(
+                f"Invalid value(s) for '--visualizer': {invalid_visualizers}. "
+                "Expected one or more of: ['kit', 'newton', 'rerun', 'viser', 'none']."
+            )
+
+        self._cli_visualizer_explicit = visualizer_explicit
+        self._cli_visualizer_disable_all = visualizer_explicit and "none" in visualizer_types
+        self._cli_visualizer_types = [] if self._cli_visualizer_disable_all else visualizer_types
+        launcher_args["visualizer"] = self._cli_visualizer_types
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -930,19 +1010,26 @@ class AppLauncher:
         initialize_carb_settings()
         settings = get_settings_manager()
 
-        # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
+        # set carb setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
+        # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
+        # when the render() method is called.
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
-        # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
+        # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
+        # this flag is used by the SimulationContext class to enable the render_viewport pipeline
+        # when the render() method is called.
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
-        # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
+        # set carb setting to indicate no RTX sensors are used
+        # this flag is set to True when an RTX-rendering related sensor is created
+        # for example: the `Camera` sensor class
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
-        # use fixed time stepping disabled; custom loop runner from Isaac Sim is used instead
+        # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
+        # for now, we use the custom loop runner from Isaac Sim to achieve this
         settings.set_bool("/app/player/useFixedTimeStepping", False)
 
     def _hide_stop_button(self):
@@ -965,7 +1052,9 @@ class AppLauncher:
                 play_button_group._stop_button = None  # type: ignore
 
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Store RTX rendering mode in settings."""
+        """Store RTX rendering mode in carb settings."""
+        import carb
+
         rendering_mode = launcher_args.get("rendering_mode")
 
         if rendering_mode is None:
@@ -974,10 +1063,15 @@ class AppLauncher:
                 return
             rendering_mode = ""
 
-        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
+        # store rendering mode in carb settings
+        carb_settings = carb.settings.get_settings()
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
-        """Store animation recording settings in settings."""
+        """Store animation recording settings in carb settings."""
+        import carb
+
+        # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
         if not recording_enabled:
             return
@@ -989,13 +1083,15 @@ class AppLauncher:
                 f" 'anim_recording_stop_time' {launcher_args.get('anim_recording_stop_time')}"
             )
 
+        # grab config
         start_time = launcher_args.get("anim_recording_start_time")
         stop_time = launcher_args.get("anim_recording_stop_time")
 
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
-        settings.set_float("/isaaclab/anim_recording/start_time", start_time)
-        settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
+        # store config in carb settings
+        carb_settings = carb.settings.get_settings()
+        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
         """Store visualizer selection and max-worlds override in settings."""
@@ -1009,12 +1105,17 @@ class AppLauncher:
 
         with contextlib.suppress(Exception):
             visualizer_str = " ".join(visualizers) if visualizers else ""
-            get_settings_manager().set_string("/isaaclab/visualizer/types", visualizer_str)
+            settings = get_settings_manager()
+            cli_visualizer_explicit = getattr(self, "_cli_visualizer_explicit", False)
+            cli_visualizer_disable_all = getattr(self, "_cli_visualizer_disable_all", False)
+            settings.set_string("/isaaclab/visualizer/types", visualizer_str)
+            settings.set_bool("/isaaclab/visualizer/explicit", cli_visualizer_explicit)
+            settings.set_bool("/isaaclab/visualizer/disable_all", cli_visualizer_disable_all)
             # Store as int setting where -1 means "use per-visualizer defaults".
             if visualizer_max_worlds is None:
-                get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", -1)
+                settings.set_int("/isaaclab/visualizer/max_worlds", -1)
             else:
-                get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
+                settings.set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
@@ -1068,3 +1169,97 @@ class AppLauncher:
         """Handle the abort/segmentation/kill signals."""
         # close the app
         self._app.close()
+
+    def __patch_simulation_start_app(self, launcher_args: dict):
+        if not launcher_args.get("enable_pinocchio", False):
+            return
+
+        if launcher_args.get("disable_pinocchio_patch", False):
+            return
+
+        original_start_app = SimulationApp._start_app
+
+        def _start_app_patch(sim_app_instance, *args, **kwargs):
+            original_start_app(sim_app_instance, *args, **kwargs)
+            self.__patch_pxr_gf_matrix4d(launcher_args)
+
+        SimulationApp._start_app = _start_app_patch
+
+    def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
+        import traceback
+
+        from pxr import Gf
+
+        logger.warning(
+            "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
+            " into a list of floats."
+        )
+
+        # Store the original Matrix4d constructor
+        original_matrix4d = Gf.Matrix4d.__init__
+
+        # Define a wrapper function to handle different input types
+        def patch_matrix4d(self, *args, **kwargs):
+            try:
+                # Case 1: No arguments (identity matrix)
+                if len(args) == 0:
+                    original_matrix4d(self, *args, **kwargs)
+                    return
+
+                # Case 2: Single argument
+                elif len(args) == 1:
+                    arg = args[0]
+
+                    # Case 2a: Already a Matrix4d
+                    if isinstance(arg, Gf.Matrix4d):
+                        original_matrix4d(self, arg)
+                        return
+
+                    # Case 2b: Tuple of tuples (4x4 matrix) OR List of lists (4x4 matrix)
+                    elif (isinstance(arg, tuple) and len(arg) == 4 and all(isinstance(row, tuple) for row in arg)) or (
+                        isinstance(arg, list) and len(arg) == 4 and all(isinstance(row, list) for row in arg)
+                    ):
+                        float_list = [float(item) for row in arg for item in row]
+                        original_matrix4d(self, *float_list)
+                        return
+
+                    # Case 2c: Flat list of 16 elements
+                    elif isinstance(arg, (list, tuple)) and len(arg) == 16:
+                        float_list = [float(item) for item in arg]
+                        original_matrix4d(self, *float_list)
+                        return
+
+                    # Case 2d: Another matrix-like object with elements accessible via indexing
+                    elif hasattr(arg, "__getitem__") and hasattr(arg, "__len__"):
+                        with contextlib.suppress(IndexError, TypeError):
+                            if len(arg) == 16:
+                                float_list = [float(arg[i]) for i in range(16)]
+                                original_matrix4d(self, *float_list)
+                                return
+                            # Try to extract as 4x4 matrix
+                            elif len(arg) == 4 and all(len(row) == 4 for row in arg):
+                                float_list = [float(arg[i][j]) for i in range(4) for j in range(4)]
+                                original_matrix4d(self, *float_list)
+                                return
+
+                # Case 3: 16 separate arguments (individual matrix elements)
+                elif len(args) == 16:
+                    float_list = [float(arg) for arg in args]
+                    original_matrix4d(self, *float_list)
+                    return
+
+                # Default: Use original constructor
+                original_matrix4d(self, *args, **kwargs)
+
+            except Exception as e:
+                logger.error(f"Matrix4d wrapper error: {e}")
+                traceback.print_stack()
+                # Fall back to original constructor as last resort
+                try:
+                    original_matrix4d(self, *args, **kwargs)
+                except Exception as inner_e:
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    # Initialize as identity matrix if all else fails
+                    original_matrix4d(self)
+
+        Gf.Matrix4d.__init__ = patch_matrix4d

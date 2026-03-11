@@ -62,16 +62,56 @@ Launch visualizers from the command line with ``--visualizer``:
     # Launch all visualizers (comma-delimited list, no spaces)
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit,newton,rerun
 
-    # Launch just newton visualizer
+    # Launch only the Newton visualizer
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
 
 
-If ``--headless`` is given, no visualizers will be launched.
+For explicit headless execution, prefer:
+
+.. code-block:: bash
+
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz none
 
 .. note::
 
-    The ``--headless`` argument may be deprecated in future versions to avoid confusion with the ``--visualizer``
-    argument. For now, ``--headless`` takes precedence and disables all visualizers.
+    The ``--headless`` argument is deprecated. Prefer ``--viz none`` for explicit headless execution.
+    For compatibility, ``--headless`` still takes precedence and disables all visualizers.
+
+Resolution Rules (CLI + Config)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visualizer_cfgs``:
+
+- ``--visualizer`` / ``--viz`` uses comma-separated values (for example ``--viz kit,newton``).
+- ``--viz none`` explicitly disables all visualizers.
+- If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
+- If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs``.
+
+For the migration-focused summary and deprecation context, see
+:doc:`/source/migration/migrating_to_isaaclab_3-0`.
+
+.. list-table:: Common modes
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - CLI args
+     - ``SimulationCfg.visualizer_cfgs``
+     - Effective behavior
+   * - ``--viz kit,newton``
+     - ``[KitVisualizerCfg(...)]``
+     - Use custom Kit cfg and create default Newton cfg.
+   * - ``--viz rerun``
+     - ``[KitVisualizerCfg(...)]``
+     - Launch default Rerun only.
+   * - no ``--viz``
+     - ``[KitVisualizerCfg(...), NewtonVisualizerCfg(...)]``
+     - Use config visualizers directly.
+   * - ``--viz none``
+     - any
+     - Run headless with all visualizers disabled.
+   * - ``--headless --viz <names>``
+     - any
+     - Run headless; ``--headless`` takes precedence.
 
 
 Configuration
@@ -111,6 +151,46 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
             ),
         ]
     )
+
+Concrete workflow example
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A handy pattern is to keep a non-empty ``visualizer_cfgs`` list in task config so local debugging has a stable
+camera view and optional telemetry, without needing extra CLI flags every run:
+
+.. code-block:: python
+
+    from isaaclab.sim import SimulationCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.rerun import RerunVisualizerCfg
+
+    sim_cfg = SimulationCfg(
+        visualizer_cfgs=[
+            KitVisualizerCfg(camera_position=(6.0, 6.0, 3.0), camera_target=(0.0, 0.0, 0.0)),
+            RerunVisualizerCfg(record_to_rrd="debug_rollout.rrd"),
+        ]
+    )
+
+.. code-block:: bash
+
+    # Uses visualizer_cfgs directly (fixed Kit camera + Rerun recording)
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
+
+    # Temporary override: only launch Rerun for a lightweight run
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun
+
+You can combine config defaults with CLI overrides:
+
+.. code-block:: bash
+
+    # Use visualizer_cfgs from SimulationCfg (no CLI override)
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
+
+    # Override config defaults with explicit CLI selection
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun
+
+    # Explicit headless mode (preferred over deprecated --headless)
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz none
 
 
 Visualizer Backends
