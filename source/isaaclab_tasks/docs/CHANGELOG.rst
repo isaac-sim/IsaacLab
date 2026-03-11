@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+1.5.8 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``validate_config`` overrides to :class:`ShadowHandVisionEnvCfg` and
+  :class:`DexsuiteReorientEnvCfg` to catch invalid preset combinations early
+  (e.g. Warp renderer with unsupported data types, Newton physics with
+  multi-asset spawning).
+
+Changed
+^^^^^^^
+
+* Moved :class:`ShadowHandVisionEnvCfg` validation logic from the env constructor
+  into :meth:`~ShadowHandVisionEnvCfg.validate_config`, leveraging the new
+  ``configclass`` validation hook.
+
+
 1.5.7 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
