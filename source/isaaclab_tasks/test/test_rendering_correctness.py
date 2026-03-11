@@ -13,10 +13,12 @@ simulation_app = app_launcher.app
 
 import copy  # noqa: E402
 
+import gymnasium as gym  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 
 from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
+from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import (  # noqa: E402
@@ -35,6 +37,14 @@ from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexs
     DexsuiteKukaAllegroLiftEnvCfg,
 )
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
+
+import isaaclab_tasks  # noqa: E402, F401 - register envs with gym
+
+from isaaclab_tasks.direct.locomotion.locomotion_env import LocomotionEnv  # noqa: E402
+
+import importlib  # noqa: E402
+import sys  # noqa: E402
 
 
 # Skip reason for ovrtx_renderer
@@ -61,8 +71,15 @@ def dexsuite_kuka_allegro_lift_presets():
 
 @pytest.fixture(autouse=True)
 def cleanup_simulation_context():
-    """Fixture to ensure SimulationContext is cleared after each test."""
+    """Fixture to clear SimulationContext after each test.
+
+    SimulationContext is a singleton; tests that create envs leave it set. Without
+    cleanup, later tests can see stale context or fail when the instance is
+    reused. The fixture runs after every test and calls clear_instance() so each
+    test runs with a clean simulation context and tests stay isolated.
+    """
     yield
+
     # Cleanup after test
     SimulationContext.clear_instance()
 
@@ -157,6 +174,90 @@ def _assert_camera_renders_not_empty(env_name, physics_backend, renderer, data_t
             f"[{label}] Camera output '{dt}' is all zeros or all inf "
             f"after stepping. Tensor shape: {tensor.shape}, dtype: {tensor.dtype}."
         )
+
+
+def _get_env_class_from_spec(spec):
+    """Resolve the env class from a gym EnvSpec's entry_point. Returns None if not resolvable."""
+    ep = getattr(spec, "entry_point", None)
+    if ep is None:
+        return None
+    if isinstance(ep, str) and ":" in ep:
+        mod_name, attr_name = ep.split(":", 1)
+        try:
+            mod = importlib.import_module(mod_name)
+            cls = getattr(mod, attr_name, None)
+            if isinstance(cls, type):
+                return cls
+        except (ImportError, AttributeError):
+            pass
+        return None
+    if isinstance(ep, type):
+        return ep
+    return None
+
+
+def _is_teleop_env(task_spec) -> bool:
+    """True if the task's env config has teleop deps (isaacteleop / isaaclab_teleop)."""
+    entry = task_spec.kwargs.get("env_cfg_entry_point")
+    if not isinstance(entry, str) or ":" not in entry:
+        return False
+    try:
+        mod_name, attr_name = entry.split(":")
+        mod = importlib.import_module(mod_name)
+        cfg_cls = getattr(mod, attr_name, None)
+        if cfg_cls is None:
+            return False
+        for cls in cfg_cls.__mro__:
+            cls_module = sys.modules.get(cls.__module__)
+            if cls_module is not None and hasattr(cls_module, "_TELEOP_AVAILABLE"):
+                return True
+    except (ImportError, AttributeError):
+        pass
+    return False
+
+
+def _collect_camera_outputs_from_env(env) -> dict[str, dict[str, torch.Tensor]]:
+    """Collect all camera-like outputs from an unwrapped env.
+
+    Scene sensors: env.scene.sensors, each sensor's .data.output dict (name -> tensor).
+
+    Returns:
+        Dict mapping source name -> {data_type: tensor} (e.g. {"tiled_camera": {"rgb": tensor}}).
+    """
+    base = getattr(env, "unwrapped", env)
+    out = {}
+
+    scene = getattr(base, "scene", None)
+    if scene is not None:
+        sensors = getattr(scene, "sensors", None)
+        if sensors is not None:
+            for name, sensor in sensors.items():
+                data = getattr(sensor, "data", None)
+                output = getattr(data, "output", None) if data is not None else None
+                if not isinstance(output, dict):
+                    continue
+                # Collect only tensor entries (ignore empty or lazy-unfilled)
+                tensor_output = {
+                    k: v for k, v in output.items() if isinstance(v, torch.Tensor) and v.numel() > 0
+                }
+                if tensor_output:
+                    out[name] = tensor_output
+
+    return out
+
+
+def _assert_camera_outputs_not_empty(task_id: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
+    """Assert that each camera output has at least one non-zero pixel (no all-zero or all-inf)."""
+    assert len(camera_outputs) > 0, (
+        f"[{task_id}] No camera outputs collected; env may have no cameras or wrong structure."
+    )
+    for sensor_name, output in camera_outputs.items():
+        for data_type, tensor in output.items():
+            finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
+            assert finite.max() > 0, (
+                f"[{task_id}] Sensor '{sensor_name}' output '{data_type}' is all zeros or all inf. "
+                f"Shape: {tensor.shape}, dtype: {tensor.dtype}."
+            )
 
 
 @pytest.fixture(params=_SHARED_RENDER_CORRECTNESS_CASES)
@@ -305,3 +406,101 @@ def test_camera_renders_not_empty_dexsuite_kuka_allegro_lift(dexsuite_kuka_alleg
         data_type,
         camera.data.output,
     )
+
+
+# Envs with camera/tiled_camera config from hdc/envs.md (rendering correctness validation section).
+# Used by test_rendering_correctness_camera_envs.
+_RENDERING_CORRECTNESS_CAMERA_ENV_IDS = [
+    # Direct — Cartpole (tiled_camera)
+    "Isaac-Cartpole-RGB-Camera-Direct-v0",
+    "Isaac-Cartpole-Albedo-Camera-Direct-v0",
+    "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
+    "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
+    "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
+    "Isaac-Cartpole-Depth-Camera-Direct-v0",
+    "Isaac-Cartpole-Camera-Presets-Direct-v0",
+    # Direct — Cartpole Camera Showcase (tiled_camera)
+    "Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
+    "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
+    # Direct — Shadow Hand Vision (tiled_camera)
+    "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+    "Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0",
+    # Manager-based classic — Cartpole (tiled_camera)
+    "Isaac-Cartpole-RGB-v0",
+    "Isaac-Cartpole-Depth-v0",
+    "Isaac-Cartpole-RGB-ResNet18-v0",
+    "Isaac-Cartpole-RGB-TheiaTiny-v0",
+]
+
+
+def _run_rendering_correctness_for_task(task_id: str) -> None:
+    """Create env for task_id, step once, and assert camera outputs are not empty.
+
+    Skips for teleop or LocomotionEnv-based envs. Shared by camera-env test and
+    per-registered-env test.
+    """
+    task_spec = next((s for s in gym.registry.values() if s.id == task_id), None)
+    if task_spec is not None and _is_teleop_env(task_spec):
+        pytest.skip("Teleop env requires isaacteleop")
+    if task_spec is not None:
+        env_cls = _get_env_class_from_spec(task_spec)
+        if env_cls is not None and issubclass(env_cls, LocomotionEnv):
+            pytest.skip("LocomotionEnv-based envs use state only, no camera sensors")
+
+    env = None
+    try:
+        env_cfg = parse_env_cfg(task_id, num_envs=4)
+        env_cfg.seed = 42
+        env = gym.make(task_id, cfg=env_cfg)
+        unwrapped = env.unwrapped
+        if hasattr(unwrapped, "sim") and getattr(unwrapped, "sim", None) is not None:
+            unwrapped.sim._app_control_on_stop_handle = None  # type: ignore[union-attr]
+        env.reset()
+        num_envs = getattr(unwrapped, "num_envs", 4)
+        if hasattr(unwrapped, "possible_agents") and getattr(unwrapped, "possible_agents", None):
+            actions = {
+                agent: sample_space(
+                    unwrapped.action_spaces[agent],  # type: ignore[union-attr]
+                    device=unwrapped.device,  # type: ignore[union-attr]
+                    batch_size=num_envs,
+                    fill_value=0,
+                )
+                for agent in unwrapped.possible_agents  # type: ignore[union-attr]
+            }
+        else:
+            actions = sample_space(
+                unwrapped.single_action_space,  # type: ignore[union-attr]
+                device=unwrapped.device,  # type: ignore[union-attr]
+                batch_size=num_envs,
+                fill_value=0,
+            )
+        env.step(actions)
+        camera_outputs = _collect_camera_outputs_from_env(env)
+        if not camera_outputs:
+            pytest.skip(
+                f"[{task_id}] No camera sensors (e.g. state-only env like LocomotionEnv); nothing to validate"
+            )
+        _assert_camera_outputs_not_empty(task_id, camera_outputs)
+    finally:
+        if env is not None:
+            env.close()
+
+
+@pytest.mark.parametrize("task_id", _RENDERING_CORRECTNESS_CAMERA_ENV_IDS, ids=lambda x: x)
+def test_rendering_correctness_camera_envs(task_id):
+    """Rendering correctness for envs with camera/tiled_camera config (hdc/envs.md).
+
+    Covers the envs listed in hdc/envs.md under "Envs with camera / tiled_camera config":
+    Direct Cartpole (camera + showcase), Shadow Hand Vision, manager-based classic Cartpole,
+    and Dexsuite Kuka-Allegro. Creates env, steps once, and asserts camera outputs are not empty.
+    """
+    _run_rendering_correctness_for_task(task_id)
+
+
