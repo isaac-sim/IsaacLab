@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
@@ -33,100 +34,193 @@ def action_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
 def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
+    thumb_name: str,
+    finger_names: list[str],
+    contact_threshold: float = 1.0,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Reward reaching the object using a tanh-kernel on end-effector distance.
+    """Reward reaching the object using a tanh-kernel on end-effector distance with contact bonus.
 
-    The reward is close to 1 when the maximum distance between the object and any end-effector body is small.
+    The reward is close to 1 when the distance is small. The reward is scaled by contact:
+    - Full reward (1x) when good contact (thumb + finger)
+    - Reduced reward (0.1x) when no contact
+
+    Args:
+        env: The environment instance.
+        std: Standard deviation for tanh kernel.
+        thumb_name: Name of the thumb contact sensor.
+        finger_names: Names of the finger contact sensors.
+        contact_threshold: Contact force magnitude threshold.
+        object_cfg: Configuration for the object.
+        asset_cfg: Configuration for the robot asset.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
-    object: RigidObject = env.scene[object_cfg.name]
+    obj: RigidObject = env.scene[object_cfg.name]
     asset_pos = wp.to_torch(asset.data.body_pos_w)[:, asset_cfg.body_ids]
-    object_pos = wp.to_torch(object.data.root_pos_w)
-    object_ee_distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
-    return 1 - torch.tanh(object_ee_distance / std)
+    object_pos = wp.to_torch(obj.data.root_pos_w)
+    distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
+    contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)
+    return (1 - torch.tanh(distance / std)) * contact_bonus
 
 
-def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
-    """Penalize undesired contacts as the number of violations that are above a threshold."""
-
-    thumb_contact_sensor: ContactSensor = env.scene.sensors["thumb_link_3_object_s"]
-    index_contact_sensor: ContactSensor = env.scene.sensors["index_link_3_object_s"]
-    middle_contact_sensor: ContactSensor = env.scene.sensors["middle_link_3_object_s"]
-    ring_contact_sensor: ContactSensor = env.scene.sensors["ring_link_3_object_s"]
-    # check if contact force is above threshold
-    thumb_contact = wp.to_torch(thumb_contact_sensor.data.force_matrix_w).view(env.num_envs, 3)
-    index_contact = wp.to_torch(index_contact_sensor.data.force_matrix_w).view(env.num_envs, 3)
-    middle_contact = wp.to_torch(middle_contact_sensor.data.force_matrix_w).view(env.num_envs, 3)
-    ring_contact = wp.to_torch(ring_contact_sensor.data.force_matrix_w).view(env.num_envs, 3)
-
-    thumb_contact_mag = torch.linalg.norm(thumb_contact, dim=-1)
-    index_contact_mag = torch.linalg.norm(index_contact, dim=-1)
-    middle_contact_mag = torch.linalg.norm(middle_contact, dim=-1)
-    ring_contact_mag = torch.linalg.norm(ring_contact, dim=-1)
-    good_contact_cond1 = (thumb_contact_mag > threshold) & (
-        (index_contact_mag > threshold) | (middle_contact_mag > threshold) | (ring_contact_mag > threshold)
-    )
-
-    return good_contact_cond1
+def _contact_force_mag(sensor: ContactSensor, num_envs: int) -> torch.Tensor:
+    """Extract per-environment contact force magnitude from a sensor's force_matrix_w."""
+    force = wp.to_torch(sensor.data.force_matrix_w).view(num_envs, 3)
+    return torch.linalg.norm(force, dim=-1)
 
 
-def success_reward(
-    env: ManagerBasedRLEnv,
-    command_name: str,
-    asset_cfg: SceneEntityCfg,
-    align_asset_cfg: SceneEntityCfg,
-    pos_std: float,
-    rot_std: float | None = None,
-) -> torch.Tensor:
-    """Reward success by comparing commanded pose to the object pose using tanh kernels on error."""
+def contacts(env: ManagerBasedRLEnv, threshold: float, thumb_name: str, finger_names: list[str]) -> torch.Tensor:
+    """Reward for good contact: thumb + at least one finger above threshold.
 
-    asset: RigidObject = env.scene[asset_cfg.name]
-    object: RigidObject = env.scene[align_asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    des_pos_w, des_quat_w = combine_frame_transforms(
-        wp.to_torch(asset.data.root_pos_w), wp.to_torch(asset.data.root_quat_w), command[:, :3], command[:, 3:7]
-    )
-    pos_err, rot_err = compute_pose_error(
-        des_pos_w, des_quat_w, wp.to_torch(object.data.root_pos_w), wp.to_torch(object.data.root_quat_w)
-    )
-    pos_dist = torch.linalg.norm(pos_err, dim=1)
-    if not rot_std:
-        # square is not necessary but this help to keep the final value between having rot_std or not roughly the same
-        return (1 - torch.tanh(pos_dist / pos_std)) ** 2
-    rot_dist = torch.linalg.norm(rot_err, dim=1)
-    return (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / rot_std))
+    Args:
+        env: The environment instance.
+        threshold: Contact force magnitude threshold.
+        thumb_name: Name of the thumb contact sensor in the scene.
+        finger_names: Names of the finger contact sensors in the scene.
+
+    Returns:
+        Boolean tensor indicating good contact condition per environment.
+    """
+    thumb_mag = _contact_force_mag(env.scene.sensors[thumb_name], env.num_envs)
+
+    any_finger_contact = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    for finger_name in finger_names:
+        finger_mag = _contact_force_mag(env.scene.sensors[finger_name], env.num_envs)
+        any_finger_contact = any_finger_contact | (finger_mag > threshold)
+
+    return (thumb_mag > threshold) & any_finger_contact
+
+
+def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[str]) -> torch.Tensor:
+    """Count the number of contact sensors with force above threshold.
+
+    For each sensor that detects contact above the threshold, add 1 to the total.
+    This provides a reward proportional to the number of fingers in contact.
+
+    Args:
+        env: The environment instance.
+        threshold: Contact force magnitude threshold.
+        sensor_names: Names of the contact sensors in the scene.
+
+    Returns:
+        Tensor of shape (num_envs,) with the count of sensors in contact per environment.
+    """
+    count = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+
+    for sensor_name in sensor_names:
+        mag = _contact_force_mag(env.scene.sensors[sensor_name], env.num_envs)
+        count += (mag > threshold).float()
+    return count / len(sensor_names)
+
+
+class success_reward(ManagerTermBase):
+    """Reward success by comparing commanded pose to the object pose using tanh kernels on error.
+
+    The reward is gated by contact: only given when thumb + at least one finger are in contact.
+
+    Maintains a sticky ``succeeded`` boolean tensor per environment that flips to ``True`` once
+    the success condition is met during an episode and resets to ``False`` on environment reset.
+
+    Args:
+        cfg: Configuration object specifying term parameters.
+        env: The manager-based RL environment.
+    """
+
+    def __init__(self, cfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        if env_ids is None:
+            self.succeeded[:] = False
+        else:
+            self.succeeded[env_ids] = False
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        align_asset_cfg: SceneEntityCfg,
+        pos_std: float,
+        thumb_name: str,
+        finger_names: list[str],
+        contact_threshold: float = 0.01,
+        rot_std: float | None = None,
+    ) -> torch.Tensor:
+        asset: RigidObject = env.scene[asset_cfg.name]
+        obj: RigidObject = env.scene[align_asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
+        des_pos_w, des_quat_w = combine_frame_transforms(
+            wp.to_torch(asset.data.root_pos_w),
+            wp.to_torch(asset.data.root_quat_w),
+            command[:, :3],
+            command[:, 3:7],
+        )
+        pos_err, rot_err = compute_pose_error(
+            des_pos_w,
+            des_quat_w,
+            wp.to_torch(obj.data.root_pos_w),
+            wp.to_torch(obj.data.root_quat_w),
+        )
+        pos_dist = torch.linalg.norm(pos_err, dim=1)
+        contact_mask = contacts(env, contact_threshold, thumb_name, finger_names)
+
+        if rot_std:
+            rot_dist = torch.linalg.norm(rot_err, dim=1)
+            reward = (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / rot_std)) * contact_mask.float()
+            self.succeeded |= contact_mask & (pos_dist < pos_std) & (rot_dist < rot_std)
+        else:
+            reward = ((1 - torch.tanh(pos_dist / pos_std)) ** 2) * contact_mask.float()
+            self.succeeded |= contact_mask & (pos_dist < pos_std)
+
+        return reward
 
 
 def position_command_error_tanh(
-    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg, align_asset_cfg: SceneEntityCfg
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    align_asset_cfg: SceneEntityCfg,
+    thumb_name: str,
+    finger_names: list[str],
+    contact_threshold: float = 0.1,
 ) -> torch.Tensor:
     """Reward tracking of commanded position using tanh kernel, gated by contact presence."""
 
     asset: RigidObject = env.scene[asset_cfg.name]
-    object: RigidObject = env.scene[align_asset_cfg.name]
+    obj: RigidObject = env.scene[align_asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-    # obtain the desired and current positions
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(
-        wp.to_torch(asset.data.root_pos_w), wp.to_torch(asset.data.root_quat_w), des_pos_b
+        wp.to_torch(asset.data.root_pos_w),
+        wp.to_torch(asset.data.root_quat_w),
+        des_pos_b,
     )
-    distance = torch.linalg.norm(wp.to_torch(object.data.root_pos_w) - des_pos_w, dim=1)
-    return (1 - torch.tanh(distance / std)) * contacts(env, 1.0).float()
+    distance = torch.linalg.norm(wp.to_torch(obj.data.root_pos_w) - des_pos_w, dim=1)
+    return (1 - torch.tanh(distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
 
 
 def orientation_command_error_tanh(
-    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg, align_asset_cfg: SceneEntityCfg
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    align_asset_cfg: SceneEntityCfg,
+    thumb_name: str,
+    finger_names: list[str],
+    contact_threshold: float = 0.1,
 ) -> torch.Tensor:
     """Reward tracking of commanded orientation using tanh kernel, gated by contact presence."""
 
     asset: RigidObject = env.scene[asset_cfg.name]
-    object: RigidObject = env.scene[align_asset_cfg.name]
+    obj: RigidObject = env.scene[align_asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-    # obtain the desired and current orientations
     des_quat_b = command[:, 3:7]
-    des_quat_w = math_utils.quat_mul(wp.to_torch(asset.data.root_link_pose_w)[:, 3:7], des_quat_b)
-    quat_distance = math_utils.quat_error_magnitude(wp.to_torch(object.data.root_quat_w), des_quat_w)
+    root_state = wp.to_torch(asset.data.root_state_w)
+    des_quat_w = math_utils.quat_mul(root_state[:, 3:7], des_quat_b)
+    quat_distance = math_utils.quat_error_magnitude(wp.to_torch(obj.data.root_quat_w), des_quat_w)
 
-    return (1 - torch.tanh(quat_distance / std)) * contacts(env, 1.0).float()
+    return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()

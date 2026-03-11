@@ -75,7 +75,7 @@ fast:
       episode_length: 150
     upper_thresholds:
       duration: 2000
-  rl_games:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
+  rsl_rl:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
     max_iterations: 200
     lower_thresholds:
       reward: 0.7

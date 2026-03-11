@@ -147,9 +147,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset time
             count = 0
             # reset joint state
-            joint_pos = robot.data.default_joint_pos.clone()
-            joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
+            joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
             robot.reset()
             # reset actions
             ik_commands[:] = ee_goals[current_goal_idx]
@@ -173,7 +174,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
 
         # apply actions
-        robot.set_joint_position_target(joint_pos_des, joint_ids=robot_entity_cfg.joint_ids)
+        robot.set_joint_position_target_index(target=joint_pos_des, joint_ids=robot_entity_cfg.joint_ids)
         scene.write_data_to_sim()
         # perform step
         sim.step()
@@ -183,7 +184,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.update(sim_dt)
 
         # obtain quantities from simulation
-        ee_pose_w = robot.data.body_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
+        ee_pose_w = wp.to_torch(robot.data.body_state_w)[:, robot_entity_cfg.body_ids[0], 0:7]
         # update marker positions
         ee_marker.visualize(ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
         goal_marker.visualize(ik_commands[:, 0:3] + scene.env_origins, ik_commands[:, 3:7])

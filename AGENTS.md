@@ -83,6 +83,8 @@ Proper workflow:
 - Don't commit first and then run pre-commit (requires amending commits)
 - Do run pre-commit before committing (clean workflow)
 
+**When reviewing code** (e.g. via a code-reviewer agent), always run `./isaaclab.sh -f` as part of the review to catch formatting or lint issues early.
+
 ## Changelog
 
 - **Update `CHANGELOG.rst` for every change** targeting the source directory. Each extension has its own changelog at `source/<package>/docs/CHANGELOG.rst` (e.g. `source/isaaclab/docs/CHANGELOG.rst`, `source/isaaclab_physx/docs/CHANGELOG.rst`).

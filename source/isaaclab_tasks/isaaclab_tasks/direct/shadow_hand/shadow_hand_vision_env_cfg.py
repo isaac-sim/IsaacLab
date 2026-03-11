@@ -117,6 +117,28 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
 
+    def validate_config(self):
+        """Check renderer/data-type and feature-extractor compatibility."""
+        renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
+        warp_supported = {"rgb", "depth"}
+        if renderer_type == "newton_warp":
+            unsupported = set(self.tiled_camera.data_types) - warp_supported
+            if unsupported:
+                raise ValueError(
+                    f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                    f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
+                    "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
+                )
+
+        if set(self.tiled_camera.data_types) == {"depth"} and self.feature_extractor.enabled:
+            raise ValueError(
+                "Depth-only camera data type is intended for benchmarking only. "
+                "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
+                "Disable the feature extractor with 'feature_extractor.enabled=False' "
+                "(e.g. use Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0), "
+                "or choose a data type that includes colour, e.g. presets=rgb."
+            )
+
 
 @configclass
 class ShadowHandVisionEnvPlayCfg(ShadowHandVisionEnvCfg):

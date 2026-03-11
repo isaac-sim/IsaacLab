@@ -22,6 +22,8 @@ INSTALL_REQUIRES = [
     "tomli",
     # jupyter notebook
     "ipywidgets==8.1.5",
+    # data collection
+    "h5py",
 ]
 
 # Extra dependencies for IL agents

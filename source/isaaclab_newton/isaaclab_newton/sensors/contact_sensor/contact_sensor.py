@@ -309,7 +309,6 @@ class ContactSensor(BaseContactSensor):
                 shape_names_expr=self.cfg.sensor_shape_prim_expr or None,
                 contact_partners_body_expr=self.cfg.filter_prim_paths_expr or None,
                 contact_partners_shape_expr=self.cfg.filter_shape_prim_expr or None,
-                prune_noncolliding=True,
             )
 
             self._create_buffers()
@@ -355,10 +354,12 @@ class ContactSensor(BaseContactSensor):
                 return shape_labels[idx].split("/")[-1]
             return "MATCH_ANY"
 
-        self._sensor_names = [get_name(idx, kind) for idx, kind in self.contact_view.sensing_objs]
+        flat_sensing = [obj for world_objs in self.contact_view.sensing_objs for obj in world_objs]
+        self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
-        self._filter_object_names = [get_name(idx, kind) for idx, kind in self.contact_view.counterparts]
+        flat_counterparts = [obj for world_objs in self.contact_view.counterparts for obj in world_objs]
+        self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
 
         # Number of filter objects (counterparts minus the total column)
         self._num_filter_objects = max(newton_shape[1] - 1, 0)

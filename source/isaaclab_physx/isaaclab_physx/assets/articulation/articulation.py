@@ -3596,7 +3596,8 @@ class Articulation(BaseArticulation):
             # Find all articulation root prims in the first environment.
             first_env_root_prims = get_all_matching_child_prims(
                 first_env_matching_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+                and prim.GetAttribute("physxArticulation:articulationEnabled").Get(),
                 traverse_instance_prims=False,
             )
             if len(first_env_root_prims) == 0:

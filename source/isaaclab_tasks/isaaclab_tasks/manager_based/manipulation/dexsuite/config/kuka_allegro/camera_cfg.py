@@ -14,6 +14,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
@@ -32,6 +33,7 @@ BASE_CAMERA_CFG = TiledCameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
+    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 WRIST_CAMERA_CFG = TiledCameraCfg(
@@ -45,6 +47,7 @@ WRIST_CAMERA_CFG = TiledCameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
+    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 
@@ -55,12 +58,33 @@ class BaseTiledCameraCfg(PresetCfg):
     rgb64 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=64, height=64)
     rgb128 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=128, height=128)
     rgb256 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=256, height=256)
-    depth64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=64, height=64)
-    depth128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=128, height=128)
-    depth256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=256, height=256)
+    depth64 = BASE_CAMERA_CFG.replace(data_types=["depth"], width=64, height=64)
+    depth128 = BASE_CAMERA_CFG.replace(data_types=["depth"], width=128, height=128)
+    depth256 = BASE_CAMERA_CFG.replace(data_types=["depth"], width=256, height=256)
     albedo64 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
     albedo128 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
     albedo256 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
+    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=64, height=64
+    )
+    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=128, height=128
+    )
+    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=256, height=256
+    )
+    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+    )
+    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+    )
+    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+    )
+    simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
+    simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
+    simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
     default = rgb64
 
 
@@ -71,12 +95,33 @@ class WristTiledCameraCfg(PresetCfg):
     rgb64 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=64, height=64)
     rgb128 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=128, height=128)
     rgb256 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=256, height=256)
-    depth64 = WRIST_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=64, height=64)
-    depth128 = WRIST_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=128, height=128)
-    depth256 = WRIST_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=256, height=256)
+    depth64 = WRIST_CAMERA_CFG.replace(data_types=["depth"], width=64, height=64)
+    depth128 = WRIST_CAMERA_CFG.replace(data_types=["depth"], width=128, height=128)
+    depth256 = WRIST_CAMERA_CFG.replace(data_types=["depth"], width=256, height=256)
     albedo64 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
     albedo128 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
     albedo256 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
+    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=64, height=64
+    )
+    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=128, height=128
+    )
+    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_constant_diffuse"], width=256, height=256
+    )
+    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+    )
+    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+    )
+    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(
+        data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+    )
+    simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
+    simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
+    simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
     default = rgb64
 
 

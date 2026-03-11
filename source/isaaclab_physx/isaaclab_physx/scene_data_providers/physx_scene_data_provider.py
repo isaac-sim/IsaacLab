@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from collections import deque
 from typing import Any
 
@@ -30,6 +31,7 @@ def _set_body_q_kernel(
     orientations: wp.array(dtype=wp.quatf),
     body_q: wp.array(dtype=wp.transformf),
 ):
+    """Write pose arrays into Newton ``body_q`` in one-to-one index order."""
     i = wp.tid()
     body_q[i] = wp.transformf(positions[i], orientations[i])
 
@@ -41,6 +43,7 @@ def _set_body_q_subset_kernel(
     body_indices: wp.array(dtype=wp.int32),
     body_q: wp.array(dtype=wp.transformf),
 ):
+    """Write pose arrays into selected Newton ``body_q`` indices."""
     i = wp.tid()
     bi = body_indices[i]
     body_q[bi] = wp.transformf(positions[i], orientations[i])
@@ -89,14 +92,19 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                     max_env_id = max(max_env_id, int(match.group(1)))
         return max_env_id + 1 if max_env_id >= 0 else 0
 
-    def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
+    def __init__(self, stage, simulation_context) -> None:
+        """Initialize the PhysX scene data provider.
+
+        Args:
+            stage: USD stage handle.
+            simulation_context: Active simulation context.
+        """
         from isaacsim.core.simulation_manager import SimulationManager
 
         self._simulation_context = simulation_context
         self._stage = stage
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         self._rigid_body_view = None
-        self._articulation_view = None
         self._xform_views: dict[str, Any] = {}
         self._xform_view_failures: set[str] = set()
         self._view_body_index_map: dict[str, list[int]] = {}
@@ -105,10 +113,13 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
-        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
-        # TODO: Include renderer capability checks (not just visualizer types)
-        # when computing sync requirements in SimulationContext and pass them into the provider.
-        self._needs_newton_sync = bool({"newton", "rerun", "viser"} & viz_types)
+        # Determine if newton model sync is required for selected renderers and visualizers
+        requirements = self._simulation_context.get_scene_data_requirements()
+        self._needs_newton_sync = bool(requirements.requires_newton_model)
+
+        # Benchmark/debug override: force USD traversal fallback even when prebuilt
+        # visualizer artifacts are available from the cloner path.
+        self._force_usd_fallback_for_newton_model_build = False
 
         # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
         # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
@@ -129,7 +140,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._filtered_env_ids_key: tuple[int, ...] | None = None
         self._filtered_body_indices: list[int] = []
         self._rigid_body_paths: list[str] = []
-        self._articulation_paths: list[str] = []
         # env_id -> list of body indices (in Newton body_key order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
 
@@ -141,13 +151,15 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._xform_mask_buf = None
         # View index order as device tensors for vectorized scatter in _apply_view_poses.
         self._view_order_tensors: dict[str, Any] = {}
+        # Last full-model build source for tests/debugging ("prebuilt", "usd_fallback", "error").
+        self._last_newton_model_build_source: str | None = None
+        self._last_newton_model_build_elapsed_ms: float | None = None
 
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
             self._build_newton_model_from_usd()
             self._build_env_id_to_body_indices()
             self._setup_rigid_body_view()
-            self._setup_articulation_view()
 
     # ---- Newton model + PhysX view setup --------------------------------------------------
 
@@ -170,11 +182,77 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._build_newton_model_from_usd()
             self._build_env_id_to_body_indices()
             self._setup_rigid_body_view()
-            self._setup_articulation_view()
+
+    def _model_body_paths(self, model) -> list[str]:
+        """Return body paths/keys from a Newton model.
+
+        Args:
+            model: Newton model object.
+
+        Returns:
+            Body paths/keys from the model, or an empty list when unavailable.
+        """
+        if model is None:
+            return []
+        return list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
+
+    def _try_use_prebuilt_newton_artifact(self) -> bool:
+        """Use scene-time prebuilt Newton visualizer artifact when available.
+
+        Returns:
+            ``True`` when a valid prebuilt artifact was consumed, otherwise ``False``.
+        """
+        if self._force_usd_fallback_for_newton_model_build:
+            return False
+        artifact = self._simulation_context.get_scene_data_visualizer_prebuilt_artifact()
+        if not artifact:
+            return False
+
+        model = artifact.model
+        state = artifact.state
+        if model is None or state is None:
+            return False
+
+        self._newton_model = model
+        self._newton_state = state
+        body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
+        # Merge articulation root paths into rigid body paths (deduplicated) so the
+        # RigidBodyView covers all bodies without needing a separate ArticulationView.
+        if artifact.articulation_paths:
+            seen = set(body_paths)
+            for path in artifact.articulation_paths:
+                if path not in seen:
+                    body_paths.append(path)
+                    seen.add(path)
+        self._rigid_body_paths = body_paths
+        self._xform_views.clear()
+        self._view_body_index_map = {}
+        self._view_order_tensors.clear()
+        self._pose_buf_num_bodies = 0
+        self._positions_buf = None
+        self._orientations_buf = None
+        self._covered_buf = None
+        self._xform_mask_buf = None
+        self._env_id_to_body_indices = {}
+        self._num_envs_at_last_newton_build = int(artifact.num_envs)
+        self._filtered_newton_model = None
+        self._filtered_newton_state = None
+        self._filtered_env_ids_key = None
+        self._filtered_body_indices = []
+        return True
 
     def _build_newton_model_from_usd(self) -> None:
-        """Build Newton model from USD and cache body/articulation paths."""
+        """Build Newton model from USD and cache body paths."""
+        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
+        # is complete for full and partial visualization model-build paths.
+        start_t = time.perf_counter()
         try:
+            if self._try_use_prebuilt_newton_artifact():
+                self._last_newton_model_build_source = "prebuilt"
+                return
+            self._last_newton_model_build_source = (
+                "usd_fallback_forced" if self._force_usd_fallback_for_newton_model_build else "usd_fallback"
+            )
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
@@ -187,8 +265,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._newton_state = self._newton_model.state()
 
             # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_label)
-            self._articulation_paths = list(self._newton_model.articulation_label)
+            self._rigid_body_paths = self._model_body_paths(self._newton_model)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -206,24 +283,46 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_env_ids_key = None
             self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
+            self._last_newton_model_build_source = "error"
             logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun/viser visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
+            self._last_newton_model_build_source = "error"
             logger.error(f"[PhysxSceneDataProvider] Failed to build Newton model from USD: {exc}")
             self._newton_model = None
             self._newton_state = None
             self._rigid_body_paths = []
-            self._articulation_paths = []
             self._num_envs_at_last_newton_build = None
+        finally:
+            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+            self._last_newton_model_build_elapsed_ms = elapsed_ms
+            try:
+                num_envs = self.get_num_envs()
+            except Exception:
+                num_envs = -1
+            logger.debug(
+                "[PhysxSceneDataProvider] Newton model build source=%s num_envs=%d elapsed_ms=%.2f",
+                self._last_newton_model_build_source,
+                num_envs,
+                elapsed_ms,
+            )
 
     def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
-        """Build Newton model/state for a subset of envs."""
+        """Build Newton model/state for a subset of environments.
+
+        Args:
+            env_ids: Environment ids to include in the subset model.
+        """
+        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
+        # is complete for full and partial visualization model-build paths.
         try:
             from newton import ModelBuilder
 
+            # Newton model building from USD with partial visualization does not currently use cloner,
+            # and falls back to slower USD-stage traversal.
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
@@ -234,7 +333,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_newton_state = self._filtered_newton_model.state()
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            filtered_paths = list(self._filtered_newton_model.body_key)
+            filtered_paths = self._model_body_paths(self._filtered_newton_model)
             self._filtered_body_indices = []
             missing = []
             for path in filtered_paths:
@@ -289,23 +388,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             logger.warning(f"[PhysxSceneDataProvider] Failed to create RigidBodyView: {exc}")
             self._rigid_body_view = None
 
-    def _setup_articulation_view(self) -> None:
-        """Create PhysX ArticulationView from Newton's articulation paths."""
-        if self._physics_sim_view is None:
-            return
-        if not self._articulation_paths:
-            return
-        try:
-            paths_to_use = self._wildcard_env_paths(self._articulation_paths)
-            exprs = [path.replace(".*", "*") for path in paths_to_use]
-            self._articulation_view = self._physics_sim_view.create_articulation_view(
-                exprs if len(exprs) > 1 else exprs[0]
-            )
-            self._cache_view_index_map(self._articulation_view, "articulation_view")
-        except Exception as exc:
-            logger.warning(f"[PhysxSceneDataProvider] Failed to create ArticulationView: {exc}")
-            self._articulation_view = None
-
     # ---- Pose/velocity read pipeline ------------------------------------------------------
 
     def _warn_once(self, key: str, message: str, *args, level=logging.WARNING) -> None:
@@ -316,15 +398,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         logger.log(level, message, *args)
 
     def _get_view_world_poses(self, view: Any):
-        """Read world poses from a PhysX view.
-
-        Articulation views expose `get_root_transforms()`, while rigid-body views
-        expose `get_transforms()`.
-        """
+        """Read world poses from a PhysX view."""
         if view is None:
             return None, None
 
-        result = view.get_root_transforms() if hasattr(view, "get_root_transforms") else view.get_transforms()
+        result = view.get_transforms()
         if isinstance(result, tuple) and len(result) == 2:
             return result
         if hasattr(result, "shape"):
@@ -493,7 +571,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return orientations
 
     def _read_poses_from_best_source(self) -> tuple[Any, Any, str, Any] | None:
-        """Merge pose data from articulation, rigid-body, and xform views."""
+        """Merge pose data from rigid-body and xform views."""
         if self._newton_state is None or not self._rigid_body_paths:
             return None
 
@@ -520,10 +598,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         covered = self._covered_buf
         xform_mask = self._xform_mask_buf
 
-        # Apply sources in preferred order: articulation, rigid bodies, then USD fallback.
-        articulation_count = self._apply_view_poses(
-            self._articulation_view, "articulation_view", positions, orientations, covered
-        )
+        # Apply sources in preferred order: rigid bodies, then USD fallback.
         rigid_count = self._apply_view_poses(self._rigid_body_view, "rigid_body_view", positions, orientations, covered)
         xform_count = self._apply_xform_poses(positions, orientations, covered, xform_mask)
         if rigid_count == 0:
@@ -537,21 +612,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             logger.warning(f"Failed to read {(~covered).sum().item()}/{num_bodies} body poses")
             return None
 
-        active = sum([articulation_count > 0, rigid_count > 0, xform_count > 0])
+        active = sum([rigid_count > 0, xform_count > 0])
         source = (
-            "merged"
-            if active > 1
-            else (
-                "articulation_view"
-                if articulation_count
-                else "rigid_body_view"
-                if rigid_count
-                else "xform_view"
-                if xform_count
-                else "none"
-            )
+            "merged" if active > 1 else ("rigid_body_view" if rigid_count else "xform_view" if xform_count else "none")
         )
-
         return positions, orientations, source, xform_mask
 
     def _get_set_body_q_kernel(self):
@@ -630,11 +694,22 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             )
 
     def get_newton_model(self) -> Any | None:
-        """Return Newton model when sync is enabled."""
+        """Return Newton model when sync is enabled.
+
+        Returns:
+            Newton model object, or ``None`` when unavailable.
+        """
         return self._newton_model if self._needs_newton_sync else None
 
     def get_newton_model_for_env_ids(self, env_ids: list[int] | None) -> Any | None:
-        """Return Newton model for a subset of envs if requested."""
+        """Return Newton model for selected environments.
+
+        Args:
+            env_ids: Optional environment ids. ``None`` returns full model.
+
+        Returns:
+            Full or filtered Newton model, or ``None`` when unavailable.
+        """
         if not self._needs_newton_sync:
             return None
         if env_ids is None:
@@ -710,6 +785,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             body_q_subset = wp.from_torch(body_q_subset, dtype=wp.transformf)
 
         class _SubsetState:
+            """Minimal state carrier with ``body_q`` field for subset rendering."""
+
             pass
 
         s = _SubsetState()
@@ -719,13 +796,22 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     # ---- Public provider API ---------------------------------------------------------------
 
     def get_usd_stage(self) -> Any:
-        """Return the USD stage handle."""
+        """Return USD stage handle.
+
+        Returns:
+            USD stage object.
+        """
         if self._stage is not None:
             return self._stage
         return getattr(self._simulation_context, "stage", None)
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
-        """Return per-camera, per-env transforms (positions, orientations)."""
+        """Return per-camera, per-environment transforms.
+
+        Returns:
+            Dictionary containing camera order, positions, orientations, and environment count,
+            or ``None`` when unavailable.
+        """
         if self._stage is None:
             return None
 
@@ -792,13 +878,21 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
-        """Return metadata for visualizers (num_envs, physics_backend, etc.)."""
+        """Return provider metadata for visualizers and renderers.
+
+        Returns:
+            Metadata dictionary with backend and environment count.
+        """
         out = dict(self._metadata)
         out["num_envs"] = self.get_num_envs()
         return out
 
     def get_transforms(self) -> dict[str, Any] | None:
-        """Return merged body transforms from available PhysX views."""
+        """Return merged body transforms from available PhysX views.
+
+        Returns:
+            Dictionary with positions/orientations, or ``None`` when unavailable.
+        """
         try:
             result = self._read_poses_from_best_source()
             if result is None:
@@ -816,16 +910,21 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             return None
 
     def get_velocities(self) -> dict[str, Any] | None:
-        """Return linear/angular velocities from available PhysX views."""
-        for source, view in (
-            ("articulation_view", self._articulation_view),
-            ("rigid_body_view", self._rigid_body_view),
-        ):
+        """Return linear/angular velocities from available PhysX views.
+
+        Returns:
+            Dictionary with linear/angular velocities, or ``None`` when unavailable.
+        """
+        for source, view in (("rigid_body_view", self._rigid_body_view),):
             linear, angular = self._get_view_velocities(view)
             if linear is not None and angular is not None:
                 return {"linear": linear, "angular": angular, "source": source}
         return None
 
     def get_contacts(self) -> dict[str, Any] | None:
-        """Contacts not yet supported for PhysX provider."""
+        """Return contact data for PhysX provider.
+
+        Returns:
+            ``None`` because contacts are not currently implemented in this provider.
+        """
         return None

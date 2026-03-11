@@ -23,45 +23,11 @@ from .feature_extractor import FeatureExtractor
 if TYPE_CHECKING:
     from .shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
-# Data types supported by the Newton Warp renderer.
-_WARP_SUPPORTED_DATA_TYPES: frozenset[str] = frozenset({"rgb", "depth"})
-
-
-def _validate_cfg(cfg: ShadowHandVisionEnvCfg) -> None:
-    """Validate preset combination compatibility before scene setup.
-
-    Raises:
-        ValueError: If the Warp renderer is paired with an unsupported data type, or if a
-            depth-only camera is used without disabling the feature extractor.
-    """
-    renderer_type = getattr(cfg.tiled_camera.renderer_cfg, "renderer_type", None)
-    if renderer_type == "newton_warp":
-        unsupported = set(cfg.tiled_camera.data_types) - _WARP_SUPPORTED_DATA_TYPES
-        if unsupported:
-            raise ValueError(
-                f"Warp renderer only supports data types {sorted(_WARP_SUPPORTED_DATA_TYPES)}, "
-                f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
-                f"Choose a compatible preset, e.g. presets=warp,rgb or presets=warp,depth."
-            )
-
-    if set(cfg.tiled_camera.data_types) == {"depth"} and cfg.feature_extractor.enabled:
-        raise ValueError(
-            "Depth-only camera data type is intended for benchmarking only. "
-            "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
-            "Disable the feature extractor with 'feature_extractor.enabled=False' "
-            "(e.g. use Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0), "
-            "or choose a data type that includes colour, e.g. presets=rgb."
-        )
-
 
 class ShadowHandVisionEnv(InHandManipulationEnv):
     cfg: ShadowHandVisionEnvCfg
 
     def __init__(self, cfg: ShadowHandVisionEnvCfg, render_mode: str | None = None, **kwargs):
-        # Validate renderer/data-type compatibility before any scene setup so the error
-        # surfaces immediately rather than crashing deep inside the renderer.
-        _validate_cfg(cfg)
-
         super().__init__(cfg, render_mode, **kwargs)
         # Derive CNN input data types from the resolved camera config so that any camera
         # preset (e.g. presets=rgb, presets=albedo) automatically configures the right

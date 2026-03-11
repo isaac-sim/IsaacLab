@@ -10,10 +10,16 @@ motion planning). While it includes some pre-built environments, sensors, and ta
 provide an open-sourced, unified, and easy-to-use interface for developing and testing custom environments
 and robot learning algorithms.
 
-Working with Isaac Lab requires the installation of Isaac Sim, which is packaged with core robotics tools
-that Isaac Lab depends on, including URDF and MJCF importers, simulation managers, and ROS features. Isaac
-Sim also builds on top of the NVIDIA Omniverse platform, leveraging advanced physics simulation from PhysX,
-photorealistic rendering technologies, and Universal Scene Description (USD) for scene creation.
+Working with Isaac Lab requires the installation of Isaac Sim for full functionality, which is packaged with
+core robotics tools including URDF and MJCF importers, simulation managers, and ROS features. Isaac Sim
+also builds on top of the NVIDIA Omniverse platform, leveraging advanced physics simulation from **PhysX**
+and **Newton**, photorealistic **RTX** rendering technologies, and Universal Scene Description (USD) for
+scene creation.
+
+.. note::
+
+   Isaac Lab 3.0 supports a **kit-less installation** mode: you can install Isaac Lab and use the Newton
+   physics backend without installing Isaac Sim at all. See :ref:`isaaclab-installation-root` for details.
 
 Isaac Lab not only inherits the capabilities of Isaac Sim, but also adds a number
 of new features that pertain to robot learning research. For example, including actuator dynamics in the
@@ -40,7 +46,8 @@ worldwide.
 
 `Isaac Gym`_ :cite:`makoviychuk2021isaac` provides a high performance GPU-based physics simulation
 for robot learning. It is built on top of `PhysX`_ which supports GPU-accelerated simulation of rigid bodies
-and a Python API to directly access physics simulation data. Through an end-to-end GPU pipeline, it is possible
+and a Python API to directly access physics simulation data. Isaac Lab extends this foundation with
+additional support for the **Newton** physics backend, enabling broader simulation options. Through an end-to-end GPU pipeline, it is possible
 to achieve high frame rates compared to CPU-based physics engines. The tool has been used successfully in a
 number of research projects, including legged locomotion :cite:`rudin2022learning` :cite:`rudin2022advanced`,
 in-hand manipulation :cite:`handa2022dextreme` :cite:`allshire2022transferring`, and industrial assembly
@@ -102,7 +109,8 @@ for more robotic-specific applications. An example of these include `AirSim`_, `
 At its core, Isaac Lab is **not** a robotics simulator, but a framework for building robot learning
 applications on top of Isaac Sim. An equivalent example of such a framework is `RoboSuite`_, which
 is built on top of `MuJoCo`_ and is specific to fixed-base robots. Other examples include
-`MuJoCo Playground`_ and `Isaac Gym`_ which use `MJX`_ and `PhysX`_ respectively. They
+`MuJoCo Playground`_ and `Isaac Gym`_ which use `MJX`_ and `PhysX`_ respectively. Isaac Lab supports
+both `PhysX`_ and `Newton`_ as physics backends. They
 include a number of pre-built tasks with separated out stand-alone implementations for individual
 tasks. While this is a good starting point (and often convenient), a lot of code
 repetition occurs across different task implementations, which can reduce code-reuse for larger
@@ -138,6 +146,7 @@ to Isaac Lab, please reach out to us.
 
 
 .. _PhysX: https://developer.nvidia.com/physx-sdk
+.. _Newton: https://github.com/newton-physics/newton
 .. _Isaac Sim: https://developer.nvidia.com/isaac-sim
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
