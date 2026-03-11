@@ -36,10 +36,29 @@ except ImportError:
     raise ImportError("Hydra not installed. Run: pip install hydra-core")
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.presets import PresetCfg, UnavailablePreset  # noqa: F401
+
+
+@configclass
+class PresetCfg:
+    """Base class for declarative preset definitions.
+
+    Subclass this and define fields as preset options.
+    The field named ``default`` holds the config instance used
+    when no CLI override is given. All other fields are named
+    alternative presets.
+
+    Example::
+
+        @configclass
+        class PhysicsCfg(PresetCfg):
+            default: PhysxCfg = PhysxCfg()
+            newton: NewtonCfg = NewtonCfg()
+    """
+
+    pass
 
 
 def collect_presets(cfg, path: str = "") -> dict:
@@ -239,7 +258,7 @@ def resolve_preset_defaults(cfg):
     """
     if isinstance(cfg, PresetCfg) and hasattr(cfg, "__dataclass_fields__"):
         default = getattr(cfg, "default", None)
-        if default is not None and not isinstance(default, UnavailablePreset):
+        if default is not None:
             return resolve_preset_defaults(default)
         return cfg
 
@@ -250,7 +269,7 @@ def resolve_preset_defaults(cfg):
             continue
         if isinstance(value, PresetCfg) and hasattr(value, "__dataclass_fields__"):
             default = getattr(value, "default", None)
-            if default is not None and not isinstance(default, UnavailablePreset):
+            if default is not None:
                 setattr(cfg, name, default)
                 resolve_preset_defaults(default)
         elif hasattr(value, "__dataclass_fields__"):
@@ -444,14 +463,7 @@ def apply_overrides(
     for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
-            node = presets[sec][path][name]
-            # UnavailablePreset sentinel means the backend package is not installed.
-            if isinstance(node, UnavailablePreset):
-                raise ValueError(
-                    f"Preset '{name}' is not available because its backend package is not"
-                    f" installed. To fix this, run: {node.install_cmd}"
-                )
-            _apply_node(sec, path, node)
+            _apply_node(sec, path, presets[sec][path][name])
 
     # 3. Apply scalar overrides within preset paths
     for full_path, val_str in preset_scalar:
