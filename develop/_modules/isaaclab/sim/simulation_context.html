@@ -1409,9 +1409,6 @@
             <span class="c1"># This must happen before clearing USD prims to avoid PhysX cleanup errors</span>
             <span class="bp">cls</span><span class="o">.</span><span class="n">_instance</span><span class="o">.</span><span class="n">physics_manager</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
-            <span class="c1"># Now safe to clear stage contents (PhysX is detached)</span>
-            <span class="bp">cls</span><span class="o">.</span><span class="n">clear_stage</span><span class="p">()</span>
-
             <span class="c1"># Close all visualizers</span>
             <span class="k">for</span> <span class="n">viz</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_instance</span><span class="o">.</span><span class="n">_visualizers</span><span class="p">:</span>
                 <span class="n">viz</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
@@ -1422,7 +1419,8 @@
                     <span class="n">close_provider</span><span class="p">()</span>
                 <span class="bp">cls</span><span class="o">.</span><span class="n">_instance</span><span class="o">.</span><span class="n">_scene_data_provider</span> <span class="o">=</span> <span class="kc">None</span>
 
-            <span class="c1"># Close the stage (clears cache, thread-local context, and Kit USD context)</span>
+            <span class="c1"># Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since</span>
+            <span class="c1"># close_stage() + app shutdown destroy the entire stage at once.</span>
             <span class="n">stage_utils</span><span class="o">.</span><span class="n">close_stage</span><span class="p">()</span>
 
             <span class="c1"># Clear instance</span>

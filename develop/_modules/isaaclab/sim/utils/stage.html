@@ -1018,10 +1018,11 @@
 <div class="viewcode-block" id="close_stage">
 <a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.close_stage">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">close_stage</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Closes the current USD stage by clearing the stage cache.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Closes the current USD stage.</span>
 
-<span class="sd">    If Kit is running, this also closes the stage attached to the Kit USD context</span>
-<span class="sd">    (``omni.usd.get_context().close_stage()``).</span>
+<span class="sd">    If Kit is running, this first closes the stage via the Kit USD context</span>
+<span class="sd">    (``omni.usd.get_context().close_stage()``), then clears the stage cache.</span>
+<span class="sd">    Without Kit, only the stage cache is cleared.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -1037,14 +1038,17 @@
 <span class="sd">        &gt;&gt;&gt; sim_utils.close_stage()</span>
 <span class="sd">        True</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">stage_cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
-    <span class="n">stage_cache</span><span class="o">.</span><span class="n">Clear</span><span class="p">()</span>
-    <span class="n">_context</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="kc">None</span>
-
+    <span class="c1"># Close Kit&#39;s USD context first (while the stage is still in the cache),</span>
+    <span class="c1"># then clear the cache. Reversing this order causes Kit to fail with</span>
+    <span class="c1"># &quot;Removal of UsdStage from cache failed&quot; and can hang during teardown.</span>
     <span class="k">if</span> <span class="n">has_kit</span><span class="p">():</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 
         <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">close_stage</span><span class="p">()</span>
+
+    <span class="n">stage_cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+    <span class="n">stage_cache</span><span class="o">.</span><span class="n">Clear</span><span class="p">()</span>
+    <span class="n">_context</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">return</span> <span class="kc">True</span></div>
 

@@ -826,7 +826,7 @@
 <td><p>Saves contents of the root layer of the current stage to the specified USD file.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.stage.close_stage" title="isaaclab.sim.utils.stage.close_stage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close_stage</span></code></a>()</p></td>
-<td><p>Closes the current USD stage by clearing the stage cache.</p></td>
+<td><p>Closes the current USD stage.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.stage.clear_stage" title="isaaclab.sim.utils.stage.clear_stage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clear_stage</span></code></a>([predicate])</p></td>
 <td><p>Deletes all prims in the stage without populating the undo command buffer.</p></td>
@@ -1063,9 +1063,10 @@ app updates internally with proper safeguards.</p></li>
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.stage.close_stage">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.stage.</span></span><span class="sig-name descname"><span class="pre">close_stage</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils/stage.html#close_stage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.stage.close_stage" title="Link to this definition">#</a></dt>
-<dd><p>Closes the current USD stage by clearing the stage cache.</p>
-<p>If Kit is running, this also closes the stage attached to the Kit USD context
-(<code class="docutils literal notranslate"><span class="pre">omni.usd.get_context().close_stage()</span></code>).</p>
+<dd><p>Closes the current USD stage.</p>
+<p>If Kit is running, this first closes the stage via the Kit USD context
+(<code class="docutils literal notranslate"><span class="pre">omni.usd.get_context().close_stage()</span></code>), then clears the stage cache.
+Without Kit, only the stage cache is cleared.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Once the stage is closed, it is necessary to open a new stage or create a
