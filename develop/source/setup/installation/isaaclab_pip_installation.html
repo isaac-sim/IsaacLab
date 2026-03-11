@@ -912,10 +912,10 @@ pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>On aarch64 (e.g., DGX Spark), <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code> must be compiled from source because no
-pre-built wheel is available. Install the required OpenGL and X11 development packages
+<p>On aarch64 (e.g., DGX Spark), <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code> and <code class="docutils literal notranslate"><span class="pre">quadprog</span></code> must be compiled from source because no
+pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
 <strong>before</strong> installing Isaac Lab:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libgl1-mesa-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libxcursor-dev<span class="w"> </span>libxi-dev<span class="w"> </span>libxinerama-dev<span class="w"> </span>libxrandr-dev
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>python3.12-dev<span class="w"> </span>libgl1-mesa-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libxcursor-dev<span class="w"> </span>libxi-dev<span class="w"> </span>libxinerama-dev<span class="w"> </span>libxrandr-dev
 </pre></div>
 </div>
 </div>

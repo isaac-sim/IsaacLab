@@ -677,10 +677,10 @@
 sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cmake<span class="w"> </span>build-essential
 </pre></div>
 </div>
-<p>On <strong>aarch64</strong> systems (e.g., DGX Spark), OpenGL and X11 development packages are also required.
-The <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code> dependency does not provide a pre-built wheel for aarch64 and must be
+<p>On <strong>aarch64</strong> systems (e.g., DGX Spark), Python, OpenGL and X11 development packages are also required.
+The <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code> and <code class="docutils literal notranslate"><span class="pre">quadprog</span></code> dependencies do not provide pre-built wheels for aarch64 and must be
 compiled from source, which needs these headers and libraries:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libgl1-mesa-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libxcursor-dev<span class="w"> </span>libxi-dev<span class="w"> </span>libxinerama-dev<span class="w"> </span>libxrandr-dev
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>python3.12-dev<span class="w"> </span>libgl1-mesa-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libxcursor-dev<span class="w"> </span>libxi-dev<span class="w"> </span>libxinerama-dev<span class="w"> </span>libxrandr-dev
 </pre></div>
 </div>
 </li>

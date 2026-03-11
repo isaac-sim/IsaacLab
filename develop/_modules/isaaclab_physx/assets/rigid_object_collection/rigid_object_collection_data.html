@@ -1243,16 +1243,17 @@
         <span class="c1"># The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)</span>
         <span class="c1"># i.e. shape (num_bodies, num_instances) when reshaped.</span>
         <span class="c1"># We need (num_instances, num_bodies) so we create a strided view with transposed strides.</span>
+        <span class="c1"># Use data.device for the strided view (PhysX returns masses/coms/inertias on CPU),</span>
+        <span class="c1"># then clone to self.device (handles both contiguity and device transfer).</span>
         <span class="n">element_size</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">type_size_in_bytes</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">strided_view</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
             <span class="n">ptr</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">ptr</span><span class="p">,</span>
             <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">),</span>
             <span class="n">dtype</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
             <span class="n">strides</span><span class="o">=</span><span class="p">(</span><span class="n">element_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span> <span class="o">*</span> <span class="n">element_size</span><span class="p">),</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># Clone to make contiguous</span>
-        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">strided_view</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">strided_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_reshape_view_to_data_3d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Reshapes and arranges 2D view data to (num_instances, num_bodies, data_dim).</span>
@@ -1266,6 +1267,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)</span>
         <span class="c1"># We need (num_instances, num_bodies, data_dim), so stride through the flat float32 data.</span>
+        <span class="c1"># Use data.device for the strided view (PhysX returns masses/coms/inertias on CPU),</span>
+        <span class="c1"># then clone to self.device (handles both contiguity and device transfer).</span>
         <span class="n">element_size</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">type_size_in_bytes</span><span class="p">(</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
         <span class="n">row_size</span> <span class="o">=</span> <span class="n">element_size</span> <span class="o">*</span> <span class="n">data_dim</span>
         <span class="n">strided_view</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
@@ -1273,9 +1276,9 @@
             <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">),</span>
             <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
             <span class="n">strides</span><span class="o">=</span><span class="p">(</span><span class="n">row_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span> <span class="o">*</span> <span class="n">row_size</span><span class="p">,</span> <span class="n">element_size</span><span class="p">),</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">strided_view</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">strided_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_pos_from_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transform</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Generates a position array from a transform array.&quot;&quot;&quot;</span>

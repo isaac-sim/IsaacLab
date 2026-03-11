@@ -775,10 +775,10 @@ GPU support requires building JAX from source, which has not been validated in I
 </ol>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><strong>Build prerequisites on aarch64:</strong> Some Python packages (notably <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code>) do not ship
+<p><strong>Build prerequisites on aarch64:</strong> Some Python packages (notably <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code> and <code class="docutils literal notranslate"><span class="pre">quadprog</span></code>) do not ship
 pre-built wheels for aarch64 and are compiled from source during installation. This requires
-OpenGL and X11 development headers to be installed on the system:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libgl1-mesa-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libxcursor-dev<span class="w"> </span>libxi-dev<span class="w"> </span>libxinerama-dev<span class="w"> </span>libxrandr-dev
+Python 3.12, OpenGL, and X11 development headers to be installed on the system:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>python3.12-dev<span class="w"> </span>libgl1-mesa-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libxcursor-dev<span class="w"> </span>libxi-dev<span class="w"> </span>libxinerama-dev<span class="w"> </span>libxrandr-dev
 </pre></div>
 </div>
 <p>Without these packages, the build will fail with a CMake error about missing <code class="docutils literal notranslate"><span class="pre">OPENGL_opengl_LIBRARY</span></code>,
