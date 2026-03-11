@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.17 (2026-03-11)
+4.5.16 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,10 +12,6 @@ Fixed
   the additional call to :func:`~isaaclab.sim.utils.stage.close_stage` from
   :meth:`~isaaclab.sim.SimulationContext.clear_instance` was removed as
   redundant (it triggered the error).
-
-
-4.5.16 (2026-03-10)
-~~~~~~~~~~~~~~~~~~~
 
 
 4.5.15 (2026-03-10)
