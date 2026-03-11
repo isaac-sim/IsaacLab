@@ -272,36 +272,16 @@ def reset_articulation(
     if local.numel() == 0:
         return
 
-    pose = wp.to_torch(
-        art.data.default_root_pose,
-    )[local].clone()
-    vel = wp.to_torch(
-        art.data.default_root_vel,
-    )[local].clone()
+    pose = wp.to_torch(art.data.default_root_pose)[local].clone()
+    vel = wp.to_torch(art.data.default_root_vel)[local].clone()
     pose[:, :3] += scene.env_origins[glob]
-    art.write_root_pose_to_sim_index(
-        root_pose=pose,
-        env_ids=local,
-    )
-    art.write_root_velocity_to_sim_index(
-        root_velocity=vel,
-        env_ids=local,
-    )
+    art.write_root_pose_to_sim_index(root_pose=pose, env_ids=local)
+    art.write_root_velocity_to_sim_index(root_velocity=vel, env_ids=local)
 
-    jpos = wp.to_torch(
-        art.data.default_joint_pos,
-    )[local].clone()
-    jvel = wp.to_torch(
-        art.data.default_joint_vel,
-    )[local].clone()
-    art.write_joint_position_to_sim_index(
-        position=jpos,
-        env_ids=local,
-    )
-    art.write_joint_velocity_to_sim_index(
-        velocity=jvel,
-        env_ids=local,
-    )
+    jpos = wp.to_torch(art.data.default_joint_pos)[local].clone()
+    jvel = wp.to_torch(art.data.default_joint_vel)[local].clone()
+    art.write_joint_position_to_sim_index(position=jpos, env_ids=local)
+    art.write_joint_velocity_to_sim_index(velocity=jvel, env_ids=local)
 
 
 def reset_scene(
@@ -312,10 +292,7 @@ def reset_scene(
     layout = scene.layout
 
     if env_ids is None:
-        env_ids = torch.arange(
-            scene.num_envs,
-            device=scene.device,
-        )
+        env_ids = torch.arange(scene.num_envs, device=scene.device)
 
     # --- Per-group articulations ---
     for name in scene.articulations:
@@ -325,29 +302,16 @@ def reset_scene(
     for obj_name, rigid_obj in scene.rigid_objects.items():
         key = layout.group_for_asset(obj_name)
         if key is not None:
-            local, glob = layout.filter_and_split(
-                key,
-                env_ids,
-            )
+            local, glob = layout.filter_and_split(key, env_ids)
         else:
             local, glob = env_ids, env_ids
         if local.numel() == 0:
             continue
-        obj_pose = wp.to_torch(
-            rigid_obj.data.default_root_pose,
-        )[local].clone()
-        obj_vel = wp.to_torch(
-            rigid_obj.data.default_root_vel,
-        )[local].clone()
+        obj_pose = wp.to_torch(rigid_obj.data.default_root_pose)[local].clone()
+        obj_vel = wp.to_torch(rigid_obj.data.default_root_vel)[local].clone()
         obj_pose[:, :3] += scene.env_origins[glob]
-        rigid_obj.write_root_pose_to_sim_index(
-            root_pose=obj_pose,
-            env_ids=local,
-        )
-        rigid_obj.write_root_velocity_to_sim_index(
-            root_velocity=obj_vel,
-            env_ids=local,
-        )
+        rigid_obj.write_root_pose_to_sim_index(root_pose=obj_pose, env_ids=local)
+        rigid_obj.write_root_velocity_to_sim_index(root_velocity=obj_vel, env_ids=local)
 
     scene.reset(env_ids)
 
@@ -378,27 +342,16 @@ def apply_random_actions(
 
         key = layout.group_for_asset(name)
         if key is not None:
-            local, _ = layout.filter_and_split(
-                key,
-                active_global_ids,
-            )
+            local, _ = layout.filter_and_split(key, active_global_ids)
         else:
             local = active_global_ids
         if local.numel() == 0:
             continue
 
         n_joints = default.shape[1]
-        noise = 0.4 * torch.randn(
-            local.shape[0],
-            n_joints,
-            device=scene.device,
-        )
+        noise = 0.4 * torch.randn(local.shape[0], n_joints, device=scene.device)
         perturbed = default[local] + noise
-        art.set_joint_position_target_index(
-            target=perturbed,
-            joint_ids=None,
-            env_ids=local,
-        )
+        art.set_joint_position_target_index(target=perturbed, joint_ids=None, env_ids=local)
 
 
 def run_simulator(
@@ -424,17 +377,11 @@ def run_simulator(
             reset_scene(scene)
 
         if step % resample_interval == 0:
-            perm = torch.randperm(
-                scene.num_envs,
-                device=scene.device,
-            )
+            perm = torch.randperm(scene.num_envs, device=scene.device)
             active = perm[:n_active].sort().values
             print(f"[step {step:>5d}] active global ids = {active.tolist()}")
             for gn in layout.group_names:
-                loc, _ = layout.filter_and_split(
-                    gn,
-                    active,
-                )
+                loc, _ = layout.filter_and_split(gn, active)
                 print(f"  {gn:16s}: local ids = {loc.tolist()}")
 
         assert active is not None
@@ -456,16 +403,9 @@ def main() -> None:
         device=args_cli.device,
     )
     sim = SimulationContext(sim_cfg)
-    sim.set_camera_view(
-        eye=[3.0, 3.0, 3.0],
-        target=[0.0, 0.0, 0.5],
-    )
+    sim.set_camera_view(eye=[3.0, 3.0, 3.0], target=[0.0, 0.0, 0.5])
 
-    scene_cfg = MultiRobotSceneCfg(
-        num_envs=args_cli.num_envs,
-        env_spacing=2.5,
-        replicate_physics=False,
-    )
+    scene_cfg = MultiRobotSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
     scene = InteractiveScene(scene_cfg)
 
     sim.reset()
