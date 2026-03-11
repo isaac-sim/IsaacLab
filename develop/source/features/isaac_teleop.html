@@ -950,18 +950,6 @@ pipeline, what input mode it expects, and how the operator interacts with the ro
 <td><p><strong>Arm:</strong> right controller grip pose drives end-effector.
 <strong>Gripper:</strong> right trigger.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0</span></code></p></td>
-<td><p>Hand tracking</p></td>
-<td><p>Left</p></td>
-<td><p><strong>Arm:</strong> left hand wrist position drives end-effector.
-<strong>Gripper:</strong> thumb-index pinch distance.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0</span></code></p></td>
-<td><p>Hand tracking</p></td>
-<td><p>Right</p></td>
-<td><p><strong>Arm:</strong> right hand wrist position drives end-effector.
-<strong>Gripper:</strong> thumb-index pinch distance.</p></td>
-</tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-Abs-v0</span></code></p></td>
 <td><p>Hand tracking</p></td>
 <td><p>Both</p></td>
@@ -1253,11 +1241,22 @@ uses <code class="docutils literal notranslate"><span class="pre">create_isaac_t
 <span class="w">    </span>--xr
 </pre></div>
 </div>
+<p>Some environments use the legacy <code class="docutils literal notranslate"><span class="pre">teleop_devices</span></code> configuration instead of <code class="docutils literal notranslate"><span class="pre">isaac_teleop</span></code>
+(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass <code class="docutils literal notranslate"><span class="pre">--teleop_device</span></code> to select
+the input device:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--teleop_device<span class="w"> </span>keyboard
+</pre></div>
+</div>
 <p>The workflow is:</p>
 <ol class="arabic simple">
-<li><p>Configure your environment with <code class="docutils literal notranslate"><span class="pre">IsaacTeleopCfg</span></code> (see <a class="reference internal" href="#isaac-teleop-env-config"><span class="std std-ref">Configure Your Environment</span></a>).</p></li>
+<li><p>Configure your environment with <code class="docutils literal notranslate"><span class="pre">IsaacTeleopCfg</span></code> (see <a class="reference internal" href="#isaac-teleop-env-config"><span class="std std-ref">Configure Your Environment</span></a>)
+or <code class="docutils literal notranslate"><span class="pre">teleop_devices</span></code> for legacy devices (keyboard, spacemouse).</p></li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">record_demos.py</span></code> with the task name.</p></li>
-<li><p>Start AR, connect your XR device, and teleoperate.</p></li>
+<li><p>For XR tasks: start AR, connect your XR device, and teleoperate.
+For legacy tasks: use the configured input device directly.</p></li>
 <li><p>Demonstrations are recorded to HDF5 files.</p></li>
 <li><p>Use the recorded data with Isaac Lab Mimic or other imitation learning frameworks.</p></li>
 </ol>
