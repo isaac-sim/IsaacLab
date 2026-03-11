@@ -687,7 +687,7 @@
                   
   <section id="setting-up-isaac-teleop-with-cloudxr">
 <span id="cloudxr-teleoperation"></span><h1>Setting up Isaac Teleop with CloudXR<a class="headerlink" href="#setting-up-isaac-teleop-with-cloudxr" title="Link to this heading">#</a></h1>
-<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">Isaac Teleop</a> is the unified framework for high-fidelity
+<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">Isaac Teleop</a> (<a class="github reference external" href="https://github.com/NVIDIA/IsaacTeleop">NVIDIA/IsaacTeleop</a>) is the unified framework for high-fidelity
 teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
 pipeline, and bundled <a class="reference external" href="https://developer.nvidia.com/cloudxr-sdk">NVIDIA CloudXR</a> streaming for immersive XR-based teleoperation.</p>
 <p>This guide walks you through installing Isaac Teleop, starting the CloudXR runtime, connecting an
@@ -737,22 +737,30 @@ institutional wireless networks prevent device-to-device connectivity.</p></li>
 <section id="install-isaac-teleop">
 <span id="id1"></span><h2>Install Isaac Teleop<a class="headerlink" href="#install-isaac-teleop" title="Link to this heading">#</a></h2>
 <ol class="arabic">
-<li><p>Clone the Isaac Teleop repository:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:NVIDIA/IsaacTeleop.git
-<span class="nb">cd</span><span class="w"> </span>IsaacTeleop/
+<li><p>Install the system libraries required by the CloudXR runtime:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>libvulkan1<span class="w"> </span>libbsd0
 </pre></div>
 </div>
-</li>
-<li><p><strong>(Optional – Hand Tracking)</strong> If you plan to use optical hand tracking from the XR
-device, create a CloudXR environment file:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;NV_CXR_ENABLE_PUSH_DEVICES=0&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>deps/cloudxr/.env
-</pre></div>
-</div>
+<p>The CloudXR runtime links against Vulkan at runtime. If your system already has the
+NVIDIA driver installed, <code class="docutils literal notranslate"><span class="pre">libvulkan1</span></code> may already be present.</p>
 </li>
 <li><p>Activate the <strong>same</strong> virtual environment you use for Isaac Lab, then install the
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> package:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop~<span class="o">=</span><span class="m">1</span>.0<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> package with the extras you need:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,ui,cloudxr]&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
 </pre></div>
+</div>
+<p>The extras provide the following functionality:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">retargeters</span></code> – hand retargeting libraries (dex-retargeting, scipy, torch, etc.)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ui</span></code> – retargeter tuning UI (imgui)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> – CloudXR runtime and WSS proxy (websockets)</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The pip package includes the CloudXR runtime, the WSS proxy, and all bundled native
+libraries – no separate clone or build step is needed. For advanced configuration,
+building from source, or plugin development, see the
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">Isaac Teleop GitHub</a>.</p>
 </div>
 <p>For version and compatibility details, see the
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/releases">Isaac Teleop releases</a>.</p>
@@ -775,10 +783,10 @@ sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </s
 sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">48002</span>/udp
 </pre></div>
 </div>
-<p><strong>For web clients</strong> (CloudXR.js):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">49100</span>/tcp<span class="w">   </span><span class="c1"># Signaling</span>
+<p><strong>For web clients</strong> (CloudXR.js via the built-in WSS proxy):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">49100</span>/tcp<span class="w">   </span><span class="c1"># Signaling (WebRTC)</span>
 sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">47998</span>/udp<span class="w">   </span><span class="c1"># Media stream</span>
-sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">48322</span>/tcp<span class="w">   </span><span class="c1"># Proxy (HTTPS mode only)</span>
+sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">48322</span>/tcp<span class="w">   </span><span class="c1"># WSS proxy (HTTPS)</span>
 </pre></div>
 </div>
 <p>For full network requirements and Windows firewall instructions, see the
@@ -789,22 +797,88 @@ documentation.</p>
 </section>
 <section id="start-the-cloudxr-runtime">
 <span id="start-cloudxr-runtime"></span><h2>Start the CloudXR Runtime<a class="headerlink" href="#start-the-cloudxr-runtime" title="Link to this heading">#</a></h2>
-<p>From the <code class="docutils literal notranslate"><span class="pre">isaacteleop/</span></code> directory, start the CloudXR runtime in a dedicated terminal:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./scripts/run_cloudxr.sh
+<p>In a dedicated terminal, activate the Isaac Lab virtual environment and start the CloudXR
+runtime:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr
 </pre></div>
+</div>
+<p>This single command performs the following:</p>
+<ul class="simple">
+<li><p><strong>EULA acceptance</strong> – on first run you will be prompted to accept the NVIDIA CloudXR
+EULA. The acceptance is stored in <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/run/eula_accepted</span></code> and is not requested
+again.</p></li>
+<li><p><strong>CloudXR runtime</strong> – loads the bundled CloudXR native libraries and starts the
+runtime service.</p></li>
+<li><p><strong>WSS proxy</strong> – starts a WebSocket Secure (WSS) proxy on port <strong>48322</strong> that terminates
+TLS for CloudXR.js web clients. A self-signed certificate is generated automatically in
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/certs/</span></code> if one does not already exist.</p></li>
+</ul>
+<p>Keep this terminal running for the duration of your teleoperation session.</p>
+<p class="rubric" id="cloudxr-runtime-configuration">Runtime Configuration</p>
+<p><strong>Install directory</strong> – by default the runtime stores its OpenXR libraries, IPC socket,
+logs, certificates, and a generated <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> file under <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/</span></code>. To use a
+different location, pass the <code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span></code> flag:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--cloudxr-install-dir<span class="o">=</span>~/my_cloudxr
+</pre></div>
+</div>
+<p><strong>CloudXR environment config</strong> – runtime behavior can be customized by passing a
+<code class="docutils literal notranslate"><span class="pre">.env</span></code>-style configuration file with the <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> flag:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--cloudxr-env-config<span class="o">=</span>~/custom.env
+</pre></div>
+</div>
+<p>Common configuration options:</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Using optical hand tracking from the XR headset?</strong> By default the runtime expects
+hand tracking data from an external push device (e.g. Manus gloves). If you are using
+the headset’s built-in optical hand tracking (the most common setup for Quest 3 and
+Pico 4 Ultra, and Apple Vision Pro), you <strong>must</strong> set the following in your <code class="docutils literal notranslate"><span class="pre">.env</span></code> config file:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NV_CXR_ENABLE_PUSH_DEVICES=0
+</pre></div>
+</div>
+<p>Without this, the runtime will not process hand tracking data from the headset and your
+hands will not appear in the simulation.</p>
+</div>
+<ul>
+<li><p><strong>Apple Vision Pro</strong> – the Vision Pro uses the CloudXR native framework rather than
+WebXR. To connect with an Apple Vision Pro, set:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NV_DEVICE_PROFILE=auto-native
+</pre></div>
+</div>
+</li>
+</ul>
+<p>Multiple options can be combined in the same file, one per line. Both flags can be used
+together.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The previous Docker Compose workflow (used with Isaac Lab 2.3 and CloudXR 5.0.1) is
+still supported for legacy environments but is deprecated in favor of the pip-based
+Isaac Teleop workflow described here. See the <code class="docutils literal notranslate"><span class="pre">docker/</span></code> directory in the Isaac Lab
+repository for the legacy Docker Compose files.</p>
 </div>
 </section>
 <section id="run-isaac-lab-with-cloudxr">
 <span id="run-isaac-lab-with-the-cloudxr-runtime"></span><h2>Run Isaac Lab with CloudXR<a class="headerlink" href="#run-isaac-lab-with-cloudxr" title="Link to this heading">#</a></h2>
-<p>Open a <strong>new</strong> terminal where Isaac Lab will run and set up the CloudXR environment:</p>
+<p>Open a <strong>new</strong> terminal and source the environment file generated by the CloudXR runtime on
+its first start. This sets the <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and <code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code> variables that
+Isaac Sim needs to locate the OpenXR runtime:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Activate the Isaac Lab virtual environment (conda or uv)</span>
-<span class="nb">cd</span><span class="w"> </span>&lt;path-to-isaacteleop&gt;/IsaacTeleop/
-<span class="nb">source</span><span class="w"> </span>scripts/setup_cloudxr_env.sh
+<span class="nb">source</span><span class="w"> </span>~/.cloudxr/cloudxr.env
 </pre></div>
 </div>
-<p>With the CloudXR runtime running in a separate terminal, launch an Isaac Lab teleoperation script:</p>
+<p>If you specified a custom install directory with <code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span></code>, source
+<code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> from that directory instead.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>You can add the <code class="docutils literal notranslate"><span class="pre">source</span></code> line to your shell profile (e.g. <code class="docutils literal notranslate"><span class="pre">~/.bashrc</span></code>) so the
+CloudXR environment is configured automatically in every new terminal.</p>
+</div>
+<p>With the CloudXR runtime running in a separate terminal (see <a class="reference internal" href="#start-cloudxr-runtime"><span class="std std-ref">Start the CloudXR Runtime</span></a>),
+launch an Isaac Lab teleoperation script:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0
+<span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--xr
 </pre></div>
 </div>
 <p>Then in the Isaac Sim UI:</p>
@@ -836,14 +910,23 @@ choose the tab that matches your hardware.</p>
 Meta Quest 3 / Pico 4 Ultra</label><div class="sd-tab-content docutils">
 <p id="connect-quest-pico">Meta Quest 3 and Pico 4 Ultra connect to Isaac Lab via the
 <a class="reference external" href="https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html">CloudXR.js</a>
-WebXR client.</p>
+WebXR client. The built-in WSS proxy started by <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code>
+provides the HTTPS connection that the web client requires.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>If you are using the headset’s built-in optical hand tracking (instead of
+Manus gloves), make sure you started the CloudXR runtime with
+<code class="docutils literal notranslate"><span class="pre">NV_CXR_ENABLE_PUSH_DEVICES=0</span></code> in your env config. See
+<a class="reference internal" href="#cloudxr-runtime-configuration"><span class="std std-ref">Runtime Configuration</span></a> for details.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.</p>
 </div>
 <ol class="arabic">
-<li><p>Ensure the CloudXR runtime is running (see <a class="reference internal" href="#start-cloudxr-runtime"><span class="std std-ref">Start the CloudXR Runtime</span></a>).</p></li>
-<li><p>Open the browser on your headset and navigate to
+<li><p>Ensure the CloudXR runtime and WSS proxy are running
+(see <a class="reference internal" href="#start-cloudxr-runtime"><span class="std std-ref">Start the CloudXR Runtime</span></a>).</p></li>
+<li><p>Open the browser on your headset and navigate to the hosted CloudXR.js client:
 <a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client">https://nvidia.github.io/IsaacTeleop/client</a>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -852,10 +935,18 @@ before deploying to headsets.</p>
 </div>
 </li>
 <li><p>Enter the IP address of your Isaac Lab host machine in the <strong>Server IP</strong> field.</p></li>
-<li><p>Click the <strong>Click https://&lt;ip&gt;:48322/ to accept cert</strong> link that appears on the page.
-Accept the certificate in the new page that opens, then navigate back to the
-CloudXR.js client page.</p>
-<a class="reference internal image-reference" href="../../_images/cloudxr_accept_cert.png"><img alt="CloudXR.js certificate acceptance link" class="align-center" src="../../_images/cloudxr_accept_cert.png" style="width: 400px;" />
+<li><p>Because the WSS proxy uses a self-signed certificate, you must accept it before
+connecting. Click the <strong>Click https://&lt;ip&gt;:48322/ to accept cert</strong> link that
+appears on the page.</p>
+<a class="reference internal image-reference" href="../../_images/cloudxr_accept_cert.jpg"><img alt="CloudXR.js certificate acceptance link" class="align-center" src="../../_images/cloudxr_accept_cert.jpg" style="width: 400px;" />
+</a>
+<p>A new tab opens with a <strong>“Your connection is not private”</strong> warning. Click
+<strong>Advanced</strong>, then click <strong>Proceed to &lt;ip&gt; (unsafe)</strong>.</p>
+<a class="reference internal image-reference" href="../../_images/cloudxr_accept_cert_not_private.jpg"><img alt="Browser privacy warning for self-signed certificate" class="align-center" src="../../_images/cloudxr_accept_cert_not_private.jpg" style="width: 500px;" />
+</a>
+<p>The browser will show a <strong>“Certificate Accepted”</strong> page confirming the certificate
+has been accepted. Close this tab and return to the CloudXR.js client page.</p>
+<a class="reference internal image-reference" href="../../_images/cloudxr_accept_cert_accepted.jpg"><img alt="Certificate accepted confirmation page" class="align-center" src="../../_images/cloudxr_accept_cert_accepted.jpg" style="width: 400px;" />
 </a>
 </li>
 <li><p>Click <strong>Connect</strong> to begin teleoperation.</p>
@@ -868,6 +959,17 @@ CloudXR.js client page.</p>
 <label class="sd-tab-label" for="sd-tab-item-1">
 Apple Vision Pro</label><div class="sd-tab-content docutils">
 <p id="use-apple-vision-pro">Apple Vision Pro connects to Isaac Lab via the native <a class="reference external" href="https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple">Isaac XR Teleop Sample Client</a> app.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The CloudXR runtime must be started with <code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE=auto-native</span></code> to
+accept connections from the Apple Vision Pro. Create a <code class="docutils literal notranslate"><span class="pre">.env</span></code> file containing
+<code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE=auto-native</span></code> and pass it when starting the runtime:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;NV_DEVICE_PROFILE=auto-native&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>~/custom.env
+python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--cloudxr-env-config<span class="o">=</span>~/custom.env
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="#cloudxr-runtime-configuration"><span class="std std-ref">Runtime Configuration</span></a> for details.</p>
+</div>
 <p class="rubric" id="build-apple-vision-pro">Build and Install the Client App</p>
 <p>Requirements:</p>
 <ul class="simple">

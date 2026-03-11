@@ -675,6 +675,8 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-retargeters">Available Retargeters</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-environment-reference">Teleoperation Environment Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#switch-between-controllers-and-hand-tracking">Switch Between Controllers and Hand Tracking</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-your-environment">Configure Your Environment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-the-xr-anchor">Configure the XR Anchor</a></li>
@@ -923,6 +925,158 @@ tensor. The <code class="docutils literal notranslate"><span class="pre">output_
 </div>
 </section>
 </section>
+<section id="teleoperation-environment-reference">
+<span id="isaac-teleop-env-control-reference"></span><h2>Teleoperation Environment Reference<a class="headerlink" href="#teleoperation-environment-reference" title="Link to this heading">#</a></h2>
+<p>The table below lists every built-in Isaac Lab environment that ships with an Isaac Teleop
+pipeline, what input mode it expects, and how the operator interacts with the robot.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 14.0%" />
+<col style="width: 14.0%" />
+<col style="width: 44.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Task ID</p></th>
+<th class="head"><p>Input Mode</p></th>
+<th class="head"><p>Hands</p></th>
+<th class="head"><p>Operator Interaction</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Abs-v0</span></code></p></td>
+<td><p>Controllers</p></td>
+<td><p>Right</p></td>
+<td><p><strong>Arm:</strong> right controller grip pose drives end-effector.
+<strong>Gripper:</strong> right trigger.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Left</p></td>
+<td><p><strong>Arm:</strong> left hand wrist position drives end-effector.
+<strong>Gripper:</strong> thumb-index pinch distance.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Right</p></td>
+<td><p><strong>Arm:</strong> right hand wrist position drives end-effector.
+<strong>Gripper:</strong> thumb-index pinch distance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-Abs-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Both</p></td>
+<td><p><strong>Arms:</strong> left/right hand wrist pose drives each end-effector.
+<strong>Hands:</strong> full 26-joint hand tracking retargeted to 11 DOF per Fourier hand via <code class="docutils literal notranslate"><span class="pre">DexHandRetargeter</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Both</p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-Abs-v0</span></code> with waist DOFs enabled.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-NutPour-GR1T2-Pink-IK-Abs-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Both</p></td>
+<td><p>Same retargeting pipeline as <code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-Abs-v0</span></code> (different task scene).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Both</p></td>
+<td><p>Same retargeting pipeline as <code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-Abs-v0</span></code> (different task scene).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-G1-InspireFTP-Abs-v0</span></code></p></td>
+<td><p>Hand tracking</p></td>
+<td><p>Both</p></td>
+<td><p><strong>Arms:</strong> left/right hand wrist pose drives each end-effector.
+<strong>Hands:</strong> full 26-joint hand tracking retargeted to 12 DOF per Inspire hand via <code class="docutils literal notranslate"><span class="pre">DexHandRetargeter</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0</span></code></p></td>
+<td><p>Controllers</p></td>
+<td><p>Both</p></td>
+<td><p><strong>Arms:</strong> left/right controller grip pose drives each end-effector.
+<strong>Hands:</strong> trigger closes index, squeeze closes middle, both together close thumb (7 DOF TriHand per hand).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-Locomanipulation-G1-Abs-v0</span></code></p></td>
+<td><p>Controllers</p></td>
+<td><p>Both</p></td>
+<td><p><strong>Arms:</strong> same as fixed-base G1 above.
+<strong>Hands:</strong> same TriHand mapping.
+<strong>Locomotion:</strong> left thumbstick = linear velocity (x/y), right thumbstick X = rotational velocity, right thumbstick Y = hip height.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Controllers</strong> provide a grip pose plus physical buttons (trigger, squeeze, thumbstick),
+ideal for tasks that need a gripper or simple hand mapping. <strong>Hand tracking</strong> captures 26
+wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.</p>
+</div>
+</section>
+<section id="switch-between-controllers-and-hand-tracking">
+<span id="isaac-teleop-switching-input-mode"></span><h2>Switch Between Controllers and Hand Tracking<a class="headerlink" href="#switch-between-controllers-and-hand-tracking" title="Link to this heading">#</a></h2>
+<p>The retargeting pipeline determines whether an environment uses motion controllers or hand
+tracking. Switching input modes requires changing the <code class="docutils literal notranslate"><span class="pre">pipeline_builder</span></code> function in your
+environment config. No other environment-level changes are needed as long as the action
+space (<code class="docutils literal notranslate"><span class="pre">TensorReorderer</span></code> output order) stays the same.</p>
+<p><strong>Controller to hand tracking</strong></p>
+<p>The key changes are:</p>
+<ol class="arabic simple">
+<li><p>Create a <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> and apply the world-to-anchor transform to it (instead of
+<code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>).</p></li>
+<li><p>Point the <code class="docutils literal notranslate"><span class="pre">Se3RetargeterConfig.input_device</span></code> at the appropriate <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> key.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">use_wrist_rotation=True</span></code> and <code class="docutils literal notranslate"><span class="pre">use_wrist_position=True</span></code> so that the SE3 retargeter
+reads from the hand wrist joint rather than the controller grip pose.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">GripperRetargeter</span></code> already supports both inputs – it uses the controller trigger
+when connected to a <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code> or thumb-index pinch when connected to a
+<code class="docutils literal notranslate"><span class="pre">HandsSource</span></code>.</p></li>
+</ol>
+<p>Here is the Franka stack environment’s controller-based pipeline alongside a hand-tracking
+variant for comparison.</p>
+<p><strong>Original (controller-based):</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># SE3: tracks right controller grip pose</span>
+<span class="n">se3_cfg</span> <span class="o">=</span> <span class="n">Se3RetargeterConfig</span><span class="p">(</span>
+    <span class="n">input_device</span><span class="o">=</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span>
+<span class="hll">    <span class="n">use_wrist_rotation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">use_wrist_position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span>    <span class="n">target_offset_roll</span><span class="o">=</span><span class="mf">90.0</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">se3</span> <span class="o">=</span> <span class="n">Se3AbsRetargeter</span><span class="p">(</span><span class="n">se3_cfg</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ee_pose&quot;</span><span class="p">)</span>
+<span class="n">connected_se3</span> <span class="o">=</span> <span class="n">se3</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+<span class="hll">    <span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">transformed_controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span>
+</span><span class="hll">    <span class="p">),</span>
+</span><span class="p">})</span>
+</pre></div>
+</div>
+<p><strong>Modified (hand-tracking-based):</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">se3_cfg</span> <span class="o">=</span> <span class="n">Se3RetargeterConfig</span><span class="p">(</span>
+<span class="hll">    <span class="n">input_device</span><span class="o">=</span><span class="n">HandsSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">use_wrist_rotation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">use_wrist_position</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">target_offset_roll</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+</span><span class="p">)</span>
+<span class="n">se3</span> <span class="o">=</span> <span class="n">Se3AbsRetargeter</span><span class="p">(</span><span class="n">se3_cfg</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ee_pose&quot;</span><span class="p">)</span>
+
+<span class="hll"><span class="n">transformed_hands</span> <span class="o">=</span> <span class="n">hands</span><span class="o">.</span><span class="n">transformed</span><span class="p">(</span><span class="n">transform_input</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ValueInput</span><span class="o">.</span><span class="n">VALUE</span><span class="p">))</span>
+</span><span class="hll"><span class="n">connected_se3</span> <span class="o">=</span> <span class="n">se3</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+</span><span class="hll">    <span class="n">HandsSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">transformed_hands</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">HandsSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span>
+</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">GripperRetargeter</span></code> needs no changes – it accepts both controller and hand inputs and
+uses whichever source is connected.</p>
+<p><strong>Hand tracking to controller</strong></p>
+<p>Reverse the steps above: set <code class="docutils literal notranslate"><span class="pre">input_device</span></code> to a <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code> key, transform the
+controllers instead of the hands, and set <code class="docutils literal notranslate"><span class="pre">use_wrist_rotation=False</span></code> and
+<code class="docutils literal notranslate"><span class="pre">use_wrist_position=False</span></code>. Adjust <code class="docutils literal notranslate"><span class="pre">target_offset_roll/pitch/yaw</span></code> to account for the
+controller grip frame orientation (typically 90 degrees roll for Franka-style grippers).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When switching between input modes, you may need to tune the <code class="docutils literal notranslate"><span class="pre">target_offset_roll</span></code>,
+<code class="docutils literal notranslate"><span class="pre">target_offset_pitch</span></code>, and <code class="docutils literal notranslate"><span class="pre">target_offset_yaw</span></code> values. Controller grip frames and hand
+wrist frames have different default orientations relative to the robot end-effector.</p>
+</div>
+</section>
 <section id="build-a-retargeting-pipeline">
 <span id="isaac-teleop-pipeline-builder"></span><h2>Build a Retargeting Pipeline<a class="headerlink" href="#build-a-retargeting-pipeline" title="Link to this heading">#</a></h2>
 <p>A pipeline builder is a callable that constructs the retargeting graph and returns an
@@ -1094,7 +1248,9 @@ demonstrations.</p>
 <p>When your environment configuration has an <code class="docutils literal notranslate"><span class="pre">isaac_teleop</span></code> attribute, the script automatically
 uses <code class="docutils literal notranslate"><span class="pre">create_isaac_teleop_device()</span></code> – no <code class="docutils literal notranslate"><span class="pre">--teleop_device</span></code> flag is needed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0
+<span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--xr
 </pre></div>
 </div>
 <p>The workflow is:</p>
@@ -1272,6 +1428,8 @@ environment is present, since it avoids GPU contention with rendering.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-retargeters">Available Retargeters</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-environment-reference">Teleoperation Environment Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#switch-between-controllers-and-hand-tracking">Switch Between Controllers and Hand Tracking</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-your-environment">Configure Your Environment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-the-xr-anchor">Configure the XR Anchor</a></li>
