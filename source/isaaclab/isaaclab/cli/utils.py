@@ -200,29 +200,18 @@ def run_command(
 def get_pip_command(python_exe: str | None = None) -> list[str]:
     """Return the base pip command tokens for the current environment.
 
-    When ``uv`` is available and ``pip`` is not installed as a Python module,
-    returns ``["uv", "pip"]``.  Otherwise returns ``[python_exe, "-m", "pip"]``.
+    When ``uv`` is available, returns ``["uv", "pip"]``.  Otherwise returns
+    ``[python_exe, "-m", "pip"]``.
 
     Args:
         python_exe: Python executable path.  Resolved via
             :func:`extract_python_exe` when ``None``.
     """
+    if shutil.which("uv"):
+        return ["uv", "pip"]
+
     if python_exe is None:
         python_exe = extract_python_exe()
-
-    # If we're in a virtual env and uv is available, check whether pip module exists
-    if os.environ.get("VIRTUAL_ENV") and shutil.which("uv"):
-        try:
-            result = run_command(
-                [python_exe, "-m", "pip", "--version"],
-                capture_output=True,
-                check=False,
-            )
-            pip_available = result.returncode == 0
-        except (FileNotFoundError, OSError):
-            pip_available = False
-        if not pip_available:
-            return ["uv", "pip"]
 
     return [python_exe, "-m", "pip"]
 
