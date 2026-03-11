@@ -143,16 +143,16 @@ For the migration-focused summary and deprecation context, see
      - Run headless (no visualizers requested by CLI or config).
    * - no ``--viz``
      - ``[KitVisualizerCfg(...), NewtonVisualizerCfg(...)]``
-     - Use config visualizers directly (see :ref:`visualization-configuration`).
+     - Use config visualizers directly.
    * - no ``--viz``
      - ``[NewtonVisualizerCfg(...)]``
-     - Run headless and launch visualizers from config (see :ref:`visualization-configuration`).
+     - Use config visualizers directly.
    * - ``--viz none``
      - any
      - Run headless with all visualizers disabled.
    * - ``--viz kit,newton``
      - ``[KitVisualizerCfg(...)]``
-     - Use custom Kit cfg and create default Newton cfg (see :ref:`visualization-configuration`).
+     - Use custom Kit cfg and create default Newton cfg.
    * - ``--viz rerun``
      - ``[KitVisualizerCfg(...)]``
      - Launch default Rerun only.

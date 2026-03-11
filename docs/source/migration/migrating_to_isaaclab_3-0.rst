@@ -16,10 +16,16 @@ from Isaac Lab 2.x to Isaac Lab 3.0.
 Visualizer CLI and Headless Behavior
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Headless and visualizer launch behavior now centers on the visualizer CLI argument
-(``--visualizer`` / ``--viz``), together with ``SimulationCfg.visualizer_cfgs``.
+In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--visualizer`` / ``--viz``
+to determine whether viewer apps are launched with an Isaac Lab command.
 
-- ``--visualizer`` / ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
+Visualizers are lightweight apps for monitoring, debugging, and recording workflows
+(see :doc:`/source/experimental-features/newton-physics-integration/visualization`).
+
+The details below describe how CLI visualizer arguments resolve together with
+``SimulationCfg.visualizer_cfgs``.
+
+- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
 - If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
 - ``--viz none`` explicitly disables all visualizers, including config-defined ones.
 - ``--headless`` is deprecated (still supported) and overrides ``--viz`` by forcing headless mode.
