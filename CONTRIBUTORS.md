@@ -147,6 +147,7 @@ Guidelines for modifications:
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise
+* Ruben D'Sa
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.5.9 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``FileNotFoundError`` for Dexsuite environments by removing stale
+  ``rl_games_cfg_entry_point`` from gym registrations. Benchmark config updated
+  to use RSL-RL.
+
+
 1.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 

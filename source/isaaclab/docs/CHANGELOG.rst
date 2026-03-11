@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+4.5.17 (2026-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed simulation hanging on exit by removing the prim-by-prim
+  ``clear_stage()`` call from :meth:`~isaaclab.sim.SimulationContext.clear_instance`.
+  The subsequent :func:`~isaaclab.sim.utils.close_stage` and app shutdown already
+  tear down the entire stage, making the per-prim deletion redundant and slow.
+* Fixed ``close_stage()`` ordering so that Kit's USD context is closed before
+  the stage cache is cleared, preventing the ``Removal of UsdStage from cache
+  failed`` error.
+
+
+4.5.16 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed "[Error] [omni.usd] Stage opening or closing already in progress" on
+  shutdown when running with Kit: ``env.close()`` already closes the stage, so
+  the redundant explicit :func:`~isaaclab.sim.utils.stage.close_stage` calls
+  in the scripts were removed; :meth:`~isaaclab.sim.SimulationContext.clear_instance`
+  (invoked by ``env.close()``) already closes the stage, so the duplicate calls
+  in the shutdown block triggered the error.
+
+
 4.5.15 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -21,10 +50,6 @@ Added
   subclasses can now override ``validate_config(self)`` to perform domain-specific
   validation that runs automatically as part of :func:`_validate`.
 
-
-4.5.13 (2026-03-10)
-~~~~~~~~~~~~~~~~~~~
-
 Fixed
 ^^^^^
 
@@ -33,6 +58,17 @@ Fixed
   :class:`~isaaclab.envs.DirectMARLEnv`, and :class:`~isaaclab.envs.ManagerBasedEnv`
   now call ``clear_instance()`` on the context when initialization raises, preventing
   cascading "Simulation context already exists" errors in test suites and training loops.
+
+
+4.5.13 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Added recursive resolution of nested :class:`~isaaclab.managers.ManagerTermBaseCfg` inside
+  :meth:`~isaaclab.managers.ManagerBase._resolve_param_value` so that ``params`` containing
+  manager term configs in dicts or lists have their ``func`` references and class-based
+  managers resolved automatically.
 
 
 4.5.12 (2026-03-10)

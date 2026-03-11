@@ -97,7 +97,6 @@ import torch
 
 import omni.ui as ui
 
-import isaaclab.sim as sim_utils
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
@@ -591,9 +590,7 @@ def main() -> None:
 if __name__ == "__main__":
     # run the main function
     main()
-    # Close the USD stage and pump the event loop so the viewport widget
-    # processes the closure before the app teardown destroys it.
-    sim_utils.close_stage()
+    # env.close() already closes the USD stage via sim.clear_instance().
+    # Pump the event loop so the viewport processes closure, then close the app.
     simulation_app.update()
-    # close sim app
     simulation_app.close()

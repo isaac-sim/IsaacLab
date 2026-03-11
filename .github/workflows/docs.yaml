@@ -88,6 +88,13 @@ jobs:
 
     - name: Generate multi-version docs
       working-directory: ./docs
+      env:
+        # When triggered from develop, build only the develop branch, no tags or main.
+        # Branches main and release/* will build main + release/* + tags.
+        # This way each main branch does not overwrite develop content,
+        # provided keep_files is true for gh-pages action.
+        SMV_BRANCH_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^develop$' || '^(main|release/.*)$' }}
+        SMV_TAG_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^$' || '^v[1-9]\d*\.\d+\.\d+$' }}
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
@@ -119,3 +126,4 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs/_build
+        keep_files: true
