@@ -152,7 +152,7 @@ def _install_isaacsim() -> None:
 
 # Valid sub-package names that can be passed to --install.
 # Each sub-package maps to a source directory named "isaaclab_<name>" under source/.
-VALID_ISAACLAB_SUBPACKAGES: set[str] = {
+VALID_ISAACLAB_EDITABLES: set[str] = {
     "assets",
     "ovrtx",
     "physx",
@@ -171,8 +171,6 @@ INSTALL_NO_DEPS_SUBPACKAGES: set[str] = {"ov"}
 # -i ovrtx installs this dependency only (isaaclab_ov is already installed with --no-deps).
 # Keep in sync with isaaclab_ov/setup.py INSTALL_REQUIRES.
 OVRTX_PIP_SPEC: str = "ovrtx>=0.2.0,<0.3.0"
-
-VALID_VISUALIZER_EXTRAS: set[str] = {"all", "kit", "newton", "rerun", "viser"}
 
 # RL framework names accepted.
 # Passing one of these installs all extensions + that framework.
@@ -202,34 +200,9 @@ def _split_install_items(install_type: str) -> list[str]:
     return parts
 
 
-def _parse_visualizer_selector(token: str) -> str | None:
-    """Parse visualizer selector token like 'visualizers[rerun]' into '[rerun]'."""
-    if token == "visualizers":
-        return "[all]"
-    prefix = "visualizers["
-    if not (token.startswith(prefix) and token.endswith("]")):
-        return None
-
-    extras_raw = token[len(prefix) : -1].strip()
-    if not extras_raw:
-        return "[all]"
-
-    extras = [x.strip() for x in extras_raw.split(",") if x.strip()]
-    invalid = [x for x in extras if x not in VALID_VISUALIZER_EXTRAS]
-    if invalid:
-        valid = ", ".join(sorted(VALID_VISUALIZER_EXTRAS))
-        print_warning(
-            f"Unknown visualizer extra(s) in '{token}': {', '.join(invalid)}. "
-            f"Valid visualizer extras: {valid}. Skipping visualizers selector."
-        )
-        return None
-
-    return f"[{','.join(extras)}]"
-
-
 def _install_isaaclab_extensions(
-    extensions: list[str] | None = None,
-    extension_extras: dict[str, str] | None = None,
+    isaaclab_editables: list[str] | None = None,
+    editable_extras: dict[str, str] | None = None,
     exclude: set[str] | None = None,
 ) -> None:
     """Install Isaac Lab extensions from the source directory.
@@ -238,14 +211,14 @@ def _install_isaaclab_extensions(
     installs each one as an editable pip package.
 
     Args:
-        extensions: Optional, list of source directory names to install.
+        isaaclab_editables: Optional, list of source directory names to install.
             If ``None`` is provided, every extension found under ``source/``
             is installed (subject to *exclude*).
-        extension_extras: Optional mapping from extension source directory
-            name to pip extras selector (e.g.
+        editable_extras: Optional mapping from extension source directory
+            name to pip editable selector (e.g.
             ``{"isaaclab_visualizers": "[rerun]"}``).
         exclude: Optional set of source directory names to skip even when
-            *extensions* is ``None``.
+            *isaaclab_editables* is ``None``.
     """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -259,7 +232,7 @@ def _install_isaaclab_extensions(
     for item in source_dir.iterdir():
         if not (item.is_dir() and (item / "setup.py").exists()):
             continue
-        if extensions is not None and item.name not in extensions:
+        if isaaclab_editables is not None and item.name not in isaaclab_editables:
             continue
         if exclude and item.name in exclude:
             continue
@@ -272,8 +245,8 @@ def _install_isaaclab_extensions(
     pip_cmd = get_pip_command(python_exe)
     for item in install_items:
         print_info(f"Installing extension: {item.name}")
-        extras_suffix = (extension_extras or {}).get(item.name, "")
-        install_target = f"{item}{extras_suffix}"
+        editable = (editable_extras or {}).get(item.name, "")
+        install_target = f"{item}{editable}"
         run_command(pip_cmd + ["install", "--editable", install_target])
 
 
@@ -465,57 +438,59 @@ def command_install(install_type: str = "all") -> None:
     install_isaacsim = False
 
     if install_type == "all":
-        extensions = None
+        isaaclab_editables = None
         exclude = no_deps_dirs
-        extension_extras = {"isaaclab_visualizers": "[all]"}
+        editable_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = "all"
     elif install_type == "none":
-        extensions = ["isaaclab"]
+        isaaclab_editables = ["isaaclab"]
         exclude = None
-        extension_extras = {}
+        editable_extras = {}
         framework_type = "none"
     elif install_type in VALID_RL_FRAMEWORKS:
-        extensions = None
+        isaaclab_editables = None
         exclude = no_deps_dirs
-        extension_extras = {"isaaclab_visualizers": "[all]"}
+        editable_extras = {"isaaclab_visualizers": "[all]"}
         framework_type = install_type
     else:
         # Parse comma-separated sub-package names and RL framework names.
-        extensions = ["isaaclab"]  # core is always required
+        isaaclab_editables = ["isaaclab"]  # core is always required
         exclude = None  # explicit selection — no exclusions
-        extension_extras = {}
+        editable_extras = {}
         framework_type = "none"
-        for name in _split_install_items(install_type):
-            visualizer_extras = _parse_visualizer_selector(name)
-            if visualizer_extras is not None:
-                if "isaaclab_visualizers" not in extensions:
-                    extensions.append("isaaclab_visualizers")
-                extension_extras["isaaclab_visualizers"] = visualizer_extras
-                continue
+        for token in _split_install_items(install_type):
+            # Parse optional editable selector: "name[extra1,extra2]"
+            if "[" in token:
+                bracket_pos = token.index("[")
+                name = token[:bracket_pos].strip()
+                editable = token[bracket_pos:].strip()
+            else:
+                name = token.strip()
+                editable = ""
             if name == "isaacsim":
                 install_isaacsim = True
                 continue
             if name in VALID_RL_FRAMEWORKS:
                 framework_type = name
                 # Ensure isaaclab_rl is installed so the framework extra works.
-                if "isaaclab_rl" not in extensions:
-                    extensions.append("isaaclab_rl")
+                if "isaaclab_rl" not in isaaclab_editables:
+                    isaaclab_editables.append("isaaclab_rl")
                 continue
-            if name in VALID_ISAACLAB_SUBPACKAGES:
+            if name in VALID_ISAACLAB_EDITABLES:
                 if name == "ovrtx":
                     install_ovrtx = True  # install ovrtx dependency only; isaaclab_ov already present
-                elif name == "visualizers":
-                    if "isaaclab_visualizers" not in extensions:
-                        extensions.append("isaaclab_visualizers")
-                    extension_extras["isaaclab_visualizers"] = "[all]"
                 else:
-                    extensions.append(f"isaaclab_{name}")
+                    pkg_dir = f"isaaclab_{name}"
+                    if pkg_dir not in isaaclab_editables:
+                        isaaclab_editables.append(pkg_dir)
+                    if editable:
+                        editable_extras[pkg_dir] = editable
                     # Auto-include the matching visualizer when installing a physics backend.
-                    if name == "newton" and "isaaclab_visualizers" not in extensions:
-                        extensions.append("isaaclab_visualizers")
-                        extension_extras["isaaclab_visualizers"] = "[newton]"
+                    if name == "newton" and "isaaclab_visualizers" not in isaaclab_editables:
+                        isaaclab_editables.append("isaaclab_visualizers")
+                        editable_extras["isaaclab_visualizers"] = "[newton]"
             else:
-                valid = sorted(VALID_ISAACLAB_SUBPACKAGES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
+                valid = sorted(VALID_ISAACLAB_EDITABLES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
                 print_warning(f"Unknown sub-package '{name}'. Valid values: {', '.join(valid)}. Skipping.")
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
@@ -571,7 +546,7 @@ def command_install(install_type: str = "all") -> None:
         _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        _install_isaaclab_extensions(extensions, extension_extras, exclude)
+        _install_isaaclab_extensions(isaaclab_editables, editable_extras, exclude)
 
         # Install no-deps extensions (e.g. isaaclab_ov) with --no-deps so they are
         # importable without pulling in optional deps like ovrtx.
