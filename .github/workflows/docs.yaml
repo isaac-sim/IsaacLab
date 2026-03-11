@@ -94,7 +94,7 @@ jobs:
         # This way each main branch does not overwrite develop content,
         # provided keep_files is true for gh-pages action.
         SMV_BRANCH_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^develop$' || '^(main|release/.*)$' }}
-        SMV_TAG_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^$' || '^v[1-9]\\d*\\.\\d+\\.\\d+$' }}
+        SMV_TAG_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^$' || '^v[1-9]\d*\.\d+\.\d+$' }}
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
