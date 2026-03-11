@@ -21,21 +21,23 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+from .isaac_rtx_renderer_utils import (
+    ANNOTATOR_CHANNEL_COUNTS,
+    SEGMENTATION_COLORIZE_FIELDS,
+    SIMPLE_SHADING_MODE_SETTING,
+    SIMPLE_SHADING_MODES,
+    apply_depth_clipping,
+    configure_isaac_rtx_settings,
+    ensure_isaac_rtx_render_update,
+    resolve_simple_shading_mode,
+)
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
-# Constants from Camera (SIMPLE_SHADING_MODES, etc.) - avoid circular import
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
-SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 0,
-    "simple_shading_diffuse_mdl": 1,
-    "simple_shading_full_mdl": 2,
-}
-SIMPLE_SHADING_MODE_SETTING = "/rtx/sdg/simpleShading/mode"
 
 
 @dataclass
@@ -68,6 +70,8 @@ class IsaacRtxRenderer(BaseRenderer):
         import omni.replicator.core as rep
         from pxr import UsdGeom
 
+        configure_isaac_rtx_settings(sensor.cfg.data_types)
+
         # Get camera prim paths from sensor view
         view = sensor._view
         cam_prim_paths = []
@@ -88,8 +92,7 @@ class IsaacRtxRenderer(BaseRenderer):
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
-            # Set simple shading mode (if requested) before rendering
-            simple_shading_mode = self._resolve_simple_shading_mode(sensor)
+            simple_shading_mode = resolve_simple_shading_mode(sensor.cfg.data_types)
             if simple_shading_mode is not None:
                 get_settings_manager().set_int(SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
@@ -154,13 +157,6 @@ class IsaacRtxRenderer(BaseRenderer):
             sensor=weakref.ref(sensor),
         )
 
-    def _resolve_simple_shading_mode(self, sensor: SensorBase) -> int | None:
-        """Resolve the requested simple shading mode from data types."""
-        requested = [dt for dt in sensor.cfg.data_types if dt in SIMPLE_SHADING_MODES]
-        if not requested:
-            return None
-        return SIMPLE_SHADING_MODES[requested[0]]
-
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
         """Store reference to output buffers for writing during render.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
@@ -224,29 +220,17 @@ class IsaacRtxRenderer(BaseRenderer):
             else:
                 tiled_data_buffer = tiled_data_buffer.to(device=sensor.device)
 
-            # process data for different segmentation types
-            # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
-            #   so we need to convert them to uint8 4 channel images for colorized types
-            if (
-                (data_type == "semantic_segmentation" and cfg.colorize_semantic_segmentation)
-                or (data_type == "instance_segmentation_fast" and cfg.colorize_instance_segmentation)
-                or (data_type == "instance_id_segmentation_fast" and cfg.colorize_instance_id_segmentation)
-            ):
+            # Colorized segmentation: reinterpret uint32 → uint8×4
+            colorize_field = SEGMENTATION_COLORIZE_FIELDS.get(data_type)
+            if colorize_field is not None and getattr(cfg, colorize_field, False):
                 tiled_data_buffer = wp.array(
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=sensor.device
                 )
 
-            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
-            # For normals, we only require the first three channels of the tiled buffer
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            # Slice to the expected channel count (e.g. motion_vectors→2, normals→3)
+            n_channels = ANNOTATOR_CHANNEL_COUNTS.get(data_type)
+            if n_channels is not None:
+                tiled_data_buffer = tiled_data_buffer[:, :, :n_channels].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,
@@ -264,21 +248,12 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type == "rgba" and "rgb" in cfg.data_types:
                 output_data["rgb"] = output_data["rgba"][..., :3]
 
-            # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center.
-            #       However, the replicator depth clipping is applied w.r.t. to the image plane which may result
-            #       in values larger than the clipping range in the output. We apply an additional clipping to
-            #       ensure values are within the clipping range for all the annotators.
-            if data_type == "distance_to_camera":
-                output_data[data_type][output_data[data_type] > cfg.spawn.clipping_range[1]] = torch.inf
-
-            # apply defined clipping behavior
-            if (
-                data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
-                and cfg.depth_clipping_behavior != "none"
-            ):
-                output_data[data_type][torch.isinf(output_data[data_type])] = (
-                    0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
-                )
+            apply_depth_clipping(
+                output_data[data_type],
+                data_type,
+                cfg.spawn.clipping_range,
+                cfg.depth_clipping_behavior,
+            )
 
     def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
         """No-op for Isaac RTX - all outputs written in render().

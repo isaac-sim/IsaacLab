@@ -4,6 +4,20 @@ Changelog
 0.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
+Added
+^^^^^
+
+* Added :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_depth_clipping`
+  and :data:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.DEPTH_DATA_TYPES` to
+  consolidate duplicated depth clipping logic into a shared, testable utility.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to use the shared
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_depth_clipping`
+  utility instead of inline depth clipping logic.
+
 Fixed
 ^^^^^
 
@@ -20,7 +34,6 @@ Fixed
   ``_make_provider()`` was missing the
   ``_force_usd_fallback_for_newton_model_build`` attribute and the force
   fallback test used an incorrect attribute name.
-
 
 0.5.7 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
