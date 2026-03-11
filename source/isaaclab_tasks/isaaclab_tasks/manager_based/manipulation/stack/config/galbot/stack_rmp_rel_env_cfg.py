@@ -58,20 +58,22 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
             use_relative_mode=self.use_relative_mode,
         )
 
-        # RmpFlow rel envs use legacy teleop (keyboard/spacemouse) instead of XR
-        self.isaac_teleop = None
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                ),
-            }
-        )
+        # Relative mode uses legacy teleop (keyboard/spacemouse) instead of XR;
+        # absolute mode keeps the inherited XR isaac_teleop pipeline.
+        if self.use_relative_mode:
+            self.isaac_teleop = None
+            self.teleop_devices = DevicesCfg(
+                devices={
+                    "keyboard": Se3KeyboardCfg(
+                        pos_sensitivity=0.05,
+                        rot_sensitivity=0.05,
+                    ),
+                    "spacemouse": Se3SpaceMouseCfg(
+                        pos_sensitivity=0.05,
+                        rot_sensitivity=0.05,
+                    ),
+                }
+            )
 
         # Set the simulation parameters
         self.sim.dt = 1 / 60
@@ -106,20 +108,22 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             use_relative_mode=self.use_relative_mode,
         )
 
-        # RmpFlow rel envs use legacy teleop (keyboard/spacemouse) instead of XR
-        self.isaac_teleop = None
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
-                ),
-            }
-        )
+        # Relative mode uses legacy teleop (keyboard/spacemouse) instead of XR;
+        # absolute mode keeps the inherited XR isaac_teleop pipeline.
+        if self.use_relative_mode:
+            self.isaac_teleop = None
+            self.teleop_devices = DevicesCfg(
+                devices={
+                    "keyboard": Se3KeyboardCfg(
+                        pos_sensitivity=0.05,
+                        rot_sensitivity=0.05,
+                    ),
+                    "spacemouse": Se3SpaceMouseCfg(
+                        pos_sensitivity=0.05,
+                        rot_sensitivity=0.05,
+                    ),
+                }
+            )
 
         # Set the simulation parameters
         self.sim.dt = 1 / 120
