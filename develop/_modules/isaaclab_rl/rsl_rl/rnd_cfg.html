@@ -60,7 +60,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 11, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 12, 2026"/>
   </head>
   
   
@@ -630,7 +630,7 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration for the weight schedule.&quot;&quot;&quot;</span>
 
         <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;constant&quot;</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The type of weight schedule. Default is &quot;constant&quot;.&quot;&quot;&quot;</span></div>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The type of weight schedule. Defaults to &quot;constant&quot;.&quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="RslRlRndCfg.LinearWeightScheduleCfg">
@@ -644,6 +644,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;linear&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The type of weight schedule. Defaults to &quot;linear&quot;.&quot;&quot;&quot;</span>
 
         <span class="n">final_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The final value of the weight parameter.&quot;&quot;&quot;</span>
@@ -671,6 +672,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;step&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The type of weight schedule. Defaults to &quot;step&quot;.&quot;&quot;&quot;</span>
 
         <span class="n">final_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The final step of the weight schedule.</span>
@@ -683,34 +685,34 @@
 
 
     <span class="n">weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The weight for the RND reward (also known as intrinsic reward). Default is 0.0.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The weight for the RND reward (also known as intrinsic reward). Defaults to 0.0.</span>
 
 <span class="sd">    Similar to other reward terms, the RND reward is scaled by this weight.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">weight_schedule</span><span class="p">:</span> <span class="n">WeightScheduleCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The weight schedule for the RND reward. Default is None, which means the weight is constant.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The weight schedule for the RND reward. Defaults to None, which means the weight is constant.&quot;&quot;&quot;</span>
 
     <span class="n">reward_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the RND reward. Default is False.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the RND reward. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">state_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the RND state. Default is False.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the RND state. Defaults to False.&quot;&quot;&quot;</span>
 
     <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-3</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The learning rate for the RND module. Default is 1e-3.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The learning rate for the RND module. Defaults to 1e-3.&quot;&quot;&quot;</span>
 
     <span class="n">num_outputs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of outputs for the RND module. Default is 1.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of outputs for the RND module. Defaults to 1.&quot;&quot;&quot;</span>
 
     <span class="n">predictor_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions for the RND predictor network. Default is [-1].</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions for the RND predictor network. Defaults to [-1].</span>
 
 <span class="sd">    If the list contains -1, then the hidden dimensions are the same as the input dimensions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">target_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions for the RND target network. Default is [-1].</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions for the RND target network. Defaults to [-1].</span>
 
 <span class="sd">    If the list contains -1, then the hidden dimensions are the same as the input dimensions.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
@@ -762,7 +764,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 11, 2026.
+  Last updated on Mar 12, 2026.
   <br/>
 </p>
   </div>
