@@ -15,6 +15,7 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 from __future__ import annotations
 
 import argparse
+import atexit
 import contextlib
 import logging
 import os
@@ -162,6 +163,15 @@ class AppLauncher:
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
+
+        # SimulationApp(IsaacSim) registers an atexit handler that calls close() which runs
+        # Kit's shutdown_and_release_framework(). That shutdown pumps the Kit event
+        # loop, which can deadlock in i.e omni.ui.scene during interpreter teardown.
+        # Register our own atexit handler *after* SimulationApp's so it runs first
+        # (LIFO order) and force-exits cleanly when fast_shutdown is enabled.
+        if self._app.config.get("fast_shutdown", False):
+            atexit.register(lambda: os._exit(0))
+
         # Load IsaacSim extensions
         self._load_extensions()
         # Hide the stop button in the toolbar
