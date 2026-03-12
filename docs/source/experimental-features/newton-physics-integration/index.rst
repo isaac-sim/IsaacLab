@@ -29,6 +29,10 @@ During the development phase of both Newton and this Isaac Lab integration, you 
 changes as well as limited documentation. We do not expect to be able to provide official support or debugging assistance
 until the framework has reached an official release. We appreciate your understanding and patience as we work to deliver a robust and polished framework!
 
+For an overview of how the multi-backend architecture works, including how to add a new backend, see
+:doc:`/source/overview/core-concepts/multi_backend_architecture`. For visualization options
+available with any backend, see :doc:`/source/features/visualization`.
+
 
 .. toctree::
   :maxdepth: 2
