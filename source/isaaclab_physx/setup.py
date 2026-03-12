@@ -16,7 +16,10 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Minimum dependencies required prior to installation
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = [
+    # equivalent to EXTENSION_PATH/../isaaclab_newton
+    f"isaaclab_newton @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_newton')}",
+]
 
 # Installation operation
 setup(
