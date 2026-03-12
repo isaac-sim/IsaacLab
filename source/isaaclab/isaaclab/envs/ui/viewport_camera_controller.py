@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -238,6 +239,6 @@ class ViewportCameraController:
                 and self.cfg.body_name is not None
             ):
                 self.update_view_to_asset_body(self.cfg.asset_name, self.cfg.body_name)
-        except AttributeError:
-            # asset views may be invalidated during simulation shutdown; silently skip
-            pass
+        except AttributeError as e:
+            # asset views may be invalidated during shutdown
+            logging.debug("ViewportCameraController._update_tracking_callback: AttributeError: %s", e)
