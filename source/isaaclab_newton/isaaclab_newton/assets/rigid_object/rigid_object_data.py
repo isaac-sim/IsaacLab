@@ -15,6 +15,7 @@ import warp as wp
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.math import normalize
+from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -25,6 +26,13 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_LAZY_CAPTURE_REASON = (
+    "This is a lazily-computed derived property guarded by a Python timestamp check "
+    "that is invisible during graph replay.  Use Tier 1 base data (root_link_pose_w, "
+    "root_com_vel_w, body_link_pose_w, body_com_vel_w) and inline the computation "
+    "in your warp kernel.  See GRAPH_CAPTURE_MIGRATION.md."
+)
 
 
 class RigidObjectData(BaseRigidObjectData):
@@ -188,6 +196,7 @@ class RigidObjectData(BaseRigidObjectData):
         return self._sim_bind_root_link_pose_w
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_link_vel_w(self) -> wp.array:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -215,6 +224,7 @@ class RigidObjectData(BaseRigidObjectData):
         return self._root_link_vel_w.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_com_pose_w(self) -> wp.array:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -283,6 +293,7 @@ class RigidObjectData(BaseRigidObjectData):
         return self._sim_bind_body_link_pose_w
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def body_link_vel_w(self) -> wp.array:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -293,6 +304,7 @@ class RigidObjectData(BaseRigidObjectData):
         return self.root_link_vel_w.reshape((self._num_instances, 1))
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def body_com_pose_w(self) -> wp.array:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -382,6 +394,7 @@ class RigidObjectData(BaseRigidObjectData):
     """
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def projected_gravity_b(self) -> wp.array:
         """Projection of the gravity direction on base frame.
 
@@ -399,6 +412,7 @@ class RigidObjectData(BaseRigidObjectData):
         return self._projected_gravity_b.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def heading_w(self) -> wp.array:
         """Yaw heading of the base frame (in radians).
 
@@ -420,6 +434,7 @@ class RigidObjectData(BaseRigidObjectData):
         return self._heading_w.data
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity in base frame.
 
