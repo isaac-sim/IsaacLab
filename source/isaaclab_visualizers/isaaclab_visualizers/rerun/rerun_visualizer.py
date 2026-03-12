@@ -178,7 +178,9 @@ class RerunVisualizer(BaseVisualizer):
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(_normalize_host(bind_address), web_port, rerun_address)
-        self._viewer.set_model(self._model)
+        self._viewer.set_model(self._model, max_worlds=self.cfg.max_worlds)
+        # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         self._apply_camera_pose(self._resolve_initial_camera_pose())
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0

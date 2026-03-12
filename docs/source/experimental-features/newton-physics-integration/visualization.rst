@@ -55,24 +55,30 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
 Quick Start
 -----------
 
-Launch visualizers from the command line with ``--visualizer``:
+Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` alias):
 
 .. code-block:: bash
 
     # Launch all visualizers (comma-delimited list, no spaces)
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit,newton,rerun
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz kit,newton,rerun
 
-    # Launch just newton visualizer
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
+    # Launch only the Newton visualizer
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz newton
 
 
-If ``--headless`` is given, no visualizers will be launched.
+To run in headless mode, omit the ``--viz`` argument:
+
+.. code-block:: bash
+
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
 
 .. note::
 
-    The ``--headless`` argument may be deprecated in future versions to avoid confusion with the ``--visualizer``
-    argument. For now, ``--headless`` takes precedence and disables all visualizers.
+    The ``--headless`` argument is deprecated.
+    For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
+
+.. _visualization-configuration:
 
 Configuration
 ~~~~~~~~~~~~~
@@ -112,6 +118,49 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
         ]
     )
 
+Resolution Rules (CLI + Config)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visualizer_cfgs``:
+
+- ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
+- If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
+- ``--viz none`` explicitly disables all visualizers.
+- If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
+
+For the migration-focused summary and deprecation context, see
+:doc:`/source/migration/migrating_to_isaaclab_3-0`.
+
+.. _visualization-common-modes:
+
+.. list-table:: Common modes
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - CLI args
+     - visualizer configs
+     - Effective behavior
+   * - no ``--viz``
+     - ``[]``
+     - Run headless.
+   * - ``--viz kit,newton``
+     - ``[]``
+     - Launch default Kit and default Newton visualizers.
+   * - ``--viz kit,newton``
+     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - Launch default Kit and custom Newton; Rerun is not launched.
+   * - no ``--viz``
+     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - Launch custom Newton and custom Rerun visualizers from config.
+   * - ``--viz none``
+     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - Run headless with all visualizers disabled.
+   * - ``--headless``
+     - any
+     - Run headless with deprecation warning.
+   * - ``--headless --viz <names>``
+     - any
+     - Run headless; ``--headless`` takes precedence.
 
 Visualizer Backends
 -------------------
@@ -266,7 +315,7 @@ To reduce overhead when visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes
-- Higher update frequencies
+- Lower update frequencies
 - Pausing visualizers while they are not being used
 
 
@@ -281,7 +330,7 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer rerun --num_envs 512
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
 
 
 .. note::
