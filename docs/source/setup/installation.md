@@ -168,7 +168,7 @@ Examples:
 ### Conda Alternative (Kit Path Only)
 
 ```bash
-conda create -n env_isaaclab python=3.11
+conda create -n env_isaaclab python=3.12
 conda activate env_isaaclab
 pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
 pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
