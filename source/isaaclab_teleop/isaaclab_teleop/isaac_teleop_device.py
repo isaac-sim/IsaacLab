@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -16,6 +17,9 @@ from .command_handler import CommandHandler
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .session_lifecycle import TeleopSessionLifecycle
 from .xr_anchor_manager import XrAnchorManager
+
+if TYPE_CHECKING:
+    from .visualizers.hand_joint_visualizer import HandJointVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +82,10 @@ class IsaacTeleopDevice:
 
         # Controller button polling state (edge detection for right 'A')
         self._prev_right_a_pressed = False
+
+        # Hand debug visualizer (lazily created on first frame with hand data).
+        self._hand_visualizer: HandJointVisualizer | None = None
+        self._hand_visualizer_failed = False
 
     def __del__(self):
         """Clean up resources when the object is destroyed."""
@@ -171,8 +179,39 @@ class IsaacTeleopDevice:
         if action is not None:
             # Poll controller buttons (e.g. toggle anchor rotation on right 'A' press)
             self._poll_buttons()
+            if self._cfg.enable_visualization:
+                self._update_hand_debug()
 
         return action
+
+    # ------------------------------------------------------------------
+    # Hand debug visualization
+    # ------------------------------------------------------------------
+
+    def _update_hand_debug(self) -> None:
+        """Lazily create and update the hand joint debug visualizer.
+
+        On the first frame where ``hand_left`` or ``hand_right`` appears in
+        the pipeline step result, a :class:`HandJointVisualizer` is created
+        (red sphere markers at each OpenXR hand joint).  Subsequent frames
+        simply update marker positions.
+        """
+        result = self._session_lifecycle.last_step_result
+        if result is None:
+            return
+        if "hand_left" not in result and "hand_right" not in result:
+            return
+        if self._hand_visualizer is None and not self._hand_visualizer_failed:
+            try:
+                from .visualizers.hand_joint_visualizer import HandJointVisualizer
+
+                self._hand_visualizer = HandJointVisualizer()
+            except Exception:
+                logger.debug("HandJointVisualizer creation failed; disabling hand debug", exc_info=True)
+                self._hand_visualizer_failed = True
+                return
+        if self._hand_visualizer is not None:
+            self._hand_visualizer.update(result)
 
     # ------------------------------------------------------------------
     # Controller button polling (glue between session and anchor manager)

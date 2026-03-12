@@ -108,5 +108,9 @@ class IsaacTeleopCfg:
     If ``None``, the tuning UI will not be opened.
     """
 
+    enable_visualization: bool = False
+    """When True, auto-discover hand tracking data in the pipeline and render
+    red sphere markers at each OpenXR hand joint for debug visualization."""
+
     app_name: str = "IsaacLabTeleop"
     """Application name for the IsaacTeleop session."""

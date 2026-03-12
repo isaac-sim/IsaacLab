@@ -58,6 +58,7 @@ class TeleopSessionLifecycle:
         self._session: TeleopSession | None = None
         self._pipeline = None
         self._last_right_controller = None
+        self._last_step_result: dict | None = None
         self._session_start_deferred_logged = False
 
         # Retargeting tuning UI (created in start, closed in stop)
@@ -128,6 +129,16 @@ class TeleopSessionLifecycle:
         """
         return self._last_right_controller
 
+    @property
+    def last_step_result(self) -> dict | None:
+        """Full pipeline output from the most recent :meth:`step`, or ``None``.
+
+        Contains at least ``"action"`` and ``"_controller_right"``.  When the
+        pipeline graph contains a ``HandsSource``, ``"hand_left"`` and
+        ``"hand_right"`` are auto-discovered and included as well.
+        """
+        return self._last_step_result
+
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
     # ------------------------------------------------------------------
@@ -150,14 +161,18 @@ class TeleopSessionLifecycle:
         user_pipeline = self._cfg.pipeline_builder()
         self._session_start_deferred_logged = False
         self._last_right_controller = None
+        self._last_step_result = None
 
         button_controllers = ControllersSource("_button_controllers")
-        self._pipeline = OutputCombiner(
-            {
-                "action": user_pipeline.output("action"),
-                self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
-            }
-        )
+        output_mapping = {
+            "action": user_pipeline.output("action"),
+            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+        }
+
+        if self._cfg.enable_visualization:
+            self._chain_hand_debug_outputs(user_pipeline, output_mapping)
+
+        self._pipeline = OutputCombiner(output_mapping)
 
         # Try to start the session now; it may be deferred
         self._try_start_session()
@@ -340,7 +355,10 @@ class TeleopSessionLifecycle:
         except Exception as e:
             logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
+            self._last_step_result = None
             return None
+
+        self._last_step_result = result
 
         # Store the right controller TensorGroup for button polling
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
@@ -352,6 +370,42 @@ class TeleopSessionLifecycle:
         action = torch.from_numpy(np.asarray(action_np, dtype=np.float32)).to(self._device)
 
         return action
+
+    # ------------------------------------------------------------------
+    # Hand debug output chaining
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _chain_hand_debug_outputs(user_pipeline, output_mapping: dict) -> None:
+        """Auto-discover ``HandsSource`` in the pipeline and chain hand outputs.
+
+        Walks the leaf nodes of *user_pipeline*.  If a ``HandsSource`` and a
+        ``ValueInput("world_T_anchor")`` are both present, a lightweight
+        ``HandTransform`` subgraph is created from them and its
+        ``hand_left`` / ``hand_right`` outputs are added to *output_mapping*
+        so they appear in the step result for debug visualization.
+
+        Args:
+            user_pipeline: The pipeline returned by ``pipeline_builder()``.
+            output_mapping: Mutable dict of output-name to ``OutputSelector``
+                being assembled for the final ``OutputCombiner``.
+        """
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
+        from isaacteleop.retargeting_engine.interface import ValueInput
+
+        hands_source = None
+        value_input = None
+        for leaf in user_pipeline.get_leaf_nodes():
+            if isinstance(leaf, HandsSource) and hands_source is None:
+                hands_source = leaf
+            elif isinstance(leaf, ValueInput) and leaf.name == TeleopSessionLifecycle.WORLD_T_ANCHOR_INPUT_NAME:
+                value_input = leaf
+        if hands_source is None or value_input is None:
+            return
+        transformed = hands_source.transformed(value_input.output(ValueInput.VALUE))
+        output_mapping[HandsSource.LEFT] = transformed.output(HandsSource.LEFT)
+        output_mapping[HandsSource.RIGHT] = transformed.output(HandsSource.RIGHT)
+        logger.debug("Auto-discovered HandsSource; chaining hand_left/hand_right for debug visualization")
 
     # ------------------------------------------------------------------
     # Dead session teardown
@@ -374,6 +428,7 @@ class TeleopSessionLifecycle:
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
         self._session_start_deferred_logged = False
+        self._last_step_result = None
         logger.info("IsaacTeleop session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------
