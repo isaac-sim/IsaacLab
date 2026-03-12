@@ -89,6 +89,7 @@ jobs:
 
 
   test-isaaclab-tasks:
+    name: IsaacLab Tasks Tests 1/2
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -110,7 +111,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run IsaacLab Tasks Tests
+    - name: Run IsaacLab Tasks Tests 1/2
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -156,6 +157,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-isaaclab-tasks-2:
+    name: IsaacLab Tasks Tests 2/2
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -177,7 +179,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run IsaacLab Tasks Tests 2
+    - name: Run IsaacLab Tasks Tests 2/2
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -224,6 +226,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-general:
+    name: General Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: build
@@ -284,6 +287,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-curobo:
+    name: cuRobo and SkillGen Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
