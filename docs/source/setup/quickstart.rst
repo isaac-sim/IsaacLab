@@ -24,23 +24,16 @@ To get started, we will first install Isaac Lab and launch a training script.
 Quick Installation Guide
 -------------------------
 
-There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab, but for the purposes of this quickstart guide, we will follow the
-pip install route using virtual environments.
+There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab. For a quick start
+**without Isaac Sim** (Newton backend only), see the :ref:`kitless-installation` section of the
+installation guide — just clone the repo and run ``./isaaclab.sh -i``.
 
-To begin, we first define our virtual environment.
+For the full pip-based installation (recommended for most users), we use **uv** as the preferred
+package manager. To begin, create a virtual environment:
 
 .. tab-set::
 
-   .. tab-item:: conda
-
-      .. code-block:: bash
-
-         # create a virtual environment named env_isaaclab with python3.12
-         conda create -n env_isaaclab python=3.12
-         # activate the virtual environment
-         conda activate env_isaaclab
-
-   .. tab-item:: uv
+   .. tab-item:: uv (Recommended)
 
       .. tab-set::
          :sync-group: os
@@ -51,7 +44,7 @@ To begin, we first define our virtual environment.
             .. code-block:: bash
 
                # create a virtual environment named env_isaaclab with python3.12
-               uv venv --python 3.12 env_isaaclab
+               uv venv --python 3.12 --seed env_isaaclab
                # activate the virtual environment
                source env_isaaclab/bin/activate
 
@@ -61,16 +54,25 @@ To begin, we first define our virtual environment.
             .. code-block:: batch
 
                # create a virtual environment named env_isaaclab with python3.12
-               uv venv --python 3.12 env_isaaclab
+               uv venv --python 3.12 --seed env_isaaclab
                # activate the virtual environment
                env_isaaclab\Scripts\activate
+
+   .. tab-item:: conda
+
+      .. code-block:: bash
+
+         # create a virtual environment named env_isaaclab with python3.12
+         conda create -n env_isaaclab python=3.12
+         # activate the virtual environment
+         conda activate env_isaaclab
 
 
 Next, install a CUDA-enabled PyTorch build.
 
    .. code-block:: bash
 
-      pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+      uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
@@ -83,20 +85,20 @@ Before we can install Isaac Sim, we need to make sure pip is updated.  To update
 
         .. code-block:: bash
 
-            pip install --upgrade pip
+            uv pip install --upgrade pip
 
     .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
 
         .. code-block:: batch
 
-            python -m pip install --upgrade pip
+            uv pip install --upgrade pip
 
 and now we can install the Isaac Sim packages.
 
-.. code-block:: none
+.. code-block:: bash
 
-    pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
+    uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
 
 Finally, we can install Isaac Lab.  To start, clone the repository using the following
 
@@ -164,6 +166,37 @@ This will train the mujoco ant to "run".  You can see the various launch option 
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
 (so long as those definitions are part of a ``@configclass``, see below).
 
+Selecting the Physics Backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the ``presets=`` argument to select the physics backend at runtime:
+
+.. code-block:: bash
+
+   # Newton (Kit-less) with Newton visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer newton
+
+   # PhysX (Kit) — requires Isaac Sim installed
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=physx
+
+   # Newton with a specific visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer viser
+
+Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.
+Multiple visualizers can be combined: ``--visualizer newton,rerun``.
+
+
 List Available Environments
 -----------------------------
 
@@ -221,7 +254,7 @@ Once created, navigate to the installed project and run
 
 .. code-block:: bash
 
-    python -m pip install -e source/<given-project-name>
+    uv pip install -e source/<given-project-name>
 
 to complete the installation process and register the environment.  Within the directories created by the template
 generator, you will find at least one ``__init__.py`` file with something that looks like the following

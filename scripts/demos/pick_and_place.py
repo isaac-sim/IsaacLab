@@ -14,6 +14,8 @@ parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pic
 parser.add_argument("--num_envs", type=int, default=32, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -264,14 +266,14 @@ class PickAndPlaceEnv(DirectRLEnv):
             )
 
         # Set the joint effort targets for the picker
-        self.pick_and_place.set_joint_effort_target(
-            self.instant_controls[:, 0].unsqueeze(dim=1), joint_ids=self._x_dof_idx
+        self.pick_and_place.set_joint_effort_target_index(
+            target=self.instant_controls[:, 0].unsqueeze(dim=1), joint_ids=self._x_dof_idx
         )
-        self.pick_and_place.set_joint_effort_target(
-            self.instant_controls[:, 1].unsqueeze(dim=1), joint_ids=self._y_dof_idx
+        self.pick_and_place.set_joint_effort_target_index(
+            target=self.instant_controls[:, 1].unsqueeze(dim=1), joint_ids=self._y_dof_idx
         )
-        self.pick_and_place.set_joint_effort_target(
-            self.permanent_controls[:, 0].unsqueeze(dim=1), joint_ids=self._z_dof_idx
+        self.pick_and_place.set_joint_effort_target_index(
+            target=self.permanent_controls[:, 0].unsqueeze(dim=1), joint_ids=self._z_dof_idx
         )
         # Set the gripper command
         self.gripper.set_grippers_command(self.instant_controls[:, 2])
@@ -348,7 +350,7 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.target_pos[env_ids, 2] = self.cfg.target_z_pos
 
         # Set the initial position of the cube
-        cube_pos = self.cube.data.default_root_state[env_ids, :7]
+        cube_pos = wp.to_torch(self.cube.data.default_root_pose)[env_ids]
         cube_pos[:, 0] = sample_uniform(
             self.cfg.initial_object_x_pos_range[0],
             self.cfg.initial_object_x_pos_range[1],
@@ -363,10 +365,10 @@ class PickAndPlaceEnv(DirectRLEnv):
         )
         cube_pos[:, 2] = self.cfg.initial_object_z_pos
         cube_pos[:, :3] += self.scene.env_origins[env_ids]
-        self.cube.write_root_pose_to_sim(cube_pos, env_ids)
+        self.cube.write_root_pose_to_sim_index(root_pose=cube_pos, env_ids=env_ids)
 
         # Set the initial position of the robot
-        joint_pos = self.pick_and_place.data.default_joint_pos[env_ids]
+        joint_pos = wp.to_torch(self.pick_and_place.data.default_joint_pos)[env_ids]
         joint_pos[:, self._x_dof_idx] += sample_uniform(
             self.cfg.initial_x_pos_range[0],
             self.cfg.initial_x_pos_range[1],
@@ -385,12 +387,13 @@ class PickAndPlaceEnv(DirectRLEnv):
             joint_pos[:, self._z_dof_idx].shape,
             self.device,
         )
-        joint_vel = self.pick_and_place.data.default_joint_vel[env_ids]
+        joint_vel = wp.to_torch(self.pick_and_place.data.default_joint_vel)[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.pick_and_place.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.pick_and_place.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.pick_and_place.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first tome

@@ -81,7 +81,9 @@ Collect five demonstrations by running the following command:
    ./isaaclab.sh -p scripts/tools/record_demos.py \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --visualizer kit \
+   --xr \
    --device cpu \
+   --xr \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
 
@@ -275,6 +277,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
       --visualizer kit \
       --device cpu \
+      --xr \
       --num_demos 5 \
       --dataset_file ./datasets/dataset_gr1_nut_pouring.hdf5
 
@@ -432,6 +435,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/tools/record_demos.py \
       --device cpu \
+      --xr \
       --visualizer kit \
       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \
@@ -699,12 +703,24 @@ The output of the model is the target base velocity, hand poses, and hand joint 
 Use NuRec Background in Locomanipulation SDG
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Prerequisites:** Generate a manipulation dataset or download a pre-recorded annotated dataset from :ref:`Generate the manipulation dataset <generate-the-manipulation-dataset>`.
+
 The `NuRec assets <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/assets/usd_assets_nurec.html#neural-volume-rendering>`__
 are neural volumes reconstructed from real-world captures. When integrated into the locomanipulation SDG workflow, these
 assets allow you to generate synthetic data in photorealistic environments that mirror real-world.
 
-You can load your own USD or USDZ file, which must include neural reconstruction for rendering, and a collision mesh to
-enable physical interaction and be set to invisible.
+Custom NuRec Asset Requirements
+"""""""""""""""""""""""""""""""
+
+To load a custom USD asset, ensure it meets the following specifications:
+
+- Neural Rendering: Include neural reconstruction for rendering.
+- Navigation: Include a pre-computed occupancy map for path planning and navigation. You can use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`_ to generate the occupancy map.
+- Orientation: Transform the asset so that the ground aligns with the z=0 plane.
+- Collision Mesh (optional): If a collision mesh is included, set it to invisible.
+
+Using Pre-constructed Assets
+""""""""""""""""""""""""""""
 
 Pre-constructed assets are available via the `PhysicalAI Robotics NuRec <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`__
 dataset. Some of them are captured from a humanoid-viewpoint to match the camera view of the humanoid robot.
@@ -714,13 +730,7 @@ For example, when using the asset ``hand_hold-voyager-babyboom``, the relevant f
 - `stage.usdz <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/stage.usdz>`__: a USDZ archive that bundles 3D Gaussian splatting (``volume.nurec``), a collision mesh (``mesh.usd``), etc.
 - `occupancy_map.yaml <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/occupancy_map.yaml>`__ and `occupancy_map.png <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/occupancy_map.png>`__: occupancy map for path planning and navigation.
 
-Download the files and place them under ``<PATH_TO_USD_ASSET>``.
-
-Ensure you have the manipulation dataset from the previous step. You can also download a pre-recorded
-annotated dataset as in :ref:`Generate the manipulation dataset <generate-the-manipulation-dataset>`
-and place it under ``<DATASET_FOLDER>/dataset_annotated_g1_locomanip.hdf5``.
-
-Then run the following command:
+Download the files and place them under ``<PATH_TO_USD_ASSET>``, then run the following command to generate a new dataset with background:
 
 .. code:: bash
 
@@ -737,7 +747,6 @@ Then run the following command:
        --visualizer kit \
        --background_usd_path <PATH_TO_USD_ASSET>/stage.usdz \
        --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml \
-       --init_camera_view \
        --randomize_placement \
        --high_res_video
 
@@ -745,8 +754,8 @@ The key parameters are:
 
 - ``--background_usd_path``: Path to the NuRec USD asset.
 - ``--background_occupancy_yaml_file``: Path to the occupancy map file.
-- ``--init_camera_view``: Set the viewport camera behind the robot at the start of episode.
 - ``--high_res_video``: Generate a higher resolution video (540x960) for the ego-centric camera view.
+- ``--sensor_camera_view``: Optionally set the Sim GUI viewport to the ``robot_pov_cam`` sensor view.
 
 On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
 the ego-centric camera view to MP4.
@@ -759,3 +768,10 @@ the ego-centric camera view to MP4.
       --input_keys robot_pov_cam \
       --video_width 960 \
       --video_height 540
+
+To play the generated MP4 video on Ubuntu, install the following multimedia packages:
+
+.. code:: bash
+
+   sudo apt update
+   sudo apt install libavcodec-extra gstreamer1.0-libav gstreamer1.0-plugins-ugly

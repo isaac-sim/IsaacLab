@@ -197,6 +197,28 @@ def run_command(
         sys.exit(130)
 
 
+def get_pip_command(python_exe: str | None = None) -> list[str]:
+    """Return the base pip command tokens for the current environment.
+
+    When ``uv`` is available and a virtual environment is active, returns
+    ``["uv", "pip"]``.  Otherwise returns ``[python_exe, "-m", "pip"]``
+    so that the target interpreter's own pip is used (e.g. Isaac Sim's
+    bundled ``python.sh``).
+
+    Args:
+        python_exe: Python executable path.  Resolved via
+            :func:`extract_python_exe` when ``None``.
+    """
+    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
+    if shutil.which("uv") and in_venv:
+        return ["uv", "pip"]
+
+    if python_exe is None:
+        python_exe = extract_python_exe()
+
+    return [python_exe, "-m", "pip"]
+
+
 def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
     """
     Find the Python executable to use.
@@ -272,10 +294,15 @@ def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
         # Check if we can use python that is running us.
         # This handles docker or system installs.
         try:
-            result = run_command([sys.executable, "-m", "pip", "list"], capture_output=True, text=True, check=False)
-            if "isaacsim-rl" in result.stdout:
+            result = run_command(
+                [sys.executable, "-c", "import isaacsim"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
                 python_exe = sys.executable
-                print_debug(f'extract_python_exe(): Found "isaacsim-rl" module in sys.executable: "{python_exe}"')
+                print_debug(f'extract_python_exe(): Found "isaacsim" module in sys.executable: "{python_exe}"')
         except Exception:
             pass
 
@@ -284,7 +311,7 @@ def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
         print_error(f"Unable to find any Python executable at path: '{python_exe}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda or uv environment is not activated.")
-        print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
+        print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Python executable is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         sys.exit(1)
 
@@ -293,9 +320,12 @@ def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
     return str(python_exe)
 
 
-def extract_isaacsim_path() -> Path:
-    """
-    Find the Isaac Sim installation path.
+def extract_isaacsim_path(*, required: bool = True) -> Path | None:
+    """Find the Isaac Sim installation path.
+
+    Args:
+        required: When ``True`` (default), exit the process if Isaac Sim
+            cannot be found.  When ``False``, return ``None`` instead.
     """
     # Use the sym-link path to Isaac Sim directory.
     isaacsim_path = DEFAULT_ISAAC_SIM_PATH
@@ -306,9 +336,13 @@ def extract_isaacsim_path() -> Path:
         python_exe = extract_python_exe(allow_isaacsim_python=False)
         # Retrieve the path importing isaac sim and getting the environment path.
         try:
-            # Check if isaacsim-rl is installed.
-            result = run_command([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
-            if "isaacsim-rl" in result.stdout:
+            result = run_command(
+                [python_exe, "-c", "import isaacsim"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
                 # Helper to print env var.
                 cmd = [python_exe, "-c", "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"]
                 res = run_command(cmd, capture_output=True, text=True, check=False)
@@ -321,11 +355,13 @@ def extract_isaacsim_path() -> Path:
 
     # Check if there is a path available.
     if not isaacsim_path.exists():
+        if not required:
+            return None
         # Throw an error if no path is found.
         print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda environment is not activated.")
-        print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
+        print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Isaac Sim directory is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         # Exit.
         sys.exit(1)
@@ -353,8 +389,8 @@ def extract_isaacsim_exe() -> list[str]:
         # python environment, so we can directly use 'python' here.
         python_exe = sys.executable
         try:
-            result = run_command([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
-            if "isaacsim-rl" in result.stdout:
+            result = run_command([python_exe, "-c", "import isaacsim"], capture_output=True, text=True, check=False)
+            if result.returncode == 0:
                 # Isaac Sim - Python packages entry point.
                 return ["isaacsim", "isaacsim.exp.full"]
         except Exception:
@@ -369,14 +405,17 @@ def extract_isaacsim_exe() -> list[str]:
 def determine_python_version() -> str:
     """Detect Isaac Sim version and return the matching Python version."""
 
-    # 1. Version file
-    version_file = extract_isaacsim_path() / "VERSION"
     isaacsim_version = None
-    if version_file.exists():
-        with open(version_file) as f:
-            version = f.read().strip()
-            if version:
-                isaacsim_version = version
+
+    # 1. Version file (only if Isaac Sim is available)
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is not None:
+        version_file = isaacsim_path / "VERSION"
+        if version_file.exists():
+            with open(version_file) as f:
+                version = f.read().strip()
+                if version:
+                    isaacsim_version = version
 
     # 2. Try importing package metadata
     if isaacsim_version is None:
@@ -387,7 +426,7 @@ def determine_python_version() -> str:
         except Exception:
             pass
 
-    # We can't find the IS, show a warning and default to python 3.12 (IS 6.x).
+    # No Isaac Sim found -- default to 3.12 (required by Isaac Sim 6.x).
     if isaacsim_version is None:
         python_version = "3.12"
         print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")

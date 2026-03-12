@@ -8,13 +8,13 @@ Installation
       # these dependency are needed by robomimic which is not available on Windows
       sudo apt install cmake build-essential
 
-   On **aarch64** systems (e.g., DGX Spark), OpenGL and X11 development packages are also required.
-   The ``imgui-bundle`` dependency does not provide a pre-built wheel for aarch64 and must be
+   On **aarch64** systems (e.g., DGX Spark), Python, OpenGL and X11 development packages are also required.
+   The ``imgui-bundle`` and ``quadprog`` dependencies do not provide pre-built wheels for aarch64 and must be
    compiled from source, which needs these headers and libraries:
 
    .. code:: bash
 
-      sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+      sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
 -  Run the install command that iterates over all the extensions in ``source`` directory and installs them
    using pip (with ``--editable`` flag):
@@ -61,7 +61,7 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    To install only specific sub-packages, pass a comma-separated list of sub-package names. The available
-   sub-packages are: ``assets``, ``physx``, ``contrib``, ``mimic``, ``newton``, ``rl``, ``tasks``,
+   sub-packages are: ``assets``, ``physx``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``rl``, ``tasks``,
    ``teleop``. For example, to install only the ``mimic`` and ``assets`` sub-packages:
 
    .. tab-set::

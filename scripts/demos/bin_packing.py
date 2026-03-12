@@ -32,6 +32,8 @@ parser = argparse.ArgumentParser(description="Demo usage of RigidObjectCollectio
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -44,6 +46,7 @@ simulation_app = app_launcher.app
 import math
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -264,8 +267,10 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     num_envs = scene.num_envs
     device = scene.device
     view_indices = torch.arange(num_envs * num_objects, device=device)
-    default_state_w = groceries.data.default_object_state.clone()
-    default_state_w[..., :3] = default_state_w[..., :3] + scene.env_origins.unsqueeze(1)
+    default_pose_w = wp.to_torch(groceries.data.default_body_pose).clone()
+    default_pose_w[..., :3] = default_pose_w[..., :3] + scene.env_origins.unsqueeze(1)
+    default_vel_w = wp.to_torch(groceries.data.default_body_vel).clone()
+    default_state_w = torch.cat([default_pose_w, default_vel_w], dim=-1)
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0

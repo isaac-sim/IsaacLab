@@ -442,27 +442,36 @@ class ManagerBase(ABC):
             term_cfg: The term configuration.
         """
         for key, value in term_cfg.params.items():
-            if isinstance(value, SceneEntityCfg):
-                # load the entity
-                try:
-                    value.resolve(self._env.scene)
-                except ValueError as e:
-                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
-                # log the entity for checking later
-                msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
-                if value.joint_ids is not None:
-                    msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
-                if value.body_ids is not None:
-                    msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
-                # print the information
-                logger.info(msg)
-            # store the entity
-            term_cfg.params[key] = value
+            self._resolve_param_value(term_name, key, value)
 
-        # initialize the term if it is a class
+        # resolve string func references then initialize class-based terms
+        if isinstance(term_cfg.func, str):
+            term_cfg.func = string_to_callable(term_cfg.func)
         if inspect.isclass(term_cfg.func):
             logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+
+    def _resolve_param_value(self, term_name: str, key: str | int, value: Any):
+        """Recursively resolve a single param value (SceneEntityCfg, nested term cfgs, dicts, lists)."""
+        if isinstance(value, SceneEntityCfg):
+            try:
+                value.resolve(self._env.scene)
+            except ValueError as e:
+                raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+            msg = f"[{key}:{term_name}] Found entity '{value.name}'."
+            if value.joint_ids is not None:
+                msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
+            if value.body_ids is not None:
+                msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
+            logger.info(msg)
+        elif isinstance(value, ManagerTermBaseCfg):
+            self._process_term_cfg_at_play(f"{term_name}.{key}", value)
+        elif isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value)
+        elif isinstance(value, (list, tuple)):
+            for i, item in enumerate(value):
+                self._resolve_param_value(f"{term_name}.{key}", i, item)
 
     def _get_resolved_robot_cfgs(self) -> dict[str, SceneEntityCfg]:
         """Return cached, resolved :class:`SceneEntityCfg` instances keyed by asset name.

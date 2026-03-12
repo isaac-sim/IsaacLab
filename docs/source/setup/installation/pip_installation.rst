@@ -39,14 +39,19 @@ Installing dependencies
 
 .. note::
 
-   In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
-   in the following commands.
+   On aarch64 (e.g., DGX Spark), ``imgui-bundle`` and ``quadprog`` must be compiled from source because no
+   pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
+   **before** installing Isaac Lab:
+
+    .. code-block:: bash
+
+       sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
 -  Install Isaac Sim pip packages:
 
-   .. code-block:: none
+   .. code-block:: bash
 
-      pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
+      uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
@@ -58,31 +63,21 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
          .. code-block:: bash
 
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
          .. code-block:: bash
 
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
-
-         .. note::
-
-            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` must be compiled from source because no
-            pre-built wheel is available. Install the required OpenGL and X11 development packages
-            **before** installing Isaac Lab:
-
-            .. code-block:: bash
-
-               sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
 
          .. note::
 

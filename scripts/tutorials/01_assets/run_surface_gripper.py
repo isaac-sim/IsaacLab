@@ -108,17 +108,19 @@ def run_simulator(
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = wp.to_torch(robot.data.default_root_state).clone()
-            root_state[:, :3] += origins
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+            root_pose[:, :3] += origins
+            robot.write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+            robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
             joint_pos, joint_vel = (
                 wp.to_torch(robot.data.default_joint_pos).clone(),
                 wp.to_torch(robot.data.default_joint_vel).clone(),
             )
             joint_pos += torch.rand_like(joint_pos) * 0.1
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             robot.reset()
             print("[INFO]: Resetting robot state...")

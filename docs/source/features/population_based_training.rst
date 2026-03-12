@@ -49,7 +49,7 @@ Example Config
      num_policies: 8
      directory: .
      workspace: "pbt_workspace"
-     objective: episode.Curriculum/difficulty_level
+     objective: episode.consecutive_successes
      interval_steps: 50000000
      threshold_std: 0.1
      threshold_abs: 0.025
@@ -66,8 +66,13 @@ Example Config
        agent.params.config.tau: "mutate_discount"
 
 
-``objective: episode.Curriculum/difficulty_level`` is the dotted expression that uses
-``infos["episode"]["Curriculum/difficulty_level"]`` as the scalar to **rank policies** (higher is better).
+``objective: episode.consecutive_successes`` is a dotted expression that resolves to
+``infos["episode"]["consecutive_successes"]`` as the scalar to **rank policies** (higher is better).
+
+.. note::
+   The rl_games wrapper remaps ``extras["log"]`` to ``extras["episode"]``, so objectives
+   should use the ``episode.`` prefix even though the environment writes to ``extras["log"]``.
+
 With ``num_policies: 8``, launch eight processes sharing the same ``workspace`` and unique ``policy_idx`` (0-7).
 
 
@@ -101,7 +106,7 @@ Training Example
 ----------------
 
 We provide a reference PPO config here for task:
-`Isaac-Dexsuite-Kuka-Allegro-Lift-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/dexsuite/config/kuka_allegro/agents/rl_games_ppo_cfg.yaml>`_.
+`Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
 For the best logging experience, we recommend using wandb for the logging in the script.
 
 Launch *N* workers, where *n* indicates each worker index:
@@ -111,7 +116,7 @@ Launch *N* workers, where *n* indicates each worker index:
    # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
    ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
      --seed=<n> \
-     --task=Isaac-Dexsuite-Kuka-Allegro-Lift-v0 \
+     --task=Isaac-Repose-Cube-Shadow-Direct-v0 \
      --num_envs=8192 \
      --headless \
      --track \

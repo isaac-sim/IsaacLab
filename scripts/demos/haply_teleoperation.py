@@ -52,6 +52,7 @@ parser.add_argument(
 )
 
 AppLauncher.add_app_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -192,10 +193,11 @@ def run_simulator(
     ee_body_name = "panda_hand"
     ee_body_idx = robot.body_names.index(ee_body_name)
 
-    joint_pos = robot.data.default_joint_pos.clone()
+    joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
     joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
-    joint_vel = robot.data.default_joint_vel.clone()
-    robot.write_joint_state_to_sim(joint_pos, joint_vel)
+    joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
 
     for _ in range(10):
         scene.write_data_to_sim()
@@ -245,20 +247,23 @@ def run_simulator(
     while simulation_app.is_running():
         if count % 10000 == 0:
             count = 1
-            root_state = robot.data.default_root_state.clone()
-            root_state[:, :3] += scene.env_origins
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+            root_pose[:, :3] += scene.env_origins
+            robot.write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+            robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
 
-            joint_pos = robot.data.default_joint_pos.clone()
+            joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
             joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
-            joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
 
-            cube_state = cube.data.default_root_state.clone()
-            cube_state[:, :3] += scene.env_origins
-            cube.write_root_pose_to_sim(cube_state[:, :7])
-            cube.write_root_velocity_to_sim(cube_state[:, 7:])
+            cube_pose = wp.to_torch(cube.data.default_root_pose).clone()
+            cube_pose[:, :3] += scene.env_origins
+            cube.write_root_pose_to_sim_index(root_pose=cube_pose)
+            cube_vel = wp.to_torch(cube.data.default_root_vel).clone()
+            cube.write_root_velocity_to_sim_index(root_velocity=cube_vel)
 
             scene.reset()
             haply_device.reset()
@@ -315,7 +320,7 @@ def run_simulator(
         joint_pos_target[6] = ee_rotation_angle  # panda_joint7 - end-effector rotation (button C)
         joint_pos_target[[-2, -1]] = gripper_target  # gripper
 
-        robot.set_joint_position_target(joint_pos_target.unsqueeze(0))
+        robot.set_joint_position_target_index(target=joint_pos_target.unsqueeze(0))
 
         for _ in range(5):
             scene.write_data_to_sim()

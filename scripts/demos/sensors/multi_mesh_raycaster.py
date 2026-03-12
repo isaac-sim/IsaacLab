@@ -35,6 +35,8 @@ parser.add_argument(
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -237,10 +239,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # root state
-            root_state = wp.to_torch(scene["asset"].data.default_root_state).clone()
-            root_state[:, :3] += scene.env_origins
-            scene["asset"].write_root_pose_to_sim(root_state[:, :7])
-            scene["asset"].write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = wp.to_torch(scene["asset"].data.default_root_pose).clone()
+            root_pose[:, :3] += scene.env_origins
+            scene["asset"].write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = wp.to_torch(scene["asset"].data.default_root_vel).clone()
+            scene["asset"].write_root_velocity_to_sim_index(root_velocity=root_vel)
 
             if isinstance(scene["asset"], Articulation):
                 # set joint positions with some noise
@@ -249,7 +252,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                     wp.to_torch(scene["asset"].data.default_joint_vel).clone(),
                 )
                 joint_pos += torch.rand_like(joint_pos) * 0.1
-                scene["asset"].write_joint_state_to_sim(joint_pos, joint_vel)
+                scene["asset"].write_joint_position_to_sim_index(position=joint_pos)
+                scene["asset"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting Asset state...")
@@ -259,7 +263,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             default_joint_pos = wp.to_torch(scene["asset"].data.default_joint_pos)
             targets = default_joint_pos + 5 * (torch.rand_like(default_joint_pos) - 0.5)
             # -- apply action to the asset
-            scene["asset"].set_joint_position_target(targets)
+            scene["asset"].set_joint_position_target_index(target=targets)
         # -- write data to sim
         scene.write_data_to_sim()
         # perform step

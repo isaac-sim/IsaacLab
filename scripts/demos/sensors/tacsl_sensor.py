@@ -69,6 +69,8 @@ parser.add_argument(
 
 # Append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # Parse the arguments
 args_cli = parser.parse_args()
 
@@ -331,9 +333,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # Reset robot and contact object positions
             count = 0
             for entity in entity_list:
-                root_state = wp.to_torch(scene[entity].data.default_root_state).clone()
-                root_state[:, :3] += scene.env_origins
-                scene[entity].write_root_state_to_sim(root_state)
+                root_pose = wp.to_torch(scene[entity].data.default_root_pose).clone()
+                root_pose[:, :3] += scene.env_origins
+                scene[entity].write_root_pose_to_sim_index(root_pose=root_pose)
+                root_vel = wp.to_torch(scene[entity].data.default_root_vel).clone()
+                scene[entity].write_root_velocity_to_sim_index(root_velocity=root_vel)
 
             scene.reset()
             print("[INFO]: Resetting robot and contact object state...")
