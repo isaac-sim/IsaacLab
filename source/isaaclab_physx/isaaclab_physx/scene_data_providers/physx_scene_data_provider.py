@@ -401,13 +401,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 rigid_paths.append(path)
             else:
                 dropped_non_rigid += 1
-        if dropped_non_rigid > 0:
-            self._warn_once(
-                "rigid-view-non-rigid-paths-dropped",
-                "[PhysxSceneDataProvider] Dropped %d non-rigid paths while creating RigidBodyView.",
-                dropped_non_rigid,
-                level=logging.DEBUG,
-            )
         if not rigid_paths:
             self._warn_once(
                 "rigid-view-no-rigid-paths",
