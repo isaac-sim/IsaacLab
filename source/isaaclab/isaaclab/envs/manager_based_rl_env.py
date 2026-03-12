@@ -339,7 +339,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                     term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)
                 self.single_observation_space[group_name] = gym.spaces.Dict(term_dict)
         # action space (unbounded since we don't impose any limits)
-        action_dim = sum(self.action_manager.action_term_dim)
+        action_dim = self.action_manager.total_action_dim
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
 
         # batch the spaces for vectorized environments

@@ -400,8 +400,11 @@ class CommandManager(ManagerBase):
             local = layout.resolve_term_env_ids(name, env_ids)
             if local is not None:
                 metrics = term.reset(env_ids=local)
-                for metric_name, metric_value in metrics.items():
-                    extras[f"Metrics/{name}/{metric_name}"] = metric_value
+            else:
+                # no envs from this group are resetting — still report current metrics
+                metrics = {k: torch.mean(v).item() for k, v in term.metrics.items()}
+            for metric_name, metric_value in metrics.items():
+                extras[f"Metrics/{name}/{metric_name}"] = metric_value
         # return logged information
         return extras
 
@@ -475,5 +478,8 @@ class CommandManager(ManagerBase):
             )
             if group_key is not None:
                 layout.register_term(term_name, group_key)
+                asset = getattr(term_cfg, "asset_name", None)
+                if asset is not None:
+                    layout.register_robot_meta(asset, command_name=term_name)
             # add class to dict
             self._terms[term_name] = term

@@ -52,6 +52,42 @@ class ManagerTermBaseCfg:
         in the :class:`SceneEntityCfg` object.
     """
 
+    task_group: str | None = None
+    """Task group name this term belongs to.
+
+    When set, the term is scoped to environments belonging to the named group declared in
+    :attr:`~isaaclab.scene.InteractiveSceneCfg.task_groups`.
+
+    The exact semantics depend on the manager:
+
+    * **Reward / Termination / Observation** — the function returns ``(group_envs, ...)`` and the manager
+      scatters the result into the full-sized buffer (non-group rows filled with zero / False).
+    * **Event** — the manager filters ``env_ids`` to group-local indices before calling the function.
+
+    Mutually exclusive with :attr:`per_robot`.
+    """
+
+    per_robot: bool = False
+    """Automatically dispatch this term once per robot group.
+
+    When ``True``, the manager iterates :attr:`EnvLayout.robot_specs` and calls the function once for each
+    :class:`RobotSpec`.  Parameters ``asset_cfg`` and ``command_name`` are **auto-injected** from the spec
+    when they appear in the function signature.  They must **not** be provided in :attr:`params`:
+
+    * ``asset_cfg`` — a :class:`SceneEntityCfg` built from the spec's ``asset_name``, ``ee_body``, and
+      ``joint_patterns``, already resolved against the scene.
+    * ``command_name`` — the spec's :attr:`RobotSpec.command_name`.
+
+    This allows reuse of standard term functions (e.g.
+    :func:`~isaaclab_tasks.manager_based.manipulation.reach.mdp.rewards.position_command_error`,
+    :func:`~isaaclab.envs.mdp.rewards.joint_vel_l2`,
+    :func:`~isaaclab.envs.mdp.events.reset_joints_by_scale`) without writing multi-robot wrapper functions.
+
+    Results are scattered / filtered by the manager — the function itself stays layout-unaware.
+
+    Mutually exclusive with :attr:`task_group`.
+    """
+
 
 ##
 # Recorder manager.

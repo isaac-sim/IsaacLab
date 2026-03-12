@@ -11,7 +11,9 @@ import logging
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
+
+import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -23,7 +25,23 @@ from .scene_entity_cfg import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-# import logger
+
+class PerRobotDispatchEntry(NamedTuple):
+    """Pre-computed dispatch info for a single robot in a ``per_robot`` term.
+
+    Built once at :meth:`ManagerBase._build_per_robot_dispatch_entries`
+    time and reused every dispatch call to avoid repeated dict merges,
+    property accesses, and layout lookups.
+    """
+
+    gids: torch.Tensor | None
+    """Global env-ID tensor for this robot's group, or ``None``."""
+    group_key: str | None
+    """Layout group key (for :meth:`filter_and_split` in events)."""
+    params: dict[str, Any]
+    """Fully merged params (term params + auto-injected overrides)."""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,6 +165,9 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
+        # buffers for per-robot dispatch entries and task-group keys
+        self._per_robot_entries: dict[str, list[PerRobotDispatchEntry]] = {}
+        self._term_group_keys: dict[str, str] = {}
 
         # flag for whether the scene entities have been resolved
         # if sim is playing, we resolve the scene entities directly while preparing the terms
@@ -359,8 +380,33 @@ class ManagerBase(ABC):
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
+        # per_robot and task_group are mutually exclusive
+        if term_cfg.per_robot and term_cfg.task_group is not None:
+            raise ValueError(
+                f"Term '{term_name}': 'per_robot' and 'task_group' are mutually exclusive."
+                " Use 'per_robot=True' to auto-dispatch across all robot groups, or"
+                " 'task_group' to scope to a single group — not both."
+            )
+
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
+
+        # per_robot auto-inject: ``asset_cfg`` and ``command_name`` are always filled from RobotSpec
+        # at dispatch time.  Manually providing them in ``params`` is an error because it would
+        # conflict with the per-robot override.
+        per_robot_auto: set[str] = set()
+        if term_cfg.per_robot:
+            sig_params = inspect.signature(func_static).parameters
+            for auto_key in ("asset_cfg", "command_name"):
+                if auto_key in sig_params:
+                    if auto_key in term_cfg.params:
+                        raise ValueError(
+                            f"Term '{term_name}': per_robot=True but '{auto_key}' is manually specified in params."
+                            f" Remove it — per_robot terms receive '{auto_key}' automatically from RobotSpec."
+                        )
+                    per_robot_auto.add(auto_key)
+            term_params = term_params + list(per_robot_auto)
+
         args = inspect.signature(func_static).parameters
         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
@@ -417,3 +463,58 @@ class ManagerBase(ABC):
         if inspect.isclass(term_cfg.func):
             logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+
+    def _get_resolved_robot_cfgs(self) -> dict[str, SceneEntityCfg]:
+        """Return cached, resolved :class:`SceneEntityCfg` instances keyed by asset name.
+
+        Built once per manager lifetime from :attr:`EnvLayout.robot_specs`.
+        Subsequent calls return the same dict.
+        """
+        if not hasattr(self, "_resolved_robot_cfgs"):
+            layout = self._env.scene.layout
+            self._resolved_robot_cfgs: dict[str, SceneEntityCfg] = {}
+            for spec in layout.robot_specs:
+                cfg = SceneEntityCfg(name=spec.asset_name, body_names=[spec.ee_body], joint_names=spec.joint_patterns)
+                cfg.resolve(self._env.scene)
+                self._resolved_robot_cfgs[spec.asset_name] = cfg
+        return self._resolved_robot_cfgs
+
+    def _build_per_robot_dispatch_entries(self, term_cfg: ManagerTermBaseCfg) -> list[PerRobotDispatchEntry]:
+        """Pre-build dispatch-ready entries for a ``per_robot`` term.
+
+        For every :class:`RobotSpec`, this method:
+
+        1. Looks up a **cached** :class:`SceneEntityCfg` (if ``asset_cfg`` is needed by the function),
+           avoiding redundant construction and resolution across terms.
+        2. Caches the global env-ID tensor and the layout group key so that dispatch loops need **no dict merges,
+           property accesses, or layout lookups** at runtime.
+
+        Args:
+            term_cfg: The term configuration with ``per_robot=True``.
+
+        Returns:
+            One :class:`PerRobotDispatchEntry` per robot spec.
+        """
+        layout = self._env.scene.layout
+        func_static = term_cfg.func.__call__ if inspect.isclass(term_cfg.func) else term_cfg.func
+        sig_params = inspect.signature(func_static).parameters
+        need_asset_cfg = "asset_cfg" in sig_params
+        need_command = "command_name" in sig_params
+        resolved_cfgs = self._get_resolved_robot_cfgs() if need_asset_cfg else {}
+
+        entries: list[PerRobotDispatchEntry] = []
+        for spec in layout.robot_specs:
+            overrides: dict[str, Any] = {}
+            if need_asset_cfg:
+                overrides["asset_cfg"] = resolved_cfgs[spec.asset_name]
+            if need_command:
+                overrides["command_name"] = spec.command_name
+
+            entries.append(
+                PerRobotDispatchEntry(
+                    gids=layout.asset_env_ids_t(spec.asset_name),
+                    group_key=layout.group_for_asset(spec.asset_name),
+                    params={**term_cfg.params, **overrides},
+                )
+            )
+        return entries
