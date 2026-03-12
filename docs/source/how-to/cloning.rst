@@ -265,5 +265,3 @@ See Also
 
 - :doc:`multi_asset_spawning` -- spawning different assets per environment
 - :doc:`optimize_stage_creation` -- fabric cloning and stage-in-memory optimizations
-- :doc:`/source/overview/core-concepts/multi_backend_architecture` -- how backends are selected
-  and how cloning integrates with the factory pattern
