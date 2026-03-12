@@ -272,6 +272,8 @@ def pytest_sessionstart(session):
     include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
     cuda_issue_only = os.environ.get("TEST_CUDA_ISSUE_ONLY", "false") == "true"
+    flaky_only = os.environ.get("TEST_FLAKY_ONLY", "false") == "true"
+    slightly_flaky_only = os.environ.get("TEST_SLIGHTLY_FLAKY_ONLY", "false") == "true"
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
@@ -297,11 +299,15 @@ def pytest_sessionstart(session):
     print(f"Include files: {include_files if include_files else 'none'}")
     print(f"Curobo-only mode: {curobo_only}")
     print(f"CUDA-issue-only mode: {cuda_issue_only}")
+    print(f"Flaky-only mode: {flaky_only}")
+    print(f"Slightly-flaky-only mode: {slightly_flaky_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUDA_ISSUE_ONLY env var: '{os.environ.get('TEST_CUDA_ISSUE_ONLY', 'NOT_SET')}'")
+    print(f"TEST_FLAKY_ONLY env var: '{os.environ.get('TEST_FLAKY_ONLY', 'NOT_SET')}'")
+    print(f"TEST_SLIGHTLY_FLAKY_ONLY env var: '{os.environ.get('TEST_SLIGHTLY_FLAKY_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -315,7 +321,19 @@ def pytest_sessionstart(session):
         for root, _, files in os.walk(source_dir):
             for file in files:
                 if file.startswith("test_") and file.endswith(".py"):
-                    if curobo_only:
+                    if flaky_only:
+                        # In flaky-only mode, run exclusively the clearly flaky tests.
+                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
+                        # these tests (which are skipped in normal jobs) can execute.
+                        if file not in test_settings.FLAKY_TESTS:
+                            continue
+                    elif slightly_flaky_only:
+                        # In slightly-flaky-only mode, run exclusively the mildly flaky tests.
+                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
+                        # these tests (which are skipped in normal jobs) can execute.
+                        if file not in test_settings.SLIGHTLY_FLAKY_TESTS:
+                            continue
+                    elif curobo_only:
                         # In curobo-only mode, run exclusively the cuRobo and SkillGen tests.
                         # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
                         # these tests (which are skipped in base-image jobs) can execute.
