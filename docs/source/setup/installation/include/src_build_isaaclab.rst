@@ -61,8 +61,8 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    To install only specific Isaac Lab submodules, pass a comma-separated list of submodule names. The available
-   Isaac Lab submodules are: ``assets``, ``physx``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``rl``, ``tasks``,
-   ``teleop``. For example, to install only the ``mimic`` and ``assets`` submodules:
+   Isaac Lab submodules are: ``assets``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``physx``, ``rl``, ``tasks``,
+   ``teleop``, ``visualizers``. For example, to install only the ``mimic`` and ``assets`` submodules:
 
    .. tab-set::
       :sync-group: os

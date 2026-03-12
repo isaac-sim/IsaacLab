@@ -7,7 +7,7 @@ import argparse
 
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
-from .commands.install import command_install
+from .commands.install import VALID_ISAACLAB_SUBMODULES, VALID_RL_FRAMEWORKS, command_install
 from .commands.misc import (
     command_build_docs,
     command_new,
@@ -30,6 +30,8 @@ def cli() -> None:
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
+    _submodules_str = ", ".join(sorted(VALID_ISAACLAB_SUBMODULES))
+    _frameworks_str = ", ".join(sorted(VALID_RL_FRAMEWORKS))
     parser.add_argument(
         "-i",
         "--install",
@@ -39,15 +41,18 @@ def cli() -> None:
             "Install Isaac Lab submodules and RL frameworks.\n"
             "Accepts a comma-separated list of submodule names, one of the RL frameworks, or a special value.\n"
             "\n"
-            "Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
-            "On Linux/macOS, quote selectors containing brackets: --install 'visualizers[rerun]'.\n"
+            f"* Isaac Lab submodules: {_submodules_str}\n"
+            "  Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
             "\n"
-            "Passing an RL framework name installs all Isaac Lab submodules + that framework.\n"
+            f"* RL frameworks: {_frameworks_str}\n"
+            "  Passing an RL framework name installs all Isaac Lab submodules + that framework.\n"
+            "  On Linux/macOS, quote selectors containing brackets: --install 'visualizers[rerun]'.\n"
             "\n"
-            "Special values:\n"
+            "* Special values:\n"
             "- all  - Install all Isaac Lab submodules + all RL frameworks (default).\n"
             "- none - Install only the core 'isaaclab' package.\n"
             "- <empty> (-i or --install without value) - Install all Isaac Lab submodules + all RL frameworks.\n"
+            "\n"
         ),
     )
     parser.add_argument(
