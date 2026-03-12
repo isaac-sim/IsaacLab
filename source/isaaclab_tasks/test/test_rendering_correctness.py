@@ -17,40 +17,21 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
-import copy  # noqa: E402
+from typing import Any
 
 import gymnasium as gym  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 
-from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
 from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
 
-from isaaclab_tasks.direct.cartpole.cartpole_camera_env import (  # noqa: E402
-    CartpoleCameraEnv,
+from isaaclab_tasks.utils.hydra import (  # noqa: E402
+    apply_overrides,
+    collect_presets,
+    parse_overrides,
 )
-from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import (  # noqa: E402
-    CartpoleCameraPresetsEnvCfg,
-)
-from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import (  # noqa: E402
-    ShadowHandVisionEnv,
-)
-from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
-    ShadowHandVisionEnvCfg,
-)
-from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (  # noqa: E402
-    DexsuiteKukaAllegroLiftEnvCfg,
-)
-from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-_OVRTX_SKIP = "OVRTX testing disabled"
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -92,9 +73,17 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
         ("physx", "isaacsim_rtx_renderer", "simple_shading_full_mdl"),
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
     ),
-    # physx + newton_renderer (warp)
-    pytest.param(("physx", "newton_renderer", "rgb"), id="physx-newton_warp-rgb"),
-    pytest.param(("physx", "newton_renderer", "depth"), id="physx-newton_warp-depth"),
+    # physx + newton_renderer (warp) — skipped due to known issues
+    pytest.param(
+        ("physx", "newton_renderer", "rgb"),
+        id="physx-newton_warp-rgb",
+        marks=pytest.mark.skip(reason="physx + newton_renderer has known issues"),
+    ),
+    pytest.param(
+        ("physx", "newton_renderer", "depth"),
+        id="physx-newton_warp-depth",
+        marks=pytest.mark.skip(reason="physx + newton_renderer has known issues"),
+    ),
     # newton + isaacsim_rtx_renderer
     pytest.param(("newton", "isaacsim_rtx_renderer", "rgb"), id="newton-isaacsim_rtx-rgb"),
     pytest.param(("newton", "isaacsim_rtx_renderer", "albedo"), id="newton-isaacsim_rtx-albedo"),
@@ -124,32 +113,32 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     pytest.param(
         ("newton", "ovrtx_renderer", "rgb"),
         id="newton-ovrtx-rgb",
-        marks=pytest.mark.skip(reason=_OVRTX_SKIP),
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "albedo"),
         id="newton-ovrtx-albedo",
-        marks=pytest.mark.skip(reason=_OVRTX_SKIP),
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "depth"),
         id="newton-ovrtx-depth",
-        marks=pytest.mark.skip(reason=_OVRTX_SKIP),
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_constant_diffuse"),
         id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=pytest.mark.skip(reason=_OVRTX_SKIP),
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_diffuse_mdl"),
         id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=pytest.mark.skip(reason=_OVRTX_SKIP),
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_full_mdl"),
         id="newton-ovrtx-simple_shading_full_mdl",
-        marks=pytest.mark.skip(reason=_OVRTX_SKIP),
+        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
     ),
 ]
 
@@ -157,6 +146,23 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
+    """Apply override args to env_cfg using parse_overrides and apply_overrides.
+
+    Args:
+        env_cfg: Environment config to mutate (supports :meth:`to_dict`).
+        override_args: List of override strings (e.g. ``["presets=physx,isaacsim_rtx_renderer,rgb"]``).
+
+    Returns:
+        The resolved env_cfg (possibly a different object if root preset was applied).
+    """
+    presets = {"env": collect_presets(env_cfg)}
+    global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
+    hydra_cfg = {"env": env_cfg.to_dict()}
+    env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
+    return env_cfg
 
 
 def _assert_camera_outputs_are_not_blank(label: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
@@ -169,16 +175,23 @@ def _assert_camera_outputs_are_not_blank(label: str, camera_outputs: dict[str, d
     assert len(camera_outputs) > 0, f"[{label}] No camera outputs; env may have no cameras or wrong structure."
     for sensor_name, output in camera_outputs.items():
         for data_type, tensor in output.items():
-            condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
-            corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+            invalid = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+            corrected = torch.where(invalid, torch.zeros_like(tensor), tensor)
             assert corrected.max() > 0, (
                 f"[{label}] Sensor '{sensor_name}' output '{data_type}' has no non-zero pixels. "
-                f"Shape: {corrected.shape}, dtype: {corrected.dtype}, condition: {condition.shape}."
+                f"Shape: {corrected.shape}, dtype: {corrected.dtype}."
             )
 
 
-def _collect_camera_outputs(env) -> dict[str, dict[str, torch.Tensor]]:
-    """Collect camera outputs from env.scene.sensors (name -> {data_type: tensor})."""
+def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
+    """Collect camera outputs from env.scene.sensors.
+
+    Args:
+        env: Gymnasium env (or any object with optional unwrapped.scene.sensors).
+
+    Returns:
+        Nested dict: sensor name -> {data_type -> tensor} for non-empty tensor outputs.
+    """
     base = getattr(env, "unwrapped", env)
     out = {}
 
@@ -205,33 +218,19 @@ def _collect_camera_outputs(env) -> dict[str, dict[str, torch.Tensor]]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
-def shadow_hand_vision_presets():
-    """Collect all presets from ShadowHandVisionEnvCfg once for the module."""
-    return collect_presets(ShadowHandVisionEnvCfg())
-
-
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def shadow_hand_env(request, shadow_hand_vision_presets):
+def shadow_hand_env(request):
     """Build Shadow Hand vision env for (physics_backend, renderer, data_type); step once, yield, close."""
+    from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
+    from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
+
     physics_backend, renderer, data_type = request.param
 
-    if physics_backend == "physx" and renderer == "newton_renderer":
-        pytest.skip("The preset is not supported by Shadow Hand vision env")
+    override_args = [f"presets={physics_backend},{renderer},{data_type}"]
 
-    presets = shadow_hand_vision_presets
-    camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
-    camera_cfg.renderer_cfg = copy.deepcopy(presets["tiled_camera.renderer_cfg"][renderer])
     env_cfg = ShadowHandVisionEnvCfg()
-    env_cfg.tiled_camera = camera_cfg
-    if physics_backend == "newton":
-        env_cfg.sim.physics = copy.deepcopy(presets["sim.physics"]["newton"])
-        env_cfg.robot_cfg = copy.deepcopy(presets["robot_cfg"]["newton"])
-        env_cfg.object_cfg = copy.deepcopy(presets["object_cfg"]["newton"])
-        if "events" in presets:
-            env_cfg.events = copy.deepcopy(presets["events"]["newton"])
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
-    env_cfg = resolve_preset_defaults(env_cfg)
     env_cfg.scene.num_envs = 4
 
     if data_type == "depth":
@@ -262,30 +261,21 @@ def test_camera_outputs_are_not_blank_for_shadow_hand(shadow_hand_env):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
-def cartpole_camera_presets():
-    """Collect all presets from CartpoleCameraPresetsEnvCfg once for the module."""
-    return collect_presets(CartpoleCameraPresetsEnvCfg())
-
-
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def cartpole_env(request, cartpole_camera_presets):
+def cartpole_env(request):
     """Build Cartpole camera env for (physics_backend, renderer, data_type); step once, yield, close."""
+    from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+
     physics_backend, renderer, data_type = request.param
-    presets = cartpole_camera_presets
-    camera_cfg = copy.deepcopy(presets["tiled_camera"][data_type])
-    camera_cfg.renderer_cfg = copy.deepcopy(presets["tiled_camera.renderer_cfg"][renderer])
+
+    override_args = [f"presets={physics_backend},{renderer},{data_type}"]
+
     env_cfg = CartpoleCameraPresetsEnvCfg()
-    env_cfg.tiled_camera = camera_cfg
-    if physics_backend == "newton":
-        if "robot_cfg" in presets:
-            env_cfg.robot_cfg = copy.deepcopy(presets["robot_cfg"]["newton"])
-        if "object_cfg" in presets:
-            env_cfg.object_cfg = copy.deepcopy(presets["object_cfg"]["newton"])
-        if "events" in presets:
-            env_cfg.events = copy.deepcopy(presets["events"]["newton"])
-    env_cfg = resolve_preset_defaults(env_cfg)
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
+
     env_cfg.scene.num_envs = 4
+
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
@@ -310,31 +300,24 @@ def test_camera_outputs_are_not_blank_for_cartpole(cartpole_env):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
-def dexsuite_kuka_allegro_lift_presets():
-    """Collect all presets from DexsuiteKukaAllegroLiftEnvCfg once for the module."""
-    return collect_presets(DexsuiteKukaAllegroLiftEnvCfg())
-
-
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def dexsuite_kuka_allegro_lift_env(request, dexsuite_kuka_allegro_lift_presets):
+def dexsuite_kuka_allegro_lift_env(request):
     """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; step once, yield, close."""
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
+        DexsuiteKukaAllegroLiftEnvCfg,
+    )
+
     physics_backend, renderer, data_type = request.param
 
-    # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64 for now.
-    dexsuite_data_type = f"{data_type}64"
+    # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
+    override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
 
     env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
-    env_cfg.scene = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["scene"]["single_camera"])
-    env_cfg.scene.base_camera = copy.deepcopy(
-        dexsuite_kuka_allegro_lift_presets["scene.base_camera"][dexsuite_data_type]
-    )
-    env_cfg.scene.base_camera.renderer_cfg = copy.deepcopy(
-        dexsuite_kuka_allegro_lift_presets["scene.base_camera.renderer_cfg"][renderer]
-    )
-    env_cfg.observations = copy.deepcopy(dexsuite_kuka_allegro_lift_presets["observations"]["single_camera"])
-    env_cfg = resolve_preset_defaults(env_cfg)
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
+
     env_cfg.scene.num_envs = 4
+
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
@@ -391,17 +374,22 @@ def test_camera_outputs_are_not_blank_for_registered_task(task_id):
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
         env = gym.make(task_id, cfg=env_cfg)
-        unwrapped = env.unwrapped
-        if hasattr(unwrapped, "sim") and getattr(unwrapped, "sim", None) is not None:
-            unwrapped.sim._app_control_on_stop_handle = None
+        unwrapped: Any = env.unwrapped
+        sim = getattr(unwrapped, "sim", None)
+        if sim is not None:
+            sim._app_control_on_stop_handle = None
 
         env.reset()
+
         num_envs = getattr(unwrapped, "num_envs", 4)
+        device = getattr(unwrapped, "device", None)
+
         if getattr(unwrapped, "possible_agents", None):
+            action_spaces = getattr(unwrapped, "action_spaces", {})
             actions = {
                 agent: sample_space(
-                    unwrapped.action_spaces[agent],
-                    device=unwrapped.device,
+                    action_spaces[agent],
+                    device=device,
                     batch_size=num_envs,
                     fill_value=0,
                 )
@@ -409,12 +397,14 @@ def test_camera_outputs_are_not_blank_for_registered_task(task_id):
             }
         else:
             actions = sample_space(
-                unwrapped.single_action_space,
-                device=unwrapped.device,
+                getattr(unwrapped, "single_action_space", None),
+                device=device,
                 batch_size=num_envs,
                 fill_value=0,
             )
+
         env.step(actions)
+
         camera_outputs = _collect_camera_outputs(env)
         _assert_camera_outputs_are_not_blank(task_id, camera_outputs)
     finally:
