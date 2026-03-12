@@ -21,8 +21,9 @@ from .xr_cfg import XrCfg
 # Import XR components with fallback for testing
 XRCore = None
 XRCoreEventType = None
+XRSettings = None
 with contextlib.suppress(ModuleNotFoundError):
-    from omni.kit.xr.core import XRCore, XRCoreEventType
+    from omni.kit.xr.core import XRCore, XRCoreEventType, XRSettings
 
 with contextlib.suppress(ModuleNotFoundError):
     from isaacsim.core.prims import SingleXFormPrim
@@ -88,11 +89,21 @@ class XrAnchorManager:
         except Exception as e:
             logger.warning(f"Failed to create XR anchor prim: {e}")
 
-        # Configure carb settings for XR rendering
+        # Configure XR rendering settings.
+        # The XR core reads raw carb paths while the viewport controller reads
+        # through the XRSettings profile API (``profile/persistent/anchorMode``
+        # etc.).  We must set both so the viewport controller doesn't override
+        # the custom anchor with "active camera" and teleport to /OmniverseKit_Persp.
         if hasattr(carb, "settings"):
             carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
             carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
             carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
+
+        if XRSettings is not None:
+            xr_settings = XRSettings.get_singleton()
+            if xr_settings is not None:
+                xr_settings.set_setting("profile/persistent/anchorMode", "custom anchor")
+                xr_settings.set_setting("profile/stage/customAnchor", self._xr_anchor_headset_path)
 
         self._anchor_sync: XrAnchorSynchronizer | None = None
         if self._xr_core is not None:

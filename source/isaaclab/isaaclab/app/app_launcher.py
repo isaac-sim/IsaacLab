@@ -830,7 +830,7 @@ class AppLauncher:
         # XR requires an active rendering pipeline even in headless mode (no desktop
         # window but rendering to the XR device). Undo the blanket visualizer-disable
         # that the deprecated --headless flag may have set.
-        if self._xr and self._cli_visualizer_disable_all:
+        if self._xr and self._cli_visualizer_disable_all and not self._cli_visualizer_explicit:
             logger.info("XR mode requires rendering; overriding visualizer-disable from deprecated '--headless' flag.")
             self._cli_visualizer_disable_all = False
 
