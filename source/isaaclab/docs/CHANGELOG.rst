@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+4.5.19 (2026-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.sim.views.XFormPrimView` crashing on multi-GPU setups (``cuda:1``
+  and higher) when Fabric mode is enabled. USDRT ``SelectPrims`` and Warp fabric arrays only
+  support ``cuda:0`` internally — ``SelectPrims`` raises a C++ error when the active CUDA
+  context is not GPU 0, regardless of the ``device`` argument. The fix disables Fabric and
+  falls back to USD operations when ``self._device`` is not ``cuda:0``. Additionally fixed
+  device mismatches in the Fabric methods where Warp arrays were allocated on ``self._device``
+  but kernel launches targeted ``_fabric_device`` (``cuda:0``).
+
+
 4.5.18 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~~
 
