@@ -358,6 +358,8 @@ def _repoint_prebundle_packages() -> None:
     This is idempotent — existing symlinks that already point to the correct
     target are left untouched.
     """
+    use_symlinks = not is_windows()
+
     isaacsim_path = extract_isaacsim_path(required=False)
     if isaacsim_path is None or not isaacsim_path.exists():
         print_debug("No Isaac Sim installation found — skipping prebundle repoint.")
@@ -394,19 +396,25 @@ def _repoint_prebundle_packages() -> None:
             if not prebundled.exists() and not prebundled.is_symlink():
                 continue
 
-            if prebundled.is_symlink():
-                if prebundled.resolve() == venv_pkg.resolve():
-                    continue
-                prebundled.unlink()
-            else:
-                backup = prebundle_dir / f"{pkg_name}.bak"
-                if backup.exists():
-                    shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
-                prebundled.rename(backup)
+            try:
+                if prebundled.is_symlink():
+                    if prebundled.resolve() == venv_pkg.resolve():
+                        continue
+                    prebundled.unlink()
+                else:
+                    backup = prebundle_dir / f"{pkg_name}.bak"
+                    if backup.exists() or backup.is_symlink():
+                        shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
+                    prebundled.rename(backup)
 
-            prebundled.symlink_to(venv_pkg)
-            repointed += 1
-            print_debug(f"Repointed {prebundled} -> {venv_pkg}")
+                if use_symlinks:
+                    prebundled.symlink_to(venv_pkg)
+                else:
+                    shutil.copytree(venv_pkg, prebundled)
+                repointed += 1
+                print_debug(f"Repointed {prebundled} -> {venv_pkg}")
+            except OSError as exc:
+                print_warning(f"Could not repoint {prebundled}: {exc} — skipping.")
 
     if repointed:
         print_info(
