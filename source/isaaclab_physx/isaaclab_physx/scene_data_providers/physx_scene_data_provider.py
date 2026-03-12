@@ -15,7 +15,7 @@ from typing import Any
 
 import warp as wp
 
-from pxr import UsdGeom
+from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
 
@@ -140,6 +140,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._filtered_env_ids_key: tuple[int, ...] | None = None
         self._filtered_body_indices: list[int] = []
         self._rigid_body_paths: list[str] = []
+        # Paths used to create PhysX views. May include articulation roots for coverage.
+        self._rigid_body_view_paths: list[str] = []
         # env_id -> list of body indices (in Newton body_key order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
 
@@ -216,15 +218,19 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._newton_model = model
         self._newton_state = state
         body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
-        # Merge articulation root paths into rigid body paths (deduplicated) so the
-        # RigidBodyView covers all bodies without needing a separate ArticulationView.
+        # Keep one-to-one alignment between `body_paths` and Newton `state.body_q`.
+        # Articulation root prims are not body_q entries and must not be mixed here.
+        self._rigid_body_paths = body_paths
+        # Build the PhysX-view query set separately so articulation roots can still be
+        # included for view coverage without breaking body_q alignment.
+        view_paths = list(body_paths)
         if artifact.articulation_paths:
-            seen = set(body_paths)
+            seen = set(view_paths)
             for path in artifact.articulation_paths:
                 if path not in seen:
-                    body_paths.append(path)
+                    view_paths.append(path)
                     seen.add(path)
-        self._rigid_body_paths = body_paths
+        self._rigid_body_view_paths = view_paths
         self._xform_views.clear()
         self._view_body_index_map = {}
         self._view_order_tensors.clear()
@@ -266,6 +272,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
             # Extract scene structure from Newton model (single source of truth)
             self._rigid_body_paths = self._model_body_paths(self._newton_model)
+            self._rigid_body_view_paths = list(self._rigid_body_paths)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
@@ -295,6 +302,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._newton_model = None
             self._newton_state = None
             self._rigid_body_paths = []
+            self._rigid_body_view_paths = []
             self._num_envs_at_last_newton_build = None
         finally:
             elapsed_ms = (time.perf_counter() - start_t) * 1000.0
@@ -378,10 +386,30 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         """
         if self._physics_sim_view is None:
             return
-        if not self._rigid_body_paths:
+        paths = self._rigid_body_view_paths or self._rigid_body_paths
+        if not paths:
+            return
+        # Defensive: only pass true rigid-body prims into PhysX RigidBodyView.
+        # Some prebuilt artifacts carry articulation root paths for coverage, but
+        # those roots are not guaranteed to be rigid-body prims and can trip native
+        # view creation paths on some tasks.
+        rigid_paths: list[str] = []
+        dropped_non_rigid = 0
+        for path in paths:
+            prim = self._stage.GetPrimAtPath(path) if self._stage is not None else None
+            if prim and prim.IsValid() and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                rigid_paths.append(path)
+            else:
+                dropped_non_rigid += 1
+        if not rigid_paths:
+            self._warn_once(
+                "rigid-view-no-rigid-paths",
+                "[PhysxSceneDataProvider] No rigid-body prim paths available for RigidBodyView creation.",
+                level=logging.WARNING,
+            )
             return
         try:
-            paths_to_use = self._wildcard_env_paths(self._rigid_body_paths)
+            paths_to_use = self._wildcard_env_paths(rigid_paths)
             self._rigid_body_view = self._physics_sim_view.create_rigid_body_view(paths_to_use)
             self._cache_view_index_map(self._rigid_body_view, "rigid_body_view")
         except Exception as exc:
@@ -579,7 +607,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         num_bodies = len(self._rigid_body_paths)
         if num_bodies != self._newton_state.body_q.shape[0]:
-            logger.warning(f"Body count mismatch: body_key={num_bodies}, state={self._newton_state.body_q.shape[0]}")
+            self._warn_once(
+                "body-count-mismatch",
+                "[PhysxSceneDataProvider] Body count mismatch: body_key=%d, state=%d",
+                num_bodies,
+                int(self._newton_state.body_q.shape[0]),
+            )
             return None
 
         # Reuse buffers when size unchanged to avoid per-call allocations (MR perf).
@@ -609,7 +642,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             )
 
         if not covered.all():
-            logger.warning(f"Failed to read {(~covered).sum().item()}/{num_bodies} body poses")
+            self._warn_once(
+                "pose-read-incomplete",
+                "[PhysxSceneDataProvider] Failed to read %d/%d body poses.",
+                int((~covered).sum().item()),
+                num_bodies,
+            )
             return None
 
         active = sum([rigid_count > 0, xform_count > 0])
