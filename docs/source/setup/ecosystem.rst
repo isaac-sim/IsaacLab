@@ -3,18 +3,18 @@
 Isaac Lab Ecosystem
 ===================
 
-Isaac Lab is built on top of Isaac Sim to provide a unified and flexible framework
-for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
+Isaac Lab is built on top of Isaac Sim and Newton to provide a unified and flexible framework
+for robot learning that exploits the latest simulation technologies. It is designed to be modular and extensible,
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
 motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to
 provide an open-sourced, unified, and easy-to-use interface for developing and testing custom environments
 and robot learning algorithms.
 
 Working with Isaac Lab requires the installation of Isaac Sim for full functionality, which is packaged with
-core robotics tools including URDF and MJCF importers, simulation managers, and ROS features. Isaac Sim
-also builds on top of the NVIDIA Omniverse platform, leveraging advanced physics simulation from **PhysX**
-and **Newton**, photorealistic **RTX** rendering technologies, and Universal Scene Description (USD) for
-scene creation.
+core robotics tools including URDF and MJCF importers, and ROS features. Isaac Sim also builds on top of the NVIDIA
+Omniverse platform, leveraging advanced physics simulation from **PhysX**, photorealistic **RTX** rendering
+technologies, and Universal Scene Description (USD) for scene creation. Without Isaac Sim, users can still use
+the **Newton** physics backend as well as the new **OVRTX** renderers.
 
 .. note::
 
@@ -107,7 +107,7 @@ for more robotic-specific applications. An example of these include `AirSim`_, `
 `ThreeDWorld`_ and lastly, `Isaac Sim`_.
 
 At its core, Isaac Lab is **not** a robotics simulator, but a framework for building robot learning
-applications on top of Isaac Sim. An equivalent example of such a framework is `RoboSuite`_, which
+applications on top of `Isaac Sim` and `Newton`_. An equivalent example of such a framework is `RoboSuite`_, which
 is built on top of `MuJoCo`_ and is specific to fixed-base robots. Other examples include
 `MuJoCo Playground`_ and `Isaac Gym`_ which use `MJX`_ and `PhysX`_ respectively. Isaac Lab supports
 both `PhysX`_ and `Newton`_ as physics backends. They
