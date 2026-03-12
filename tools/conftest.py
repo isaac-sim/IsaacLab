@@ -293,7 +293,10 @@ def _collect_test_files(
                     if file not in test_settings.CUDA_ISSUE_TESTS:
                         continue
                 else:
-                    if file in test_settings.TESTS_TO_SKIP:
+                    # An explicit include_files entry overrides TESTS_TO_SKIP, allowing
+                    # dedicated jobs (e.g. test-environments-training) to run tests that
+                    # are otherwise excluded from general CI runs.
+                    if file in test_settings.TESTS_TO_SKIP and file not in include_files:
                         print(f"Skipping {file} as it's in the skip list")
                         continue
 
