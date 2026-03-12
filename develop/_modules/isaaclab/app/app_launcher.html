@@ -638,8 +638,10 @@
 <span class="c1"># import logger</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
-<span class="c1"># Suppress noisy debug-level websocket frame logs from the Kit LiveSync server</span>
+<span class="c1"># Suppress noisy debug-level logs from third-party libraries</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;websockets&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;matplotlib&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;h5py&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">ExplicitAction</span><span class="p">(</span><span class="n">argparse</span><span class="o">.</span><span class="n">Action</span><span class="p">):</span>
@@ -1650,6 +1652,10 @@
         <span class="c1"># These have to be loaded after SimulationApp is initialized.</span>
         <span class="c1"># Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).</span>
         <span class="n">initialize_carb_settings</span><span class="p">()</span>
+
+        <span class="c1"># After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.</span>
+        <span class="c1"># Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
         <span class="n">settings</span> <span class="o">=</span> <span class="n">get_settings_manager</span><span class="p">()</span>
 
         <span class="c1"># set setting to indicate Isaac Lab&#39;s offscreen_render pipeline should be enabled</span>

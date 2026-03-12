@@ -666,8 +666,9 @@
 <span class="sd">        The root logger.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">root_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
-    <span class="c1"># the root logger must be the lowest level to ensure that all messages are logged</span>
-    <span class="n">root_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+    <span class="c1"># set root logger to the configured level to suppress third-party debug/info noise;</span>
+    <span class="c1"># isaaclab&#39;s own loggers inherit this level unless overridden</span>
+    <span class="n">root_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging_level</span><span class="p">)</span>
 
     <span class="c1"># remove existing handlers</span>
     <span class="c1"># Note: iterate over a copy [:] to avoid modifying list during iteration</span>

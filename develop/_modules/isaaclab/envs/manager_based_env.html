@@ -1171,7 +1171,7 @@
             <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
 
             <span class="n">rep</span><span class="o">.</span><span class="n">set_global_seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ModuleNotFoundError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
             <span class="k">pass</span>
         <span class="c1"># set seed for torch and other libraries</span>
         <span class="k">return</span> <span class="n">configure_seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span></div>
