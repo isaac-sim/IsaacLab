@@ -24,6 +24,8 @@ INSTALL_REQUIRES = [
     "ipywidgets==8.1.5",
     # data collection
     "h5py",
+    # humanoid support
+    "nvidia-srl-usd-to-urdf",
 ]
 
 # Extra dependencies for IL agents
