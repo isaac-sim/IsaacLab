@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+4.5.20 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed XR rendering not producing output when the deprecated ``--headless``
+  CLI flag was combined with ``--xr``. The ``--headless`` flag unconditionally
+  disabled all visualizers and the active viewport, preventing the XR rendering
+  pipeline from producing frames for the headset. The fix overrides the
+  visualizer-disable in :meth:`~isaaclab.app.AppLauncher._resolve_xr_settings`
+  when XR is active, and keeps the viewport rendering enabled in
+  :meth:`~isaaclab.app.AppLauncher._resolve_viewport_settings` for XR sessions.
+
+
 4.5.19 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~~
 
