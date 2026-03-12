@@ -441,6 +441,5 @@ See Also
 
 - :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
-- :doc:`/source/overview/core-concepts/multi_backend_architecture` — multi-backend architecture overview
 - :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details

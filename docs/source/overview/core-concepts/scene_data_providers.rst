@@ -105,6 +105,5 @@ Visualizers and renderers declare their data needs, and the provider is configur
 See Also
 --------
 
-- :doc:`multi_backend_architecture` — how the factory pattern selects backend-specific providers
 - :doc:`renderers` — renderer backends that consume scene data
 - :doc:`/source/features/visualization` — visualizer backends that consume scene data
