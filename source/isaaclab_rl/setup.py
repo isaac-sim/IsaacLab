@@ -43,7 +43,6 @@ EXTRAS_REQUIRE = {
     "skrl": ["skrl>=1.4.3"],
     "rl-games": [
         "aiohttp==3.13.3",
-        "jackson-core==2.18.6",
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
         "standard-distutils",
