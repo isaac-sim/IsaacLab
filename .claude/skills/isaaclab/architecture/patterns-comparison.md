@@ -2,7 +2,7 @@
 
 ## Manager-Based
 
-**Class hierarchy**: `ManagerBasedEnvCfg` -> `ManagerBasedRLEnvCfg` -> `ManagerBasedRLMimicEnvCfg`
+**Class hierarchy**: `ManagerBasedEnvCfg` -> `ManagerBasedRLEnvCfg`
 
 **Advantages:**
 - Modular: swap reward terms without touching other code
