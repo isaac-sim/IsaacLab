@@ -76,7 +76,10 @@ class ManagerBasedEnvWarp:
         self.cfg = cfg
         # initialize internal variables
         self._is_closed = False
-        self._manager_call_switch = ManagerCallSwitch()
+        # temporary debug runtime config for manager source/call switching.
+        cfg_source: dict | str | None = getattr(self.cfg, "manager_call_config", None)
+        max_modes: dict[str, int] | None = getattr(self.cfg, "manager_call_max_mode", None)
+        self._manager_call_switch = ManagerCallSwitch(cfg_source, max_modes=max_modes)
         self._apply_manager_term_cfg_profile()
 
         # set the seed for the environment
@@ -264,6 +267,17 @@ class ManagerBasedEnvWarp:
     def device(self):
         """The device on which the environment is running."""
         return self.sim.device
+
+    @property
+    def env_origins_wp(self) -> wp.array:
+        """Scene env origins as a warp ``vec3f`` array. Cached on first access."""
+        if not hasattr(self, "_env_origins_wp"):
+            origins = self.scene.env_origins
+            if isinstance(origins, wp.array):
+                self._env_origins_wp = origins
+            else:
+                self._env_origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
+        return self._env_origins_wp
 
     def resolve_env_mask(
         self,

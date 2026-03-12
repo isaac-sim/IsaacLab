@@ -65,6 +65,24 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+parser.add_argument(
+    "--step-timer",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="Enable granular timer sections in environment step().",
+)
+parser.add_argument(
+    "--reset-timer",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="Enable granular timer sections in environment reset().",
+)
+parser.add_argument(
+    "--manager_call_config",
+    type=str,
+    default=None,
+    help='Manager mode JSON only: \'{"RewardManager": 0, "ActionManager": 2, "default": 2}\'.',
+)
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()

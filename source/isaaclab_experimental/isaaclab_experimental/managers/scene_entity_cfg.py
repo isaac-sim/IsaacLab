@@ -25,30 +25,36 @@ class SceneEntityCfg(_SceneEntityCfg):
     - `joint_mask` is intended for Warp kernels only.
     """
 
-    """Boolean mask over all joints — used by warp kernels for masked writes."""
     joint_mask: wp.array | None = None
 
     """Integer indices of selected joints — used for subset-sized gathers where a boolean mask
     cannot provide the mapping from output index k to joint index."""
     joint_ids_wp: wp.array | None = None
 
+    """Integer indices of selected bodies — used for subset-sized body gathers."""
+    body_ids_wp: wp.array | None = None
+
     def resolve(self, scene: InteractiveScene):
         # run the stable resolution first (fills joint_ids/body_ids from names/regex)
         super().resolve(scene)
 
-        # Build a Warp joint mask for articulations only.
         entity = scene[self.name]
-        if not isinstance(entity, BaseArticulation):
-            return
 
-        # Pre-allocate a full-length mask (all True for default selection).
-        if self.joint_ids == slice(None):
-            joint_ids_list = list(range(entity.num_joints))
-            mask_list = [True] * entity.num_joints
-        else:
-            joint_ids_list = list(self.joint_ids)
-            mask_list = [False] * entity.num_joints
-            for idx in joint_ids_list:
-                mask_list[idx] = True
-        self.joint_mask = wp.array(mask_list, dtype=wp.bool, device=scene.device)
-        self.joint_ids_wp = wp.array(joint_ids_list, dtype=wp.int32, device=scene.device)
+        # -- Warp joint mask / ids for articulations
+        if isinstance(entity, BaseArticulation):
+            if self.joint_ids == slice(None):
+                joint_ids_list = list(range(entity.num_joints))
+                mask_list = [True] * entity.num_joints
+            else:
+                joint_ids_list = list(self.joint_ids)
+                mask_list = [False] * entity.num_joints
+                for idx in joint_ids_list:
+                    mask_list[idx] = True
+            self.joint_mask = wp.array(mask_list, dtype=wp.bool, device=scene.device)
+            self.joint_ids_wp = wp.array(joint_ids_list, dtype=wp.int32, device=scene.device)
+
+        # -- Warp body ids
+        if self.body_ids is not None and self.body_ids != slice(None):
+            self.body_ids_wp = wp.array(list(self.body_ids), dtype=wp.int32, device=scene.device)
+        elif hasattr(entity, "num_bodies"):
+            self.body_ids_wp = wp.array(list(range(entity.num_bodies)), dtype=wp.int32, device=scene.device)

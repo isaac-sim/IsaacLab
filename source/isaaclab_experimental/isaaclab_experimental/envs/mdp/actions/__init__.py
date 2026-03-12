@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Experimental action terms (minimal).
+"""Experimental action terms (Warp-first).
 
-Only the action configs/terms currently required by the experimental manager-based Cartpole task
-are provided here.
+Provides Warp-first action term implementations overriding the stable
+:mod:`isaaclab.envs.mdp.actions` module.
 """
 
 from .actions_cfg import *  # noqa: F401, F403

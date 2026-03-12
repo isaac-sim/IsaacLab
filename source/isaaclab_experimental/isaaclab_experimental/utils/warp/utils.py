@@ -39,7 +39,7 @@ def resolve_1d_mask(
     Args:
         ids: Indices to set to ``True``. ``None`` or ``slice(None)`` means all.
         mask: Explicit boolean mask. If provided, returned directly (after
-            torch→warp normalization if needed). Takes precedence over *ids*.
+            torch->warp normalization if needed). Takes precedence over *ids*.
         all_mask: Pre-allocated all-True mask of shape ``(size,)``, returned
             when both *ids* and *mask* are ``None``.
         scratch_mask: Pre-allocated scratch mask of shape ``(size,)``, filled
@@ -47,7 +47,7 @@ def resolve_1d_mask(
         device: Warp device string.
 
     Returns:
-        A ``wp.array(dtype=wp.bool)`` — ``mask``, ``all_mask``, or ``scratch_mask``.
+        A ``wp.array(dtype=wp.bool)`` -- ``mask``, ``all_mask``, or ``scratch_mask``.
     """
     # Fast path: explicit mask provided.
     if mask is not None:
@@ -95,6 +95,37 @@ def resolve_1d_mask(
 
     wp.launch(kernel=_set_mask_from_ids, dim=ids_wp.shape[0], inputs=[scratch_mask, ids_wp], device=device)
     return scratch_mask
+
+
+def warp_capturable(capturable: bool):
+    """Annotate an MDP term's CUDA-graph capturability.
+
+    No-wrapper decorator: sets ``_warp_capturable`` directly on the function
+    and returns it unchanged. Safe to stack with any other decorator in any order.
+
+    By default all MDP terms are assumed capturable (True). Use
+    ``@warp_capturable(False)`` on terms that call non-capturable external APIs.
+    """
+
+    def decorator(func):
+        func._warp_capturable = capturable
+        return func
+
+    return decorator
+
+
+def is_warp_capturable(func) -> bool:
+    """Check if a term function is CUDA-graph-capturable.
+
+    Checks ``_warp_capturable`` on the function and its ``__wrapped__`` target.
+    Returns True (capturable) by default if no annotation is found.
+    """
+    for f in (func, getattr(func, "__wrapped__", None)):
+        if f is not None:
+            val = getattr(f, "_warp_capturable", None)
+            if val is not None:
+                return val
+    return True
 
 
 @wp.func
@@ -163,3 +194,12 @@ class WarpCapturable:
                 if val is not None:
                     return val
         return True
+
+
+
+@wp.kernel
+def zero_masked_2d(mask: wp.array(dtype=wp.bool), values: wp.array(dtype=wp.float32, ndim=2)):
+    """Zero out rows of a 2D float32 array where mask is True."""
+    env_id, j = wp.tid()
+    if mask[env_id]:
+        values[env_id, j] = 0.0

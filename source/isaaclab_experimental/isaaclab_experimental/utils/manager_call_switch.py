@@ -13,7 +13,7 @@ import os
 from enum import IntEnum
 from typing import Any
 
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+import warp as wp
 
 from isaaclab.utils.timer import Timer
 
@@ -46,6 +46,7 @@ class ManagerCallSwitch:
         "ObservationManager",
         "EventManager",
         "RecorderManager",
+        "CommandManager",
         "TerminationManager",
         "RewardManager",
         "CurriculumManager",
@@ -70,7 +71,8 @@ class ManagerCallSwitch:
         *,
         max_modes: dict[str, int] | None = None,
     ):
-        self._graph_cache = WarpGraphCache()
+        self._wp_graphs: dict[str, Any] = {}
+        self._wp_results: dict[str, Any] = {}
         # Merge caller-supplied max_modes with the class-level MAX_MODE_OVERRIDES.
         self._max_modes = dict(self.MAX_MODE_OVERRIDES)
         if max_modes is not None:
@@ -93,7 +95,8 @@ class ManagerCallSwitch:
 
     def invalidate_graphs(self) -> None:
         """Invalidate cached capture graphs and their cached return values."""
-        self._graph_cache.invalidate()
+        self._wp_graphs.clear()
+        self._wp_results.clear()
 
     # ------------------------------------------------------------------
     # Stage dispatch
@@ -163,37 +166,19 @@ class ManagerCallSwitch:
         return stage.split("_", 1)[0]
 
     def get_mode_for_manager(self, manager_name: str) -> ManagerCallMode:
-        """Return the resolved execution mode for the given manager.
-
-        Looks up the manager in the config dict, falls back to the default,
-        then caps by :attr:`MAX_MODE_OVERRIDES`.
-        """
-        mode_value = self._cfg.get(manager_name, self._cfg[self.DEFAULT_KEY])
-        cap = self._max_modes.get(manager_name)
-        if cap is not None:
-            mode_value = min(mode_value, cap)
+        """Return the resolved execution mode for the given manager."""
+        default_key = next(iter(self.DEFAULT_CONFIG))
+        mode_value = self._cfg.get(manager_name, self._cfg[default_key])
         return ManagerCallMode(mode_value)
 
-    def resolve_manager_class(self, manager_name: str) -> type:
+    def resolve_manager_class(self, manager_name: str, mode_override: ManagerCallMode | int | None = None) -> type:
         """Import and return the manager class for the configured mode."""
-        mode = self.get_mode_for_manager(manager_name)
+        mode = self.get_mode_for_manager(manager_name) if mode_override is None else ManagerCallMode(mode_override)
         module_name = "isaaclab.managers" if mode == ManagerCallMode.STABLE else "isaaclab_experimental.managers"
         module = importlib.import_module(module_name)
         if not hasattr(module, manager_name):
             raise AttributeError(f"Manager '{manager_name}' not found in module '{module_name}'.")
         return getattr(module, manager_name)
-
-    def register_manager_capturability(self, manager_name: str, capturable: bool) -> None:
-        """Register that a manager has non-capturable terms, capping its mode.
-
-        Called by :class:`ManagerBase` during term preparation when a term
-        is decorated with ``@warp_capturable(False)``.
-        """
-        if not capturable:
-            self._max_modes[manager_name] = min(
-                self._max_modes.get(manager_name, ManagerCallMode.WARP_CAPTURED),
-                ManagerCallMode.WARP_NOT_CAPTURED,
-            )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -206,15 +191,18 @@ class ManagerCallSwitch:
     def _wp_capture_or_launch(self, stage: str, call: dict[str, Any]) -> Any:
         """Capture Warp CUDA graph on first call, then replay.
 
-        Delegates to :class:`WarpGraphCache` which caches the return value
-        and replays immediately after the first capture for validation.
+        The return value from the first (capture) run is cached and returned
+        on every subsequent replay. This ensures captured stages return the
+        same references (e.g. tensor views) as eager stages.
         """
-        return self._graph_cache.capture_or_replay(
-            stage,
-            call["fn"],
-            args=call.get("args", ()),
-            kwargs=call.get("kwargs", {}),
-        )
+        graph = self._wp_graphs.get(stage)
+        if graph is None:
+            with wp.ScopedCapture() as capture:
+                result = call["fn"](*call.get("args", ()), **call.get("kwargs", {}))
+            self._wp_graphs[stage] = capture.graph
+            self._wp_results[stage] = result
+        wp.capture_launch(self._wp_graphs[stage])
+        return self._wp_results[stage]
 
     def _load_cfg(self, cfg_source: dict | str | None) -> dict[str, int]:
         if cfg_source is None:
@@ -236,7 +224,7 @@ class ManagerCallSwitch:
         else:
             raise TypeError(f"cfg_source must be a dict, string, or None, got: {type(cfg_source)}")
 
-        # Validation
+        # validation
         for manager_name, mode_value in cfg.items():
             if not isinstance(mode_value, int):
                 raise TypeError(
@@ -249,7 +237,7 @@ class ManagerCallSwitch:
                     f"Invalid manager_call_config value for '{manager_name}': {mode_value}. Expected 0/1/2."
                 ) from exc
 
-        # Apply MAX_MODE_OVERRIDES: bake caps into the resolved config so
+        # Apply max mode caps: bake caps into the resolved config so
         # get_mode_for_manager never needs per-call branching.
         default_mode = cfg[self.DEFAULT_KEY]
         for name, max_mode in self._max_modes.items():

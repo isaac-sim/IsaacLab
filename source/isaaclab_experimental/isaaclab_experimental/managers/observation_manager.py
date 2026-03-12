@@ -526,6 +526,13 @@ class ObservationManager(ManagerBase):
             # TODO(jichuanh): This is not migrated yet. Need revisit.
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
+                # circular buffer is not capture safe
+                if wp.get_device().is_capturing:
+                    raise RuntimeError(
+                        "Observation terms with history (circular buffer) are not CUDA-graph-capture-safe yet. "
+                        "Disable history for observation terms used inside a captured graph, or restructure "
+                        "the graph to exclude history-buffered terms."
+                    )
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
                 if update_history:
                     circular_buffer.append(wp.to_torch(term_cfg.out_wp))
@@ -703,9 +710,10 @@ class ObservationManager(ManagerBase):
                             f" but received: {len(term_cfg.scale)}."
                         )
 
-                    # cast the scale into torch tensor
-                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
-                    term_cfg.scale_wp = wp.from_torch(term_cfg.scale, dtype=wp.float32)
+                    scale_vals = (
+                        term_cfg.scale if isinstance(term_cfg.scale, tuple) else [float(term_cfg.scale)] * obs_dims[1]
+                    )
+                    term_cfg.scale_wp = wp.array(scale_vals, dtype=wp.float32, device=self._env.device)
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
@@ -842,16 +850,43 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
 
     def _infer_term_dim_scalar(self, term_cfg: ObservationTermCfg) -> int:
-        """Infer (D,) using scalar scene info (no term execution)."""
-        # allow explicit override
+        """Infer observation output dimension (D,) using decorator metadata, scene info, or manager state.
+
+        Resolution order:
+        1. ``out_dim`` on the function's ``@generic_io_descriptor_warp`` decorator.
+        2. ``axes`` on the decorator (e.g. ``axes=["X","Y","Z"]`` → dim 3).
+        3. Explicit ``term_dim`` / ``out_dim`` / ``obs_dim`` in ``term_cfg.params`` (legacy).
+        4. ``asset_cfg.joint_ids`` count (joint-based observations).
+        """
+        # --- 1-2. Decorator metadata (preferred) ---
+        func = term_cfg.func
+        # Check for descriptor on the (possibly wrapped) function first,
+        # then fall back to unwrapping for class-based terms.
+        descriptor = getattr(func, "_descriptor", None)
+        if descriptor is None and hasattr(func, "__wrapped__"):
+            descriptor = getattr(func.__wrapped__, "_descriptor", None)
+        if descriptor is not None:
+            # 1. Explicit out_dim on decorator
+            out_dim = getattr(descriptor, "out_dim", None)
+            if out_dim is not None:
+                return self._resolve_out_dim(out_dim, term_cfg)
+            # 2. Derive from axes metadata
+            axes = descriptor.extras.get("axes") if descriptor.extras else None
+            if axes is not None:
+                return len(axes)
+
+        # --- 3. Legacy explicit override in params ---
         for k in ("term_dim", "out_dim", "obs_dim"):
             if k in term_cfg.params:
                 return int(term_cfg.params[k])
-        # try explicit param first
+
+        # --- 3. Joint-based fallback via asset_cfg ---
         asset_cfg = term_cfg.params.get("asset_cfg")
         if asset_cfg is None:
-            raise ValueError(f"Observation term '{term_cfg.params}' has no asset_cfg parameter.")
-        # resolve selection
+            raise ValueError(
+                f"Cannot infer output dimension for observation term '{getattr(func, '__name__', func)}'. "
+                "Add `out_dim=` to its @generic_io_descriptor_warp decorator."
+            )
         asset = self._env.scene[asset_cfg.name]
         joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
         if joint_ids_wp is not None:
@@ -860,3 +895,47 @@ class ObservationManager(ManagerBase):
         if isinstance(joint_ids, slice):
             return int(getattr(asset, "num_joints", wp.to_torch(asset.data.joint_pos).shape[1]))
         return int(len(joint_ids))
+
+    def _resolve_out_dim(self, out_dim: int | str, term_cfg: ObservationTermCfg) -> int:
+        """Resolve an ``out_dim`` value from a decorator into a concrete integer.
+
+        Supports:
+        - ``int``: returned as-is (fixed dimension).
+        - ``"joint"``: number of selected joints from ``asset_cfg``.
+        - ``"body:N"``: ``N`` components per selected body from ``asset_cfg``.
+        - ``"command"``: query ``command_manager.get_command(name).shape[-1]``.
+        - ``"action"``: query ``action_manager.action.shape[-1]``.
+        """
+        if isinstance(out_dim, int):
+            return out_dim
+
+        if out_dim == "joint":
+            asset_cfg = term_cfg.params.get("asset_cfg")
+            asset = self._env.scene[asset_cfg.name]
+            joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+            if joint_ids_wp is not None:
+                return int(joint_ids_wp.shape[0])
+            joint_ids = getattr(asset_cfg, "joint_ids", slice(None))
+            if isinstance(joint_ids, slice):
+                return int(getattr(asset, "num_joints", wp.to_torch(asset.data.joint_pos).shape[1]))
+            return int(len(joint_ids))
+
+        if isinstance(out_dim, str) and out_dim.startswith("body:"):
+            per_body = int(out_dim.split(":")[1])
+            asset_cfg = term_cfg.params.get("asset_cfg")
+            body_ids = getattr(asset_cfg, "body_ids", None)
+            if body_ids is None or body_ids == slice(None):
+                asset = self._env.scene[asset_cfg.name]
+                return per_body * len(asset.body_names)
+            return per_body * len(body_ids)
+
+        if out_dim == "command":
+            command_name = term_cfg.params.get("command_name")
+            cmd = self._env.command_manager.get_command(command_name)
+            return int(cmd.shape[-1])
+
+        if out_dim == "action":
+            action = self._env.action_manager.action
+            return int(action.shape[-1])
+
+        raise ValueError(f"Unknown out_dim sentinel: {out_dim!r}")
