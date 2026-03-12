@@ -40,7 +40,7 @@ env:
 
 jobs:
   build:
-    name: Build base Docker image
+    name: Build Base Docker image
     runs-on: [self-hosted, gpu]
     steps:
     - name: Checkout Code
@@ -349,7 +349,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-flaky:
-    name: Flaky Tests
+    name: "⚠️ Very Flaky Tests"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -410,7 +410,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-slightly-flaky:
-    name: Slightly Flaky Tests
+    name: "⚠️ Less Flaky Tests"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 60
     continue-on-error: true
@@ -471,7 +471,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-environments-training:
-    name: Environments Training Tests
+    name: "⚠️ test_environments_training.py"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 300
     continue-on-error: true
@@ -535,6 +535,7 @@ jobs:
     needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo, test-flaky, test-slightly-flaky, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
+    name: Combine Results
 
     steps:
     - name: Checkout Code
