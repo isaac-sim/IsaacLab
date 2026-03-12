@@ -62,7 +62,7 @@ imports the matching class from ``isaaclab_{backend}.assets.articulation``. This
    switch backends without changing any asset import paths.
 
 For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`. 
+backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
 
 New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

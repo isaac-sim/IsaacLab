@@ -355,6 +355,3 @@ See Also
 - :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration
   guide
 - :doc:`renderers` — renderer backend architecture
-- :doc:`scene_data_providers` — scene data provider architecture
-- :doc:`/source/features/visualization` — visualizer backends for interactive feedback
-- :doc:`/source/how-to/cloning` — template-based environment cloning guide
