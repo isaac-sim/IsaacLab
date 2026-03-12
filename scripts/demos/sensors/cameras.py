@@ -28,6 +28,8 @@ parser.add_argument("--num_envs", type=int, default=4, help="Number of environme
 parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
