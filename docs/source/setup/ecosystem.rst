@@ -107,7 +107,7 @@ for more robotic-specific applications. An example of these include `AirSim`_, `
 `ThreeDWorld`_ and lastly, `Isaac Sim`_.
 
 At its core, Isaac Lab is **not** a robotics simulator, but a framework for building robot learning
-applications on top of `Isaac Sim` and `Newton`_. An equivalent example of such a framework is `RoboSuite`_, which
+applications on top of `Isaac Sim`_ and `Newton`_. An equivalent example of such a framework is `RoboSuite`_, which
 is built on top of `MuJoCo`_ and is specific to fixed-base robots. Other examples include
 `MuJoCo Playground`_ and `Isaac Gym`_ which use `MJX`_ and `PhysX`_ respectively. Isaac Lab supports
 both `PhysX`_ and `Newton`_ as physics backends. They
