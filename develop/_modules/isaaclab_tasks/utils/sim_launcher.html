@@ -696,6 +696,32 @@
     <span class="k">return</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">visualizers</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()}</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_visualizer_intent</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute upstream visualizer intent from ``env_cfg.sim.visualizer_cfgs``.&quot;&quot;&quot;</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="s2">&quot;sim&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">visualizer_cfgs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_cfgs&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">visualizer_cfgs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;has_any_visualizers&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;has_kit_visualizer&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+    <span class="n">cfg_list</span> <span class="o">=</span> <span class="n">visualizer_cfgs</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">visualizer_cfgs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">visualizer_cfgs</span><span class="p">]</span>
+    <span class="n">cfg_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">cfg_list</span> <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">has_any</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfg_list</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">has_kit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;kit&quot;</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">cfg_list</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;has_any_visualizers&quot;</span><span class="p">:</span> <span class="n">has_any</span><span class="p">,</span> <span class="s2">&quot;has_kit_visualizer&quot;</span><span class="p">:</span> <span class="n">has_kit</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_set_visualizer_intent_on_launcher_args</span><span class="p">(</span>
+    <span class="n">launcher_args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">visualizer_intent</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Attach visualizer intent to launcher args when possible.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">launcher_args</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">):</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="s2">&quot;visualizer_intent&quot;</span><span class="p">,</span> <span class="n">visualizer_intent</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;visualizer_intent&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">visualizer_intent</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_is_kit_camera</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;True for a CameraCfg whose renderer requires Kit (not Newton).&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">CameraCfg</span><span class="p">):</span>
@@ -758,6 +784,8 @@
 <span class="sd">            main()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">needs_kit</span><span class="p">,</span> <span class="n">has_kit_cameras</span><span class="p">,</span> <span class="n">visualizer_types</span> <span class="o">=</span> <span class="n">compute_kit_requirements</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">)</span>
+    <span class="n">visualizer_intent</span> <span class="o">=</span> <span class="n">_compute_visualizer_intent</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">)</span>
+    <span class="n">_set_visualizer_intent_on_launcher_args</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">visualizer_intent</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">needs_kit</span> <span class="ow">and</span> <span class="n">has_kit_cameras</span><span class="p">:</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">):</span>
@@ -797,8 +825,13 @@
         <span class="c1"># SimulationContext._get_cli_visualizer_types() can find it.</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app.settings_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_settings_manager</span>
 
-        <span class="n">visualizer_str</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">visualizer_types</span><span class="p">))</span>
-        <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/types&quot;</span><span class="p">,</span> <span class="n">visualizer_str</span><span class="p">)</span>
+        <span class="n">disable_all</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span> <span class="ow">in</span> <span class="n">visualizer_types</span>
+        <span class="n">active_types</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">disable_all</span> <span class="k">else</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">visualizer_types</span><span class="p">)</span>
+        <span class="n">visualizer_str</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">active_types</span><span class="p">)</span>
+        <span class="n">settings</span> <span class="o">=</span> <span class="n">get_settings_manager</span><span class="p">()</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/types&quot;</span><span class="p">,</span> <span class="n">visualizer_str</span><span class="p">)</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/explicit&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/disable_all&quot;</span><span class="p">,</span> <span class="n">disable_all</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">yield</span>

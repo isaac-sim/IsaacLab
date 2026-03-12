@@ -1119,7 +1119,7 @@ operations.</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
 <p>To run the base environment made in this tutorial, you can use the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cartpole_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cartpole_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--viz<span class="w"> </span>kit
 </pre></div>
 </div>
 <p>This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
@@ -1135,10 +1135,10 @@ started the simulation.</p>
 include more examples of defining the base environment in the <code class="docutils literal notranslate"><span class="pre">scripts/tutorials/03_envs</span></code>
 directory. For completeness, they can be run using the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Floating cube environment with custom action term for PD control</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cube_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cube_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--viz<span class="w"> </span>kit
 
 <span class="c1"># Quadrupedal locomotion environment with a policy that interacts with the environment</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_quadruped_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_quadruped_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--viz<span class="w"> </span>kit
 </pre></div>
 </div>
 <p>In the following tutorial, we will look at the <a class="reference internal" href="../../api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class and how to use it

@@ -667,6 +667,7 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-cli-and-headless-behavior">Visualizer CLI and Headless Behavior</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-backend-architecture">Multi-Backend Architecture</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#new-isaaclab-physx-and-isaaclab-newton-extensions">New <code class="docutils literal notranslate"><span class="pre">isaaclab_physx</span></code> and <code class="docutils literal notranslate"><span class="pre">isaaclab_newton</span></code> Extensions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unchanged-imports">Unchanged Imports</a></li>
@@ -750,6 +751,23 @@ from the core Isaac Lab API. This allows for future support of different physics
 maintaining a consistent user-facing API.</p>
 <p>This guide covers the main breaking changes and deprecations you need to address when migrating
 from Isaac Lab 2.x to Isaac Lab 3.0.</p>
+<section id="visualizer-cli-and-headless-behavior">
+<h2>Visualizer CLI and Headless Behavior<a class="headerlink" href="#visualizer-cli-and-headless-behavior" title="Link to this heading">#</a></h2>
+<p>In Isaac Lab 3.0, the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> argument is deprecated. Instead, use <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code> / <code class="docutils literal notranslate"><span class="pre">--viz</span></code>
+to determine whether viewer apps are launched with an Isaac Lab command.</p>
+<p>Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
+(see <a class="reference internal" href="../experimental-features/newton-physics-integration/visualization.html"><span class="doc">Visualization</span></a>).</p>
+<p>The details below describe how CLI visualizer arguments resolve together with
+<code class="docutils literal notranslate"><span class="pre">SimulationCfg.visualizer_cfgs</span></code>.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--viz</span></code> accepts <strong>comma-separated</strong> values (for example <code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">kit,newton</span></code>).</p></li>
+<li><p>If omitted, visualizers are resolved from <code class="docutils literal notranslate"><span class="pre">SimulationCfg.visualizer_cfgs</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">none</span></code> explicitly disables all visualizers, including config-defined ones.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--headless</span></code> is deprecated (still supported) and overrides <code class="docutils literal notranslate"><span class="pre">--viz</span></code> by forcing headless mode.</p></li>
+</ul>
+<p>For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
+and <code class="docutils literal notranslate"><span class="pre">--headless</span></code>, see <a class="reference internal" href="../experimental-features/newton-physics-integration/visualization.html#visualization-common-modes"><span class="std std-ref">Common modes</span></a>.</p>
+</section>
 <section id="multi-backend-architecture">
 <h2>Multi-Backend Architecture<a class="headerlink" href="#multi-backend-architecture" title="Link to this heading">#</a></h2>
 <p>Isaac Lab 3.0 introduces a <strong>factory-based multi-backend architecture</strong> that allows asset classes
@@ -2204,6 +2222,7 @@ compatibility. These will be removed in a future release.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-cli-and-headless-behavior">Visualizer CLI and Headless Behavior</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-backend-architecture">Multi-Backend Architecture</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#new-isaaclab-physx-and-isaaclab-newton-extensions">New <code class="docutils literal notranslate"><span class="pre">isaaclab_physx</span></code> and <code class="docutils literal notranslate"><span class="pre">isaaclab_newton</span></code> Extensions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unchanged-imports">Unchanged Imports</a></li>

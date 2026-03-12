@@ -848,7 +848,7 @@ standard <a class="reference external" href="https://docs.python.org/3/library/a
 <span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
 </pre></div>
 </div>
-<p>The above only illustrates only one of several ways of passing arguments to <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.
+<p>The above illustrates one of several ways of passing arguments to <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.
 Please consult its documentation page to see further options.</p>
 </section>
 <section id="understanding-the-output-of-help">
@@ -861,7 +861,7 @@ custom arguments and those from <a class="reference internal" href="../../api/la
 <span class="go">[INFO][AppLauncher]: The argument &#39;width&#39; will be used to configure the SimulationApp.</span>
 <span class="go">[INFO][AppLauncher]: The argument &#39;height&#39; will be used to configure the SimulationApp.</span>
 <span class="go">usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2}]</span>
-<span class="go">                     [--enable_cameras] [--verbose] [--experience EXPERIENCE]</span>
+<span class="go">                     [--enable_cameras] [--visualizer VISUALIZER] [--verbose] [--experience EXPERIENCE]</span>
 
 <span class="go">Tutorial on running IsaacSim via the AppLauncher.</span>
 
@@ -872,10 +872,12 @@ custom arguments and those from <a class="reference internal" href="../../api/la
 <span class="go">--height HEIGHT       Height of the viewport and generated images. Defaults to 720</span>
 
 <span class="go">app_launcher arguments:</span>
-<span class="go">--headless            Force display off at all times.</span>
+<span class="go">--headless            [DEPRECATED] Disable visualizers and force headless mode (display off).</span>
 <span class="go">--livestream {0,1,2}</span>
 <span class="go">                      Force enable livestreaming. Mapping corresponds to that for the &quot;LIVESTREAM&quot; environment variable.</span>
 <span class="go">--enable_cameras      Enable cameras when running without a GUI.</span>
+<span class="go">--visualizer VISUALIZER, --viz VISUALIZER</span>
+<span class="go">                     Visualizer backends as CSV (e.g., kit,newton,rerun,viser) or none.</span>
 <span class="go">--verbose             Enable verbose terminal logging from the SimulationApp.</span>
 <span class="go">--experience EXPERIENCE</span>
 <span class="go">                      The experience file to load when launching the SimulationApp.</span>
@@ -896,7 +898,8 @@ for more examples.</p>
 </section>
 <section id="using-environment-variables">
 <h3>Using environment variables<a class="headerlink" href="#using-environment-variables" title="Link to this heading">#</a></h3>
-<p>As noted in the help message, the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments (<code class="docutils literal notranslate"><span class="pre">--livestream</span></code>, <code class="docutils literal notranslate"><span class="pre">--headless</span></code>)
+<p>As noted in the help message, the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> arguments (for example <code class="docutils literal notranslate"><span class="pre">--livestream</span></code>
+and deprecated <code class="docutils literal notranslate"><span class="pre">--headless</span></code>)
 have corresponding environment variables (envar) as well. These are detailed in <a class="reference internal" href="../../api/lab/isaaclab.app.html#module-isaaclab.app" title="isaaclab.app"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.app</span></code></a>
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.</p>
@@ -918,7 +921,7 @@ For more information on this flag, please see the <a class="reference internal" 
 </pre></div>
 </div>
 <p>This will spawn a 0.5m<sup>3</sup> volume cuboid in the simulation. No GUI will appear, equivalent
-to if we had passed the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> flag because headlessness is implied by our <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code>
+to omitting <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code> in this setup because headlessness is implied by our <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code>
 envar. If a visualization is desired, we could get one via Isaac’s <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client">WebRTC Livestreaming</a>. Streaming
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching terminal.</p>
@@ -941,6 +944,8 @@ be killed by pressing <code class="docutils literal notranslate"><span class="pr
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we
 want our simulation to be more performant. The process can be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching
 terminal.</p>
+<p>For more details on headless mode and launching visualizers, see
+<a class="reference internal" href="../../migration/migrating_to_isaaclab_3-0.html"><span class="doc">Migrating to Isaac Lab 3.0</span></a>.</p>
 </section>
 </section>
 

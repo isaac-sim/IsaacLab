@@ -797,7 +797,7 @@ This is because when simulating a small number of environment, CPU simulation ca
 <p>When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the terminal
 where you started the simulation.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Rough-H1-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Rough-H1-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt<span class="w"> </span>--viz<span class="w"> </span>kit
 </pre></div>
 </div>
 <p>After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.
@@ -806,7 +806,7 @@ For libraries that don’t currently support this functionality, please refer to
 to learn about how to initialize the policy.</p>
 <p>We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy
 (<code class="docutils literal notranslate"><span class="pre">policy.pt</span></code> file in the <code class="docutils literal notranslate"><span class="pre">exported/</span></code> directory).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/policy_inference_in_usd.py<span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/policy_inference_in_usd.py<span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt<span class="w"> </span>--viz<span class="w"> </span>kit
 </pre></div>
 </div>
 <figure class="align-center" style="width: 100%">

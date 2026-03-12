@@ -654,16 +654,16 @@
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_parse_visualizer_csv</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse visualizer list from a single comma-delimited CLI token.&quot;&quot;&quot;</span>
-    <span class="n">valid</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;kit&quot;</span><span class="p">,</span> <span class="s2">&quot;newton&quot;</span><span class="p">,</span> <span class="s2">&quot;rerun&quot;</span><span class="p">,</span> <span class="s2">&quot;viser&quot;</span><span class="p">}</span>
+    <span class="n">valid</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;kit&quot;</span><span class="p">,</span> <span class="s2">&quot;newton&quot;</span><span class="p">,</span> <span class="s2">&quot;rerun&quot;</span><span class="p">,</span> <span class="s2">&quot;viser&quot;</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">}</span>
     <span class="n">token</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">token</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentTypeError</span><span class="p">(</span>
-            <span class="s2">&quot;Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --visualizer kit,newton.&quot;</span>
+            <span class="s2">&quot;Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton.&quot;</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="s2">&quot; &quot;</span> <span class="ow">in</span> <span class="n">token</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentTypeError</span><span class="p">(</span>
             <span class="s2">&quot;Invalid --visualizer value: spaces are not allowed. &quot;</span>
-            <span class="s2">&quot;Use a comma-separated list without spaces, e.g. --visualizer kit,newton,rerun,viser.&quot;</span>
+            <span class="s2">&quot;Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser.&quot;</span>
         <span class="p">)</span>
 
     <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">token</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)]</span>
@@ -679,6 +679,41 @@
         <span class="p">)</span>
     <span class="c1"># De-duplicate while preserving order.</span>
     <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">names</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_visualizer_intent</span><span class="p">(</span><span class="n">intent</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize and validate upstream config visualizer intent payload.</span>
+
+<span class="sd">    The expected schema is:</span>
+<span class="sd">    ``{&quot;has_any_visualizers&quot;: bool, &quot;has_kit_visualizer&quot;: bool}``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">intent</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">intent</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid value for `visualizer_intent`: expected dict or None.&quot;</span><span class="p">)</span>
+
+    <span class="n">has_any</span> <span class="o">=</span> <span class="n">intent</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;has_any_visualizers&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">has_kit</span> <span class="o">=</span> <span class="n">intent</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;has_kit_visualizer&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">has_any</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">has_kit</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Invalid `visualizer_intent` values: expected booleans for `has_any_visualizers` and `has_kit_visualizer`.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">has_kit</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_any</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid `visualizer_intent`: `has_kit_visualizer=True` requires `has_any_visualizers=True`.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">has_any</span><span class="p">,</span> <span class="n">has_kit</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ExplicitTrueAction</span><span class="p">(</span><span class="n">argparse</span><span class="o">.</span><span class="n">Action</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Custom action to track explicit use of boolean flags.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option_strings</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">option_strings</span><span class="o">=</span><span class="n">option_strings</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">dest</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">default</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="n">required</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="n">help</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">option_string</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dest</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">dest</span><span class="si">}</span><span class="s2">_explicit&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="AppLauncher">
@@ -837,9 +872,9 @@
 
 <span class="sd">        Currently, it adds the following parameters to the argparser object:</span>
 
-<span class="sd">        * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same</span>
-<span class="sd">          as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the</span>
-<span class="sd">          ``HEADLESS`` environment variable.</span>
+<span class="sd">        * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.</span>
+<span class="sd">          To run headless by default, omit ``--viz``. To force headless when config visualizers may be enabled,</span>
+<span class="sd">          use ``--viz none``.</span>
 <span class="sd">        * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values</span>
 <span class="sd">          map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is</span>
 <span class="sd">          determined by the ``LIVESTREAM`` environment variable.</span>
@@ -878,26 +913,23 @@
 <span class="sd">          Arguments should be combined into a single string separated by space.</span>
 <span class="sd">          Example usage: --kit_args &quot;--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2&quot;</span>
 
-
-<span class="sd">        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client</span>
+<span class="sd">        * ``visualizer`` (str): Visualizer backends to enable.</span>
+<span class="sd">          Valid options are:</span>
 
 <span class="sd">          - ``rerun``: Use Rerun visualizer.</span>
 <span class="sd">          - ``newton``: Use Newton visualizer.</span>
 <span class="sd">          - ``viser``: Use Viser visualizer.</span>
 <span class="sd">          - ``kit``: Use Omniverse Kit visualizer.</span>
+<span class="sd">          - ``none``: Disable all visualizers explicitly.</span>
 <span class="sd">          - Multiple visualizers can be specified as a comma-delimited list:</span>
-<span class="sd">            ``--visualizer rerun,newton,viser``</span>
-<span class="sd">          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.</span>
-
-<span class="sd">          Note: If visualizer configs are not defined in the simulation config, default configs will be</span>
-<span class="sd">          automatically created with all default parameters.</span>
-<span class="sd">          If --headless is specified, it takes precedence and NO visualizers will be initialized.</span>
-<span class="sd">          When kit visualizer is specified, the app will launch in non-headless mode automatically.</span>
-<span class="sd">          When only non-GUI visualizers (rerun, newton, viser) are specified, headless mode is auto-enabled.</span>
+<span class="sd">            ``--viz rerun,newton,viser``.</span>
 
 <span class="sd">        * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds</span>
 <span class="sd">          rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its</span>
 <span class="sd">          config default.</span>
+
+
+<span class="sd">        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            parser: An argument parser instance to be extended with the AppLauncher specific options.</span>
@@ -924,7 +956,7 @@
         <span class="n">known</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
         <span class="n">config</span> <span class="o">=</span> <span class="nb">vars</span><span class="p">(</span><span class="n">known</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object.&quot;</span>
                 <span class="s2">&quot; If you have your own arguments, please load your own arguments before calling the&quot;</span>
                 <span class="s2">&quot; `AppLauncher.add_app_launcher_args` method. This allows the method to check the validity&quot;</span>
@@ -940,9 +972,12 @@
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--headless&quot;</span><span class="p">,</span>
-            <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="n">ExplicitTrueAction</span><span class="p">,</span>
             <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;headless&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Force display off at all times.&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;[DEPRECATED] Disable visualizers and force headless mode (display off).&quot;</span>
+                <span class="s2">&quot; Omit &#39;--viz&#39; for default headless, or use &#39;--viz none&#39; to force-disable visualizers.&quot;</span>
+            <span class="p">),</span>
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--livestream&quot;</span><span class="p">,</span>
@@ -972,7 +1007,9 @@
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--visualizer&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;--viz&quot;</span><span class="p">,</span>
             <span class="nb">type</span><span class="o">=</span><span class="n">_parse_visualizer_csv</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="n">ExplicitAction</span><span class="p">,</span>
             <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).&quot;</span><span class="p">,</span>
         <span class="p">)</span>
@@ -1158,7 +1195,7 @@
                         <span class="s2">&quot; intended for the SimulationApp or change the name of the argument to avoid name conflicts.&quot;</span>
                     <span class="p">)</span>
                 <span class="c1"># Print out values which will be used</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: The argument &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; will be used to configure the SimulationApp.&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;The argument &#39;</span><span class="si">%s</span><span class="s2">&#39; will be used to configure the SimulationApp.&quot;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_config_resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve the input arguments and environment variables.</span>
@@ -1168,6 +1205,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Handle core settings</span>
         <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_livestream_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_visualizer_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_headless_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_camera_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_xr_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
@@ -1208,9 +1246,10 @@
             <span class="k">if</span> <span class="n">livestream_arg</span> <span class="ow">in</span> <span class="n">livestream_valid_vals</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">=</span> <span class="n">livestream_arg</span>
                 <span class="c1"># print info that we overrode the env-var</span>
-                <span class="nb">print</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Input keyword argument `livestream=</span><span class="si">{</span><span class="n">livestream_arg</span><span class="si">}</span><span class="s2">` has overridden&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot; the environment variable `LIVESTREAM=</span><span class="si">{</span><span class="n">livestream_env</span><span class="si">}</span><span class="s2">`.&quot;</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s2">&quot;Input keyword argument `livestream=</span><span class="si">%s</span><span class="s2">` has overridden the environment variable `LIVESTREAM=</span><span class="si">%s</span><span class="s2">`.&quot;</span><span class="p">,</span>
+                    <span class="n">livestream_arg</span><span class="p">,</span>
+                    <span class="n">livestream_env</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
@@ -1256,12 +1295,25 @@
         <span class="c1"># the bool of headless_arg to avoid messy string processing,</span>
         <span class="n">headless_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;HEADLESS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
         <span class="n">headless_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;headless&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;headless&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">headless_arg_explicit</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;headless_explicit&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="n">headless_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">}</span>
         <span class="c1"># Value checking on HEADLESS</span>
         <span class="k">if</span> <span class="n">headless_env</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">headless_valid_vals</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Invalid value for environment variable `HEADLESS`: </span><span class="si">{</span><span class="n">headless_env</span><span class="si">}</span><span class="s2"> . Expected: </span><span class="si">{</span><span class="n">headless_valid_vals</span><span class="si">}</span><span class="s2">.&quot;</span>
             <span class="p">)</span>
+        <span class="k">if</span> <span class="n">headless_arg</span> <span class="ow">and</span> <span class="n">headless_arg_explicit</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;The &#39;--headless&#39; CLI argument is deprecated. Omit &#39;--viz&#39; for default headless. &quot;</span>
+                <span class="s2">&quot;If config visualizers are enabled and you want to force headless, use &#39;--viz none&#39;.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_explicit</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Both &#39;--headless&#39; and &#39;--visualizer/--viz&#39; were provided. &quot;</span>
+                    <span class="s2">&quot;Deprecated &#39;--headless&#39; takes precedence and disables all visualizers.&quot;</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_disable_all</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_types</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="c1"># We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value</span>
         <span class="c1"># Note: Headless is always true when livestreaming</span>
         <span class="k">if</span> <span class="n">headless_arg</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
@@ -1271,33 +1323,89 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="c1"># inform who has toggled the headless flag</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="n">livestream_arg</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Input keyword argument `livestream=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="si">}</span><span class="s2">` has implicitly&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot; overridden the environment variable `HEADLESS=</span><span class="si">{</span><span class="n">headless_env</span><span class="si">}</span><span class="s2">` to True.&quot;</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s2">&quot;Input keyword argument `livestream=</span><span class="si">%s</span><span class="s2">` has implicitly overridden the &quot;</span>
+                    <span class="s2">&quot;environment variable `HEADLESS=</span><span class="si">%s</span><span class="s2">` to True.&quot;</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">,</span>
+                    <span class="n">headless_env</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="n">livestream_env</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Environment variable `LIVESTREAM=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="si">}</span><span class="s2">` has implicitly&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot; overridden the environment variable `HEADLESS=</span><span class="si">{</span><span class="n">headless_env</span><span class="si">}</span><span class="s2">` to True.&quot;</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s2">&quot;Environment variable `LIVESTREAM=</span><span class="si">%s</span><span class="s2">` has implicitly overridden the &quot;</span>
+                    <span class="s2">&quot;environment variable `HEADLESS=</span><span class="si">%s</span><span class="s2">` to True.&quot;</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">,</span>
+                    <span class="n">headless_env</span><span class="p">,</span>
                 <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Headless needs to be a bool to be ingested by SimulationApp</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">headless_env</span><span class="p">)</span>
 
-        <span class="c1"># If visualizers are explicitly requested and Kit viewport is not among them,</span>
-        <span class="c1"># force headless mode so Isaac Sim GUI does not launch unnecessarily.</span>
-        <span class="n">visualizers_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;visualizer&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">visualizers_arg</span><span class="p">:</span>
-            <span class="n">requested_visualizers</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">visualizers_arg</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()}</span>
-            <span class="k">if</span> <span class="n">requested_visualizers</span> <span class="ow">and</span> <span class="s2">&quot;kit&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">requested_visualizers</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span>
-                        <span class="s2">&quot;[INFO][AppLauncher]: Forcing headless mode because &#39;--visualizer&#39; excludes &quot;</span>
-                        <span class="s2">&quot;&#39;kit&#39; and livestream is disabled.&quot;</span>
-                    <span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># Resolve headless from visualizer intent when livestream is disabled.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_explicit</span><span class="p">:</span>
+                <span class="c1"># Explicit CLI selection controls headless: only Kit implies non-headless.</span>
+                <span class="n">requested_visualizers</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_types</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_disable_all</span> <span class="ow">or</span> <span class="s2">&quot;kit&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">requested_visualizers</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                            <span class="s2">&quot;Forcing headless mode because visualizer selection &quot;</span>
+                            <span class="s2">&quot;excludes &#39;kit&#39; and livestream is disabled.&quot;</span>
+                        <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># No CLI visualizer selection: use upstream config intent defaults.</span>
+                <span class="c1"># - no config visualizers =&gt; headless</span>
+                <span class="c1"># - config visualizers without kit =&gt; headless</span>
+                <span class="c1"># - config includes kit =&gt; allow non-headless</span>
+                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfg_has_any_visualizers</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfg_has_kit_visualizer</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">headless_arg_explicit</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                            <span class="s2">&quot;No visualizer was selected, so running in headless mode. &quot;</span>
+                            <span class="s2">&quot;To launch a visualizer app, pass &#39;--viz &lt;names&gt;&#39; &quot;</span>
+                            <span class="s2">&quot;(for example &#39;--viz kit&#39;).&quot;</span>
+                        <span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                            <span class="s2">&quot;Forcing headless mode because no Kit visualizer was requested via CLI or upstream &quot;</span>
+                            <span class="s2">&quot;visualizer config intent.&quot;</span>
+                        <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="c1"># Headless needs to be passed to the SimulationApp so we keep it here</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;headless&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_visualizer_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve visualizer CLI semantics and normalize selection.&quot;&quot;&quot;</span>
+        <span class="n">raw_visualizers</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;visualizer&quot;</span><span class="p">)</span>
+        <span class="n">cfg_has_any</span><span class="p">,</span> <span class="n">cfg_has_kit</span> <span class="o">=</span> <span class="n">_normalize_visualizer_intent</span><span class="p">(</span><span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;visualizer_intent&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cfg_has_any_visualizers</span> <span class="o">=</span> <span class="n">cfg_has_any</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cfg_has_kit_visualizer</span> <span class="o">=</span> <span class="n">cfg_has_kit</span>
+        <span class="n">visualizer_explicit</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;visualizer_explicit&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">visualizer_explicit</span> <span class="ow">and</span> <span class="s2">&quot;visualizer&quot;</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">:</span>
+            <span class="n">visualizer_explicit</span> <span class="o">=</span> <span class="n">raw_visualizers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="n">visualizer_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">raw_visualizers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_visualizers</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">visualizer_types</span> <span class="o">=</span> <span class="n">_parse_visualizer_csv</span><span class="p">(</span><span class="n">raw_visualizers</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">visualizer_types</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">raw_visualizers</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+
+        <span class="k">if</span> <span class="n">visualizer_explicit</span> <span class="ow">and</span> <span class="s2">&quot;none&quot;</span> <span class="ow">in</span> <span class="n">visualizer_types</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">visualizer_types</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid &#39;--visualizer&#39; value: &#39;none&#39; cannot be combined with other visualizer types.&quot;</span><span class="p">)</span>
+
+        <span class="n">valid_visualizer_types</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;kit&quot;</span><span class="p">,</span> <span class="s2">&quot;newton&quot;</span><span class="p">,</span> <span class="s2">&quot;rerun&quot;</span><span class="p">,</span> <span class="s2">&quot;viser&quot;</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">}</span>
+        <span class="c1"># Secondary validation for the list path (kwargs); the string path is already validated by</span>
+        <span class="n">invalid_visualizers</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">visualizer_types</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">valid_visualizer_types</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">invalid_visualizers</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid value(s) for &#39;--visualizer&#39;: </span><span class="si">{</span><span class="n">invalid_visualizers</span><span class="si">}</span><span class="s2">. &quot;</span>
+                <span class="s2">&quot;Expected one or more of: [&#39;kit&#39;, &#39;newton&#39;, &#39;rerun&#39;, &#39;viser&#39;, &#39;none&#39;].&quot;</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_explicit</span> <span class="o">=</span> <span class="n">visualizer_explicit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_disable_all</span> <span class="o">=</span> <span class="n">visualizer_explicit</span> <span class="ow">and</span> <span class="s2">&quot;none&quot;</span> <span class="ow">in</span> <span class="n">visualizer_types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_types</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_disable_all</span> <span class="k">else</span> <span class="n">visualizer_types</span>
+        <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;visualizer&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_types</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_camera_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve camera related settings.&quot;&quot;&quot;</span>
@@ -1399,7 +1507,7 @@
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;physics_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;active_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
 
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Using device: </span><span class="si">{</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Using device: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_experience_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve experience file related settings.&quot;&quot;&quot;</span>
@@ -1458,7 +1566,7 @@
 
         <span class="c1"># Resolve the absolute path of the experience file</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Loading experience file: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Loading experience file: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_anim_recording_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve animation recording settings.&quot;&quot;&quot;</span>
@@ -1623,12 +1731,17 @@
 
         <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
             <span class="n">visualizer_str</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">visualizers</span><span class="p">)</span> <span class="k">if</span> <span class="n">visualizers</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
-            <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/types&quot;</span><span class="p">,</span> <span class="n">visualizer_str</span><span class="p">)</span>
+            <span class="n">settings</span> <span class="o">=</span> <span class="n">get_settings_manager</span><span class="p">()</span>
+            <span class="n">cli_visualizer_explicit</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_cli_visualizer_explicit&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="n">cli_visualizer_disable_all</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_cli_visualizer_disable_all&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="n">settings</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/types&quot;</span><span class="p">,</span> <span class="n">visualizer_str</span><span class="p">)</span>
+            <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/explicit&quot;</span><span class="p">,</span> <span class="n">cli_visualizer_explicit</span><span class="p">)</span>
+            <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/disable_all&quot;</span><span class="p">,</span> <span class="n">cli_visualizer_disable_all</span><span class="p">)</span>
             <span class="c1"># Store as int setting where -1 means &quot;use per-visualizer defaults&quot;.</span>
             <span class="k">if</span> <span class="n">visualizer_max_worlds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/max_worlds&quot;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">settings</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/max_worlds&quot;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">get_settings_manager</span><span class="p">()</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/max_worlds&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">visualizer_max_worlds</span><span class="p">))</span>
+                <span class="n">settings</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="s2">&quot;/isaaclab/visualizer/max_worlds&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">visualizer_max_worlds</span><span class="p">))</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_interrupt_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the interrupt signal from the keyboard.&quot;&quot;&quot;</span>

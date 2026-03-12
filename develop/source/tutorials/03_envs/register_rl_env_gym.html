@@ -987,7 +987,7 @@ and whether to render, are used to override the default configuration.</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--viz<span class="w"> </span>kit
 </pre></div>
 </div>
 <p>This should open a stage with everything similar to the <a class="reference internal" href="create_manager_rl_env.html#tutorial-create-manager-rl-env"><span class="std std-ref">Creating a Manager-Based RL Environment</span></a> tutorial.
@@ -996,7 +996,7 @@ To stop the simulation, you can either close the window, or press <code class="d
 <img alt="result of random_agent.py" src="../../../_images/tutorial_register_environment.jpg" />
 </figure>
 <p>In addition, you can also change the simulation device from GPU to CPU by setting the value of the <code class="docutils literal notranslate"><span class="pre">--device</span></code> flag explicitly:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--device<span class="w"> </span>cpu
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--device<span class="w"> </span>cpu<span class="w"> </span>--viz<span class="w"> </span>kit
 </pre></div>
 </div>
 <p>With the <code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">cpu</span></code> flag, the simulation will run on the CPU. This is useful for debugging the simulation.

@@ -878,9 +878,9 @@ to the SimulationApp to the input <a class="reference external" href="https://do
 environment variables using command-line arguments.</p>
 <p>Currently, it adds the following parameters to the argparser object:</p>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">headless</span></code> (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
-as that for the <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> environment variable. If False, then headless mode is determined by the
-<code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> environment variable.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">headless</span></code> (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
+To run headless by default, omit <code class="docutils literal notranslate"><span class="pre">--viz</span></code>. To force headless when config visualizers may be enabled,
+use <code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">none</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">livestream</span></code> (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
 map the same as that for the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable. If <code class="xref py py-obj docutils literal notranslate"><span class="pre">-1</span></code>, then livestreaming is
 determined by the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable.
@@ -920,24 +920,18 @@ is provided, it is resolved relative to the <code class="docutils literal notran
 <li><p><code class="docutils literal notranslate"><span class="pre">kit_args</span></code> (str): Optional command line arguments to be passed to Omniverse Kit directly.
 Arguments should be combined into a single string separated by space.
 Example usage: –kit_args “–ext-folder=/path/to/ext1 –ext-folder=/path/to/ext2”</p></li>
-</ul>
-<blockquote>
-<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">visualizer</span></code> (str): Visualizer backends to enable.
+Valid options are:</p>
+<ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">rerun</span></code>: Use Rerun visualizer.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">newton</span></code>: Use Newton visualizer.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">viser</span></code>: Use Viser visualizer.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kit</span></code>: Use Omniverse Kit visualizer.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">none</span></code>: Disable all visualizers explicitly.</p></li>
 <li><p>Multiple visualizers can be specified as a comma-delimited list:
-<code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">rerun,newton,viser</span></code></p></li>
-<li><p>If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.</p></li>
+<code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">rerun,newton,viser</span></code>.</p></li>
 </ul>
-<p>Note: If visualizer configs are not defined in the simulation config, default configs will be
-automatically created with all default parameters.
-If –headless is specified, it takes precedence and NO visualizers will be initialized.
-When kit visualizer is specified, the app will launch in non-headless mode automatically.
-When only non-GUI visualizers (rerun, newton, viser) are specified, headless mode is auto-enabled.</p>
-</div></blockquote>
-<ul class="simple">
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">visualizer_max_worlds</span></code> (int | None): Optional global override for the maximum number of worlds
 rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
 config default.</p></li>

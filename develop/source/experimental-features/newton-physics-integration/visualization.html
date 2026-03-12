@@ -670,6 +670,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resolution-rules-cli-config">Resolution Rules (CLI + Config)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-backends">Visualizer Backends</a><ul class="nav section-nav flex-column">
@@ -752,22 +753,25 @@
 </section>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
-<p>Launch visualizers from the command line with <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>:</p>
+<p>Launch visualizers from the command line with <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code> (or <code class="docutils literal notranslate"><span class="pre">--viz</span></code> alias):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch all visualizers (comma-delimited list, no spaces)</span>
-python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>kit,newton,rerun
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--viz<span class="w"> </span>kit,newton,rerun
 
-<span class="c1"># Launch just newton visualizer</span>
-python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>newton
+<span class="c1"># Launch only the Newton visualizer</span>
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--viz<span class="w"> </span>newton
 </pre></div>
 </div>
-<p>If <code class="docutils literal notranslate"><span class="pre">--headless</span></code> is given, no visualizers will be launched.</p>
+<p>To run in headless mode, omit the <code class="docutils literal notranslate"><span class="pre">--viz</span></code> argument:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">--headless</span></code> argument may be deprecated in future versions to avoid confusion with the <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>
-argument. For now, <code class="docutils literal notranslate"><span class="pre">--headless</span></code> takes precedence and disables all visualizers.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--headless</span></code> argument is deprecated.
+For compatibility, <code class="docutils literal notranslate"><span class="pre">--headless</span></code> still takes precedence and disables all visualizers.</p>
 </div>
 <section id="configuration">
-<h3>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h3>
+<span id="visualization-configuration"></span><h3>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h3>
 <p>Launching visualizers with the command line will use default visualizer configurations. Visualizer backends live in the <code class="docutils literal notranslate"><span class="pre">isaaclab_visualizers</span></code> package (e.g. <code class="docutils literal notranslate"><span class="pre">source/isaaclab_visualizers/isaaclab_visualizers/kit</span></code>, <code class="docutils literal notranslate"><span class="pre">newton</span></code>, <code class="docutils literal notranslate"><span class="pre">rerun</span></code>).</p>
 <p>You can also configure custom visualizers in the code by defining <code class="docutils literal notranslate"><span class="pre">VisualizerCfg</span></code> instances for the <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code>, for example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
@@ -799,6 +803,63 @@ argument. For now, <code class="docutils literal notranslate"><span class="pre">
     <span class="p">]</span>
 <span class="p">)</span>
 </pre></div>
+</div>
+</section>
+<section id="resolution-rules-cli-config">
+<h3>Resolution Rules (CLI + Config)<a class="headerlink" href="#resolution-rules-cli-config" title="Link to this heading">#</a></h3>
+<p>The effective visualizer mode is resolved from both CLI and <code class="docutils literal notranslate"><span class="pre">SimulationCfg.visualizer_cfgs</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--viz</span></code> (alias: <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>) uses comma-separated values (for example <code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">kit,newton</span></code>).</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">--viz</span></code> is omitted, Isaac Lab falls back to <code class="docutils literal notranslate"><span class="pre">SimulationCfg.visualizer_cfgs</span></code> (see <a class="reference internal" href="#visualization-configuration"><span class="std std-ref">Configuration</span></a>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">none</span></code> explicitly disables all visualizers.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">--headless</span></code> is passed, it overrides <code class="docutils literal notranslate"><span class="pre">--viz</span></code> and disables visualizers.</p></li>
+</ul>
+<p>For the migration-focused summary and deprecation context, see
+<a class="reference internal" href="../../migration/migrating_to_isaaclab_3-0.html"><span class="doc">Migrating to Isaac Lab 3.0</span></a>.</p>
+<div class="pst-scrollable-table-container"><span id="visualization-common-modes"></span><table class="table" id="id5">
+<caption><span class="caption-text">Common modes</span><a class="headerlink" href="#id5" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 35.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>CLI args</p></th>
+<th class="head"><p>visualizer configs</p></th>
+<th class="head"><p>Effective behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>no <code class="docutils literal notranslate"><span class="pre">--viz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Run headless.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">kit,newton</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Launch default Kit and default Newton visualizers.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">kit,newton</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[NewtonVisualizerCfg(...),</span> <span class="pre">RerunVisualizerCfg(...)]</span></code></p></td>
+<td><p>Launch default Kit and custom Newton; Rerun is not launched.</p></td>
+</tr>
+<tr class="row-odd"><td><p>no <code class="docutils literal notranslate"><span class="pre">--viz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[NewtonVisualizerCfg(...),</span> <span class="pre">RerunVisualizerCfg(...)]</span></code></p></td>
+<td><p>Launch custom Newton and custom Rerun visualizers from config.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--viz</span> <span class="pre">none</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[NewtonVisualizerCfg(...),</span> <span class="pre">RerunVisualizerCfg(...)]</span></code></p></td>
+<td><p>Run headless with all visualizers disabled.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--headless</span></code></p></td>
+<td><p>any</p></td>
+<td><p>Run headless with deprecation warning.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--headless</span> <span class="pre">--viz</span> <span class="pre">&lt;names&gt;</span></code></p></td>
+<td><p>any</p></td>
+<td><p>Run headless; <code class="docutils literal notranslate"><span class="pre">--headless</span></code> takes precedence.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 </section>
 </section>
@@ -955,7 +1016,7 @@ starting a new server, initialization fails with a clear port-conflict error.</p
 <ul class="simple">
 <li><p>Using Newton instead of Omniverse or Rerun</p></li>
 <li><p>Reducing window sizes</p></li>
-<li><p>Higher update frequencies</p></li>
+<li><p>Lower update frequencies</p></li>
 <li><p>Pausing visualizers while they are not being used</p></li>
 </ul>
 </section>
@@ -965,7 +1026,7 @@ starting a new server, initialization fails with a clear port-conflict error.</p
 <p>The Rerun web-based visualizer may experience performance issues or crashes when visualizing large-scale
 environments. For large-scale simulations, the Newton visualizer is recommended. Alternatively, to reduce load,
 the num of environments can be overwritten and decreased using <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>rerun<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">512</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--viz<span class="w"> </span>rerun<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">512</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -1041,6 +1102,7 @@ CPU copy operations instead of direct GPU memory sharing.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resolution-rules-cli-config">Resolution Rules (CLI + Config)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-backends">Visualizer Backends</a><ul class="nav section-nav flex-column">
