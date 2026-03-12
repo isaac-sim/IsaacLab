@@ -38,7 +38,8 @@ For an overview of how the multi-backend architecture works, including how to ad
   :titlesonly:
 
   installation
-  visualization
+  isaaclab_newton-beta-2
+  training-environments
   limitations-and-known-bugs
   solver-transitioning
   sim-to-sim
