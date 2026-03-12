@@ -162,6 +162,7 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Yamamoto Koki
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
