@@ -499,7 +499,7 @@ Do **not** use Docker Compose, which is a multi-container setup as we had in Isa
 components run inside one container with Isaac Lab in this release.
 
 Inside the container, install Isaac Teleop (once per container or image), then start the CloudXR
-runtime and the teleop script. You must accept the NVIDIA CloudXR EULA; set ``ACCEPT_EULA=true``
+runtime and the teleop script. You must accept the NVIDIA CloudXR EULA; pass ``--accept-eula``
 when starting the runtime so there is no interactive prompt.
 
 #. Install Isaac Teleop with CloudXR and retargeters support:
@@ -513,7 +513,7 @@ when starting the runtime so there is no interactive prompt.
 
    .. code-block:: bash
 
-      ACCEPT_EULA=true ./isaaclab.sh -p -m isaacteleop.cloudxr &
+      ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
       source ~/.cloudxr/run/cloudxr.env
       ./isaaclab.sh -p scripts/tools/record_demos.py \
         --task Isaac-PickPlace-GR1T2-Abs-v0 \
