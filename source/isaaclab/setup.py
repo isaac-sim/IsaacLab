@@ -40,7 +40,7 @@ INSTALL_REQUIRES = [
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
     # required by omni.replicator.core S3 backend
-    "botocore==1.47.66",
+    "botocore",
     # livestream
     "starlette==0.49.1",
     "omniverseclient",
