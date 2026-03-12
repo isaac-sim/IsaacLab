@@ -494,24 +494,32 @@ The recommended workflow:
 Run with Docker
 -------------------------
 
-Teleoperation runs in a **single container**. The base Docker image (``docker/Dockerfile.base``)
-installs the ``isaacteleop`` pip package by default. Build the image yourself and run
-a single container. Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x.
-All components run inside one container with Isaac Lab.
+Teleoperation runs in a **single container**. Build the image yourself and run a single container.
+Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
+components run inside one container with Isaac Lab in this release.
 
-You must accept the NVIDIA CloudXR EULA to run the CloudXR runtime. Inside the container, set
-``ACCEPT_EULA=true`` when starting the runtime (so there is no interactive prompt), then start the runtime in the
-background and run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
+Inside the container, install Isaac Teleop (once per container or image), then start the CloudXR
+runtime and the teleop script. You must accept the NVIDIA CloudXR EULA; set ``ACCEPT_EULA=true``
+when starting the runtime so there is no interactive prompt.
 
-.. code-block:: bash
+#. Install Isaac Teleop with CloudXR and retargeters support:
 
-   ACCEPT_EULA=true ./isaaclab.sh -p -m isaacteleop.cloudxr &
-   source ~/.cloudxr/run/cloudxr.env
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-     --task Isaac-PickPlace-GR1T2-Abs-v0 \
-     --num_demos 5 \
-     --dataset_file ./datasets/dataset.hdf5 \
-     --xr --visualizer kit
+   .. code-block:: bash
+
+      ./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0' --extra-index-url https://pypi.nvidia.com
+
+#. Start the CloudXR runtime in the background, load the environment, and run the teleop script
+   (e.g. ``record_demos.py`` to record demonstrations):
+
+   .. code-block:: bash
+
+      ACCEPT_EULA=true ./isaaclab.sh -p -m isaacteleop.cloudxr &
+      source ~/.cloudxr/run/cloudxr.env
+      ./isaaclab.sh -p scripts/tools/record_demos.py \
+        --task Isaac-PickPlace-GR1T2-Abs-v0 \
+        --num_demos 5 \
+        --dataset_file ./datasets/dataset.hdf5 \
+        --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
 
