@@ -15,7 +15,7 @@ from typing import Any
 
 import warp as wp
 
-from pxr import UsdGeom
+from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
 
@@ -389,8 +389,34 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         paths = self._rigid_body_view_paths or self._rigid_body_paths
         if not paths:
             return
+        # Defensive: only pass true rigid-body prims into PhysX RigidBodyView.
+        # Some prebuilt artifacts carry articulation root paths for coverage, but
+        # those roots are not guaranteed to be rigid-body prims and can trip native
+        # view creation paths on some tasks.
+        rigid_paths: list[str] = []
+        dropped_non_rigid = 0
+        for path in paths:
+            prim = self._stage.GetPrimAtPath(path) if self._stage is not None else None
+            if prim and prim.IsValid() and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                rigid_paths.append(path)
+            else:
+                dropped_non_rigid += 1
+        if dropped_non_rigid > 0:
+            self._warn_once(
+                "rigid-view-non-rigid-paths-dropped",
+                "[PhysxSceneDataProvider] Dropped %d non-rigid paths while creating RigidBodyView.",
+                dropped_non_rigid,
+                level=logging.DEBUG,
+            )
+        if not rigid_paths:
+            self._warn_once(
+                "rigid-view-no-rigid-paths",
+                "[PhysxSceneDataProvider] No rigid-body prim paths available for RigidBodyView creation.",
+                level=logging.WARNING,
+            )
+            return
         try:
-            paths_to_use = self._wildcard_env_paths(paths)
+            paths_to_use = self._wildcard_env_paths(rigid_paths)
             self._rigid_body_view = self._physics_sim_view.create_rigid_body_view(paths_to_use)
             self._cache_view_index_map(self._rigid_body_view, "rigid_body_view")
         except Exception as exc:
