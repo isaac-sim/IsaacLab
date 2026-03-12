@@ -1,9 +1,24 @@
 # Isaac Lab Architecture
 
-## Stack: OpenUSD -> PhysicsBackend -> Isaac Lab
+## Multi-Backend Architecture (Lab 3.0)
 
-- **Isaac Sim**: Physics (PhysX/Newton), RTX rendering, asset management
-- **Isaac Lab**: Robot Learning framework that can be used for RL, IL, data generation and much more
+Isaac Lab uses a **factory pattern** for physics and rendering. The core `isaaclab`
+package defines abstract base classes; concrete implementations live in backend packages.
+
+```
+isaaclab (core)          — Abstract base classes, managers, MDP, utils
+  ├── isaaclab_physx     — PhysX physics backend + Isaac RTX renderer
+  ├── isaaclab_newton    — Newton/MuJoCo-Warp physics backend + Warp renderer
+  └── isaaclab_ov        — Omniverse RTX (OVRTX) renderer
+```
+
+When you write `from isaaclab.assets import Articulation`, the factory detects the
+active backend (from `SimulationContext.physics_manager`) and returns the correct
+implementation (e.g., `isaaclab_physx.assets.Articulation` or
+`isaaclab_newton.assets.Articulation`). Your code doesn't change between backends.
+
+For details on backends and renderers, see [backends.md](backends.md).
+For the migration guide: `docs/source/migration/migrating_to_isaaclab_3-0.rst`
 
 ## Two Environment Patterns
 
@@ -65,8 +80,13 @@ Built-in MDP functions: `isaaclab.envs.mdp.*`
 | Component | Path |
 |-----------|------|
 | Core framework | `source/isaaclab/isaaclab/` |
+| Physics base classes | `source/isaaclab/isaaclab/physics/` |
 | MDP functions | `source/isaaclab/isaaclab/envs/mdp/` |
 | Managers | `source/isaaclab/isaaclab/managers/` |
+| PhysX backend | `source/isaaclab_physx/` |
+| Newton backend | `source/isaaclab_newton/` |
+| OV renderers | `source/isaaclab_ov/` |
+| Visualizers | `source/isaaclab_visualizers/` |
 | Robot assets | `source/isaaclab_assets/isaaclab_assets/robots/` |
 | Task environments | `source/isaaclab_tasks/isaaclab_tasks/` |
 | RL wrappers | `source/isaaclab_rl/isaaclab_rl/` |
@@ -74,5 +94,7 @@ Built-in MDP functions: `isaaclab.envs.mdp.*`
 
 ## For More Detail
 
+- [backends.md](backends.md) - Physics backends, renderers, and visualizers
 - [patterns-comparison.md](patterns-comparison.md) - Manager-based vs Direct deep-dive
-- [sensors-actuators.md](sensors-actuators.md) - Cameras, IMU, actuator types, visualizers
+- [sensors-actuators.md](sensors-actuators.md) - Cameras, IMU, actuator types
+- `docs/source/refs/reference_architecture/` - Official reference architecture

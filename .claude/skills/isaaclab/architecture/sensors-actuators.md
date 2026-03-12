@@ -47,48 +47,16 @@ actuators={
 
 ## Camera Sensors
 
-**Important**: Camera/sensor config classes can only be deeply imported after `AppLauncher`
-starts the Kit runtime. Top-level `import isaaclab.sensors` will fail otherwise.
+In Lab 3.0, cameras work across physics backends. Some camera types (e.g., ray casters)
+are fully Kit-independent; rendering-based cameras depend on the active renderer.
 
-### Two Camera Types
+### Camera Types
 
 | Type | Config | Use Case |
 |------|--------|----------|
-| **TiledCamera** | `TiledCameraCfg` | GPU-accelerated batched rendering. Recommended for RL training with many envs. |
-| **Camera** | `CameraCfg` | Standard camera with per-camera rendering. Use for single-env or high-quality capture. |
-
-`TiledCameraCfg` inherits from `CameraCfg` (same API) but uses tiled rendering for
-GPU-parallel image generation across environments. Always prefer `TiledCameraCfg` for
-RL training with visual observations.
-
-### TiledCamera Example (GPU-accelerated, recommended)
-```python
-from isaaclab.sensors import TiledCameraCfg
-
-camera = TiledCameraCfg(
-    prim_path="{ENV_REGEX_NS}/Camera",
-    data_types=["rgb", "depth"],
-    spawn=sim_utils.PinholeCameraCfg(
-        focal_length=24.0,
-        clipping_range=(0.1, 20.0),
-    ),
-    width=100, height=100,
-)
-```
-
-### Available Data Types
-- `rgb` - Color image (H, W, 3)
-- `rgba` - Color + alpha (H, W, 4)
-- `depth` / `distance_to_image_plane` - Depth map (H, W, 1)
-- `distance_to_camera` - Ray distance to optical center
-- `albedo` - Fast diffuse-albedo only (optimized, no lighting)
-- `simple_shading_constant_diffuse` - Constant diffuse shading
-- `simple_shading_diffuse_mdl` - MDL diffuse shading
-- `simple_shading_full_mdl` - Full MDL shading
-- `normals` - Surface normals (H, W, 3)
-- `motion_vectors` - Optical flow
-- `semantic_segmentation` - Semantic labels
-- `instance_segmentation_fast` / `instance_id_segmentation_fast` - Instance IDs
+| **TiledCamera** | `TiledCameraCfg` | GPU-accelerated batched rendering. Recommended for RL training. |
+| **Camera** | `CameraCfg` | Standard camera with per-camera rendering. |
+| **RayCasterCamera** | `RayCasterCameraCfg` | Depth from ray casting (Kit-independent, faster for depth-only). |
 
 ### Camera Offset Convention
 ```python
@@ -98,9 +66,8 @@ CameraCfg.OffsetCfg(
     convention="ros",                 # "ros" | "opengl" | "world"
 )
 ```
-- `"ros"`: forward +Z, up -Y (default)
-- `"opengl"`: forward -Z, up +Y (USD/Omniverse convention)
-- `"world"`: forward +X, up +Z
+
+**Note**: Isaac Lab uses `xyzw` quaternion order throughout.
 
 ## Other Sensors
 
@@ -109,7 +76,7 @@ CameraCfg.OffsetCfg(
 | Contact | `ContactSensorCfg` | Contact forces, normals |
 | IMU | `ImuCfg` | Acceleration, angular velocity |
 | Frame Transformer | `FrameTransformerCfg` | Relative body transforms |
-| Visuotactile | `VisuotactileSensorCfg` | Visual + tactile (community, `isaaclab_contrib`) |
+| Visuotactile | `VisuotactileSensorCfg` | Visual + tactile (`isaaclab_contrib`) |
 
 ### Ray Caster Variants
 
@@ -123,45 +90,20 @@ CameraCfg.OffsetCfg(
 Ray casters are faster than rendering-based cameras for depth-only observations
 (e.g., terrain height maps for legged locomotion).
 
+### Sensors and Physics Backends
+
+Sensors use the factory pattern like other Isaac Lab objects. The core sensor interfaces
+are in `isaaclab.sensors`; backend-specific implementations are in `isaaclab_physx.sensors`
+and `isaaclab_newton.sensors`. Your code imports from `isaaclab.sensors` and the factory
+resolves the correct backend at runtime.
+
 ## Visualizers
 
-| Visualizer | Config | Rendering | Best For |
-|-----------|--------|-----------|----------|
-| **Kit** | `KitVisualizerCfg` | RTX ray-tracing (GUI viewport) | Interactive development, debugging |
-| **Newton** | `NewtonVisualizerCfg` | OpenGL (standalone window) | Headless training, fast preview |
-| **Rerun** | `RerunVisualizerCfg` | Browser (WebGL via gRPC) | Remote monitoring, distributed training |
+| Visualizer | Config | Description |
+|-----------|--------|-------------|
+| **Kit** | `KitVisualizerCfg` | Isaac Sim viewport (RTX, requires display) |
+| **Newton** | `NewtonVisualizerCfg` | Native Newton physics renderer |
+| **Rerun** | `RerunVisualizerCfg` | Browser-based (WebGL via gRPC), remote/distributed |
+| **Viser** | `ViserVisualizerCfg` | Web-based viewer (Newton's ViewerViser) |
 
-- **Kit**: Default Isaac Sim viewport, 1280x720, configurable dock position
-- **Newton**: Independent OpenGL window (no Isaac Sim GUI needed), joint/contact/COM visualization
-- **Rerun**: Streams to `localhost:9090` (web), data on gRPC port 9876, optional `.rrd` recording
-
-> **Known Issue (develop branch / Isaac Sim 6.0)**: `--visualizer newton` and
-> `--visualizer rerun` both fail with `cannot import name 'DeviceLike' from 'warp'`.
-> This is a warp version mismatch — Kit extscache ships warp 1.10.1 which lacks
-> `DeviceLike` (added in 1.11). Training continues but visualizer silently degrades.
-> Use `--headless` or `--visualizer kit` (GUI only) as a workaround.
->
-> **Note**: `--visualizer omniverse` is NOT valid. Use `kit`, `newton`, or `rerun`.
-
-### Rendering Modes
-- **Default**: Viewport window (omit `--headless`)
-- **Headless**: `--headless` (no rendering, max performance)
-- **Livestream**: `--livestream 2` (remote visualization)
-
-### Viewer Configuration
-```python
-def __post_init__(self):
-    self.viewer.eye = (8.0, 0.0, 5.0)       # Camera position
-    self.viewer.lookat = (0.0, 0.0, 0.0)    # Camera target
-    self.viewer.resolution = (1280, 720)
-    self.viewer.origin_type = "world"         # "world"|"env"|"asset_root"|"asset_body"
-```
-
-### Viewport Controls
-| Action | Control |
-|--------|---------|
-| Move camera | RMB + WASD |
-| Vertical | RMB + Q/E |
-| Rotate | RMB + drag |
-| Zoom | Scroll or Alt + RMB |
-| Pan | MMB + drag |
+For details on backends, renderers, and visualizers: [backends.md](backends.md)
