@@ -60,7 +60,7 @@ def _install_system_deps() -> None:
             if sysconfig.get_path("include") and os.path.isfile(
                 os.path.join(sysconfig.get_path("include"), "Python.h")
             ):
-                print_info(f"Python dev headers are already installed.")
+                print_info("Python dev headers are already installed.")
             else:
                 raise FileNotFoundError
         except (FileNotFoundError, AttributeError):
