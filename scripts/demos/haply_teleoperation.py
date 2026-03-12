@@ -52,7 +52,7 @@ parser.add_argument(
 )
 
 AppLauncher.add_app_launcher_args(parser)
-parser.set_defaults(visualizer="kit")
+parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
