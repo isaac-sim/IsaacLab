@@ -29,7 +29,6 @@ from .ray_caster import RayCaster
 if TYPE_CHECKING:
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -90,33 +89,24 @@ class MultiMeshRayCaster(RayCaster):
         Args:
             cfg: The configuration parameters.
         """
-        # Initialize base class
         super().__init__(cfg)
 
-        # Create empty variables for storing output data
         self._num_meshes_per_env: dict[str, int] = {}
-        """Keeps track of the number of meshes per env for each ray_cast target.
-           Since we allow regex indexing (e.g. env_*/object_*) they can differ
-        """
 
         self._raycast_targets_cfg: list[MultiMeshRayCasterCfg.RaycastTargetCfg] = []
         for target in self.cfg.mesh_prim_paths:
-            # Legacy support for string targets. Treat them as global targets.
             if isinstance(target, str):
                 self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(prim_expr=target, track_mesh_transforms=False))
             else:
                 self._raycast_targets_cfg.append(target)
 
-        # Resolve regex namespace if set
         for cfg in self._raycast_targets_cfg:
             cfg.prim_expr = cfg.prim_expr.format(ENV_REGEX_NS="/World/envs/env_.*")
 
-        # overwrite the data class
         self._data = MultiMeshRayCasterData()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
-
         return (
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
@@ -133,9 +123,7 @@ class MultiMeshRayCaster(RayCaster):
 
     @property
     def data(self) -> MultiMeshRayCasterData:
-        # update sensors if needed
         self._update_outdated_buffers()
-        # return the data
         return self._data
 
     """
@@ -163,9 +151,7 @@ class MultiMeshRayCaster(RayCaster):
         """
         multi_mesh_ids: dict[str, list[list[int]]] = {}
         for target_cfg in self._raycast_targets_cfg:
-            # target prim path to ray cast against
             target_prim_path = target_cfg.prim_expr
-            # # check if mesh already casted into warp mesh and skip if so.
             if target_prim_path in multi_mesh_ids:
                 logger.warning(
                     f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries"
@@ -173,30 +159,22 @@ class MultiMeshRayCaster(RayCaster):
                 )
                 continue
 
-            # find all matching prim paths to provided expression of the target
             target_prims = sim_utils.find_matching_prims(target_prim_path)
             if len(target_prims) == 0:
                 raise RuntimeError(f"Failed to find a prim at path expression: {target_prim_path}")
 
-            # If only one prim is found, treat it as a global prim.
-            # Either it's a single global object (e.g. ground) or we are only using one env.
             is_global_prim = len(target_prims) == 1
 
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
 
             for target_prim in target_prims:
-                # Reuse previously parsed shared mesh instance if possible.
                 if target_cfg.is_shared and len(wp_mesh_ids) > 0:
-                    # Verify if this mesh has already been registered in an earlier environment.
-                    # Note, this check may fail, if the prim path is not following the env_.* pattern
-                    # Which (worst case) leads to parsing the mesh and skipping registering it at a later stage
-                    curr_prim_base_path = re.sub(r"env_\d+", "env_0", str(target_prim.GetPath()))  #
+                    curr_prim_base_path = re.sub(r"env_\d+", "env_0", str(target_prim.GetPath()))
                     if curr_prim_base_path in MultiMeshRayCaster.meshes:
                         MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = MultiMeshRayCaster.meshes[
                             curr_prim_base_path
                         ]
-                # Reuse mesh imported by another ray-cast sensor (global cache).
                 if str(target_prim.GetPath()) in MultiMeshRayCaster.meshes:
                     wp_mesh_ids.append(MultiMeshRayCaster.meshes[str(target_prim.GetPath())].id)
                     loaded_vertices.append(None)
@@ -219,7 +197,6 @@ class MultiMeshRayCaster(RayCaster):
                 trimesh_meshes = []
 
                 for mesh_prim in mesh_prims:
-                    # check if valid
                     if mesh_prim is None or not mesh_prim.IsValid():
                         raise RuntimeError(f"Invalid mesh prim path: {target_prim}")
 
@@ -240,13 +217,11 @@ class MultiMeshRayCaster(RayCaster):
                     transform[:3, 3] = relative_pos.numpy()
                     mesh.apply_transform(transform)
 
-                    # add to list of parsed meshes
                     trimesh_meshes.append(mesh)
 
                 if len(trimesh_meshes) == 1:
                     trimesh_mesh = trimesh_meshes[0]
                 elif target_cfg.merge_prim_meshes:
-                    # combine all trimesh meshes into a single mesh
                     trimesh_mesh = trimesh.util.concatenate(trimesh_meshes)
                 else:
                     raise RuntimeError(
@@ -254,11 +229,9 @@ class MultiMeshRayCaster(RayCaster):
                         " enable `merge_prim_meshes` in the configuration or specify each mesh separately."
                     )
 
-                # check if the mesh is already registered, if so only reference the mesh
                 registered_idx = _registered_points_idx(trimesh_mesh.vertices, loaded_vertices)
                 if registered_idx != -1 and self.cfg.reference_meshes:
                     logger.info("Found a duplicate mesh, only reference the mesh.")
-                    # Found a duplicate mesh, only reference the mesh.
                     loaded_vertices.append(None)
                     wp_mesh_ids.append(wp_mesh_ids[registered_idx])
                 else:
@@ -267,7 +240,6 @@ class MultiMeshRayCaster(RayCaster):
                     MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = wp_mesh
                     wp_mesh_ids.append(wp_mesh.id)
 
-                # print info
                 if registered_idx != -1:
                     logger.info(f"Found duplicate mesh for mesh prims under path '{target_prim.GetPath()}'.")
                 else:
@@ -277,12 +249,9 @@ class MultiMeshRayCaster(RayCaster):
                     )
 
             if is_global_prim:
-                # reference the mesh for each environment to ray cast against
                 multi_mesh_ids[target_prim_path] = [wp_mesh_ids] * self._num_envs
                 self._num_meshes_per_env[target_prim_path] = len(wp_mesh_ids)
             else:
-                # split up the meshes for each environment. Little bit ugly, since
-                # the current order is interleaved (env1_obj1, env1_obj2, env2_obj1, env2_obj2, ...)
                 multi_mesh_ids[target_prim_path] = []
                 mesh_idx = 0
                 n_meshes_per_env = len(wp_mesh_ids) // self._num_envs
@@ -296,7 +265,6 @@ class MultiMeshRayCaster(RayCaster):
                     self._obtain_trackable_prim_view(target_prim_path)
                 )
 
-        # throw an error if no meshes are found
         if all([target_cfg.prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
@@ -306,12 +274,10 @@ class MultiMeshRayCaster(RayCaster):
         self._mesh_positions_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 3, device=self.device)
         self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
 
-        # Update the mesh positions and rotations
         mesh_idx = 0
         for target_cfg in self._raycast_targets_cfg:
             n_meshes = self._num_meshes_per_env[target_cfg.prim_expr]
 
-            # update position of the target meshes
             pos_w, ori_w = [], []
             for prim in sim_utils.find_matching_prims(target_cfg.prim_expr):
                 translation, quat = sim_utils.resolve_prim_pose(prim)
@@ -324,7 +290,6 @@ class MultiMeshRayCaster(RayCaster):
             self._mesh_orientations_w[:, mesh_idx : mesh_idx + n_meshes] = ori_w
             mesh_idx += n_meshes
 
-        # flatten the list of meshes that are included in mesh_prim_paths of the specific ray caster
         multi_mesh_ids_flattened = []
         for env_idx in range(self._num_envs):
             meshes_in_env = []
@@ -337,7 +302,6 @@ class MultiMeshRayCaster(RayCaster):
             for target_cfg in self._raycast_targets_cfg
         ]
 
-        # save a warp array with mesh ids that is passed to the raycast function
         self._mesh_ids_wp = wp.array2d(multi_mesh_ids_flattened, dtype=wp.uint64, device=self.device)
 
     def _initialize_rays_impl(self):
@@ -353,7 +317,7 @@ class MultiMeshRayCaster(RayCaster):
         if len(env_ids) == 0:
             return
 
-        self._update_ray_infos(env_ids)
+        self._update_ray_infos(env_mask)
 
         # Update the mesh positions and rotations
         mesh_idx = 0
@@ -362,7 +326,6 @@ class MultiMeshRayCaster(RayCaster):
                 mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
-            # update position of the target meshes
             pos_w, ori_w = obtain_world_pose_from_view(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
@@ -373,7 +336,7 @@ class MultiMeshRayCaster(RayCaster):
                 ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
             count = view.count
-            if count != 1:  # Mesh is not global, i.e. we have different meshes for each env
+            if count != 1:
                 count = count // self._num_envs
                 pos_w = pos_w.view(self._num_envs, count, 3)
                 ori_w = ori_w.view(self._num_envs, count, 4)
@@ -382,10 +345,11 @@ class MultiMeshRayCaster(RayCaster):
             self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
             mesh_idx += count
 
-        self._data.ray_hits_w[env_ids], _, _, _, mesh_ids = raycast_dynamic_meshes(
-            self._ray_starts_w[env_ids],
-            self._ray_directions_w[env_ids],
-            mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
+        # Use torch views of warp arrays for the torch-based raycast_dynamic_meshes
+        self._data._ray_hits_w_torch[env_ids], _, _, _, mesh_ids = raycast_dynamic_meshes(
+            self._ray_starts_w_torch[env_ids],
+            self._ray_directions_w_torch[env_ids],
+            mesh_ids_wp=self._mesh_ids_wp,
             max_dist=self.cfg.max_distance,
             mesh_positions_w=self._mesh_positions_w[env_ids],
             mesh_orientations_w=self._mesh_orientations_w[env_ids],

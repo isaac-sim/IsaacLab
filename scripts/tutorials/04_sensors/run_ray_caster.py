@@ -35,6 +35,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
+
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -120,7 +121,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Update the ray-caster
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
-            f" {torch.max(ray_caster.data.pos_w).item():.2f}"
+            f" {torch.max(wp.to_torch(ray_caster.data.pos_w)).item():.2f}"
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
