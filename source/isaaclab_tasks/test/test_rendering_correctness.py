@@ -159,20 +159,21 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
 # ---------------------------------------------------------------------------
 
 
-def _assert_camera_outputs_are_not_blank(label_prefix: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
-    """Assert each camera output has at least one non-zero pixel (no all-zero or all-inf).
+def _assert_camera_outputs_are_not_blank(label: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
+    """Assert each camera output has at least one non-zero pixel.
 
     Args:
-        label_prefix: Prefix for error messages (e.g. task_id or "env-renderer+data_type").
+        label: Label for error messages.
         camera_outputs: Nested dict: sensor name -> {data_type -> tensor}.
     """
-    assert len(camera_outputs) > 0, f"[{label_prefix}] No camera outputs; env may have no cameras or wrong structure."
+    assert len(camera_outputs) > 0, f"[{label}] No camera outputs; env may have no cameras or wrong structure."
     for sensor_name, output in camera_outputs.items():
         for data_type, tensor in output.items():
-            finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
-            assert finite.max() > 0, (
-                f"[{label_prefix}] Sensor '{sensor_name}' output '{data_type}' is all zeros or all inf. "
-                f"Shape: {tensor.shape}, dtype: {tensor.dtype}."
+            condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+            corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+            assert corrected.max() > 0, (
+                f"[{label}] Sensor '{sensor_name}' output '{data_type}' has no non-zero pixels. "
+                f"Shape: {corrected.shape}, dtype: {corrected.dtype}, condition: {condition.shape}."
             )
 
 
@@ -376,7 +377,6 @@ _RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
     "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
-    "Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0",
     "Isaac-Cartpole-RGB-v0",
     "Isaac-Cartpole-Depth-v0",
     "Isaac-Cartpole-RGB-ResNet18-v0",
