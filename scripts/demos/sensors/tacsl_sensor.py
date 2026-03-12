@@ -69,6 +69,8 @@ parser.add_argument(
 
 # Append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer="kit")
 # Parse the arguments
 args_cli = parser.parse_args()
 
