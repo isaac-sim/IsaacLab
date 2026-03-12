@@ -24,9 +24,11 @@ INSTALL_REQUIRES = [
     "ipywidgets==8.1.5",
     # data collection
     "h5py",
-    # humanoid support
-    "nvidia-srl-usd-to-urdf",
 ]
+
+# nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels
+if platform.machine() != "aarch64":
+    INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
 
 # Extra dependencies for IL agents
 EXTRAS_REQUIRE = {"robomimic": []}
