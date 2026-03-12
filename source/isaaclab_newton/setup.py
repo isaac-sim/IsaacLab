@@ -15,16 +15,18 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-# Minimum dependencies required prior to installation
-INSTALL_REQUIRES = [
-    # generic
-    "prettytable==3.3.0",
-    # newton
-    "mujoco==3.5.0",
-    "mujoco-warp==3.5.0.2",
-    "newton==1.0.0",
-    "PyOpenGL-accelerate==3.1.10",
-]
+# keep it empty here so only Cfg stubs can be installed
+INSTALL_REQUIRES = []
+
+EXTRAS_REQUIRE = {
+    "all": [
+        "prettytable==3.3.0",
+        "mujoco==3.5.0",
+        "mujoco-warp==3.5.0.2",
+        "PyOpenGL-accelerate==3.1.10",
+        "newton==1.0.0",
+    ],
+}
 
 # Installation operation
 setup(
