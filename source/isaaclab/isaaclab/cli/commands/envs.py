@@ -582,11 +582,51 @@ def command_setup_conda(env_name: str) -> None:
         print("\n")
 
 
+def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
+    """Validate that a virtual environment's Python matches the required version.
+
+    Args:
+        env_path: Root path of the virtual environment.
+        required_ver: Required Python minor version string (e.g. "3.12").
+
+    Raises:
+        SystemExit: If the Python version does not match.
+    """
+    if is_windows():
+        python_exe = env_path / "Scripts" / "python.exe"
+    else:
+        python_exe = env_path / "bin" / "python"
+
+    if not python_exe.exists():
+        return
+
+    result = run_command(
+        [str(python_exe), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        actual_ver = result.stdout.strip()
+        if actual_ver != required_ver:
+            print_error(
+                f"Virtual environment Python is {actual_ver}, but Isaac Sim requires {required_ver}."
+            )
+            print_error(
+                "Please recreate the environment with the correct Python version, e.g.:\n"
+                f"\tuv venv --python {required_ver} {env_path}"
+            )
+            sys.exit(1)
+
+
 def command_setup_uv(env_name: str) -> None:
     """setup uv environment for Isaac Lab
 
     Args:
         env_name: Name for the uv environment directory to create or reuse.
+            If a virtual environment is already active (VIRTUAL_ENV is set),
+            the active environment is configured for Isaac Lab instead of
+            creating a new one.
     """
     # Check if uv is installed.
     if not shutil.which("uv"):
@@ -594,9 +634,6 @@ def command_setup_uv(env_name: str) -> None:
         print_error("uv can be installed here:")
         print_error("https://docs.astral.sh/uv/getting-started/installation/")
         sys.exit(1)
-
-    # Check if already in a uv environment - use precise pattern matching.
-    # (In Python we check environments differently or assume env_name is new).
 
     # Check if _isaac_sim symlink exists and isaacsim is not importable.
     if not (ISAACLAB_ROOT / "_isaac_sim").is_symlink():
@@ -617,10 +654,29 @@ def command_setup_uv(env_name: str) -> None:
         except Exception:
             pass
 
-    env_path = ISAACLAB_ROOT / env_name
-
     # Determine appropriate python version based on Isaac Sim version.
     py_ver = determine_python_version()
+
+    # If a virtual environment is already active, configure it for Isaac Lab
+    # instead of creating a new one.
+    active_venv = os.environ.get("VIRTUAL_ENV")
+    if active_venv:
+        env_path = Path(active_venv)
+        print_info(f"Detected active virtual environment: {env_path}")
+
+        # Validate Python version.
+        _check_venv_python_version(env_path, py_ver)
+
+        # Inject Isaac Lab hooks into the existing environment.
+        _write_uv_env_hooks(env_path)
+
+        print_info("Added Isaac Lab environment hooks to the active virtual environment.")
+        print_info("Deactivate and reactivate the environment for hooks to take effect:\n")
+        print("\t\tdeactivate && source " + str(env_path / "bin" / "activate"))
+        print("\n")
+        return
+
+    env_path = ISAACLAB_ROOT / env_name
 
     # Check if the environment exists.
     if not env_path.exists():
@@ -628,6 +684,8 @@ def command_setup_uv(env_name: str) -> None:
         run_command(["uv", "venv", "--clear", "--seed", "--python", py_ver, str(env_path)])
     else:
         print_info(f"uv environment '{env_name}' already exists.")
+        # Validate Python version of existing environment.
+        _check_venv_python_version(env_path, py_ver)
 
     # Setup Isaac Lab and Isaac Sim environment variables through uv activation hooks.
     _write_uv_env_hooks(env_path)
