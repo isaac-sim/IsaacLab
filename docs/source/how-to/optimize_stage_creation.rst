@@ -22,6 +22,7 @@ Usage Examples
 --------------
 
 Fabric cloning can be toggled by setting the :attr:`isaaclab.scene.InteractiveSceneCfg.clone_in_fabric` flag.
+For a full guide on the template-based cloning system, see :doc:`cloning`.
 
 **Using Fabric Cloning with a RL environment**
 
