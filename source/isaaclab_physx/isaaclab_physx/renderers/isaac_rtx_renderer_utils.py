@@ -49,11 +49,15 @@ def _ensure_streaming_subscription() -> None:
     if _streaming_subscribed:
         return
 
+    # Do not retry if the dispatcher is unavailable on the first attempt.
     _streaming_subscribed = True
 
     from carb.eventdispatcher import get_eventdispatcher
+
     dispatcher = get_eventdispatcher()
-    if dispatcher is not None:
+    if dispatcher is None:
+        logger.warning("carb event dispatcher unavailable – RTX streaming wait will be inactive.")
+    else:
         _streaming_subscription = dispatcher.observe_event(
             observer_name="isaaclab_rtx_streaming_wait",
             event_name=_RTX_STREAMING_STATUS_EVENT,
@@ -103,7 +107,7 @@ def ensure_isaac_rtx_render_update() -> None:
         * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
         * Rendering is not active.
     """
-    global _last_render_update_key
+    global _last_render_update_key, _streaming_is_busy, _streaming_subscribed, _streaming_subscription
 
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
@@ -112,6 +116,12 @@ def ensure_isaac_rtx_render_update() -> None:
     key = (id(sim), sim._physics_step_count)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
+
+    # Reset stale streaming state when a new SimulationContext is detected.
+    if key[0] != _last_render_update_key[0]:
+        _streaming_is_busy = False
+        _streaming_subscribed = False
+        _streaming_subscription = None
 
     # If a visualizer already pumps the Kit app loop, mark as done and skip.
     if any(viz.pumps_app_update() for viz in sim.visualizers):
