@@ -454,6 +454,12 @@ def command_install(install_type: str = "all") -> None:
                 if name == "newton" and "isaaclab_visualizers" not in isaaclab_submodules:
                     isaaclab_submodules.append("isaaclab_visualizers")
                     submodule_extras["isaaclab_visualizers"] = "[newton]"
+                # newton and physx are tightly coupled; always install both together.
+                # todo: remove once we move to UV and pyproject.toml-based packaging
+                if name == "newton" and "isaaclab_physx" not in isaaclab_submodules:
+                    isaaclab_submodules.append("isaaclab_physx")
+                if name == "physx" and "isaaclab_newton" not in isaaclab_submodules:
+                    isaaclab_submodules.append("isaaclab_newton")
             else:
                 valid = sorted(VALID_ISAACLAB_SUBMODULES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
                 print_warning(f"Unknown Isaac Lab submodule '{name}'. Valid values: {', '.join(valid)}. Skipping.")
