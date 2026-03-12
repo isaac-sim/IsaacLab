@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import warnings
 from collections.abc import Sequence
@@ -32,8 +31,7 @@ from .rigid_object_collection_data import RigidObjectCollectionData
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 
-# import logger
-logger = logging.getLogger(__name__)
+
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):
@@ -1119,11 +1117,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             combined_pattern,
             verbose=False,
         )
-
-        # log information about the rigid body
-        logger.info(f"Number of instances: {self.num_instances}")
-        logger.info(f"Number of distinct bodies: {self.num_bodies}")
-        logger.info(f"Body names: {self.body_names}")
 
         # container for data access
         self._data = RigidObjectCollectionData(self._root_view, self.num_bodies, self.device)

@@ -3189,14 +3189,6 @@ class Articulation(BaseArticulation):
         # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
         SimulationManager.get_physics_sim_view().append(self._root_view)
 
-        # log information about the articulation
-        logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        logger.info(f"Is fixed root: {self.is_fixed_base}")
-        logger.info(f"Number of bodies: {self.num_bodies}")
-        logger.info(f"Body names: {self.body_names}")
-        logger.info(f"Number of joints: {self.num_joints}")
-        logger.info(f"Joint names: {self.joint_names}")
-        logger.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
@@ -3218,8 +3210,6 @@ class Articulation(BaseArticulation):
         self._validate_cfg()
         # update the robot data
         self.update(0.0)
-        # log joint information
-        self._log_articulation_info()
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
 
@@ -3367,12 +3357,6 @@ class Articulation(BaseArticulation):
                 effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
                 velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
             )
-            # log information on actuator groups
-            model_type = "implicit" if actuator.is_implicit_model else "explicit"
-            logger.info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
-                f" (type: {model_type}) and joint names: {joint_names} [{joint_ids}]."
-            )
             # store actuator group
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
@@ -3476,7 +3460,7 @@ class Articulation(BaseArticulation):
                         fmt = [f"{v:.2e}" if isinstance(v, float) else str(v) for v in resolution_detail]
                         t.add_row([actuator_group_str, property_str, *fmt])
                         group_count += 1
-            logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+            print(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
@@ -3603,86 +3587,6 @@ class Articulation(BaseArticulation):
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
-
-    def _log_articulation_info(self):
-        """Log information about the articulation.
-
-        .. note:: We purposefully read the values from the simulator to ensure that the values are configured as
-            expected.
-        """
-
-        # define custom formatters for large numbers and limit ranges
-        def format_large_number(_, v: float) -> str:
-            """Format large numbers using scientific notation."""
-            if abs(v) >= 1e3:
-                return f"{v:.1e}"
-            else:
-                return f"{v:.3f}"
-
-        def format_limits(_, v: tuple[float, float]) -> str:
-            """Format limit ranges using scientific notation."""
-            if abs(v[0]) >= 1e3 or abs(v[1]) >= 1e3:
-                return f"[{v[0]:.1e}, {v[1]:.1e}]"
-            else:
-                return f"[{v[0]:.3f}, {v[1]:.3f}]"
-
-        # read out all joint parameters from simulation
-        # -- gains
-        # Use data properties which have already been cloned and stored during initialization
-        # This avoids issues with indexedarray or empty arrays from root_view
-        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
-        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
-        # -- properties
-        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
-        # For friction, use the individual components from data
-        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
-        static_frictions = friction_coeff.tolist()
-        # -- limits
-        # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
-        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
-        position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
-        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
-        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
-        # create table for term information
-        joint_table = PrettyTable()
-        joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
-        # build field names based on Isaac Sim version
-        field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
-        field_names.extend(["Static Friction"])
-        field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
-        joint_table.field_names = field_names
-
-        # apply custom formatters to numeric columns
-        joint_table.custom_format["Stiffness"] = format_large_number
-        joint_table.custom_format["Damping"] = format_large_number
-        joint_table.custom_format["Armature"] = format_large_number
-        joint_table.custom_format["Static Friction"] = format_large_number
-        joint_table.custom_format["Position Limits"] = format_limits
-        joint_table.custom_format["Velocity Limits"] = format_large_number
-        joint_table.custom_format["Effort Limits"] = format_large_number
-
-        # set alignment of table columns
-        joint_table.align["Name"] = "l"
-        # add info on each term
-        for index, name in enumerate(self.joint_names):
-            # build row data based on Isaac Sim version
-            row_data = [index, name, stiffnesses[index], dampings[index], armatures[index]]
-            if has_kit() and get_isaac_sim_version().major < 5:
-                row_data.append(static_frictions[index])
-            else:
-                row_data.extend([static_frictions[index]])
-            row_data.extend([position_limits[index], velocity_limits[index], effort_limits[index]])
-            # add row to table
-            joint_table.add_row(row_data)
-        # convert table to string
-        logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
-
-        # read out all fixed tendon parameters from simulation
-        if self.num_fixed_tendons > 0:
-            raise NotImplementedError("Fixed tendons are not supported yet.")
-
-        if self.num_spatial_tendons > 0:
-            raise NotImplementedError("Spatial tendons are not supported yet.")
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.

@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import logging
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -32,8 +31,7 @@ from .rigid_object_data import RigidObjectData
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
-# import logger
-logger = logging.getLogger(__name__)
+
 
 
 class RigidObject(BaseRigidObject):
@@ -1040,12 +1038,6 @@ class RigidObject(BaseRigidObject):
             root_prim_path_expr.replace(".*", "*"),
             verbose=False,
         )
-
-        # log information about the rigid body
-        logger.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        logger.info(f"Number of instances: {self.num_instances}")
-        logger.info(f"Number of bodies: {self.num_bodies}")
-        logger.info(f"Body names: {self.body_names}")
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device)

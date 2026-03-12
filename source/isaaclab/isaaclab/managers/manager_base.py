@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import copy
 import inspect
-import logging
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -23,8 +22,7 @@ from .scene_entity_cfg import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-# import logger
-logger = logging.getLogger(__name__)
+
 
 
 class ManagerTermBase(ABC):
@@ -402,7 +400,6 @@ class ManagerBase(ABC):
         if isinstance(term_cfg.func, str):
             term_cfg.func = string_to_callable(term_cfg.func)
         if inspect.isclass(term_cfg.func):
-            logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
     def _resolve_param_value(self, term_name: str, key: str | int, value: Any):
@@ -412,12 +409,6 @@ class ManagerBase(ABC):
                 value.resolve(self._env.scene)
             except ValueError as e:
                 raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
-            msg = f"[{key}:{term_name}] Found entity '{value.name}'."
-            if value.joint_ids is not None:
-                msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
-            if value.body_ids is not None:
-                msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
-            logger.info(msg)
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
         elif isinstance(value, dict):
