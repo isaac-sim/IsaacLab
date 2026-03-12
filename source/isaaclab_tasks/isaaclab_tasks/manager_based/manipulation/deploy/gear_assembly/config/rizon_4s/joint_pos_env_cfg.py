@@ -303,8 +303,8 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     max_linear_velocity=1000.0,
                     max_angular_velocity=3666.0,
                     enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=8,
-                    solver_velocity_iteration_count=2,
+                    solver_position_iteration_count=4,
+                    solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -331,10 +331,10 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # Grav gripper actuator configuration for gear manipulation
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=50.0,
+            effort_limit_sim=2.0,
             velocity_limit_sim=1.0,
             stiffness=2e3,
-            damping=1e2,
+            damping=1e1,
             friction=0.0,
             armature=0.0,
         )
