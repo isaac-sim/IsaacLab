@@ -461,8 +461,8 @@
   },
   {
     "package": "typing_extensions",
-    "license": "PSF-2.0",
-    "comment": "PSF-2.0 / OSRB"
+    "license": "Python Software Foundation License",
+    "comment": "PSFL / OSRB"
   },
   {
     "package": "standard-distutils",
