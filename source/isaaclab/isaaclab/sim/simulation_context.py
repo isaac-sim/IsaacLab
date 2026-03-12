@@ -620,6 +620,7 @@ class SimulationContext:
         every physics step). Camera sensors drive their configured renderer when
         fetching data, so this method remains backend-agnostic.
         """
+        self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt())
 
         # Call render callbacks
