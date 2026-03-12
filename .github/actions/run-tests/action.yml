@@ -128,8 +128,11 @@ runs:
           fi
 
           if [ -n "$include_files" ]; then
-            docker_env_vars="$docker_env_vars -e TEST_INCLUDE_FILES=$include_files"
-            echo "Setting TEST_INCLUDE_FILES=$include_files"
+            # Strip spaces so the value is safe to embed in an unquoted docker_env_vars string.
+            # conftest.py splits on commas and strips whitespace, so compact form works fine.
+            include_files_compact="${include_files// /}"
+            docker_env_vars="$docker_env_vars -e TEST_INCLUDE_FILES=$include_files_compact"
+            echo "Setting TEST_INCLUDE_FILES=$include_files_compact"
           fi
 
           if [ -n "$filter_pattern" ]; then
