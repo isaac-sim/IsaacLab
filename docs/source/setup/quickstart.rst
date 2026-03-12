@@ -3,7 +3,7 @@
 Quick Installation
 =======================
 
-``./isaaclab.sh -i`` installs everything needed to run Newton tasks out of the box.
+``./isaaclab.sh -i`` installs everything needed to run with Newton Physics out of the box.
 
 .. code-block:: bash
 
