@@ -729,20 +729,19 @@ class XformPrimView:
 
         count = indices_wp.shape[0]
 
-        # Convert torch to warp (if provided), use dummy arrays for None to avoid Warp kernel issues.
-        # Arrays must be on _fabric_device since the kernel launches on that device.
+        # Convert torch to warp (if provided), use dummy arrays for None to avoid Warp kernel issues
         if positions is not None:
-            positions_wp = wp.from_torch(positions.to(self._fabric_device))
+            positions_wp = wp.from_torch(positions)
         else:
-            positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._fabric_device)
+            positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
         if orientations is not None:
-            orientations_wp = wp.from_torch(orientations.to(self._fabric_device))
+            orientations_wp = wp.from_torch(orientations)
         else:
-            orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._fabric_device)
+            orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
 
         # Dummy array for scales (not modifying)
-        scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._fabric_device)
+        scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
         # Use cached fabricarray for world matrices
         world_matrices = self._fabric_world_matrices
@@ -808,12 +807,12 @@ class XformPrimView:
 
         count = indices_wp.shape[0]
 
-        # Convert torch to warp. Arrays must be on _fabric_device for the kernel launch.
-        scales_wp = wp.from_torch(scales.to(self._fabric_device))
+        # Convert torch to warp
+        scales_wp = wp.from_torch(scales)
 
         # Dummy arrays for positions and orientations (not modifying)
-        positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._fabric_device)
-        orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._fabric_device)
+        positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
+        orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
 
         # Use cached fabricarray for world matrices
         world_matrices = self._fabric_world_matrices
@@ -870,9 +869,9 @@ class XformPrimView:
             orientations_wp = self._fabric_orientations_buffer
             scales_wp = self._fabric_dummy_buffer
         else:
-            # Partial read: Need to allocate buffers of appropriate size on _fabric_device
-            positions_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._fabric_device)
-            orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._fabric_device)
+            # Partial read: Need to allocate buffers of appropriate size
+            positions_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
+            orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
             scales_wp = self._fabric_dummy_buffer  # Always use dummy for scales
 
         # Use cached fabricarray for world matrices
@@ -895,24 +894,16 @@ class XformPrimView:
             device=self._fabric_device,
         )
 
-        # Return tensors: zero-copy for cached buffers, conversion for partial reads.
-        # Copy to self._device when fabric_device differs (multi-GPU setups).
+        # Return tensors: zero-copy for cached buffers, conversion for partial reads
         if use_cached_buffers:
-            # The Warp kernel wrote directly into the PyTorch tensors; synchronize first.
+            # Zero-copy! The Warp kernel wrote directly into the PyTorch tensors
+            # We just need to synchronize to ensure the kernel is done
             wp.synchronize()
-            if self._fabric_device != self._device:
-                return (
-                    self._fabric_positions_torch.to(self._device),
-                    self._fabric_orientations_torch.to(self._device),
-                )
             return self._fabric_positions_torch, self._fabric_orientations_torch
         else:
             # Partial read: Need to convert from Warp to torch
             positions = wp.to_torch(positions_wp)
             orientations = wp.to_torch(orientations_wp)
-            if self._fabric_device != self._device:
-                positions = positions.to(self._device)
-                orientations = orientations.to(self._device)
             return positions, orientations
 
     def _get_local_poses_fabric(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
@@ -949,8 +940,8 @@ class XformPrimView:
             # Full read: Use cached buffers (zero allocation overhead!)
             scales_wp = self._fabric_scales_buffer
         else:
-            # Partial read: Need to allocate buffer of appropriate size on _fabric_device
-            scales_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._fabric_device)
+            # Partial read: Need to allocate buffer of appropriate size
+            scales_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
 
         # Always use dummy buffers for positions and orientations (not needed for scales)
         positions_wp = self._fabric_dummy_buffer
@@ -975,20 +966,14 @@ class XformPrimView:
             device=self._fabric_device,
         )
 
-        # Return tensor: zero-copy for cached buffers, conversion for partial reads.
-        # Copy to self._device when fabric_device differs (multi-GPU setups).
+        # Return tensor: zero-copy for cached buffers, conversion for partial reads
         if use_cached_buffers:
-            # The Warp kernel wrote directly into the PyTorch tensor; synchronize first.
+            # Zero-copy! The Warp kernel wrote directly into the PyTorch tensor
             wp.synchronize()
-            if self._fabric_device != self._device:
-                return self._fabric_scales_torch.to(self._device)
             return self._fabric_scales_torch
         else:
             # Partial read: Need to convert from Warp to torch
-            result = wp.to_torch(scales_wp)
-            if self._fabric_device != self._device:
-                result = result.to(self._device)
-            return result
+            return wp.to_torch(scales_wp)
 
     """
     Internal Functions - Initialization.
@@ -1041,41 +1026,40 @@ class XformPrimView:
         )
         self._fabric_hierarchy.update_world_xforms()
 
-        # Step 2: Determine fabric device before creating any Warp arrays.
-        # SelectPrims and Warp fabric arrays only support cuda:0. All kernel launches
-        # use fabric_device so every Warp array passed to those kernels must also be on
-        # fabric_device. (The __init__ guard already disables _use_fabric for non-cuda:0
-        # devices, so fabric_device == self._device in practice.)
-        fabric_device = self._device
-        if self._device == "cuda":
-            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
-            fabric_device = "cuda:0"
-        elif self._device.startswith("cuda:"):
-            if self._device != "cuda:0":
-                logger.debug(
-                    f"SelectPrims only supports cuda:0. Using cuda:0 for SelectPrims "
-                    f"even though simulation device is {self._device}."
-                )
-            fabric_device = "cuda:0"
-
-        # Step 3: Create index arrays for batch operations.
-        # These must be on fabric_device since they are passed to kernels launched on fabric_device.
-        self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32).to(fabric_device)
+        # Step 2: Create index arrays for batch operations
+        self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32).to(self._device)
         wp.launch(
             kernel=fabric_utils.arange_k,
             dim=self.count,
             inputs=[self._default_view_indices],
-            device=fabric_device,
+            device=self._device,
         )
         wp.synchronize()  # Ensure indices are ready
 
-        # Step 4: Create Fabric selection with attribute filtering.
+        # Step 3: Create Fabric selection with attribute filtering
         # SelectPrims expects device format like "cuda:0" not "cuda"
         #
         # KNOWN ISSUE: SelectPrims may return prims in a different order than self._prims
         # (which comes from USD's find_matching_prims). We create a bidirectional mapping
         # (_view_to_fabric and _fabric_to_view) to handle this ordering difference.
         # This works correctly for full-view operations but partial indexing still has issues.
+        #
+        # NOTE: SelectPrims only supports "cuda:0" regardless of which GPU the simulation
+        # is running on. In multi-GPU setups, we must use "cuda:0" for SelectPrims even if
+        # the simulation device is "cuda:1" or higher.
+        fabric_device = self._device
+        if self._device == "cuda":
+            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
+            fabric_device = "cuda:0"
+        elif self._device.startswith("cuda:"):
+            # SelectPrims only supports cuda:0, so we always use cuda:0 for SelectPrims
+            # even if the simulation is running on a different GPU
+            if self._device != "cuda:0":
+                logger.debug(
+                    f"SelectPrims only supports cuda:0. Using cuda:0 for SelectPrims "
+                    f"even though simulation device is {self._device}."
+                )
+            fabric_device = "cuda:0"
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
@@ -1100,13 +1084,10 @@ class XformPrimView:
         # Synchronize to ensure mapping is ready before any operations
         wp.synchronize()
 
-        # Pre-allocate reusable output buffers for read operations.
-        # These must be on fabric_device because they are used as outputs in Warp kernel
-        # launches on fabric_device. Results are copied to self._device before being returned
-        # to callers when fabric_device differs from self._device.
-        self._fabric_positions_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=fabric_device)
-        self._fabric_orientations_torch = torch.zeros((self.count, 4), dtype=torch.float32, device=fabric_device)
-        self._fabric_scales_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=fabric_device)
+        # Pre-allocate reusable output buffers for read operations
+        self._fabric_positions_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
+        self._fabric_orientations_torch = torch.zeros((self.count, 4), dtype=torch.float32, device=self._device)
+        self._fabric_scales_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
 
         # Create Warp views of the PyTorch tensors
         self._fabric_positions_buffer = wp.from_torch(self._fabric_positions_torch, dtype=wp.float32)
@@ -1114,7 +1095,7 @@ class XformPrimView:
         self._fabric_scales_buffer = wp.from_torch(self._fabric_scales_torch, dtype=wp.float32)
 
         # Dummy array for unused outputs (always empty)
-        self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32).to(fabric_device)
+        self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
         # Cache fabricarray for world matrices to avoid recreation overhead
         # Refs: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usdrt_prim_selection.html
@@ -1157,4 +1138,4 @@ class XformPrimView:
                 raise RuntimeError("Fabric indices are not initialized.")
             return self._default_view_indices
         indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-        return wp.array(indices_list, dtype=wp.uint32).to(self._fabric_device)
+        return wp.array(indices_list, dtype=wp.uint32).to(self._device)
