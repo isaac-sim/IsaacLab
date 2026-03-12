@@ -102,6 +102,7 @@ Table of Contents
    source/setup/quickstart
    source/setup/installation_guide
    source/setup/configurations
+   source/setup/robots
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index

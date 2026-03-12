@@ -1,7 +1,7 @@
 .. _isaac-lab-installation-guide:
 
 Additional Installation Paths
-=======================
+============================
 
 
 Isaac Sim (Kit/RTX rendering)

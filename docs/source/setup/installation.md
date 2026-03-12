@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Isaac Lab Installation Guide
 
 ## Quick Start
