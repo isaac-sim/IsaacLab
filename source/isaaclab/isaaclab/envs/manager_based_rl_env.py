@@ -21,7 +21,6 @@ from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from .utils.video_recorder import VideoRecorder
-from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -78,6 +77,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
+        # Forward render_mode to VideoRecorderCfg before super().__init__() creates VideoRecorder,
+        # so fallback cameras are only spawned when --video is active (render_mode="rgb_array").
+        if cfg.video_recorder is not None:
+            cfg.video_recorder.render_mode = render_mode
+
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
@@ -88,14 +92,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-
-        # instantiate the viewport recorder for rgb_array video capture
-        if self.cfg.video_recorder is not None:
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
-                self.cfg.video_recorder, self.scene
-            )
-        else:
-            self.video_recorder = None
 
         print("[INFO]: Completed setting up the environment...")
 

@@ -175,6 +175,18 @@ class DirectRLEnv(gym.Env):
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
+        # Instantiate the video recorder before sim.reset() so that any fallback TiledCamera
+        # (used for state-based envs without an observation camera) is spawned into the USD
+        # stage and registered for the PHYSICS_READY callback before physics initialises.
+        # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
+        if self.cfg.video_recorder is not None:
+            self.cfg.video_recorder.render_mode = render_mode
+            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
+                self.cfg.video_recorder, self.scene
+            )
+        else:
+            self.video_recorder = None
+
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
@@ -230,14 +242,6 @@ class DirectRLEnv(gym.Env):
             self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
                 self.cfg.observation_noise_model, num_envs=self.num_envs, device=self.device
             )
-
-        # instantiate the viewport recorder for rgb_array video capture
-        if self.cfg.video_recorder is not None:
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
-                self.cfg.video_recorder, self.scene
-            )
-        else:
-            self.video_recorder = None
 
         # perform events at the start of the simulation
         if self.cfg.events:
