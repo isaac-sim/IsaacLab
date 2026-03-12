@@ -1,0 +1,3 @@
+# Build constraints to ensure flatdict can be built
+# pkg_resources was removed in setuptools 82.0.0
+setuptools < 82.0.0
