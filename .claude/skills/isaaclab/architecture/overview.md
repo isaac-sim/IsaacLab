@@ -1,6 +1,6 @@
 # Isaac Lab Architecture
 
-## Stack: OpenUSD -> Omniverse -> Isaac Sim -> Isaac Lab
+## Stack: OpenUSD -> PhysicsBackend -> Isaac Lab
 
 - **Isaac Sim**: Physics (PhysX/Newton), RTX rendering, asset management
 - **Isaac Lab**: RL environment framework on top of Isaac Sim
