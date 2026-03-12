@@ -406,6 +406,15 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
 
+        # Populate reward term parameters for EE-gear keypoint tracking
+        self.rewards.ee_gear_keypoint_tracking.params["end_effector_body_name"] = self.end_effector_body_name
+        self.rewards.ee_gear_keypoint_tracking.params["grasp_rot_offset"] = self.grasp_rot_offset
+        self.rewards.ee_gear_keypoint_tracking.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+
+        self.rewards.ee_gear_keypoint_tracking_exp.params["end_effector_body_name"] = self.end_effector_body_name
+        self.rewards.ee_gear_keypoint_tracking_exp.params["grasp_rot_offset"] = self.grasp_rot_offset
+        self.rewards.ee_gear_keypoint_tracking_exp.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+
         # Populate termination term parameters
         self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
         self.terminations.gear_dropped.params["end_effector_body_name"] = self.end_effector_body_name

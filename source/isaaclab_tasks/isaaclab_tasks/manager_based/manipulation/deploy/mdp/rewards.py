@@ -12,9 +12,10 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils.math import combine_frame_transforms
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_mul
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
 
@@ -392,6 +393,256 @@ class keypoint_entity_error_exp(ManagerTermBase):
             for coeff in kp_exp_coeffs:
                 a, b = coeff
                 keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
+
+        return keypoint_reward_exp
+
+
+class keypoint_ee_gear_error(ManagerTermBase):
+    """Compute keypoint distance between the robot end effector and the gear's grasp-corrected pose.
+
+    Transforms the gear's actual world pose into the expected EE position/orientation
+    using grasp offsets, so that the distance is ~0 when properly holding the gear
+    and increases when the gripper drifts away.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
+
+        self.end_effector_body_name: str = cfg.params["end_effector_body_name"]
+        grasp_rot_offset = cfg.params["grasp_rot_offset"]
+        self.grasp_rot_offset_tensor = (
+            torch.tensor(grasp_rot_offset, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
+        )
+
+        gear_offsets_grasp = cfg.params["gear_offsets_grasp"]
+        self.gear_grasp_offsets_stacked = torch.stack(
+            [
+                torch.tensor(gear_offsets_grasp["gear_small"], device=env.device, dtype=torch.float32),
+                torch.tensor(gear_offsets_grasp["gear_medium"], device=env.device, dtype=torch.float32),
+                torch.tensor(gear_offsets_grasp["gear_large"], device=env.device, dtype=torch.float32),
+            ],
+            dim=0,
+        )
+
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
+        self.gear_assets = {
+            "gear_small": env.scene["factory_gear_small"],
+            "gear_medium": env.scene["factory_gear_medium"],
+            "gear_large": env.scene["factory_gear_large"],
+        }
+
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
+
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+        self._step_count = 0
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        end_effector_body_name: str = "",
+        grasp_rot_offset: list | None = None,
+        gear_offsets_grasp: dict | None = None,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        if self.eef_idx is None:
+            return torch.zeros(env.num_envs, device=env.device)
+
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+
+        eef_pos = wp.to_torch(self.robot_asset.data.body_link_pos_w)[:, self.eef_idx]
+        eef_quat = wp.to_torch(self.robot_asset.data.body_link_quat_w)[:, self.eef_idx]
+
+        all_gear_pos = torch.stack(
+            [
+                wp.to_torch(self.gear_assets["gear_small"].data.root_link_pos_w),
+                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_pos_w),
+                wp.to_torch(self.gear_assets["gear_large"].data.root_link_pos_w),
+            ],
+            dim=1,
+        )
+        all_gear_quat = torch.stack(
+            [
+                wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w),
+                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w),
+                wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w),
+            ],
+            dim=1,
+        )
+
+        gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
+        gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
+
+        gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
+        grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
+        gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
+
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=eef_pos,
+            current_quat=eef_quat,
+            target_pos=gear_grasp_pos,
+            target_quat=gear_quat_grasp,
+            keypoint_scale=keypoint_scale,
+        )
+
+        mean_kp_error = keypoint_dist_sep.mean(-1)
+        mean_error_scalar = mean_kp_error.mean().item()
+
+        if not hasattr(env, "extras"):
+            env.extras = {}
+        if "log" not in env.extras:
+            env.extras["log"] = {}
+        env.extras["log"]["ee_gear_kp_error/mean_keypoint_dist"] = mean_error_scalar
+
+        self._step_count += 1
+        import carb
+
+        carb.log_info(
+            f"[ee_gear_kp_error] step={self._step_count}"
+            f" | mean_kp_error={mean_error_scalar:.5f}"
+            f" | reward(unweighted)={-mean_error_scalar:.5f}"
+        )
+
+        return mean_kp_error
+
+
+class keypoint_ee_gear_error_exp(ManagerTermBase):
+    """Compute exponential keypoint reward between the robot end effector and the gear's grasp-corrected pose.
+
+    Transforms the gear's actual world pose into the expected EE position/orientation
+    using grasp offsets, so that the reward is high (~1) when properly holding the gear
+    and drops sharply when the gripper drifts away.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
+
+        self.end_effector_body_name: str = cfg.params["end_effector_body_name"]
+        grasp_rot_offset = cfg.params["grasp_rot_offset"]
+        self.grasp_rot_offset_tensor = (
+            torch.tensor(grasp_rot_offset, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
+        )
+
+        gear_offsets_grasp = cfg.params["gear_offsets_grasp"]
+        self.gear_grasp_offsets_stacked = torch.stack(
+            [
+                torch.tensor(gear_offsets_grasp["gear_small"], device=env.device, dtype=torch.float32),
+                torch.tensor(gear_offsets_grasp["gear_medium"], device=env.device, dtype=torch.float32),
+                torch.tensor(gear_offsets_grasp["gear_large"], device=env.device, dtype=torch.float32),
+            ],
+            dim=0,
+        )
+
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
+        self.gear_assets = {
+            "gear_small": env.scene["factory_gear_small"],
+            "gear_medium": env.scene["factory_gear_medium"],
+            "gear_large": env.scene["factory_gear_large"],
+        }
+
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
+
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+        self._step_count = 0
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        end_effector_body_name: str = "",
+        grasp_rot_offset: list | None = None,
+        gear_offsets_grasp: dict | None = None,
+        kp_exp_coeffs: list[tuple[float, float]] = [(1.0, 0.1)],
+        kp_use_sum_of_exps: bool = True,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        if self.eef_idx is None:
+            return torch.zeros(env.num_envs, device=env.device)
+
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+
+        eef_pos = wp.to_torch(self.robot_asset.data.body_link_pos_w)[:, self.eef_idx]
+        eef_quat = wp.to_torch(self.robot_asset.data.body_link_quat_w)[:, self.eef_idx]
+
+        all_gear_pos = torch.stack(
+            [
+                wp.to_torch(self.gear_assets["gear_small"].data.root_link_pos_w),
+                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_pos_w),
+                wp.to_torch(self.gear_assets["gear_large"].data.root_link_pos_w),
+            ],
+            dim=1,
+        )
+        all_gear_quat = torch.stack(
+            [
+                wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w),
+                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w),
+                wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w),
+            ],
+            dim=1,
+        )
+
+        gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
+        gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
+
+        gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
+        grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
+        gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
+
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=eef_pos,
+            current_quat=eef_quat,
+            target_pos=gear_grasp_pos,
+            target_quat=gear_quat_grasp,
+            keypoint_scale=keypoint_scale,
+        )
+
+        mean_kp_error = keypoint_dist_sep.mean(-1)
+
+        keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
+        if kp_use_sum_of_exps:
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += (
+                    1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
+                ).mean(-1)
+        else:
+            keypoint_dist = keypoint_dist_sep.mean(-1)
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
+
+        mean_error_scalar = mean_kp_error.mean().item()
+        mean_reward_scalar = keypoint_reward_exp.mean().item()
+
+        if not hasattr(env, "extras"):
+            env.extras = {}
+        if "log" not in env.extras:
+            env.extras["log"] = {}
+        env.extras["log"]["ee_gear_kp_error_exp/mean_keypoint_dist"] = mean_error_scalar
+        env.extras["log"]["ee_gear_kp_error_exp/mean_exp_reward"] = mean_reward_scalar
+
+        self._step_count += 1
+        import carb
+
+        carb.log_info(
+            f"[ee_gear_kp_error_exp] step={self._step_count}"
+            f" | mean_kp_error={mean_error_scalar:.5f}"
+            f" | mean_exp_reward={mean_reward_scalar:.5f}"
+        )
 
         return keypoint_reward_exp
 
