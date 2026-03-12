@@ -2,6 +2,9 @@
 
 ## Quick Start
 
+This is it. `./isaaclab.sh -i` installs everything needed to run Newton tasks
+out of the box.
+
 ```bash
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -22,8 +25,6 @@ source .venv/bin/activate
   presets=newton,newton_renderer,depth
 ```
 
-That's it. `./isaaclab.sh -i` installs everything needed to run Newton tasks
-out of the box.
 
 ---
 
@@ -57,6 +58,27 @@ runtime:
 Kit-less visualizer options: `newton`, `rerun`, `viser`. Multiple can be
 combined: `--visualizer newton,rerun`.
 
+### Available Presets
+
+Presets are combined with commas: `presets=newton,newton_renderer,depth`.
+
+```bash
+presets=newton,newton_renderer,rgb  # presets=physics,renderer,render mode
+presets=newton,newton_renderer,depth
+presets=physx,isaacsim_rtx_renderer,rgb
+presets=physx,isaacsim_rtx_renderer,depth
+presets=physx,isaacsim_rtx_renderer,albedo
+presets=physx,isaacsim_rtx_renderer,simple_shading_constant_diffuse
+presets=physx,isaacsim_rtx_renderer,simple_shading_diffuse_mdl
+presets=physx,isaacsim_rtx_renderer,simple_shading_full_mdl
+presets=newton,ovrtx_renderer,rgb
+presets=newton,ovrtx_renderer,depth
+presets=newton,ovrtx_renderer,albedo
+presets=newton,ovrtx_renderer,simple_shading_constant_diffuse
+presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
+presets=newton,ovrtx_renderer,simple_shading_full_mdl
+```
+
 ---
 
 ## Optional Add-ons
@@ -69,8 +91,7 @@ combined: `--visualizer newton,rerun`.
 
 ### Isaac Sim from source (PhysX + RTX rendering)
 
-If you have a local build of Isaac Sim (omni\_isaac\_sim), symlink it before
-installing:
+If you want to install a source build of Isaac Sim (for PhysX or IsaacSimRTX rendering):
 
 ```bash
 git clone https://github.com/isaac-sim/IsaacSim.git  # clone isaacsim
@@ -93,37 +114,18 @@ OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
 
 ```bash
 ./isaaclab.sh -i ovrtx
-```
 
-Before running, set `LD_PRELOAD`:
+export LD_PRELOAD=$(python -c "import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / 'bin/plugins/libcarb.so')") # Set LD_PRELOAD
 
-```bash
-export LD_PRELOAD=$(python -c "import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / 'bin/plugins/libcarb.so')")
-```
+# Then use `presets=newton,ovrtx_renderer` 
 
-Then use `presets=newton,ovrtx_renderer`:
-
-```bash
 ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
   --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
   --headless --enable_cameras --num_envs 1225 --max_iterations 10 \
   presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
 ```
 
-> **Important:** Do not install `isaacsim` in the same environment as `ovrtx`.
-> Their bundled USD libraries conflict, causing crashes in `libusd_tf`.
 
-### Additional Visualizers
-
-The Newton visualizer is automatically installed with `./isaaclab.sh -i`.
-To add other Kit-less visualizers:
-
-```bash
-uv pip install -e "source/isaaclab_visualizers[rerun]"
-uv pip install -e "source/isaaclab_visualizers[viser]"
-```
-
-Visualizer extras: `newton`, `rerun`, `viser`, `all`.
 
 ---
 
