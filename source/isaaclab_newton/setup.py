@@ -34,7 +34,10 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # keep it empty here so only Cfg stubs can be installed
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = [
+    # equivalent to EXTENSION_PATH/../isaaclab_physx
+    f"isaaclab_physx @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_physx')}",
+]
 
 EXTRAS_REQUIRE = {
     "all": [
