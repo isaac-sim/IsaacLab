@@ -3,7 +3,7 @@
 ## Stack: OpenUSD -> PhysicsBackend -> Isaac Lab
 
 - **Isaac Sim**: Physics (PhysX/Newton), RTX rendering, asset management
-- **Isaac Lab**: RL environment framework on top of Isaac Sim
+- **Isaac Lab**: Robot Learning framework that can be used for RL, IL, data generation and much more
 
 ## Two Environment Patterns
 
