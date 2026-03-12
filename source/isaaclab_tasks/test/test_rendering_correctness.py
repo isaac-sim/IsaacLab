@@ -304,6 +304,7 @@ def test_camera_outputs_are_not_blank_for_cartpole(cartpole_env):
 def dexsuite_kuka_allegro_lift_env(request):
     """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; step once, yield, close."""
     from isaaclab.envs import ManagerBasedRLEnv
+
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
     )
