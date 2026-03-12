@@ -609,9 +609,7 @@ def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
     if result.returncode == 0:
         actual_ver = result.stdout.strip()
         if actual_ver != required_ver:
-            print_error(
-                f"Virtual environment Python is {actual_ver}, but Isaac Sim requires {required_ver}."
-            )
+            print_error(f"Virtual environment Python is {actual_ver}, but Isaac Sim requires {required_ver}.")
             print_error(
                 "Please recreate the environment with the correct Python version, e.g.:\n"
                 f"\tuv venv --python {required_ver} {env_path}"

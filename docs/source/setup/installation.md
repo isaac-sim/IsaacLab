@@ -117,7 +117,7 @@ OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
 
 export LD_PRELOAD=$(python -c "import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / 'bin/plugins/libcarb.so')") # Set LD_PRELOAD
 
-# Then use `presets=newton,ovrtx_renderer` 
+# Then use `presets=newton,ovrtx_renderer`
 
 ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
   --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
