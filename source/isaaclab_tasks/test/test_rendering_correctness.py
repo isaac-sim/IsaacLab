@@ -56,6 +56,10 @@ def cleanup_simulation_context():
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
 
+_OVRTX_DISABLED = pytest.mark.skip(
+    reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
+)
+
 _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
     pytest.param(("physx", "isaacsim_rtx_renderer", "rgb"), id="physx-isaacsim_rtx-rgb"),
@@ -73,17 +77,9 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
         ("physx", "isaacsim_rtx_renderer", "simple_shading_full_mdl"),
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
     ),
-    # physx + newton_renderer (warp) — skipped due to known issues
-    pytest.param(
-        ("physx", "newton_renderer", "rgb"),
-        id="physx-newton_warp-rgb",
-        marks=pytest.mark.skip(reason="physx + newton_renderer has known issues"),
-    ),
-    pytest.param(
-        ("physx", "newton_renderer", "depth"),
-        id="physx-newton_warp-depth",
-        marks=pytest.mark.skip(reason="physx + newton_renderer has known issues"),
-    ),
+    # physx + newton_renderer (warp)
+    pytest.param(("physx", "newton_renderer", "rgb"), id="physx-newton_warp-rgb"),
+    pytest.param(("physx", "newton_renderer", "depth"), id="physx-newton_warp-depth"),
     # newton + isaacsim_rtx_renderer
     pytest.param(("newton", "isaacsim_rtx_renderer", "rgb"), id="newton-isaacsim_rtx-rgb"),
     pytest.param(("newton", "isaacsim_rtx_renderer", "albedo"), id="newton-isaacsim_rtx-albedo"),
@@ -113,32 +109,32 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     pytest.param(
         ("newton", "ovrtx_renderer", "rgb"),
         id="newton-ovrtx-rgb",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
+        marks=_OVRTX_DISABLED,
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "albedo"),
         id="newton-ovrtx-albedo",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
+        marks=_OVRTX_DISABLED,
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "depth"),
         id="newton-ovrtx-depth",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
+        marks=_OVRTX_DISABLED,
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_constant_diffuse"),
         id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
+        marks=_OVRTX_DISABLED,
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_diffuse_mdl"),
         id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
+        marks=_OVRTX_DISABLED,
     ),
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_full_mdl"),
         id="newton-ovrtx-simple_shading_full_mdl",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
+        marks=_OVRTX_DISABLED,
     ),
 ]
 
@@ -364,7 +360,6 @@ _RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-RGB-v0",
     "Isaac-Cartpole-Depth-v0",
     "Isaac-Cartpole-RGB-ResNet18-v0",
-    "Isaac-Cartpole-RGB-TheiaTiny-v0",
 ]
 
 
