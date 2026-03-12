@@ -39,6 +39,8 @@ INSTALL_REQUIRES = [
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
+    # required by omni.replicator.core S3 backend
+    "botocore==1.47.66",
     # livestream
     "starlette==0.49.1",
     "omniverseclient",

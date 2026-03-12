@@ -32,8 +32,10 @@ from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_
 # import logger
 logger = logging.getLogger(__name__)
 
-# Suppress noisy debug-level websocket frame logs from the Kit LiveSync server
+# Suppress noisy debug-level logs from third-party libraries
 logging.getLogger("websockets").setLevel(logging.WARNING)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("h5py").setLevel(logging.WARNING)
 
 
 class ExplicitAction(argparse.Action):
@@ -1036,6 +1038,10 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized.
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
+
+        # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
+        # Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.
+        logging.getLogger().setLevel(logging.WARNING)
         settings = get_settings_manager()
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
