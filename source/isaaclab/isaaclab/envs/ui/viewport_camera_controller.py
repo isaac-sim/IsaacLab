@@ -229,7 +229,15 @@ class ViewportCameraController:
         """Updates the camera view at each rendering step."""
         # update the camera view if the origin is set to asset_root
         # in other cases, the camera view is static and does not need to be updated continuously
-        if self.cfg.origin_type == "asset_root" and self.cfg.asset_name is not None:
-            self.update_view_to_asset_root(self.cfg.asset_name)
-        if self.cfg.origin_type == "asset_body" and self.cfg.asset_name is not None and self.cfg.body_name is not None:
-            self.update_view_to_asset_body(self.cfg.asset_name, self.cfg.body_name)
+        try:
+            if self.cfg.origin_type == "asset_root" and self.cfg.asset_name is not None:
+                self.update_view_to_asset_root(self.cfg.asset_name)
+            if (
+                self.cfg.origin_type == "asset_body"
+                and self.cfg.asset_name is not None
+                and self.cfg.body_name is not None
+            ):
+                self.update_view_to_asset_body(self.cfg.asset_name, self.cfg.body_name)
+        except AttributeError:
+            # asset views may be invalidated during simulation shutdown; silently skip
+            pass
