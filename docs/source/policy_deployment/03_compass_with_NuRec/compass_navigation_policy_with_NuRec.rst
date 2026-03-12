@@ -5,6 +5,29 @@ This tutorial shows you how to train and deploy COMPASS navigation policies usin
 COMPASS (Cross-embodiment Mobility Policy via Residual RL and Skill Synthesis) is a novel framework for cross-embodiment mobility.
 For more details about the project, please visit the `COMPASS Repository`_.
 
+Workflow Overview
+-----------------
+
+The following flowchart provides a high-level overview of the complete workflow:
+
+.. mermaid::
+
+   %%{init: {'theme': 'neutral'}}%%
+   flowchart TD
+       A[Start: Create compass-nurec workspace] --> B[Install Isaac Sim & Isaac Lab\nTerminal 1]
+       B --> C[Install COMPASS Repository\nTerminal 2]
+       C --> D[Test Setup\nplay.py]
+       D --> E[Authenticate with Hugging Face\nhf auth login --token]
+       E --> F1[Download X-Mobility Checkpoint\nhf download nvidia/X-Mobility]
+       E --> F2[Download COMPASS USD Assets\nhf download nvidia/COMPASS]
+       E --> F3[Download NuRec Real2Sim Assets\nhf download nvidia/PhysicalAI-Robotics-NuRec]
+       F2 --> G[Extract & place usd/ folder\ninto mobility_es extension dir]
+       F3 --> H[Place environment files\ne.g. nova_carter-galileo/]
+       F1 & G & H --> I[Train Residual RL Policy\nrun.py + train_config_real2sim.gin]
+       I --> J[Evaluate Trained Policy\nrun.py + eval_config_real2sim.gin]
+       J --> K[Export to ONNX / TensorRT]
+       K --> L[ROS2 Deployment / Sim-to-Real Transfer]
+
 Setup
 -----
 
@@ -354,7 +377,7 @@ Execute the following command from the ``COMPASS`` directory to evaluate the tra
         --video \
         --video_interval 1
         --enable_cameras \
-        --visualizer kit \
+        --visualizer kit
 
 .. note::
 
