@@ -2,5 +2,3 @@
 =======================================
 
 .. automodule:: isaaclab_newton.scene_data_providers
-
-   

@@ -2,5 +2,3 @@
 =======================
 
 .. automodule:: isaaclab_physx.sensors
-
-   
