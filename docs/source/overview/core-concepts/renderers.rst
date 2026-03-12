@@ -109,3 +109,10 @@ Or install manually with pip:
 .. note::
 
    The :class:`~isaaclab.renderers.BaseRenderer` class is under active development and may change without notice.
+
+See Also
+--------
+
+- :doc:`multi_backend_architecture` — the factory pattern used by the renderer system
+- :doc:`scene_data_providers` — how scene data flows from physics backends to renderers
+- :doc:`/source/features/visualization` — lightweight visualizer backends for interactive feedback
