@@ -5,6 +5,7 @@
 
 import os
 import shutil
+import sys
 
 from ..utils import (
     ISAACLAB_ROOT,
@@ -44,6 +45,33 @@ def _install_system_deps() -> None:
             "build-essential",
         ]
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+
+    # On ARM Linux (e.g. DGX Spark), Python dev headers (Python.h) are needed
+    # to build C extensions such as quadprog. They are typically pre-installed
+    # in x86 Docker images but missing on bare-metal ARM systems.
+    if is_arm():
+        python_dev_pkg = f"python{sys.version_info.major}.{sys.version_info.minor}-dev"
+        try:
+            import sysconfig
+
+            if sysconfig.get_path("include") and os.path.isfile(
+                os.path.join(sysconfig.get_path("include"), "Python.h")
+            ):
+                print_info(f"Python dev headers are already installed.")
+            else:
+                raise FileNotFoundError
+        except (FileNotFoundError, AttributeError):
+            print_info(f"Installing {python_dev_pkg} (required for building C extensions on ARM)...")
+            cmd = ["apt-get", "update"]
+            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+            cmd = [
+                "apt-get",
+                "install",
+                "-y",
+                "--no-install-recommends",
+                python_dev_pkg,
+            ]
+            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
 def _ensure_cuda_torch() -> None:
