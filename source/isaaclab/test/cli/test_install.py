@@ -113,19 +113,8 @@ class TestExtractPythonExe:
         env.pop("VIRTUAL_ENV", None)
         env["CONDA_PREFIX"] = str(tmp_path)
         with mock.patch.dict(os.environ, env, clear=True):
-            result = extract_python_exe(allow_isaacsim_python=False)
+            result = extract_python_exe()
             assert Path(result) == conda_python
-
-    def test_falls_back_to_sys_executable(self):
-        """When no VIRTUAL_ENV or CONDA_PREFIX, should use sys.executable."""
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env.pop("CONDA_PREFIX", None)
-        with mock.patch.dict(os.environ, env, clear=True):
-            result = extract_python_exe(allow_isaacsim_python=False)
-            # Should return some valid Python path
-            assert result is not None
-            assert len(result) > 0
 
 
 # ---------------------------------------------------------------------------
