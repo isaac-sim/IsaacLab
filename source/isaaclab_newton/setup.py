@@ -60,7 +60,7 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
-    packages=["isaaclab_newton"],
+    packages=["isaaclab_newton", "isaaclab_newton.physics"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.11",
