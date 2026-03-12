@@ -36,7 +36,7 @@ by ``Isaac-Cartpole-RGB-v0`` and gives a reasonable side view for medium-scale e
 (env spacing ~4 m).
 
 This is the **default** value of :attr:`VideoRecorderCfg.fallback_camera_cfg`.  No action is
-needed in task configs — fallback cameras are automatically available for all state-based
+needed in task configs - fallback cameras are automatically available for all state-based
 environments.  Spawning only occurs when :attr:`VideoRecorderCfg.render_mode` is ``"rgb_array"``
 (i.e. ``--video`` is active), so ordinary training runs incur zero overhead.
 
@@ -76,6 +76,33 @@ class VideoRecorderCfg:
     fallback camera grid.
     """
 
+    video_mode: str = "perspective"
+    """Video recording mode.  One of ``"tiled"`` or ``"perspective"``.
+
+    * ``"perspective"`` *(default)* - captures a single wide-angle isometric view of the
+      scene.
+
+      * **Newton backends** (Newton Warp or OVRTX renderer): a headless
+        :class:`newton.viewer.ViewerGL` renders an isometric perspective of all
+        environments (or the first ``video_num_tiles`` when that field is set).
+      * **Kit backends** (PhysX + RTX renderer): the Kit viewport camera
+        ``/OmniverseKit_Persp`` is captured via ``omni.replicator.core``.
+
+      The TiledCamera sensor is **bypassed** entirely, even when one is present in the
+      scene (e.g. vision-based tasks), giving a human-readable view instead of the
+      agent's raw pixel observations.
+
+    * ``"tiled"`` - reads pixel data from a
+      :class:`~isaaclab.sensors.camera.TiledCamera`.  On vision-based tasks the agent's
+      own observation camera is reused at zero extra cost and the output is a square
+      tile-grid of per-agent views.  On state-based tasks with Kit-based backends a
+      fallback :class:`~isaaclab.sensors.camera.TiledCamera` (``fallback_camera_cfg``) is
+      spawned.  On Newton backends the Newton OpenGL perspective viewer is used instead.
+
+    Set via the ``--video`` CLI flag (``--video=perspective`` / ``--video=tiled``), or
+    as a Hydra override: ``env.video_recorder.video_mode=tiled``.
+    """
+
     video_num_tiles: int = -1
     """Number of environment tiles to include in each video frame when using ``render_mode="rgb_array"``.
     Defaults to -1, which renders all environments.
@@ -96,13 +123,16 @@ class VideoRecorderCfg:
     """Optional :class:`~isaaclab.sensors.camera.TiledCameraCfg` used to spawn a dedicated
     video-only camera for state-based environments (no observation ``TiledCamera`` in the scene).
 
-    Defaults to :data:`DEFAULT_VIDEO_FALLBACK_CAMERA_CFG` — a pinhole camera placed at
+    Defaults to :data:`DEFAULT_VIDEO_FALLBACK_CAMERA_CFG` - a pinhole camera placed at
     ``(-7, 0, 3)`` relative to env_0's origin, giving a reasonable side view for environments
     with ~4 m spacing.  Set to ``None`` to disable fallback cameras entirely (e.g. for
     vision-based tasks that already have an observation :class:`~isaaclab.sensors.camera.TiledCamera`).
 
     Spawning is **gated on** :attr:`render_mode` ``== "rgb_array"`` (i.e. ``--video`` must be
     active), so the default value causes zero overhead during ordinary training runs.
+
+    For Newton-based backends (Newton Warp or OVRTX renderer), the Newton OpenGL perspective
+    viewer is used instead of fallback TiledCameras - see :attr:`gl_viewer_width`.
 
     To customise the pose for a different environment scale, override in the task's ``__post_init__``::
 
@@ -114,4 +144,23 @@ class VideoRecorderCfg:
         The prim path in the cfg must start with ``/World/envs/env_0/`` so that the OVRTX
         renderer path check succeeds and ``TiledCamera`` correctly infers ``num_envs`` from
         the scene.
+    """
+
+    gl_viewer_width: int = 1280
+    """Width in pixels of the Newton OpenGL perspective video frame.
+
+    Only used when the active physics/renderer backend exposes a Newton model
+    (i.e. Newton Warp or OVRTX renderer presets).  In that case :class:`VideoRecorder`
+    spawns a headless :class:`newton.viewer.ViewerGL` instance that renders an isometric
+    perspective view of all environments (limited to :attr:`video_num_tiles` when set),
+    replacing the fallback :class:`~isaaclab.sensors.camera.TiledCamera` grid.
+
+    This perspective path is activated only when ``render_mode == "rgb_array"``
+    (i.e. ``--video`` is active).  Regular training runs are unaffected.
+    """
+
+    gl_viewer_height: int = 720
+    """Height in pixels of the Newton OpenGL perspective video frame.
+
+    See :attr:`gl_viewer_width` for full description.
     """

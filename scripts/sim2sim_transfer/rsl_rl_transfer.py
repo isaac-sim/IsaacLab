@@ -19,7 +19,14 @@ from scripts.reinforcement_learning.rsl_rl import cli_args  # isort: skip
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play an RL agent with RSL-RL with policy transfer.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument(
+    "--video",
+    nargs="?",
+    const="perspective",
+    default=None,
+    metavar="MODE",
+    help="Record videos during transfer. MODE is 'perspective' (default, wide-angle isometric view) or 'tiled' (camera-sensor tile-grid).",
+)
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -170,6 +177,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
+
+    # Forward the video mode ("tiled" / "perspective") to the recorder config before env creation.
+    if args_cli.video and hasattr(env_cfg, "video_recorder") and env_cfg.video_recorder is not None:
+        env_cfg.video_recorder.video_mode = args_cli.video
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)

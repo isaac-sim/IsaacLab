@@ -503,20 +503,34 @@ class DirectRLEnv(gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # Prefer TiledCamera when available — works for all backends (kitless and Kit-based)
-            # and produces consistent, scene-content frames.  Fall back to the omni.replicator
-            # viewer-camera path only when no TiledCamera with RGB output exists in the scene.
+            # Prefer TiledCamera in tiled mode; works for all backends and produces
+            # consistent per-agent frames. In perspective mode the recorder returns None
+            # intentionally (bypassing TiledCamera entirely) so we always reach the
+            # omni.replicator Kit-viewport path below.
             if self.video_recorder is not None:
                 frame = self.video_recorder.render_rgb_array()
                 if frame is not None:
                     return frame
-            if not self.sim.has_gui and not self.sim.has_offscreen_render:
+            # In perspective mode the recorder returns None intentionally so we fall through
+            # to the omni.replicator viewport path below. Skip the has_offscreen_render guard
+            # in that case; the annotator works in non-headless Kit sessions too.
+            _perspective_mode = (
+                self.video_recorder is not None
+                and self.cfg.video_recorder is not None
+                and getattr(self.cfg.video_recorder, "video_mode", "tiled") == "perspective"
+            )
+            if not _perspective_mode and not self.sim.has_gui and not self.sim.has_offscreen_render:
                 raise RuntimeError(
                     "Cannot render 'rgb_array': no TiledCamera sensor with RGB output was found in"
                     " the scene, and neither GUI nor offscreen rendering is available."
                     " Add a TiledCamera sensor to the scene configuration to enable video recording."
                 )
             # Kit-based fallback: use an omni.replicator annotator on the viewer camera.
+            # /OmniverseKit_Persp is NOT an RTX sensor, so the guard above may have skipped
+            # sim.render() when has_rtx_sensors=True (e.g., vision tasks with TiledCamera).
+            # Force a render pass here so the annotator receives non-empty data.
+            if self.has_rtx_sensors:
+                self.sim.render()
             if not hasattr(self, "_rgb_annotator"):
                 import omni.replicator.core as rep
 

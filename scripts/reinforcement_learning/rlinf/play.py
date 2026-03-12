@@ -50,7 +50,14 @@ parser.add_argument(
 parser.add_argument(
     "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides config if set)."
 )
-parser.add_argument("--video", action="store_true", default=False, help="Enable video recording.")
+parser.add_argument(
+    "--video",
+    nargs="?",
+    const="perspective",
+    default=None,
+    metavar="MODE",
+    help="Enable video recording. MODE is 'tiled' (default) or 'perspective' (not yet supported for rlinf).",
+)
 cli_args.add_rlinf_args(parser)
 args_cli = parser.parse_args()
 
