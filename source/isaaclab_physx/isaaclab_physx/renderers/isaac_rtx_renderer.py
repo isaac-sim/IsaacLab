@@ -257,8 +257,8 @@ class IsaacRtxRenderer(BaseRenderer):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             # Dump the tiled image to disk (first visual data type per frame only)
-            if tiled_data_buffer.dtype == wp.uint8:
-                self._save_tiled_image(tiled_data_buffer)
+            #if tiled_data_buffer.dtype == wp.uint8:
+            #    self._save_tiled_image(tiled_data_buffer)
 
             wp.launch(
                 kernel=reshape_tiled_image,

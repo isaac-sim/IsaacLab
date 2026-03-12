@@ -154,14 +154,19 @@ class NewtonManager(PhysicsManager):
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
 
     @classmethod
+    def pre_render(cls) -> None:
+        """Flush deferred Fabric writes before cameras/visualizers read the scene."""
+        cls.sync_transforms_to_usd()
+
+    @classmethod
     def sync_transforms_to_usd(cls) -> None:
         """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
 
         No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active)
         or when transforms have not changed since the last sync.
 
-        This method is called at render cadence by
-        :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider`.
+        Called at render cadence by :meth:`pre_render` (via
+        :meth:`~isaaclab.sim.SimulationContext.render`).
         Physics stepping marks transforms dirty via :meth:`_mark_transforms_dirty`
         so that the expensive Fabric hierarchy update only runs once per render
         frame rather than after every physics step.
@@ -243,10 +248,8 @@ class NewtonManager(PhysicsManager):
         # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
             wp.capture_launch(cls._graph)
-            # Fabric sync is excluded from the graph (wp.synchronize_device is non-capturable),
-            # so run it eagerly here after the graph replay.
             if cls._usdrt_stage is not None:
-                cls.sync_transforms_to_usd()
+                cls._mark_transforms_dirty()
         else:
             with wp.ScopedDevice(device):
                 cls._simulate()
