@@ -8,7 +8,7 @@
 - Modular: swap reward terms without touching other code
 - Reusable: built-in MDP functions work across tasks
 - Configurable: change behavior by editing config, not code
-- Observable: individual reward terms tracked in TensorBoard
+- Observable: individual reward terms tracked in TensorBoard, Wandb, Neptun 
 - Extensible: custom terms via base classes (`RewardTermBase`, etc.)
 
 **Config classes:**
