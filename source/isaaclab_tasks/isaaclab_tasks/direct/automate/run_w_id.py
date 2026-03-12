@@ -54,7 +54,6 @@ def main():
     parser.add_argument("--seed", type=int, default=-1, help="Random seed.")
     parser.add_argument("--train", action="store_true", help="Run training mode.")
     parser.add_argument("--log_eval", action="store_true", help="Log evaluation results.")
-    parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
     parser.add_argument("--max_iterations", type=int, default=1500, help="Number of iteration for policy learning.")
     args = parser.parse_args()
 
@@ -90,9 +89,6 @@ def main():
 
     if args.checkpoint:
         command.append(f"--checkpoint={args.checkpoint}")
-
-    if args.headless:
-        command.append("--headless")
 
     # Run the command
     subprocess.run(command, env=env, check=True)

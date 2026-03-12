@@ -163,7 +163,7 @@ Similar to the previous tutorial, we can run the environment by executing the ``
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz kit
 
 
 This should open a similar simulation as in the previous tutorial. However, this time, the environment

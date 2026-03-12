@@ -149,7 +149,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --viz kit
 
 
 This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
@@ -166,7 +166,7 @@ In addition, you can also change the simulation device from GPU to CPU by settin
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --device cpu
+   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --device cpu --viz kit
 
 With the ``--device cpu`` flag, the simulation will run on the CPU. This is useful for debugging the simulation.
 However, the simulation will run much slower than on the GPU.
