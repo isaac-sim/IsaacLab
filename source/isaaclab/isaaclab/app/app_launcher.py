@@ -1047,6 +1047,9 @@ class AppLauncher:
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
+        # set setting to indicate XR mode is enabled
+        settings.set_bool("/isaaclab/xr/enabled", self._xr)
+
         # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 

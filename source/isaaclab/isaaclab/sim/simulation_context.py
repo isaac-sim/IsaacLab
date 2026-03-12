@@ -179,6 +179,7 @@ class SimulationContext:
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
+        self._has_xr = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
 
         # Simulation state
@@ -342,6 +343,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self._has_offscreen_render
+            or getattr(self, "_has_xr", False)
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.resolve_visualizer_types())
         )

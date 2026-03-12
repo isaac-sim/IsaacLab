@@ -150,6 +150,17 @@ def test_update_visualizers_handles_training_pause_loop():
     assert viz.step_calls == [0.0, 0.2]
 
 
+def test_is_rendering_true_when_xr_enabled_without_gui_or_visualizers():
+    ctx = object.__new__(SimulationContext)
+    ctx._has_gui = False
+    ctx._has_offscreen_render = False
+    ctx._has_xr = True
+    ctx.get_setting = lambda _path: False
+    ctx.resolve_visualizer_types = lambda: []
+
+    assert ctx.is_rendering is True
+
+
 class _DummyViserSceneDataProvider:
     def __init__(self):
         self._metadata = {"num_envs": 4}

@@ -74,6 +74,25 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
     launcher._set_visualizer_settings({"visualizer": ["viser"], "visualizer_max_worlds": 3})
 
 
+def test_load_extensions_sets_xr_enabled(monkeypatch: pytest.MonkeyPatch):
+    settings = _DummySettings()
+    monkeypatch.setattr(app_launcher_module, "initialize_carb_settings", lambda: None)
+    monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
+
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._offscreen_render = False
+    launcher._render_viewport = True
+    launcher._headless = True
+    launcher._livestream = 0
+    launcher._enable_cameras = False
+    launcher._xr = True
+
+    launcher._load_extensions()
+
+    assert settings.values["/isaaclab/xr/enabled"] is True
+    assert settings.values["/physics/fabricUpdateTransformations"] is True
+
+
 def test_parse_visualizer_csv_accepts_comma_delimited_values():
     parsed = app_launcher_module._parse_visualizer_csv("kit,newton,rerun,viser")
     assert parsed == ["kit", "newton", "rerun", "viser"]
