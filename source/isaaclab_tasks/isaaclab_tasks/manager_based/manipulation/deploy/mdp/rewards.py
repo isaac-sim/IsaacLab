@@ -403,6 +403,10 @@ class keypoint_ee_gear_error(ManagerTermBase):
     Transforms the gear's actual world pose into the expected EE position/orientation
     using grasp offsets, so that the distance is ~0 when properly holding the gear
     and increases when the gripper drifts away.
+
+    Supports linear weight ramp-up: the returned reward is scaled by a factor that
+    linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
+    env steps, allowing the reward to grow in importance as training progresses.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -427,6 +431,9 @@ class keypoint_ee_gear_error(ManagerTermBase):
             dim=0,
         )
 
+        self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
+        self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
+
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
         self.gear_assets = {
@@ -441,6 +448,10 @@ class keypoint_ee_gear_error(ManagerTermBase):
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
         self._step_count = 0
 
+    def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
+        progress = min(env.common_step_counter / max(self.weight_ramp_steps, 1), 1.0)
+        return self.weight_ramp_start + (1.0 - self.weight_ramp_start) * progress
+
     def __call__(
         self,
         env: ManagerBasedRLEnv,
@@ -450,6 +461,8 @@ class keypoint_ee_gear_error(ManagerTermBase):
         gear_offsets_grasp: dict | None = None,
         keypoint_scale: float = 1.0,
         add_cube_center_kp: bool = True,
+        weight_ramp_start: float = 0.0,
+        weight_ramp_steps: int = 1,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -493,6 +506,10 @@ class keypoint_ee_gear_error(ManagerTermBase):
         )
 
         mean_kp_error = keypoint_dist_sep.mean(-1)
+
+        weight_scale = self._get_weight_scale(env)
+        scaled_reward = mean_kp_error * weight_scale
+
         mean_error_scalar = mean_kp_error.mean().item()
 
         if not hasattr(env, "extras"):
@@ -500,6 +517,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
         if "log" not in env.extras:
             env.extras["log"] = {}
         env.extras["log"]["ee_gear_kp_error/mean_keypoint_dist"] = mean_error_scalar
+        env.extras["log"]["ee_gear_kp_error/weight_scale"] = weight_scale
 
         self._step_count += 1
         import carb
@@ -507,10 +525,11 @@ class keypoint_ee_gear_error(ManagerTermBase):
         carb.log_info(
             f"[ee_gear_kp_error] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
+            f" | weight_scale={weight_scale:.4f}"
             f" | reward(unweighted)={-mean_error_scalar:.5f}"
         )
 
-        return mean_kp_error
+        return scaled_reward
 
 
 class keypoint_ee_gear_error_exp(ManagerTermBase):
@@ -519,6 +538,10 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
     Transforms the gear's actual world pose into the expected EE position/orientation
     using grasp offsets, so that the reward is high (~1) when properly holding the gear
     and drops sharply when the gripper drifts away.
+
+    Supports linear weight ramp-up: the returned reward is scaled by a factor that
+    linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
+    env steps, allowing the reward to grow in importance as training progresses.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -543,6 +566,9 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
             dim=0,
         )
 
+        self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
+        self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
+
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
         self.gear_assets = {
@@ -557,6 +583,10 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
         self._step_count = 0
 
+    def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
+        progress = min(env.common_step_counter / max(self.weight_ramp_steps, 1), 1.0)
+        return self.weight_ramp_start + (1.0 - self.weight_ramp_start) * progress
+
     def __call__(
         self,
         env: ManagerBasedRLEnv,
@@ -568,6 +598,8 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         kp_use_sum_of_exps: bool = True,
         keypoint_scale: float = 1.0,
         add_cube_center_kp: bool = True,
+        weight_ramp_start: float = 0.0,
+        weight_ramp_steps: int = 1,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -625,6 +657,9 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
                 a, b = coeff
                 keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
 
+        weight_scale = self._get_weight_scale(env)
+        scaled_reward = keypoint_reward_exp * weight_scale
+
         mean_error_scalar = mean_kp_error.mean().item()
         mean_reward_scalar = keypoint_reward_exp.mean().item()
 
@@ -634,6 +669,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
             env.extras["log"] = {}
         env.extras["log"]["ee_gear_kp_error_exp/mean_keypoint_dist"] = mean_error_scalar
         env.extras["log"]["ee_gear_kp_error_exp/mean_exp_reward"] = mean_reward_scalar
+        env.extras["log"]["ee_gear_kp_error_exp/weight_scale"] = weight_scale
 
         self._step_count += 1
         import carb
@@ -641,10 +677,11 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         carb.log_info(
             f"[ee_gear_kp_error_exp] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
+            f" | weight_scale={weight_scale:.4f}"
             f" | mean_exp_reward={mean_reward_scalar:.5f}"
         )
 
-        return keypoint_reward_exp
+        return scaled_reward
 
 
 ##

@@ -269,6 +269,8 @@ class RewardsCfg:
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
             "keypoint_scale": 0.15,
+            "weight_ramp_start": 0.0,
+            "weight_ramp_steps": 5000,
         },
     )
 
@@ -280,6 +282,8 @@ class RewardsCfg:
             "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
             "kp_use_sum_of_exps": False,
             "keypoint_scale": 0.15,
+            "weight_ramp_start": 0.0,
+            "weight_ramp_steps": 5000,
         },
     )
 
