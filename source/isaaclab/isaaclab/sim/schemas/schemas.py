@@ -576,7 +576,6 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             safe_set_attribute_on_usd_prim(child_prim, "physxRigidBody:sleepThreshold", 0.0, camel_case=False)
             # add contact report API with threshold of zero
             if "PhysxContactReportAPI" not in child_applied:
-                logger.debug(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
                 child_prim.AddAppliedSchema("PhysxContactReportAPI")
             safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
             # increment number of contact sensors

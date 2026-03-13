@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.20 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed verbose ``logger.info`` and ``logger.debug`` calls from
+  :class:`~isaaclab.managers.ManagerBase` term initialization and entity resolution,
+  :func:`~isaaclab.sim.schemas.activate_contact_sensors` contact report setup, and
+  :class:`~isaaclab.sim.views.XformPrimView` Fabric detection. These messages added
+  noise to logs without actionable information.
+
+
 4.5.19 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~~
 

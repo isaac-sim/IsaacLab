@@ -210,10 +210,16 @@ The built-in Isaac Lab environments use these retargeters as follows:
 .. _isaac-teleop-env-control-reference:
 
 Teleoperation Environment Reference
-------------------------------------
+-----------------------------------
 
-The table below lists every built-in Isaac Lab environment that ships with an Isaac Teleop
-pipeline, what input mode it expects, and how the operator interacts with the robot.
+The tables below list every built-in Isaac Lab environment that supports teleoperation,
+organized by input method. Environments whose Task ID ends in ``-Play`` are designed for
+closed-loop policy evaluation and are not included here.
+
+Isaac Teleop (XR Headset) Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These environments use the Isaac Teleop XR pipeline with motion controllers or hand tracking.
 
 .. list-table::
    :header-rows: 1
@@ -267,6 +273,131 @@ pipeline, what input mode it expects, and how the operator interacts with the ro
    **Controllers** provide a grip pose plus physical buttons (trigger, squeeze, thumbstick),
    ideal for tasks that need a gripper or simple hand mapping. **Hand tracking** captures 26
    wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.
+
+Keyboard and SpaceMouse Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. note::
+
+   Keyboard and SpaceMouse teleoperation uses the legacy native Isaac Lab teleop stack
+   (``isaaclab.devices``), not Isaac Teleop. These environments do not require an XR headset.
+
+The device button layouts below apply to all environments in this section. Per-environment
+differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
+follows.
+
+**Keyboard**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - Function
+     - Keys
+     - Description
+   * - Position X
+     - ``W`` / ``S``
+     - Move end-effector forward / backward.
+   * - Position Y
+     - ``A`` / ``D``
+     - Move end-effector left / right.
+   * - Position Z
+     - ``Q`` / ``E``
+     - Move end-effector up / down.
+   * - Roll
+     - ``Z`` / ``X``
+     - Rotate about X axis.
+   * - Pitch
+     - ``T`` / ``G``
+     - Rotate about Y axis.
+   * - Yaw
+     - ``C`` / ``V``
+     - Rotate about Z axis.
+   * - Gripper toggle
+     - ``K``
+     - Open / close gripper or suction (disabled in Reach envs).
+   * - Reset
+     - ``L``
+     - Clear accumulated delta pose and gripper state.
+
+**SpaceMouse**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - Function
+     - Control
+     - Description
+   * - Translation
+     - 6-DOF knob
+     - Push/pull/slide the knob to move the end-effector in X/Y/Z.
+   * - Rotation
+     - 6-DOF knob
+     - Tilt/twist the knob to rotate the end-effector in roll/pitch/yaw.
+   * - Gripper toggle
+     - Left button
+     - Open / close gripper or suction (disabled in Reach envs).
+   * - Reset
+     - Right button
+     - Clear accumulated delta pose and gripper state.
+
+**Gamepad** (Reach environments only)
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - Function
+     - Control
+     - Description
+   * - Position X / Y
+     - Left stick
+     - Move end-effector forward/backward and left/right.
+   * - Position Z
+     - Right stick (up/down)
+     - Move end-effector up / down.
+   * - Roll / Pitch
+     - D-Pad
+     - Left/right for roll, up/down for pitch.
+   * - Yaw
+     - Right stick (left/right)
+     - Rotate about Z axis.
+   * - Gripper toggle
+     - X button
+     - Open / close gripper (disabled in Reach envs).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 18 48
+
+   * - Task ID
+     - Devices
+     - Operator Interaction
+   * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0``
+     - Keyboard, SpaceMouse
+     - **Arm:** end-effector pose via RMPFlow.
+       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
+   * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+     - Keyboard, SpaceMouse
+     - **Arm:** end-effector pose via RMPFlow.
+       **Suction:** ``K`` on keyboard, left button on SpaceMouse.
+   * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0``
+     - Keyboard, SpaceMouse
+     - Same as left-arm gripper above with camera observations.
+   * - ``Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0``
+     - Keyboard, SpaceMouse
+     - **Arm:** relative IK end-effector control.
+       **Suction:** ``K`` on keyboard, left button on SpaceMouse.
+   * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
+     - Keyboard, SpaceMouse
+     - Same as long-suction UR10 above with a shorter suction cup.
+   * - ``Isaac-Reach-Franka-IK-Abs-v0``
+     - Keyboard, Gamepad, SpaceMouse
+     - **Arm:** absolute IK end-effector control. Gripper disabled.
+   * - ``Isaac-Reach-Franka-IK-Rel-v0``
+     - Keyboard, Gamepad, SpaceMouse
+     - **Arm:** relative IK end-effector control. Gripper disabled.
 
 
 .. _isaac-teleop-switching-input-mode:

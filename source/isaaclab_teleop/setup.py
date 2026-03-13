@@ -6,6 +6,7 @@
 """Installation script for the 'isaaclab_teleop' python package."""
 
 import os
+import platform
 
 import toml
 from setuptools import find_packages, setup
@@ -16,10 +17,11 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Minimum dependencies required prior to installation
-INSTALL_REQUIRES = [
-    # humanoid support
-    "nvidia-srl-usd-to-urdf",
-]
+INSTALL_REQUIRES = []
+
+# nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels
+if platform.machine() != "aarch64":
+    INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
 
 # Installation operation
 setup(

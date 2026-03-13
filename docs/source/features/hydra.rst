@@ -129,6 +129,45 @@ Here, when modifying ``env.decimation`` or ``env.sim.dt``, the user needs to giv
 ``env.scene.height_scanner.update_period``, and ``env.scene.contact_forces.update_period`` as input as well.
 
 
+Custom Configuration Validation
+--------------------------------
+
+Configclass objects can define a ``validate_config()`` method to perform domain-specific
+validation after all fields have been resolved. This hook is called automatically after preset
+resolution and MISSING-field checks succeed, allowing you to catch invalid parameter
+combinations early with clear error messages.
+
+**Defining a validation hook:**
+
+.. code-block:: python
+
+   from isaaclab.utils import configclass
+
+   @configclass
+   class MyEnvCfg:
+       physics_backend: str = "physx"
+       use_multi_asset: bool = False
+
+       def validate_config(self):
+           if self.physics_backend == "newton" and self.use_multi_asset:
+               raise ValueError(
+                   "Newton physics does not support multi-asset spawning."
+                   " Use a single-geometry object preset instead."
+               )
+
+**When it runs:**
+
+1. All ``MISSING`` fields are checked first — if any remain, ``TypeError`` is raised.
+2. Only then is ``validate_config()`` called on the **top-level** config object.
+3. The hook should raise ``ValueError`` with a clear message and migration guidance.
+
+**Common validation patterns:**
+
+- Physics backend compatibility (e.g., Newton does not support multi-asset spawning)
+- Renderer and camera data type compatibility (e.g., Newton Warp only supports ``rgb`` and ``depth``)
+- Feature extractor compatibility with camera configuration
+
+
 Preset System
 -------------
 
