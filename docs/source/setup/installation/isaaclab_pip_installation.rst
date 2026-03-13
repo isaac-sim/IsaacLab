@@ -165,7 +165,7 @@ Installing dependencies
                export LD_PRELOAD=$(python -c "import sys,os;[print(os.path.join(p,'omni','client','libcarb.so')) for p in sys.path if os.path.isfile(os.path.join(p,'omni','client','libcarb.so'))]" 2>/dev/null | head -1)${LD_PRELOAD:+:$LD_PRELOAD}
 
             When using ``./isaaclab.sh -p``, this is handled automatically.
-            When using a conda environment created with ``./isaaclab.sh -e conda``,
+            When using a conda environment,
             the preload is set up via the conda activation hook.
 
 -  If you want to use ``rl_games`` for training and inferencing, install
