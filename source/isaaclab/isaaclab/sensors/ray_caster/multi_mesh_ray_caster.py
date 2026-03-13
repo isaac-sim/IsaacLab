@@ -228,17 +228,18 @@ class MultiMeshRayCaster(RayCaster):
                         mesh = create_trimesh_from_geom_mesh(mesh_prim)
                     else:
                         mesh = create_trimesh_from_geom_shape(mesh_prim)
-                    scale = sim_utils.resolve_prim_scale(mesh_prim)
-                    mesh.apply_scale(scale)
 
                     relative_pos, relative_quat = sim_utils.resolve_prim_pose(mesh_prim, target_prim)
                     relative_pos = torch.tensor(relative_pos, dtype=torch.float32)
                     relative_quat = torch.tensor(relative_quat, dtype=torch.float32)
 
+                    world_scale = sim_utils.resolve_prim_scale(mesh_prim)
+
                     rotation = matrix_from_quat(relative_quat)
                     transform = np.eye(4)
                     transform[:3, :3] = rotation.numpy()
                     transform[:3, 3] = relative_pos.numpy()
+                    transform[:3, :3] = transform[:3, :3] @ np.diag(world_scale)
                     mesh.apply_transform(transform)
 
                     # add to list of parsed meshes
