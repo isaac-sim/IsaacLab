@@ -876,6 +876,7 @@ class NewtonManager(PhysicsManager):
 
         Converts Isaac Lab pattern conventions (``.*`` regex, full USD paths) to
         fnmatch globs and delegates to :class:`newton.sensors.SensorContact`.
+        Regex expressions are resolved to ``list[int]`` indices before being forwarded to the Newton sensor.
 
         Args:
             body_names_expr: Expression for body names to sense.
