@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.1.2 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Semantic segmentation output: semantic IDs are now hashed (CRC32) before
+  conversion to RGBA so that consecutive IDs (e.g. 1, 2, 3) map to visually
+  distinct colors, improving distinguishability in the rendered segmentation.
+
 0.1.1 (2026-03-07)
 ~~~~~~~~~~~~~~~~~~
 
