@@ -10,26 +10,20 @@ Quick Installation
    # Install uv
    curl -LsSf https://astral.sh/uv/install.sh | sh
 
-.. code-block:: bash
-
    # Clone Isaac Lab
    git clone https://github.com/isaac-sim/IsaacLab.git
    cd IsaacLab
-
-.. code-block:: bash
 
    # Create environment and install
    uv venv .venv --python 3.12
    source .venv/bin/activate
    ./isaaclab.sh -i
 
-.. code-block:: bash
-
-   # Run training
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rlgames.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
-     --headless --enable_cameras --num_envs=1225 --max_iterations=10 \
-     presets=newton,newton_renderer,depth
+   # Run training (Newton backend, 16 envs)
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task=Isaac-Cartpole-Direct-v0 \
+     --num_envs=16 --max_iterations=10 \
+     presets=newton --visualizer newton
 
 
 Running Tasks
@@ -61,6 +55,13 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
 
 Kit-less visualizer options: ``newton``, ``rerun``, ``viser``. Multiple can be
 combined: ``--visualizer newton,rerun``.
+
+.. seealso::
+
+   - :doc:`/source/features/hydra` — Hydra presets and configuration overrides
+   - :doc:`/source/features/visualization` — Visualizer backends and configuration
+   - :doc:`/source/how-to/configure_rendering` — Rendering mode presets and settings
+   - :ref:`isaaclab-installation-root` — Full installation guide with all methods
 
 Available Presets
 ^^^^^^^^^^^^^^^^^

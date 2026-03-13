@@ -163,9 +163,90 @@ fastest way to get started and is ideal for users who only need the Newton physi
 - ROS / ROS2 integration
 - URDF and MJCF importers (GUI-based)
 - Deformable objects and surface gripper (PhysX-only)
-- Teleoperation and imitiation learning workflows
+- Teleoperation and imitation learning workflows
 
 To install Isaac Sim, use the pip method described in :doc:`pip_installation`.
+
+
+.. _installation-selective-install:
+
+Selective Install
+-----------------
+
+If you want a minimal environment, ``./isaaclab.sh -i`` accepts comma-separated
+sub-package names:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - What it does
+   * - ``isaacsim``
+     - Install Isaac Sim pip package
+   * - ``newton``
+     - Install Newton physics + Newton visualizer
+   * - ``physx``
+     - Install PhysX physics runtime
+   * - ``ovrtx``
+     - Install OVRTX renderer runtime
+   * - ``tasks``
+     - Install built-in task environments
+   * - ``assets``
+     - Install robot/object configurations
+   * - ``visualizers``
+     - Install all visualizer backends
+   * - ``rsl_rl``
+     - Install RSL-RL framework
+   * - ``skrl``
+     - Install skrl framework
+   * - ``sb3``
+     - Install Stable Baselines3 framework
+   * - ``rl_games``
+     - Install rl_games framework
+   * - ``robomimic``
+     - Install robomimic framework
+   * - ``none``
+     - Install only core ``isaaclab`` package
+
+Examples:
+
+.. code-block:: bash
+
+   # Minimal Newton setup
+   ./isaaclab.sh -i newton,tasks,assets
+
+   # Newton with OVRTX and RSL-RL only
+   ./isaaclab.sh -i newton,tasks,assets,ovrtx,rsl_rl
+
+   # Full Kit install with skrl
+   ./isaaclab.sh -i isaacsim,skrl
+
+
+.. _installation-ovrtx:
+
+OVRTX Rendering
+---------------
+
+OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -i ovrtx
+
+   export LD_PRELOAD=$(python -c "import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / 'bin/plugins/libcarb.so')")
+
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+     --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
+     --headless --enable_cameras --num_envs 1225 --max_iterations 10 \
+     presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
+
+
+Running Installation Tests
+--------------------------
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p -m pytest source/isaaclab/test/cli/test_cli_utils.py -v
 
 
 Isaac Sim Installation

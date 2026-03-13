@@ -63,5 +63,5 @@ the Dofbot
 This completely defines the dofbot! You could copy this into a ``.py`` file and import it as a module and you would be able to use the dofbot in
 your own lab sims. One common feature you will see in any config defining things with state is the presence of an ``InitialStateCfg``.  Remember, the configurations
 are what informs vectorization, and it's the ``InitialStateCfg`` that describes the state of the joints of our robot when it gets created in each environment. The
-``ImplicitActuatorCfg`` defines the joints of the robot using the default actuation model determined by the joint time.  Not all joints need to be actuated, but you
+``ImplicitActuatorCfg`` defines the joints of the robot using the default actuation model determined by the joint type.  Not all joints need to be actuated, but you
 will get warnings if you don't.  If you aren't planning on using those undefined joints, you can generally ignore these.
