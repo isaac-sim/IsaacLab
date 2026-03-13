@@ -11,6 +11,8 @@ import sys
 import gymnasium as gym
 import torch
 
+import isaaclab_contrib.tasks  # noqa: F401
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
 

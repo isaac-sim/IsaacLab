@@ -50,6 +50,11 @@ class CommandTerm(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
+        # validate task_group if specified
+        tg = getattr(cfg, "task_group", None)
+        if tg is not None:
+            env.scene.layout.resolve_task_group(self.__name__, tg)
+
         # create buffers to store the command
         # -- metrics that can be used for logging
         self.metrics = dict()
@@ -72,6 +77,23 @@ class CommandTerm(ManagerTermBase):
     """
     Properties
     """
+
+    @property
+    def group_key(self) -> str | None:
+        """Resolved layout group key for this term, or ``None`` for homogeneous scenes."""
+        return self._env.scene.layout.resolve_group_key(
+            task_group=getattr(self.cfg, "task_group", None),
+            asset_name=getattr(self.cfg, "asset_name", None),
+        )
+
+    @property
+    def num_envs(self) -> int:
+        """Number of environments managed by this command term.
+
+        Resolves the subset count from the centralized :class:`EnvLayout`
+        based on the ``task_group`` or ``asset_name`` config attribute.
+        """
+        return self._env.scene.layout.num_envs_for(self.group_key)
 
     @property
     @abstractmethod
@@ -189,6 +211,26 @@ class CommandTerm(ManagerTermBase):
             self._resample_command(env_ids)
             # increment the command counter
             self.command_counter[env_ids] += 1
+
+    def _resolve_asset_data_indices(self, asset_name: str) -> torch.Tensor | slice:
+        """Return indices to slice asset data so it aligns with this term's buffers.
+
+        Delegates to :meth:`EnvLayout.cross_slice` via the centralized
+        layout registry. Needs 'cross slice' for heterogeneous commands with same robot.
+
+        Args:
+            asset_name: Scene-level name of the asset whose data tensors
+                may need slicing.
+
+        Returns:
+            A 1-D long tensor of global indices, or ``slice(None)`` when no
+            slicing is needed (i.e. the shapes already agree).
+        """
+        if self.group_key is None:
+            return slice(None)
+        layout = self._env.scene.layout
+        asset_group = layout.group_for_asset(asset_name)
+        return layout.cross_slice(self.group_key, asset_group)
 
     """
     Implementation specific functions.
@@ -351,11 +393,15 @@ class CommandManager(ManagerBase):
         if env_ids is None:
             env_ids = slice(None)
         # store information
+        layout = self._env.scene.layout
         extras = {}
         for name, term in self._terms.items():
-            # reset the command term
-            metrics = term.reset(env_ids=env_ids)
-            # compute the mean metric value
+            local = layout.resolve_term_env_ids(name, env_ids)
+            if local is not None:
+                metrics = term.reset(env_ids=local)
+            else:
+                # no envs from this group are resetting — still report current metrics
+                metrics = {k: torch.mean(v).item() for k, v in term.metrics.items()}
             for metric_name, metric_value in metrics.items():
                 extras[f"Metrics/{name}/{metric_name}"] = metric_value
         # return logged information
@@ -418,10 +464,20 @@ class CommandManager(ManagerBase):
                     f"Configuration for the term '{term_name}' is not of type CommandTermCfg."
                     f" Received: '{type(term_cfg)}'."
                 )
-            # create the action term
+            # create the command term
             term = term_cfg.class_type(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, CommandTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")
+            # register term → group mapping in the centralized layout
+            layout = self._env.scene.layout
+            group_key = term.group_key
+            if group_key is not None:
+                layout.register_term(term_name, group_key)
+                asset = getattr(term_cfg, "asset_name", None)
+                if asset is not None:
+                    meta = term.robot_metadata()
+                    meta["command_name"] = term_name
+                    layout.register_robot_meta(asset, **meta)
             # add class to dict
             self._terms[term_name] = term

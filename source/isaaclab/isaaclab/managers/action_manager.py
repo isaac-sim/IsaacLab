@@ -75,6 +75,17 @@ class ActionTerm(ManagerTermBase):
     """
 
     @property
+    def num_envs(self) -> int:
+        """Number of environments managed by this action term.
+
+        Resolves the subset count from the centralized :class:`EnvLayout`
+        based on the asset this term is applied to.
+        """
+        layout = self._env.scene.layout
+        key = layout.group_for_asset(self.cfg.asset_name)
+        return layout.num_envs_for(key)
+
+    @property
     @abstractmethod
     def action_dim(self) -> int:
         """Dimension of the action term."""
@@ -230,13 +241,18 @@ class ActionManager(ManagerBase):
         # create table for term information
         table = PrettyTable()
         table.title = f"Active Action Terms (shape: {self.total_action_dim})"
-        table.field_names = ["Index", "Name", "Dimension"]
+        table.field_names = ["Index", "Name", "Dimension", "Col Offset", "Task Group"]
         # set alignment of table columns
         table.align["Name"] = "l"
         table.align["Dimension"] = "r"
+        table.align["Col Offset"] = "r"
+        table.align["Task Group"] = "l"
         # add info on each term
+        layout = self._env.scene.layout
         for index, (name, term) in enumerate(self._terms.items()):
-            table.add_row([index, name, term.action_dim])
+            col_start = self._term_col_start.get(name, "?")
+            group = layout.group_for_term(name) or "(global)"
+            table.add_row([index, name, term.action_dim, col_start, group])
         # convert table to string
         msg += table.get_string()
         msg += "\n"
@@ -249,8 +265,14 @@ class ActionManager(ManagerBase):
 
     @property
     def total_action_dim(self) -> int:
-        """Total dimension of actions."""
-        return sum(self.action_term_dim)
+        """Total dimension of the action tensor.
+
+        In heterogeneous scenes, grouped terms share action columns
+        across disjoint environment rows, so the total is
+        ``max(per_group_dim) + global_dim`` rather than the sum of
+        all term dimensions.
+        """
+        return self._total_action_dim
 
     @property
     def active_terms(self) -> list[str]:
@@ -332,11 +354,10 @@ class ActionManager(ManagerBase):
             The active terms.
         """
         terms = []
-        idx = 0
         for name, term in self._terms.items():
-            term_actions = self._action[env_idx, idx : idx + term.action_dim].cpu()
+            col_start = self._term_col_start[name]
+            term_actions = self._action[env_idx, col_start : col_start + term.action_dim].cpu()
             terms.append((name, term_actions.tolist()))
-            idx += term.action_dim
         return terms
 
     def set_debug_vis(self, debug_vis: bool):
@@ -366,9 +387,12 @@ class ActionManager(ManagerBase):
         # reset the action history
         self._prev_action[env_ids] = 0.0
         self._action[env_ids] = 0.0
-        # reset all action terms
-        for term in self._terms.values():
-            term.reset(env_ids=env_ids)
+        # reset all action terms — dispatch through layout
+        layout = self._env.scene.layout
+        for term_name, term in self._terms.items():
+            local = layout.resolve_term_env_ids(term_name, env_ids)
+            if local is not None:
+                term.reset(env_ids=local)
         # nothing to log here
         return {}
 
@@ -388,12 +412,13 @@ class ActionManager(ManagerBase):
         self._prev_action[:] = self._action
         self._action[:] = action.to(self.device)
 
-        # split the actions and apply to each tensor
-        idx = 0
-        for term in self._terms.values():
-            term_actions = action[:, idx : idx + term.action_dim]
+        # dispatch actions to each term using layout-aware column offsets
+        layout = self._env.scene.layout
+        for term_name, term in self._terms.items():
+            env_sel = layout.term_env_slice(term_name)
+            col_start = self._term_col_start[term_name]
+            term_actions = action[env_sel, col_start : col_start + term.action_dim]
             term.process_actions(term_actions)
-            idx += term.action_dim
 
     def apply_action(self) -> None:
         """Applies the actions to the environment/simulation.
@@ -437,6 +462,9 @@ class ActionManager(ManagerBase):
             cfg_items = self.cfg.items()
         else:
             cfg_items = self.cfg.__dict__.items()
+
+        layout = self._env.scene.layout
+
         # parse action terms from the config
         for term_name, term_cfg in cfg_items:
             # check if term config is None
@@ -453,6 +481,39 @@ class ActionManager(ManagerBase):
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")
+            # register term → group mapping in the centralized layout
+            group_key = layout.group_for_asset(term_cfg.asset_name)
+            if group_key is not None:
+                layout.register_term(term_name, group_key)
+                meta = term.robot_metadata()
+                if meta:
+                    layout.register_robot_meta(term_cfg.asset_name, **meta)
             # add term name and parameters
             self._term_names.append(term_name)
             self._terms[term_name] = term
+
+        # ── compute heterogeneous column layout ──────────────────────
+        # Grouped terms share action columns across disjoint env rows;
+        # within the same group, terms are concatenated sequentially.
+        # Global terms (no group) are appended after the max group width.
+        group_col_cursor: dict[str, int] = {}
+        self._term_col_start: dict[str, int] = {}
+
+        for term_name, term in self._terms.items():
+            group_key = layout.group_for_term(term_name)
+            if group_key is not None:
+                if group_key not in group_col_cursor:
+                    group_col_cursor[group_key] = 0
+                self._term_col_start[term_name] = group_col_cursor[group_key]
+                group_col_cursor[group_key] += term.action_dim
+
+        max_group_dim = max(group_col_cursor.values()) if group_col_cursor else 0
+        global_col_cursor = max_group_dim
+
+        for term_name, term in self._terms.items():
+            group_key = layout.group_for_term(term_name)
+            if group_key is None:
+                self._term_col_start[term_name] = global_col_cursor
+                global_col_cursor += term.action_dim
+
+        self._total_action_dim = global_col_cursor

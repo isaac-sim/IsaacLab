@@ -66,6 +66,15 @@ class AssetBaseCfg:
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose."""
 
+    task_group: str | None = None
+    """Task group name this asset belongs to. Defaults to None.
+
+    When set, the asset is only cloned into the environments belonging
+    to the named group declared in
+    :attr:`~isaaclab.scene.InteractiveSceneCfg.task_groups`.  The
+    resolution happens during scene construction, before cloning.
+    """
+
     collision_group: Literal[0, -1] = 0
     """Collision group of the asset. Defaults to ``0``.
 

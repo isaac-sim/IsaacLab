@@ -145,9 +145,16 @@ class TerminationManager(ManagerBase):
         for i, key in enumerate(self._term_names):
             # store information
             extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
-        # reset all the reward terms
+        # reset all the termination terms
+        layout = self._env.scene.layout
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(env_ids=env_ids)
+            if term_cfg.task_group is not None:
+                local = layout.resolve_env_ids(term_cfg.task_group, env_ids)
+                if local is None:
+                    continue
+                term_cfg.func.reset(env_ids=local)
+            else:
+                term_cfg.func.reset(env_ids=env_ids)
         # return logged information
         return extras
 
@@ -157,15 +164,33 @@ class TerminationManager(ManagerBase):
         This function calls each termination term managed by the class and performs a logical OR operation
         to compute the net termination signal.
 
+        For terms with :attr:`TerminationTermCfg.task_group` set, the
+        term function returns ``(group_envs,)`` and the manager
+        scatters the result into the full ``(num_envs,)`` buffer.
+
         Returns:
             The combined termination signal of shape (num_envs,).
         """
         # reset computation
         self._truncated_buf[:] = False
         self._terminated_buf[:] = False
+        layout = self._env.scene.layout
         # iterate over all the termination terms
-        for i, term_cfg in enumerate(self._term_cfgs):
-            value = term_cfg.func(self._env, **term_cfg.params)
+        for i, (name, term_cfg) in enumerate(
+            zip(self._term_names, self._term_cfgs),
+        ):
+            if term_cfg.per_robot:
+                value = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+                for entry in self._per_robot_caches[name]:
+                    if entry.gids is None:
+                        continue
+                    value[entry.gids] = term_cfg.func(self._env, **entry.params)
+            else:
+                value = term_cfg.func(self._env, **term_cfg.params)
+                # scatter single-group terms into full-env tensor
+                group_key = self._term_group_keys.get(name)
+                if group_key is not None:
+                    value = layout.scatter(group_key, value, fill=0.0).bool()
             # store timeout signal separately
             if term_cfg.time_out:
                 self._truncated_buf |= value
@@ -255,6 +280,8 @@ class TerminationManager(ManagerBase):
             cfg_items = self.cfg.items()
         else:
             cfg_items = self.cfg.__dict__.items()
+
+        layout = self._env.scene.layout
         # iterate over all the terms
         for term_name, term_cfg in cfg_items:
             # check for non config
@@ -268,6 +295,14 @@ class TerminationManager(ManagerBase):
                 )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
+            # pre-build per_robot dispatch entries
+            if term_cfg.per_robot:
+                self._per_robot_caches[term_name] = self._build_per_robot_mdp_term_caches(term_cfg)
+            # register task-group mapping
+            if term_cfg.task_group is not None:
+                layout.resolve_task_group(term_name, term_cfg.task_group)
+                layout.register_term(term_name, term_cfg.task_group)
+                self._term_group_keys[term_name] = term_cfg.task_group
             # add function to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)

@@ -51,6 +51,7 @@ class UniformPose2dCommand(CommandTerm):
         # obtain the robot and terrain assets
         # -- robot
         self.robot: Articulation = env.scene[cfg.asset_name]
+        self._robot_data_slice = self._resolve_asset_data_indices(cfg.asset_name)
 
         # crete buffers to store the command
         # -- commands: (x, y, z, heading)
@@ -82,12 +83,14 @@ class UniformPose2dCommand(CommandTerm):
     """
 
     def _update_metrics(self):
+        # slice robot data to match command buffer size (heterogeneous support)
+        s = self._robot_data_slice
         # logs data
         self.metrics["error_pos_2d"] = torch.linalg.norm(
-            self.pos_command_w[:, :2] - wp.to_torch(self.robot.data.root_pos_w)[:, :2], dim=1
+            self.pos_command_w[:, :2] - wp.to_torch(self.robot.data.root_pos_w)[s, :2], dim=1
         )
         self.metrics["error_heading"] = torch.abs(
-            wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w))
+            wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w)[s])
         )
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -124,9 +127,10 @@ class UniformPose2dCommand(CommandTerm):
 
     def _update_command(self):
         """Re-target the position command to the current root state."""
-        target_vec = self.pos_command_w - wp.to_torch(self.robot.data.root_pos_w)[:, :3]
-        self.pos_command_b[:] = quat_apply_inverse(yaw_quat(wp.to_torch(self.robot.data.root_quat_w)), target_vec)
-        self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w))
+        s = self._robot_data_slice
+        target_vec = self.pos_command_w - wp.to_torch(self.robot.data.root_pos_w)[s, :3]
+        self.pos_command_b[:] = quat_apply_inverse(yaw_quat(wp.to_torch(self.robot.data.root_quat_w)[s]), target_vec)
+        self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w)[s])
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first time

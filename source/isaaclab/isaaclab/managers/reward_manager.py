@@ -121,8 +121,15 @@ class RewardManager(ManagerBase):
             # reset episodic sum
             self._episode_sums[key][env_ids] = 0.0
         # reset all the reward terms
+        layout = self._env.scene.layout
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(env_ids=env_ids)
+            if term_cfg.task_group is not None:
+                local = layout.resolve_env_ids(term_cfg.task_group, env_ids)
+                if local is None:
+                    continue
+                term_cfg.func.reset(env_ids=local)
+            else:
+                term_cfg.func.reset(env_ids=env_ids)
         # return logged information
         return extras
 
@@ -132,6 +139,10 @@ class RewardManager(ManagerBase):
         This function calls each reward term managed by the class and adds them to compute the net
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
 
+        For terms with :attr:`RewardTermCfg.task_group` set, the term
+        function returns ``(group_envs,)`` and the manager scatters
+        the result into the full ``(num_envs,)`` buffer automatically.
+
         Args:
             dt: The time-step interval of the environment.
 
@@ -140,6 +151,7 @@ class RewardManager(ManagerBase):
         """
         # reset computation
         self._reward_buf[:] = 0.0
+        layout = self._env.scene.layout
         # iterate over all the reward terms
         for term_idx, (name, term_cfg) in enumerate(zip(self._term_names, self._term_cfgs)):
             # skip if weight is zero (kind of a micro-optimization)
@@ -147,7 +159,19 @@ class RewardManager(ManagerBase):
                 self._step_reward[:, term_idx] = 0.0
                 continue
             # compute term's value
-            value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
+            if term_cfg.per_robot:
+                value = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+                for entry in self._per_robot_caches[name]:
+                    if entry.gids is None:
+                        continue
+                    value[entry.gids] = term_cfg.func(self._env, **entry.params)
+                value *= term_cfg.weight * dt
+            else:
+                value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
+                # scatter single-group terms into full-env tensor
+                group_key = self._term_group_keys.get(name)
+                if group_key is not None:
+                    value = layout.scatter(group_key, value, fill=0.0)
             # update total reward
             self._reward_buf += value
             # update episodic sum
@@ -220,6 +244,8 @@ class RewardManager(ManagerBase):
             cfg_items = self.cfg.items()
         else:
             cfg_items = self.cfg.__dict__.items()
+
+        layout = self._env.scene.layout
         # iterate over all the terms
         for term_name, term_cfg in cfg_items:
             # check for non config
@@ -239,6 +265,14 @@ class RewardManager(ManagerBase):
                 )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
+            # pre-build per_robot dispatch entries
+            if term_cfg.per_robot:
+                self._per_robot_caches[term_name] = self._build_per_robot_mdp_term_caches(term_cfg)
+            # register task-group mapping
+            if term_cfg.task_group is not None:
+                layout.resolve_task_group(term_name, term_cfg.task_group)
+                layout.register_term(term_name, term_cfg.task_group)
+                self._term_group_keys[term_name] = term_cfg.task_group
             # add function to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)

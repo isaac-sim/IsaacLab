@@ -52,6 +52,45 @@ class ManagerTermBaseCfg:
         in the :class:`SceneEntityCfg` object.
     """
 
+    task_group: str | None = None
+    """Task group name this term belongs to.
+
+    When set, the term is scoped to environments belonging to the named group declared in
+    :attr:`~isaaclab.scene.InteractiveSceneCfg.task_groups`.
+
+    The exact semantics depend on the manager:
+
+    * **Reward / Termination / Observation** — the function returns ``(group_envs, ...)`` and the manager
+      scatters the result into the full-sized buffer (non-group rows filled with zero / False).
+    * **Event** — the manager filters ``env_ids`` to group-local indices before calling the function.
+
+    Mutually exclusive with :attr:`per_robot`.
+    """
+
+    per_robot: bool = False
+    """Automatically dispatch this term once per robot group.
+
+    When ``True``, the manager iterates :attr:`EnvLayout.robot_infos` and calls the function once for each
+    :class:`RobotInfo`.  Parameters ``asset_cfg`` and ``command_name`` are **auto-injected** from the robot's
+    metadata when they appear in the function signature.  They must **not** be provided in :attr:`params`:
+
+    * ``asset_cfg`` — a :class:`SceneEntityCfg` built from the robot's ``asset_name``, ``ee_body``, and
+      ``joint_patterns``, already resolved against the scene (via :meth:`RobotInfo.resolved_cfg`).
+    * ``command_name`` — the robot's :attr:`RobotInfo.command_name`.
+
+    Additionally, **any** metadata key stored in :attr:`RobotInfo.meta` that matches a function parameter
+    name is auto-injected, making the mechanism extensible without core code changes.
+
+    This allows reuse of standard term functions (e.g.
+    :func:`~isaaclab_tasks.manager_based.manipulation.reach.mdp.rewards.position_command_error`,
+    :func:`~isaaclab.envs.mdp.rewards.joint_vel_l2`,
+    :func:`~isaaclab.envs.mdp.events.reset_joints_by_scale`) without writing multi-robot wrapper functions.
+
+    Results are scattered / filtered by the manager — the function itself stays layout-unaware.
+
+    Mutually exclusive with :attr:`task_group`.
+    """
+
 
 ##
 # Recorder manager.
@@ -117,6 +156,18 @@ class CommandTermCfg:
     """Time before commands are changed [s]."""
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
+
+    task_group: str | None = None
+    """Task group name this command term belongs to. Defaults to None.
+
+    When set, the command term is automatically scoped to the
+    environments belonging to the named group declared in
+    :attr:`~isaaclab.scene.InteractiveSceneCfg.task_groups`.
+
+    If ``None``, the term falls back to the layout key of the
+    referenced asset (resolved via ``asset_name``).  If the asset also
+    covers all environments, the command applies everywhere.
+    """
 
 
 ##

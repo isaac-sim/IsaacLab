@@ -218,6 +218,9 @@ class EventManager(ManagerBase):
                     f"Initializing term '{self._mode_term_names[mode][index]}' with class '{term_cfg.func.__name__}'."
                 )
                 term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+            # resolve group key for layout-aware dispatch
+            term_name = self._mode_term_names[mode][index]
+            group_key = self._term_group_keys.get(term_name)
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]
@@ -232,8 +235,7 @@ class EventManager(ManagerBase):
                         sampled_interval = torch.rand(1) * (upper - lower) + lower
                         self._interval_term_time_left[index][:] = sampled_interval
 
-                        # call the event term (with None for env_ids)
-                        term_cfg.func(self._env, None, **term_cfg.params)
+                        self._dispatch_event(term_name, term_cfg, None, group_key)
                 else:
                     valid_env_ids = (time_left < 1e-6).nonzero().flatten()
                     if len(valid_env_ids) > 0:
@@ -241,8 +243,7 @@ class EventManager(ManagerBase):
                         sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
                         self._interval_term_time_left[index][valid_env_ids] = sampled_time
 
-                        # call the event term
-                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
+                        self._dispatch_event(term_name, term_cfg, valid_env_ids, group_key)
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
@@ -256,8 +257,7 @@ class EventManager(ManagerBase):
                     self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
                     self._reset_term_last_triggered_once[index][env_ids] = True
 
-                    # call the event term with the environment indices
-                    term_cfg.func(self._env, env_ids, **term_cfg.params)
+                    self._dispatch_event(term_name, term_cfg, env_ids, group_key)
                 else:
                     # extract last reset step for this term
                     last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
@@ -282,11 +282,9 @@ class EventManager(ManagerBase):
                         self._reset_term_last_triggered_once[index][valid_env_ids] = True
                         self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count
 
-                        # call the event term
-                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
+                        self._dispatch_event(term_name, term_cfg, valid_env_ids, group_key)
             else:
-                # call the event term
-                term_cfg.func(self._env, env_ids, **term_cfg.params)
+                self._dispatch_event(term_name, term_cfg, env_ids, group_key)
 
     """
     Operations - Term settings.
@@ -338,6 +336,48 @@ class EventManager(ManagerBase):
     Helper functions.
     """
 
+    def _dispatch_event(
+        self,
+        term_name: str,
+        term_cfg: EventTermCfg,
+        env_ids: torch.Tensor | Sequence[int] | slice | None,
+        group_key: str | None,
+    ) -> None:
+        """Call an event term with proper "per_robot" or "task_group" dispatch.
+
+        Args:
+            term_name: The name of the event term.
+            term_cfg: The event term configuration.
+            env_ids: Global env indices (tensor, slice, or None).
+            group_key: Resolved task_group key, or None.
+        """
+        layout = self._env.scene.layout
+        if term_cfg.per_robot:
+            # lazy build: entries are deferred because EventManager is created before
+            # CommandManager/ActionManager register robot metadata into the layout.
+            entries = self._per_robot_caches.get(term_name)
+            if entries is None or len(entries) == 0:
+                entries = self._build_per_robot_mdp_term_caches(term_cfg)
+                if len(entries) > 0:
+                    self._per_robot_caches[term_name] = entries
+            for entry in entries:
+                if entry.group_key is None:
+                    continue
+                if env_ids is None or isinstance(env_ids, slice):
+                    local = env_ids
+                else:
+                    local, _ = layout.filter_and_split(entry.group_key, env_ids)
+                    if local.numel() == 0:
+                        continue
+                term_cfg.func(self._env, local, **entry.params)
+        elif group_key is not None:
+            call_ids = layout.resolve_env_ids(group_key, env_ids)
+            if call_ids is None:
+                return
+            term_cfg.func(self._env, call_ids, **term_cfg.params)
+        else:
+            term_cfg.func(self._env, env_ids, **term_cfg.params)
+
     def _prepare_terms(self):
         # buffer to store the time left for "interval" mode
         # if interval is global, then it is a single value, otherwise it is per environment
@@ -345,12 +385,13 @@ class EventManager(ManagerBase):
         # buffer to store the step count when the term was last triggered for each environment for "reset" mode
         self._reset_term_last_triggered_step_id: list[torch.Tensor] = list()
         self._reset_term_last_triggered_once: list[torch.Tensor] = list()
-
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
         else:
             cfg_items = self.cfg.__dict__.items()
+
+        layout = self._env.scene.layout
         # iterate over all the terms
         for term_name, term_cfg in cfg_items:
             # check for non config
@@ -371,6 +412,16 @@ class EventManager(ManagerBase):
 
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
+            # mark per_robot terms for deferred dispatch-entry building.
+            # EventManager is created before CommandManager/ActionManager, so layout.robot_infos
+            # is empty at this point. The entries are built lazily on first dispatch in _dispatch_event().
+            if term_cfg.per_robot:
+                self._per_robot_caches[term_name] = []
+            # register task-group mapping
+            if term_cfg.task_group is not None:
+                layout.resolve_task_group(term_name, term_cfg.task_group)
+                layout.register_term(term_name, term_cfg.task_group)
+                self._term_group_keys[term_name] = term_cfg.task_group
 
             # check if mode is pre-startup and scene replication is enabled
             if term_cfg.mode == "prestartup" and self._env.scene.cfg.replicate_physics:
