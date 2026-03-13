@@ -31,7 +31,7 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Webviewer, time scrubbing, recording export
    * - **Viser**
      - Web-based remote visualization, sharing, recording
-     - Newton Warp rendering, browser-based, share URL
+     - Warp-based 3D display, browser-based, share URL
 
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
@@ -417,7 +417,9 @@ Omniverse or Newton visualizers.
 
 **Viser Visualizer Renderer Requirement**
 
-The Viser visualizer requires the Newton Warp renderer. It is not compatible with other rendering backends.
+The Viser visualizer requires a Newton model, which is provided automatically by
+:class:`~isaaclab.physics.SceneDataProvider` regardless of the active physics backend or
+renderer. It is compatible with all rendering backends (RTX, Newton Warp, OVRTX).
 
 
 **Newton Visualizer CUDA/OpenGL Interoperability Warnings**
