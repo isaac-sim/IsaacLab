@@ -14,9 +14,8 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import isaaclab_physx.renderers.isaac_rtx_renderer_utils as rtx_utils
+import pytest
 
 # test-specific timeout overrides for _STREAMING_WAIT_TIMEOUT_S
 STREAMING_TIMEOUT_S = 0.1
