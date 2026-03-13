@@ -594,9 +594,11 @@ class AppLauncher:
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
         self._resolve_visualizer_settings(launcher_args)
+        # XR must be resolved before headless so that XR can prevent
+        # visualizer-intent-based headless forcing.
+        self._resolve_xr_settings(launcher_args)
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
         self._resolve_camera_settings(launcher_args)
-        self._resolve_xr_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
 
         # Handle device and distributed settings
@@ -730,7 +732,13 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._cli_visualizer_explicit:
+            if self._xr:
+                # XR requires the Kit rendering / app-update pipeline.  Preserve
+                # the user's explicit headless choice without forcing headless
+                # based on visualizer intent.  The headless XR experience file
+                # auto-starts XR; the non-headless one requires manual GUI start.
+                pass
+            elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -1049,6 +1057,9 @@ class AppLauncher:
 
         # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
+
+        # set setting to indicate XR mode is enabled (used by SimulationContext to pump Kit app)
+        settings.set_bool("/isaaclab/xr/enabled", self._xr)
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)

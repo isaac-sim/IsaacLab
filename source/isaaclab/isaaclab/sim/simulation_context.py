@@ -179,6 +179,7 @@ class SimulationContext:
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
+        self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
 
         # Simulation state
@@ -338,12 +339,13 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI, RTX sensors, or visualizers requested)."""
+        """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
         return (
             self._has_gui
             or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.resolve_visualizer_types())
+            or self._xr_enabled
         )
 
     def get_physics_dt(self) -> float:
@@ -619,13 +621,49 @@ class SimulationContext:
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
         fetching data, so this method remains backend-agnostic.
+
+        When XR is enabled and no visualizer pumps the Kit application loop,
+        this method pumps it directly so the XR runtime receives frame updates.
         """
         self.update_visualizers(self.get_rendering_dt())
+
+        # When XR is active and no visualizer already pumps the Kit app,
+        # pump it here so the XR runtime (OpenXR) keeps receiving frames.
+        if self._xr_enabled and not any(
+            getattr(viz, "pumps_app_update", lambda: False)() for viz in self._visualizers
+        ):
+            self._pump_kit_app()
 
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):
             for callback in self._render_callbacks.values():
                 callback(None)  # Pass None as event data
+
+    def _pump_kit_app(self) -> None:
+        """Pump the Kit application event loop without stepping physics.
+
+        Used by XR mode to ensure the OpenXR runtime receives frame updates
+        when no visualizer (e.g. KitVisualizer) is doing it.
+
+        Calls :meth:`PhysicsManager.forward` first to sync articulation
+        kinematics and Fabric data so the renderer / XR sees the latest
+        joint positions and transforms (mirroring what
+        :class:`~isaaclab_visualizers.kit.KitVisualizer` does via
+        :meth:`update_scene_data_provider`).
+        """
+        # Sync physics results → Fabric so the renderer / XR sees updated positions.
+        self.physics_manager.forward()
+
+        try:
+            import omni.kit.app
+
+            app = omni.kit.app.get_app()
+            if app is not None and app.is_running():
+                self.set_setting("/app/player/playSimulations", False)
+                app.update()
+                self.set_setting("/app/player/playSimulations", True)
+        except (ImportError, AttributeError):
+            pass
 
     def update_visualizers(self, dt: float) -> None:
         """Update visualizers without triggering renderer/GUI."""
