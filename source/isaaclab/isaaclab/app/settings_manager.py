@@ -93,12 +93,18 @@ class SettingsManager:
     def set(self, path: str, value: Any) -> None:
         """Set a setting value at the given path.
 
+        Always stores in our dictionary for consistent behavior. Also syncs to carb.settings
+        when available for compatibility with Omniverse.
+
         Args:
             path: The settings path (e.g., "/isaaclab/render/offscreen")
             value: The value to set
         """
+        # Always store in our dictionary (source of truth)
+        self._standalone_settings[path] = value
+
+        # Also sync to carb.settings when available
         if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
             if isinstance(value, bool):
                 self._carb_settings.set_bool(path, value)
             elif isinstance(value, int):
@@ -110,9 +116,6 @@ class SettingsManager:
             else:
                 # For other types, try generic set
                 self._carb_settings.set(path, value)
-        else:
-            # Standalone mode - use dictionary
-            self._standalone_settings[path] = value
 
     def get(self, path: str, default: Any = None) -> Any:
         """Get a setting value at the given path.
@@ -124,13 +127,7 @@ class SettingsManager:
         Returns:
             The value at the path, or default if not found
         """
-        if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
-            value = self._carb_settings.get(path)
-            return value if value is not None else default
-        else:
-            # Standalone mode - use dictionary
-            return self._standalone_settings.get(path, default)
+        return self._standalone_settings.get(path, default)
 
     def set_bool(self, path: str, value: bool) -> None:
         """Set a boolean setting value.
