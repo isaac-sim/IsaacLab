@@ -470,12 +470,11 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 # ===================================================================
 
 
-@flaky(max_runs=4, min_passes=1)
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
-        pytest.param(False, id="newton_contacts"),
+        pytest.param(False, id="newton_contacts", marks=pytest.mark.flaky(max_runs=3, min_passes=1)),
         pytest.param(True, id="mujoco_contacts"),
     ],
 )
