@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.11 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed articulation root prim discovery failing when the
+  ``physxArticulation:articulationEnabled`` attribute is not authored on the
+  USD prim. The predicate now treats an unset attribute as enabled (the PhysX
+  default) instead of rejecting the prim.
+
+
 0.5.10 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 
