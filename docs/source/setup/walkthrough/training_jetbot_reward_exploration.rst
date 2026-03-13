@@ -122,7 +122,7 @@ Now we will only get rewarded for driving forward if our alignment reward is non
 It definitely trains faster, but the Jetbots have learned to drive in reverse if the command is pointed behind them. This may be desirable in our
 case, but it shows just how dependent the policy behavior is on the reward function.  In this case, there are **degenerate solutions** to our
 reward function: The reward is maximized for driving forward and aligned to the command, but if the Jetbot drives in reverse, then the forward
-term is negative, and if its driving in reverse towards the command, then the alignment term is **also negative**, meaning hat the reward is positive!
+term is negative, and if its driving in reverse towards the command, then the alignment term is **also negative**, meaning that the reward is positive!
 When you design your own environments, you will run into degenerate solutions like this and a significant amount of reward engineering is devoted to
 suppressing or supporting these behaviors by modifying the reward function.
 
