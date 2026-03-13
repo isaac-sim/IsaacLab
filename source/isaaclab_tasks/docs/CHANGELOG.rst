@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.15 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added semantic segmentation to preset data types for the Cartpole Camera environment.
+
+
 1.5.14 (2026-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -186,7 +195,6 @@ Changed
   Newton-compatible randomizations (joint gains, joint position limits, object mass, gravity).
   Material and fixed-tendon randomization remain exclusively in
   :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`.
-
 
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
