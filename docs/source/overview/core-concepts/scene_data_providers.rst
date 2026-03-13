@@ -27,15 +27,15 @@ The system has three layers:
 
 1. **BaseSceneDataProvider** — abstract interface defining the contract:
 
-   - :meth:`update(env_ids)` — refresh cached scene data
-   - :meth:`get_newton_model()` — return Newton model handle (if available)
-   - :meth:`get_newton_state(env_ids)` — return Newton state handle (if available)
-   - :meth:`get_usd_stage()` — return USD stage handle (if available)
-   - :meth:`get_transforms()` — return body transforms
-   - :meth:`get_velocities()` — return body velocities
-   - :meth:`get_contacts()` — return contact data
-   - :meth:`get_camera_transforms()` — return per-camera, per-env transforms
-   - :meth:`get_metadata()` — return backend metadata (num_envs, gravity, etc.)
+   - ``update(env_ids)`` — refresh cached scene data
+   - ``get_newton_model()`` — return Newton model handle (if available)
+   - ``get_newton_state(env_ids)`` — return Newton state handle (if available)
+   - ``get_usd_stage()`` — return USD stage handle (if available)
+   - ``get_transforms()`` — return body transforms
+   - ``get_velocities()`` — return body velocities
+   - ``get_contacts()`` — return contact data
+   - ``get_camera_transforms()`` — return per-camera, per-env transforms
+   - ``get_metadata()`` — return backend metadata (num_envs, gravity, etc.)
 
 2. **SceneDataProvider** — factory that auto-selects the backend-specific implementation
    based on the active :class:`~isaaclab.physics.PhysicsManager`.
