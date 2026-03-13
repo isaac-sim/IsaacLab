@@ -8,25 +8,24 @@ For more details about the project, please visit the `COMPASS Repository`_.
 Workflow Overview
 -----------------
 
-The following flowchart provides a high-level overview of the complete workflow:
+The following provides a high-level overview of the complete workflow:
 
-.. mermaid::
-
-   %%{init: {'theme': 'neutral'}}%%
-   flowchart TD
-       A[Start: Create compass-nurec workspace] --> B[Install Isaac Sim & Isaac Lab\nTerminal 1]
-       B --> C[Install COMPASS Repository\nTerminal 2]
-       C --> D[Test Setup\nplay.py]
-       D --> E[Authenticate with Hugging Face\nhf auth login --token]
-       E --> F1[Download X-Mobility Checkpoint\nhf download nvidia/X-Mobility]
-       E --> F2[Download COMPASS USD Assets\nhf download nvidia/COMPASS]
-       E --> F3[Download NuRec Real2Sim Assets\nhf download nvidia/PhysicalAI-Robotics-NuRec]
-       F2 --> G[Extract & place usd/ folder\ninto mobility_es extension dir]
-       F3 --> H[Place environment files\ne.g. nova_carter-galileo/]
-       F1 & G & H --> I[Train Residual RL Policy\nrun.py + train_config_real2sim.gin]
-       I --> J[Evaluate Trained Policy\nrun.py + eval_config_real2sim.gin]
-       J --> K[Export to ONNX / TensorRT]
-       K --> L[ROS2 Deployment / Sim-to-Real Transfer]
+1. **Create workspace**: Create the ``compass-nurec`` workspace directory
+2. **Install Isaac Sim & Isaac Lab** (Terminal 1): Follow installation steps for Isaac Sim 6.0 and Isaac Lab 3.0
+3. **Install COMPASS Repository** (Terminal 2): Clone and set up the COMPASS repository
+4. **Test setup**: Verify installation using ``play.py``
+5. **Authenticate with Hugging Face**: Generate access token and run ``hf auth login --token <token>``
+6. **Download assets** (can be done in parallel):
+   - Download X-Mobility checkpoint: ``hf download nvidia/X-Mobility x_mobility-nav2-semantic_action_path.ckpt``
+   - Download COMPASS USD assets: ``hf download nvidia/COMPASS compass_usds.zip``
+   - Download NuRec Real2Sim assets: ``hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset``
+7. **Prepare assets**:
+   - Extract and place ``usd/`` folder into ``compass/rl_env/exts/mobility_es/mobility_es/``
+   - Place environment files (e.g., ``nova_carter-galileo/``) in the appropriate location
+8. **Train Residual RL Policy**: Run training with ``run.py`` and ``train_config_real2sim.gin``
+9. **Evaluate Trained Policy**: Run evaluation with ``run.py`` and ``eval_config_real2sim.gin``
+10. **Export to ONNX / TensorRT**: Convert the trained model for deployment
+11. **ROS2 Deployment / Sim-to-Real Transfer**: Deploy the policy for real-world use
 
 Setup
 -----
