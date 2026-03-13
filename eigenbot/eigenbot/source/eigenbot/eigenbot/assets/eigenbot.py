@@ -15,7 +15,7 @@ EIGENBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         asset_path=EIGENBOT_URDF_PATH,
         force_usd_conversion=True,
-        fix_base=True,
+        fix_base=False,
         merge_fixed_joints=False,
         make_instanceable=False,
         joint_drive=UrdfConverterCfg.JointDriveCfg(
@@ -32,6 +32,9 @@ EIGENBOT_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=100.0,
             enable_gyroscopic_forces=True,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            collision_enabled=True,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,

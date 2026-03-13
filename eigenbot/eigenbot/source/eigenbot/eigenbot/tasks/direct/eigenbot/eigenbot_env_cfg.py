@@ -28,7 +28,11 @@ class EigenbotEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=decimation,
+        gravity=(0.0, 0.0, -9.81),
+    )
 
     # robot
     robot_cfg: ArticulationCfg = EIGENBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
