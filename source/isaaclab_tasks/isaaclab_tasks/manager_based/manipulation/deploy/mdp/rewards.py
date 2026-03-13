@@ -404,6 +404,11 @@ class keypoint_ee_gear_error(ManagerTermBase):
     using grasp offsets, so that the distance is ~0 when properly holding the gear
     and increases when the gripper drifts away.
 
+    The reward is gated on insertion progress: it only activates when the
+    gear-to-gear-base keypoint error drops below ``insertion_threshold``,
+    indicating the gear is substantially inserted. Before that point the
+    reward returns 0 so it does not interfere with the insertion policy.
+
     Supports linear weight ramp-up: the returned reward is scaled by a factor that
     linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
     env steps, allowing the reward to grow in importance as training progresses.
@@ -433,7 +438,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
 
         self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
-        self.dead_zone_threshold: float = cfg.params.get("dead_zone_threshold", 0.0)
+        self.insertion_threshold: float = cfg.params.get("insertion_threshold", 0.03)
 
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
@@ -442,11 +447,13 @@ class keypoint_ee_gear_error(ManagerTermBase):
             "gear_medium": env.scene["factory_gear_medium"],
             "gear_large": env.scene["factory_gear_large"],
         }
+        self.gear_base_asset = env.scene["factory_gear_base"]
 
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
 
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+        self.insertion_keypoint_computer = _compute_keypoint_distance(cfg, env)
         self._step_count = 0
 
     def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
@@ -464,7 +471,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
         add_cube_center_kp: bool = True,
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
-        dead_zone_threshold: float = 0.0,
+        insertion_threshold: float = 0.03,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -495,6 +502,21 @@ class keypoint_ee_gear_error(ManagerTermBase):
         gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
         gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
 
+        # -- Insertion gating: compute gear-to-gear-base keypoint error --
+        gear_base_pos = wp.to_torch(self.gear_base_asset.data.body_pos_w)[:, 0]
+        gear_base_quat = wp.to_torch(self.gear_base_asset.data.body_quat_w)[:, 0]
+
+        insertion_kp_dist = self.insertion_keypoint_computer.compute(
+            current_pos=gear_base_pos,
+            current_quat=gear_base_quat,
+            target_pos=gear_pos,
+            target_quat=gear_quat,
+            keypoint_scale=keypoint_scale,
+        )
+        insertion_kp_error = insertion_kp_dist.mean(-1)
+        is_inserted = (insertion_kp_error < self.insertion_threshold).float()
+
+        # -- EE-gear grasp quality reward --
         gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
         grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
         gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
@@ -508,20 +530,21 @@ class keypoint_ee_gear_error(ManagerTermBase):
         )
 
         mean_kp_error = keypoint_dist_sep.mean(-1)
-        penalized_error = torch.clamp(mean_kp_error - self.dead_zone_threshold, min=0.0)
 
         weight_scale = self._get_weight_scale(env)
-        scaled_reward = penalized_error * weight_scale
+        scaled_reward = mean_kp_error * weight_scale * is_inserted
 
         mean_error_scalar = mean_kp_error.mean().item()
-        mean_penalized_scalar = penalized_error.mean().item()
+        mean_insertion_error_scalar = insertion_kp_error.mean().item()
+        pct_inserted = is_inserted.mean().item()
 
         if not hasattr(env, "extras"):
             env.extras = {}
         if "log" not in env.extras:
             env.extras["log"] = {}
         env.extras["log"]["ee_gear_kp_error/mean_keypoint_dist"] = mean_error_scalar
-        env.extras["log"]["ee_gear_kp_error/mean_penalized_error"] = mean_penalized_scalar
+        env.extras["log"]["ee_gear_kp_error/insertion_kp_error"] = mean_insertion_error_scalar
+        env.extras["log"]["ee_gear_kp_error/pct_envs_inserted"] = pct_inserted
         env.extras["log"]["ee_gear_kp_error/weight_scale"] = weight_scale
 
         self._step_count += 1
@@ -530,7 +553,8 @@ class keypoint_ee_gear_error(ManagerTermBase):
         carb.log_info(
             f"[ee_gear_kp_error] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
-            f" | penalized_error={mean_penalized_scalar:.5f}"
+            f" | insertion_error={mean_insertion_error_scalar:.5f}"
+            f" | pct_inserted={pct_inserted:.3f}"
             f" | weight_scale={weight_scale:.4f}"
         )
 
@@ -543,6 +567,11 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
     Transforms the gear's actual world pose into the expected EE position/orientation
     using grasp offsets, so that the reward is high (~1) when properly holding the gear
     and drops sharply when the gripper drifts away.
+
+    The reward is gated on insertion progress: it only activates when the
+    gear-to-gear-base keypoint error drops below ``insertion_threshold``,
+    indicating the gear is substantially inserted. Before that point the
+    reward returns 0 so it does not interfere with the insertion policy.
 
     Supports linear weight ramp-up: the returned reward is scaled by a factor that
     linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
@@ -573,7 +602,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
 
         self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
-        self.dead_zone_threshold: float = cfg.params.get("dead_zone_threshold", 0.0)
+        self.insertion_threshold: float = cfg.params.get("insertion_threshold", 0.03)
 
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
@@ -582,11 +611,13 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
             "gear_medium": env.scene["factory_gear_medium"],
             "gear_large": env.scene["factory_gear_large"],
         }
+        self.gear_base_asset = env.scene["factory_gear_base"]
 
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
 
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+        self.insertion_keypoint_computer = _compute_keypoint_distance(cfg, env)
         self._step_count = 0
 
     def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
@@ -606,7 +637,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         add_cube_center_kp: bool = True,
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
-        dead_zone_threshold: float = 0.0,
+        insertion_threshold: float = 0.03,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -637,6 +668,21 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
         gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
 
+        # -- Insertion gating: compute gear-to-gear-base keypoint error --
+        gear_base_pos = wp.to_torch(self.gear_base_asset.data.body_pos_w)[:, 0]
+        gear_base_quat = wp.to_torch(self.gear_base_asset.data.body_quat_w)[:, 0]
+
+        insertion_kp_dist = self.insertion_keypoint_computer.compute(
+            current_pos=gear_base_pos,
+            current_quat=gear_base_quat,
+            target_pos=gear_pos,
+            target_quat=gear_quat,
+            keypoint_scale=keypoint_scale,
+        )
+        insertion_kp_error = insertion_kp_dist.mean(-1)
+        is_inserted = (insertion_kp_error < self.insertion_threshold).float()
+
+        # -- EE-gear grasp quality reward --
         gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
         grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
         gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
@@ -649,28 +695,28 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
             keypoint_scale=keypoint_scale,
         )
 
-        penalized_dist_sep = torch.clamp(keypoint_dist_sep - self.dead_zone_threshold, min=0.0)
-
         mean_kp_error = keypoint_dist_sep.mean(-1)
 
-        keypoint_reward_exp = torch.zeros_like(penalized_dist_sep[:, 0])
+        keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
         if kp_use_sum_of_exps:
             for coeff in kp_exp_coeffs:
                 a, b = coeff
                 keypoint_reward_exp += (
-                    1.0 / (torch.exp(a * penalized_dist_sep) + b + torch.exp(-a * penalized_dist_sep))
+                    1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
                 ).mean(-1)
         else:
-            penalized_dist = penalized_dist_sep.mean(-1)
+            kp_dist_mean = keypoint_dist_sep.mean(-1)
             for coeff in kp_exp_coeffs:
                 a, b = coeff
-                keypoint_reward_exp += 1.0 / (torch.exp(a * penalized_dist) + b + torch.exp(-a * penalized_dist))
+                keypoint_reward_exp += 1.0 / (torch.exp(a * kp_dist_mean) + b + torch.exp(-a * kp_dist_mean))
 
         weight_scale = self._get_weight_scale(env)
-        scaled_reward = keypoint_reward_exp * weight_scale
+        scaled_reward = keypoint_reward_exp * weight_scale * is_inserted
 
         mean_error_scalar = mean_kp_error.mean().item()
         mean_reward_scalar = keypoint_reward_exp.mean().item()
+        mean_insertion_error_scalar = insertion_kp_error.mean().item()
+        pct_inserted = is_inserted.mean().item()
 
         if not hasattr(env, "extras"):
             env.extras = {}
@@ -678,6 +724,8 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
             env.extras["log"] = {}
         env.extras["log"]["ee_gear_kp_error_exp/mean_keypoint_dist"] = mean_error_scalar
         env.extras["log"]["ee_gear_kp_error_exp/mean_exp_reward"] = mean_reward_scalar
+        env.extras["log"]["ee_gear_kp_error_exp/insertion_kp_error"] = mean_insertion_error_scalar
+        env.extras["log"]["ee_gear_kp_error_exp/pct_envs_inserted"] = pct_inserted
         env.extras["log"]["ee_gear_kp_error_exp/weight_scale"] = weight_scale
 
         self._step_count += 1
@@ -686,6 +734,8 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         carb.log_info(
             f"[ee_gear_kp_error_exp] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
+            f" | insertion_error={mean_insertion_error_scalar:.5f}"
+            f" | pct_inserted={pct_inserted:.3f}"
             f" | weight_scale={weight_scale:.4f}"
             f" | mean_exp_reward={mean_reward_scalar:.5f}"
         )
