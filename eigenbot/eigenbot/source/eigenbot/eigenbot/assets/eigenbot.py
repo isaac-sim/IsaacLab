@@ -33,9 +33,6 @@ EIGENBOT_CFG = ArticulationCfg(
             max_depenetration_velocity=100.0,
             enable_gyroscopic_forces=True,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True,
-        ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=4,

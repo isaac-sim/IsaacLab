@@ -56,14 +56,14 @@ class EigenbotEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
     def _apply_usdz_textures(self):
-        """Overwrite robot visual materials with textures extracted from the USDZ asset.
+        """Overwrite robot visual materials using colors extracted from the USDZ asset.
 
-        Opens the USDZ file, extracts material-to-mesh bindings, copies those materials
-        into the simulation stage, and binds them to the corresponding URDF-converted prims.
-        Falls back to creating materials from the PNG textures in the meshes directory if
-        USDZ material extraction fails.
+        Opens the USDZ file, reads diffuse colors from its materials, and creates
+        solid-color PreviewSurface materials on the sim stage bound to the URDF robot.
+        STL meshes lack UV coordinates, so solid colors are used instead of textures.
+        Falls back to hardcoded colors if the USDZ cannot be opened.
         """
-        from pxr import Usd, UsdShade, UsdGeom, Sdf
+        from pxr import Usd, UsdShade, UsdGeom, Sdf, Gf
 
         import omni.usd
 
@@ -72,223 +72,36 @@ class EigenbotEnv(DirectRLEnv):
             print("[WARN] No USD stage available for texture overwriting")
             return
 
-        # --- Try USDZ-based material transfer first ---
-        usdz_materials_applied = False
-        if os.path.isfile(_USDZ_PATH):
-            try:
-                usdz_materials_applied = self._apply_materials_from_usdz(stage)
-            except Exception as e:
-                print(f"[WARN] USDZ material transfer failed: {e}, falling back to PNG textures")
+        # Try to extract diffuse colors from USDZ materials
+        link_colors = self._extract_colors_from_usdz()
 
-        # --- Fallback: create materials from PNG textures ---
-        if not usdz_materials_applied:
-            self._apply_materials_from_pngs(stage)
-
-    def _apply_materials_from_usdz(self, stage) -> bool:
-        """Extract materials from USDZ and apply them to the robot in the simulation stage.
-
-        Returns True if materials were successfully applied.
-        """
-        from pxr import Usd, UsdShade, UsdGeom, Sdf
-
-        usdz_stage = Usd.Stage.Open(_USDZ_PATH)
-        if not usdz_stage:
-            return False
-
-        # Collect all materials from USDZ stage
-        usdz_materials = {}
-        for prim in usdz_stage.Traverse():
-            if prim.IsA(UsdShade.Material):
-                usdz_materials[prim.GetName()] = prim.GetPath()
-
-        if not usdz_materials:
-            return False
-
-        # Collect mesh -> material bindings from USDZ
-        mesh_material_map = {}  # mesh_name_lower -> material_path_in_usdz
-        for prim in usdz_stage.Traverse():
-            if prim.IsA(UsdGeom.Mesh) or prim.IsA(UsdGeom.Subset):
-                binding_api = UsdShade.MaterialBindingAPI(prim)
-                bound_mat, _ = binding_api.ComputeBoundMaterial()
-                if bound_mat:
-                    mesh_material_map[prim.GetName().lower()] = bound_mat.GetPath()
-
-        # Copy materials from USDZ stage to simulation stage
+        # Create materials scope
         materials_root = Sdf.Path("/World/Materials")
         if not stage.GetPrimAtPath(materials_root).IsValid():
             stage.DefinePrim(materials_root, "Scope")
 
-        copied_materials = set()
-        for mat_name, mat_path in usdz_materials.items():
-            dest_path = materials_root.AppendChild(mat_name)
-            if not stage.GetPrimAtPath(dest_path).IsValid():
-                # Copy the material spec from USDZ layer to sim layer
-                success = Sdf.CopySpec(
-                    usdz_stage.GetRootLayer(), mat_path,
-                    stage.GetRootLayer(), dest_path,
-                )
-                if success:
-                    copied_materials.add(mat_name)
-
-        if not copied_materials:
-            return False
-
-        # Build mapping: link name prefix -> material dest path
-        # URDF link names: eigenbody_*, bendy_input_*, bendy_output_*, static_elbow_*, foot_input_*
-        link_to_material = self._build_link_material_mapping(
-            mesh_material_map, materials_root, usdz_stage
-        )
-
-        # Apply materials to robot prims in env_0 (will be cloned to other envs)
-        robot_prim = stage.GetPrimAtPath("/World/envs/env_0/Robot")
-        if not robot_prim.IsValid():
-            print("[WARN] Robot prim not found at /World/envs/env_0/Robot")
-            return False
-
-        applied_count = 0
-        for prim in Usd.PrimRange(robot_prim):
-            if not (prim.IsA(UsdGeom.Mesh) or prim.IsA(UsdGeom.Subset)):
-                continue
-
-            # Walk up to find the link-level prim name
-            link_name = self._find_link_name(prim)
-            if not link_name:
-                continue
-
-            # Match link name to material
-            mat_path = self._match_link_to_material(link_name, link_to_material)
-            if mat_path and stage.GetPrimAtPath(mat_path).IsValid():
-                binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-                mat = UsdShade.Material(stage.GetPrimAtPath(mat_path))
-                binding_api.Bind(mat)
-                applied_count += 1
-
-        print(f"[INFO] Applied {applied_count} USDZ material bindings to robot meshes")
-        return applied_count > 0
-
-    def _build_link_material_mapping(self, mesh_material_map, materials_root, usdz_stage):
-        """Build a mapping from URDF link name prefixes to material paths in sim stage."""
-        from pxr import Sdf
-
-        link_to_material = {}
-
-        # Try to auto-map based on mesh names in the USDZ
-        # Common patterns: mesh names contain 'eigenbody', 'bendy', 'elbow', 'foot'
-        for mesh_name, mat_path in mesh_material_map.items():
-            mat_name = mat_path.name
-            dest_mat = materials_root.AppendChild(mat_name)
-
-            name = mesh_name.lower()
-            if "eigenbody" in name or "eigenbot_base" in name or "body" in name:
-                link_to_material["eigenbody"] = dest_mat
-            elif "bendyin" in name or "bendy_in" in name or "bendy_input" in name:
-                link_to_material["bendy_input"] = dest_mat
-            elif "bendyout" in name or "bendy_out" in name or "bendy_output" in name:
-                link_to_material["bendy_output"] = dest_mat
-            elif "elbow" in name:
-                link_to_material["static_elbow"] = dest_mat
-            elif "foot" in name:
-                link_to_material["foot_input"] = dest_mat
-
-        return link_to_material
-
-    def _find_link_name(self, prim):
-        """Walk up the prim hierarchy to find the URDF link name."""
-        current = prim
-        while current and current.GetPath().pathString != "/":
-            name = current.GetName()
-            # URDF link names follow these patterns
-            if any(name.startswith(p) for p in (
-                "eigenbody_", "bendy_input_", "bendy_output_",
-                "static_elbow_", "foot_input_",
-            )):
-                return name
-            current = current.GetParent()
-        return None
-
-    def _match_link_to_material(self, link_name, link_to_material):
-        """Match a URDF link name to a material path."""
-        from pxr import Sdf
-
-        for prefix, mat_path in link_to_material.items():
-            if link_name.startswith(prefix):
-                return mat_path
-        return None
-
-    def _apply_materials_from_pngs(self, stage):
-        """Fallback: create PBR materials from PNG textures and apply to robot meshes."""
-        from pxr import Usd, UsdShade, UsdGeom, Sdf, Gf
-
-        # Mapping: link name prefix -> PNG texture filename
-        texture_map = {
-            "eigenbody": "Eigenbody.png",
-            "bendy_input": "Bendy_In.png",
-            "bendy_output": "Bendy_Out.png",
-            "static_elbow": "Elbow.png",
-            "foot_input": "Foot.png",
-        }
-
-        materials_root = Sdf.Path("/World/Materials")
-        if not stage.GetPrimAtPath(materials_root).IsValid():
-            stage.DefinePrim(materials_root, "Scope")
-
-        # Create a PreviewSurface material for each texture
+        # Create a PreviewSurface material for each link type
         created_materials = {}
-        for prefix, tex_file in texture_map.items():
-            tex_path = os.path.join(_MESHES_DIR, tex_file)
-            if not os.path.isfile(tex_path):
-                print(f"[WARN] Texture not found: {tex_path}")
-                continue
-
+        for prefix, (r, g, b, roughness, metallic) in link_colors.items():
             mat_prim_path = materials_root.AppendChild(prefix + "_material")
-            if stage.GetPrimAtPath(mat_prim_path).IsValid():
-                created_materials[prefix] = mat_prim_path
-                continue
-
-            # Create material
-            material = UsdShade.Material.Define(stage, mat_prim_path)
-            shader_path = mat_prim_path.AppendChild("Shader")
-            shader = UsdShade.Shader.Define(stage, shader_path)
-            shader.CreateIdAttr("UsdPreviewSurface")
-
-            # Create texture reader for diffuse color
-            tex_reader_path = mat_prim_path.AppendChild("DiffuseTexture")
-            tex_reader = UsdShade.Shader.Define(stage, tex_reader_path)
-            tex_reader.CreateIdAttr("UsdUVTexture")
-            # Use forward-slash path for USD compatibility
-            tex_reader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
-                tex_path.replace("\\", "/")
-            )
-            tex_reader.CreateInput("wrapS", Sdf.ValueTypeNames.Token).Set("repeat")
-            tex_reader.CreateInput("wrapT", Sdf.ValueTypeNames.Token).Set("repeat")
-            tex_reader.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
-
-            # Create UV coordinate reader
-            uv_reader_path = mat_prim_path.AppendChild("UVReader")
-            uv_reader = UsdShade.Shader.Define(stage, uv_reader_path)
-            uv_reader.CreateIdAttr("UsdPrimvarReader_float2")
-            uv_reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
-            uv_reader.CreateOutput("result", Sdf.ValueTypeNames.Float2)
-
-            # Connect UV reader to texture
-            tex_reader.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-                uv_reader.GetOutput("result")
-            )
-
-            # Connect texture to shader diffuse color
-            shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
-                tex_reader.GetOutput("rgb")
-            )
-            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.5)
-            shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
-            shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
-
-            # Wire shader to material surface output
-            material.CreateSurfaceOutput().ConnectToSource(shader.GetOutput("surface"))
-
+            if not stage.GetPrimAtPath(mat_prim_path).IsValid():
+                material = UsdShade.Material.Define(stage, mat_prim_path)
+                shader = UsdShade.Shader.Define(
+                    stage, mat_prim_path.AppendChild("Shader")
+                )
+                shader.CreateIdAttr("UsdPreviewSurface")
+                shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
+                    Gf.Vec3f(r, g, b)
+                )
+                shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(roughness)
+                shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(metallic)
+                shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+                material.CreateSurfaceOutput().ConnectToSource(
+                    shader.GetOutput("surface")
+                )
             created_materials[prefix] = mat_prim_path
 
-        # Apply materials to robot meshes in env_0
+        # Bind materials to robot link prims in env_0 (propagates via cloning)
         robot_prim = stage.GetPrimAtPath("/World/envs/env_0/Robot")
         if not robot_prim.IsValid():
             print("[WARN] Robot prim not found at /World/envs/env_0/Robot")
@@ -296,22 +109,127 @@ class EigenbotEnv(DirectRLEnv):
 
         applied_count = 0
         for prim in Usd.PrimRange(robot_prim):
-            if not prim.IsA(UsdGeom.Mesh):
-                continue
-
-            link_name = self._find_link_name(prim)
-            if not link_name:
-                continue
-
-            for prefix, mat_path in created_materials.items():
-                if link_name.startswith(prefix):
-                    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-                    mat = UsdShade.Material(stage.GetPrimAtPath(mat_path))
-                    binding_api.Bind(mat)
-                    applied_count += 1
+            # Bind at the link level (parent of visuals/collisions), not on
+            # instanced children, to avoid the instanced-prim modification error
+            prim_name = prim.GetName()
+            matched_prefix = None
+            for prefix in created_materials:
+                if prim_name.startswith(prefix + "_"):
+                    matched_prefix = prefix
                     break
+            if matched_prefix is None:
+                continue
 
-        print(f"[INFO] Applied {applied_count} PNG-based material bindings to robot meshes")
+            mat_path = created_materials[matched_prefix]
+            binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+            mat = UsdShade.Material(stage.GetPrimAtPath(mat_path))
+            binding_api.Bind(mat)
+            applied_count += 1
+
+        print(f"[INFO] Applied {applied_count} material bindings to robot links")
+
+    def _extract_colors_from_usdz(self) -> dict:
+        """Read diffuse colors from the USDZ materials and map them to link prefixes.
+
+        Returns a dict of link_prefix -> (r, g, b, roughness, metallic).
+        Falls back to hardcoded colors if USDZ is unavailable.
+        """
+        # Hardcoded defaults that approximate the real Eigenbot appearance
+        defaults = {
+            "eigenbody":    (0.10, 0.10, 0.10, 0.6, 0.0),   # dark grey body
+            "bendy_input":  (0.12, 0.12, 0.12, 0.5, 0.0),   # dark module input
+            "bendy_output": (0.15, 0.15, 0.15, 0.5, 0.0),   # slightly lighter output
+            "static_elbow": (0.55, 0.55, 0.55, 0.3, 0.4),   # metallic silver elbow
+            "foot_input":   (0.20, 0.20, 0.20, 0.8, 0.0),   # rubber-like dark foot
+        }
+
+        if not os.path.isfile(_USDZ_PATH):
+            print("[INFO] USDZ file not found, using default colors")
+            return defaults
+
+        try:
+            from pxr import Usd, UsdShade, UsdGeom, Sdf, Gf
+
+            usdz_stage = Usd.Stage.Open(_USDZ_PATH)
+            if not usdz_stage:
+                return defaults
+
+            # Collect mesh -> bound material from USDZ
+            mesh_to_color = {}
+            for prim in usdz_stage.Traverse():
+                if not (prim.IsA(UsdGeom.Mesh) or prim.IsA(UsdGeom.Subset)):
+                    continue
+                binding_api = UsdShade.MaterialBindingAPI(prim)
+                bound_mat, _ = binding_api.ComputeBoundMaterial()
+                if not bound_mat:
+                    continue
+
+                # Try to read diffuse color from the shader
+                color = self._read_shader_diffuse(bound_mat)
+                if color is not None:
+                    mesh_to_color[prim.GetName().lower()] = color
+
+            if not mesh_to_color:
+                print("[INFO] No diffuse colors found in USDZ, using defaults")
+                return defaults
+
+            # Map USDZ mesh names to URDF link prefixes
+            result = dict(defaults)  # start with defaults
+            for mesh_name, (r, g, b) in mesh_to_color.items():
+                name = mesh_name.lower()
+                if "eigenbody" in name or "eigenbot_base" in name or "body" in name:
+                    result["eigenbody"] = (r, g, b, 0.6, 0.0)
+                elif "bendyin" in name or "bendy_in" in name or "bendy_input" in name:
+                    result["bendy_input"] = (r, g, b, 0.5, 0.0)
+                elif "bendyout" in name or "bendy_out" in name or "bendy_output" in name:
+                    result["bendy_output"] = (r, g, b, 0.5, 0.0)
+                elif "elbow" in name:
+                    result["static_elbow"] = (r, g, b, 0.3, 0.4)
+                elif "foot" in name:
+                    result["foot_input"] = (r, g, b, 0.8, 0.0)
+
+            print(f"[INFO] Extracted {len(mesh_to_color)} colors from USDZ")
+            return result
+
+        except Exception as e:
+            print(f"[WARN] Failed to extract colors from USDZ: {e}")
+            return defaults
+
+    @staticmethod
+    def _read_shader_diffuse(material):
+        """Read the diffuse color from a UsdShade.Material's shader network.
+
+        Returns (r, g, b) tuple or None.
+        """
+        from pxr import UsdShade, Sdf
+
+        # Walk the shader outputs to find a UsdPreviewSurface
+        surface_output = material.GetSurfaceOutput()
+        if not surface_output:
+            return None
+
+        connected_source = surface_output.GetConnectedSources()
+        if not connected_source or not connected_source[0]:
+            return None
+
+        for source_info in connected_source[0]:
+            shader_prim = source_info.source.GetPrim()
+            shader = UsdShade.Shader(shader_prim)
+            if not shader:
+                continue
+
+            # Try diffuseColor input
+            diffuse_input = shader.GetInput("diffuseColor")
+            if diffuse_input and diffuse_input.HasValue():
+                val = diffuse_input.Get()
+                if val is not None:
+                    # Could be Gf.Vec3f or tuple
+                    try:
+                        return (float(val[0]), float(val[1]), float(val[2]))
+                    except (TypeError, IndexError):
+                        pass
+
+        return None
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
