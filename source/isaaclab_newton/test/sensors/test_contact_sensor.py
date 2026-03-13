@@ -27,6 +27,7 @@ import math
 import pytest
 import torch
 import warp as wp
+from flaky import flaky
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -469,11 +470,12 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 # ===================================================================
 
 
+@flaky(max_runs=4, min_passes=1)
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
-        pytest.param(False, id="newton_contacts", marks=pytest.mark.flaky(reruns=3)),
+        pytest.param(False, id="newton_contacts"),
         pytest.param(True, id="mujoco_contacts"),
     ],
 )
