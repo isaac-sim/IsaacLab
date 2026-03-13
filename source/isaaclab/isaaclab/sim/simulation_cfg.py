@@ -260,5 +260,5 @@ class SimulationCfg:
     If None, the logs will be saved to the temp directory.
     """
 
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
-    """The list of visualizer configurations. Default is None."""
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
+    """The visualizer configuration(s). Default is an empty list."""

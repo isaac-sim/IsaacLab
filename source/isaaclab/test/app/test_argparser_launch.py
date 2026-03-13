@@ -14,7 +14,7 @@ from isaaclab.app import AppLauncher
 def test_livestream_launch_with_argparser(mocker):
     """Test launching with argparser arguments."""
     # Mock the parse_args method
-    mocker.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1, headless=True))
+    mocker.patch("argparse.ArgumentParser.parse_args", return_value=argparse.Namespace(livestream=1))
     # create argparser
     parser = argparse.ArgumentParser()
     # add app launcher arguments
@@ -25,13 +25,38 @@ def test_livestream_launch_with_argparser(mocker):
     # parse args
     mock_args = parser.parse_args()
     # everything defaults to None
-    app = AppLauncher(mock_args).app
-
-    from isaaclab.app.settings_manager import get_settings_manager
-
-    settings = get_settings_manager()
-    assert settings.get("/app/window/enabled") is False
-    assert settings.get("/app/livestream/enabled") is True
+    app_launcher = AppLauncher(mock_args)
+    app = app_launcher.app
+    assert app_launcher._livestream == 1
+    assert app_launcher._headless is True
 
     # close the app on exit
     app.close()
+
+
+def test_visualizer_alias_parsing():
+    """Test that --viz alias maps to visualizer values."""
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+
+    args = parser.parse_args(["--viz", "kit,newton"])
+    assert args.visualizer == ["kit", "newton"]
+    assert args.visualizer_explicit is True
+
+
+def test_headless_deprecated_arg_parsing():
+    """Test that deprecated --headless is still accepted by the parser."""
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+
+    args = parser.parse_args(["--headless"])
+    assert args.headless is True
+    assert args.headless_explicit is True
+
+
+def test_visualizer_none_parsing():
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+    args = parser.parse_args(["--viz", "none"])
+    assert args.visualizer == ["none"]
+    assert args.visualizer_explicit is True
