@@ -99,27 +99,40 @@ class NewtonWarpRenderer(RendererBase):
 
     def _initialize_output(self):
         """Initialize the output of the renderer."""
-        self._data_types = ["rgba", "rgb", "depth"]
         self._num_tiles_per_side = math.ceil(math.sqrt(self._num_envs))
 
-        # Raw buffer to hold data from the tiled camera sensor
-        self._raw_output_rgb_buffer = self._tiled_camera_sensor.create_color_image_output(
-            self._width, self._height, self._num_cameras
-        )
-        self._raw_output_depth_buffer = self._tiled_camera_sensor.create_depth_image_output(
-            self._width, self._height, self._num_cameras
-        )
+        # Determine which render targets are needed based on requested data types
+        requested = set(self.cfg.data_types)
+        self._needs_rgb = bool(requested & {"rgb", "rgba"})
+        self._needs_depth = bool(requested & {"depth", "distance_to_image_plane", "distance_to_camera"})
 
-        self._output_data_buffers["rgba"] = wp.zeros(
-            (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=self._raw_output_rgb_buffer.device
-        )
-        # Create RGB view that references the same underlying array as RGBA, but only first 3 channels
-        self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
-        self._output_data_buffers["depth"] = wp.zeros(
-            (self._num_envs, self._height, self._width, 1),
-            dtype=wp.float32,
-            device=self._raw_output_depth_buffer.device,
-        )
+        # Raw buffer to hold data from the tiled camera sensor
+        self._raw_output_rgb_buffer = None
+        self._raw_output_depth_buffer = None
+
+        if self._needs_rgb:
+            self._raw_output_rgb_buffer = self._tiled_camera_sensor.create_color_image_output(
+                self._width, self._height, self._num_cameras
+            )
+            self._output_data_buffers["rgba"] = wp.zeros(
+                (self._num_envs, self._height, self._width, 4),
+                dtype=wp.uint8,
+                device=self._raw_output_rgb_buffer.device,
+            )
+            # Create RGB view that references the same underlying array as RGBA, but only first 3 channels
+            self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
+
+        if self._needs_depth:
+            self._raw_output_depth_buffer = self._tiled_camera_sensor.create_depth_image_output(
+                self._width, self._height, self._num_cameras
+            )
+            self._output_data_buffers["depth"] = wp.zeros(
+                (self._num_envs, self._height, self._width, 1),
+                dtype=wp.float32,
+                device=self._raw_output_depth_buffer.device,
+            )
+
+        self._data_types = list(self._output_data_buffers.keys())
 
     def render(
         self, camera_positions: torch.Tensor, camera_orientations: torch.Tensor, intrinsic_matrices: torch.Tensor
@@ -175,19 +188,20 @@ class NewtonWarpRenderer(RendererBase):
             depth_image=self._raw_output_depth_buffer,
         )
 
-        # Convert uint32 to uint8 RGBA
-        reshape_rgba = self._raw_output_rgb_buffer.reshape((self._num_envs, self._height, self._width))
-        self._output_data_buffers["rgba"] = wp.array(
-            ptr=reshape_rgba.ptr, shape=(*reshape_rgba.shape, 4), dtype=wp.uint8
-        )
+        if self._needs_rgb:
+            # Convert uint32 to uint8 RGBA
+            reshape_rgba = self._raw_output_rgb_buffer.reshape((self._num_envs, self._height, self._width))
+            self._output_data_buffers["rgba"] = wp.array(
+                ptr=reshape_rgba.ptr, shape=(*reshape_rgba.shape, 4), dtype=wp.uint8
+            )
+            self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
 
-        self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
-
-        # Reshape depth buffer: (num_envs, num_cameras, 1, width*height) -> (num_envs, height, width, 1)
-        # Note: Current implementation only supports 1 camera per environment.
-        self._output_data_buffers["depth"] = self._raw_output_depth_buffer.reshape(
-            (self._num_envs, self._height, self._width, 1)
-        )
+        if self._needs_depth:
+            # Reshape depth buffer: (num_envs, num_cameras, 1, width*height) -> (num_envs, height, width, 1)
+            # Note: Current implementation only supports 1 camera per environment.
+            self._output_data_buffers["depth"] = self._raw_output_depth_buffer.reshape(
+                (self._num_envs, self._height, self._width, 1)
+            )
 
     def step(self):
         """Step the renderer."""
