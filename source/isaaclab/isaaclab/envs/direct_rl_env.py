@@ -503,6 +503,8 @@ class DirectRLEnv(gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
+            if self.video_recorder is None:
+                return None
             return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(

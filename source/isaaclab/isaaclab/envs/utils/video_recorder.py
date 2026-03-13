@@ -64,7 +64,7 @@ class VideoRecorder:
                 self._fallback_tiled_camera = self._spawn_fallback_cameras(cfg, scene)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for video recording, or ``None`` on transient Kit warmup."""
+        """Return an RGB frame for video recording, or ``None`` when no GL viewer and no Kit runtime."""
         if self.cfg.video_mode == "perspective":
             if not self._gl_viewer_init_attempted:
                 self._try_init_gl_viewer()
@@ -188,7 +188,7 @@ class VideoRecorder:
             return rgb_data[:, :, :3]
         except Exception as exc:
             logger.warning("[VideoRecorder] Kit perspective capture failed: %s", exc)
-            return None
+            return np.zeros((720, 1280, 3), dtype=np.uint8)
 
     @staticmethod
     def _spawn_fallback_cameras(cfg: VideoRecorderCfg, scene: InteractiveScene):
@@ -227,41 +227,46 @@ class VideoRecorder:
         """Locate and cache the TiledCamera to use for video recording.
 
         Priority: (1) observation TiledCamera already in the scene, (2) fallback camera.
-        Returns ``None`` if neither is available.
+        Returns ``None`` if neither is available yet (retried on the next call).
         """
-        if not hasattr(self, "_video_camera"):
-            from isaaclab.sensors.camera import TiledCamera
+        if hasattr(self, "_video_camera"):
+            return self._video_camera
 
-            self._video_camera = None
+        from isaaclab.sensors.camera import TiledCamera
 
-            for sensor in self._scene.sensors.values():
-                if isinstance(sensor, TiledCamera):
-                    output = sensor.data.output
-                    if "rgb" in output or "rgba" in output:
-                        self._video_camera = sensor
-                        break
+        camera = None
 
-            if self._video_camera is None and self._fallback_tiled_camera is not None:
-                if self._fallback_tiled_camera.is_initialized:
-                    output = self._fallback_tiled_camera.data.output
-                    if "rgb" in output or "rgba" in output:
-                        self._video_camera = self._fallback_tiled_camera
+        for sensor in self._scene.sensors.values():
+            if isinstance(sensor, TiledCamera):
+                output = sensor.data.output
+                if "rgb" in output or "rgba" in output:
+                    camera = sensor
+                    break
 
-            if self._video_camera is not None:
-                output = self._video_camera.data.output
-                self._video_rgb_key = "rgb" if "rgb" in output else "rgba"
-                n_total = int(output[self._video_rgb_key].shape[0])
-                n_envs = n_total if self.cfg.video_num_tiles < 0 else min(self.cfg.video_num_tiles, n_total)
-                self._video_n_envs = n_envs
-                self._video_grid_size = math.ceil(math.sqrt(n_envs))
-                n_slots = self._video_grid_size ** 2
-                H = int(output[self._video_rgb_key].shape[1])
-                W = int(output[self._video_rgb_key].shape[2])
-                self._video_H = H
-                self._video_W = W
-                pad = n_slots - n_envs
-                self._video_pad = np.zeros((pad, H, W, 3), dtype=np.uint8) if pad > 0 else None
+        if camera is None and self._fallback_tiled_camera is not None:
+            if self._fallback_tiled_camera.is_initialized:
+                output = self._fallback_tiled_camera.data.output
+                if "rgb" in output or "rgba" in output:
+                    camera = self._fallback_tiled_camera
 
+        if camera is None:
+            return None
+
+        # cache only once a camera is confirmed available.
+        self._video_camera = camera
+        output = camera.data.output
+        self._video_rgb_key = "rgb" if "rgb" in output else "rgba"
+        n_total = int(output[self._video_rgb_key].shape[0])
+        n_envs = n_total if self.cfg.video_num_tiles < 0 else min(self.cfg.video_num_tiles, n_total)
+        self._video_n_envs = n_envs
+        self._video_grid_size = math.ceil(math.sqrt(n_envs))
+        n_slots = self._video_grid_size ** 2
+        H = int(output[self._video_rgb_key].shape[1])
+        W = int(output[self._video_rgb_key].shape[2])
+        self._video_H = H
+        self._video_W = W
+        pad = n_slots - n_envs
+        self._video_pad = np.zeros((pad, H, W, 3), dtype=np.uint8) if pad > 0 else None
         return self._video_camera
 
     def _render_tiled_camera_rgb_array(self) -> np.ndarray:
