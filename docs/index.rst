@@ -100,6 +100,10 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
+   source/setup/quick_installation
+   source/setup/installation_guide
+   source/setup/configurations
+   source/setup/robots
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
