@@ -176,8 +176,6 @@ class DirectMARLEnv(gym.Env):
         # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
         if self.cfg.video_recorder is not None:
             self.cfg.video_recorder.render_mode = render_mode
-            self.cfg.video_recorder.kit_cam_prim_path = self.cfg.viewer.cam_prim_path
-            self.cfg.video_recorder.kit_resolution = self.cfg.viewer.resolution
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
                 self.cfg.video_recorder, self.scene
             )

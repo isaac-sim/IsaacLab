@@ -81,8 +81,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # so fallback cameras are only spawned when --video is active (render_mode="rgb_array").
         if cfg.video_recorder is not None:
             cfg.video_recorder.render_mode = render_mode
-            cfg.video_recorder.kit_cam_prim_path = cfg.viewer.cam_prim_path
-            cfg.video_recorder.kit_resolution = cfg.viewer.resolution
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)

@@ -79,17 +79,14 @@ class VideoRecorder:
                 "Cannot record video in tiled mode: no TiledCamera sensor with RGB output was found"
                 " in the scene. Add a TiledCamera sensor or switch to perspective mode (--video=perspective)."
             )
-        if video_camera is not self._fallback_tiled_camera:
-            logger.debug("[VideoRecorder] tiled source: observation TiledCamera")
-        else:
-            logger.debug("[VideoRecorder] tiled source: fallback TiledCamera")
         return self._render_tiled_camera_rgb_array()
 
     def _try_init_gl_viewer(self) -> None:
         """Lazy-initialise the Newton GL viewer on the first render call.
 
         Called after ``sim.reset()`` so the Newton model is fully built.
-        Leaves ``_gl_viewer`` as ``None`` on failure so callers fall through gracefully.
+        Leaves ``_gl_viewer`` as ``None`` on Kit backends; ``render_rgb_array`` then
+        calls ``_render_kit_perspective_rgb_array`` instead.
         """
         self._gl_viewer_init_attempted = True
         try:
@@ -178,7 +175,7 @@ class VideoRecorder:
 
             if not hasattr(self, "_rgb_annotator"):
                 self._render_product = rep.create.render_product(
-                    self.cfg.kit_cam_prim_path, self.cfg.kit_resolution
+                    "/OmniverseKit_Persp", (1280, 720)
                 )
                 self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
                 self._rgb_annotator.attach([self._render_product])
@@ -187,8 +184,7 @@ class VideoRecorder:
             rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
             if rgb_data.size == 0:
                 # renderer is warming up; return blank frame
-                h, w = self.cfg.kit_resolution[1], self.cfg.kit_resolution[0]
-                return np.zeros((h, w, 3), dtype=np.uint8)
+                return np.zeros((720, 1280, 3), dtype=np.uint8)
             return rgb_data[:, :, :3]
         except Exception as exc:
             logger.warning("[VideoRecorder] Kit perspective capture failed: %s", exc)

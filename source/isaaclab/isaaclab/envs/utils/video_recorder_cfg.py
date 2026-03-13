@@ -71,8 +71,8 @@ class VideoRecorderCfg:
       viewer; Kit backends use ``/OmniverseKit_Persp`` via ``omni.replicator.core``. TiledCamera
       is bypassed even when present.
     * ``"tiled"`` - square tile-grid from a :class:`~isaaclab.sensors.camera.TiledCamera`.
-      Reuses the observation camera on vision-based tasks; spawns ``fallback_camera_cfg`` on
-      state-based Kit tasks; uses the Newton GL viewer on Newton backends.
+      Reuses the observation camera on vision-based tasks; spawns ``fallback_camera_cfg`` for
+      state-based tasks. Raises ``RuntimeError`` if no TiledCamera is available.
 
     Set via CLI: ``--video=perspective`` / ``--video=tiled``.
     """
@@ -110,14 +110,3 @@ class VideoRecorderCfg:
     gl_viewer_height: int = 720
     """Height in pixels of the Newton GL perspective frame. Only active when ``--video`` is set."""
 
-    kit_cam_prim_path: str = "/OmniverseKit_Persp"
-    """USD prim path of the Kit viewport camera used for perspective recording on Kit backends.
-
-    Set automatically from :attr:`~isaaclab.envs.common.ViewerCfg.cam_prim_path`; do not set manually.
-    """
-
-    kit_resolution: tuple[int, int] = (1280, 720)
-    """Resolution ``(width, height)`` of the Kit perspective frame.
-
-    Set automatically from :attr:`~isaaclab.envs.common.ViewerCfg.resolution`; do not set manually.
-    """
