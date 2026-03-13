@@ -105,9 +105,9 @@ class EigenbotEnv(DirectRLEnv):
         rot_op = xformable.AddXformOp(UsdGeom.XformOp.TypeRotateXYZ)
         rot_op.Set(Gf.Vec3f(180.0, 0.0, 0.0))
 
-        # Scale: cm -> m
+        # Scale: mm -> m
         scale_op = xformable.AddXformOp(UsdGeom.XformOp.TypeScale)
-        scale_op.Set(Gf.Vec3f(0.01, 0.01, 0.01))
+        scale_op.Set(Gf.Vec3f(0.001, 0.001, 0.001))
 
         # Disable collisions on visuals
         from pxr import Usd
