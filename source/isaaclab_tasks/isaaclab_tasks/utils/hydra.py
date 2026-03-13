@@ -338,6 +338,8 @@ def parse_overrides(args: list[str], presets: dict) -> tuple:
     global_presets, preset_sel, preset_scalar, global_scalar = [], [], [], []
 
     for arg in args:
+        if arg.startswith("-"):
+            continue
         if "=" not in arg:
             global_scalar.append(arg)
             continue
