@@ -433,6 +433,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
 
         self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
+        self.dead_zone_threshold: float = cfg.params.get("dead_zone_threshold", 0.0)
 
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
@@ -463,6 +464,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
         add_cube_center_kp: bool = True,
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
+        dead_zone_threshold: float = 0.0,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -506,17 +508,20 @@ class keypoint_ee_gear_error(ManagerTermBase):
         )
 
         mean_kp_error = keypoint_dist_sep.mean(-1)
+        penalized_error = torch.clamp(mean_kp_error - self.dead_zone_threshold, min=0.0)
 
         weight_scale = self._get_weight_scale(env)
-        scaled_reward = mean_kp_error * weight_scale
+        scaled_reward = penalized_error * weight_scale
 
         mean_error_scalar = mean_kp_error.mean().item()
+        mean_penalized_scalar = penalized_error.mean().item()
 
         if not hasattr(env, "extras"):
             env.extras = {}
         if "log" not in env.extras:
             env.extras["log"] = {}
         env.extras["log"]["ee_gear_kp_error/mean_keypoint_dist"] = mean_error_scalar
+        env.extras["log"]["ee_gear_kp_error/mean_penalized_error"] = mean_penalized_scalar
         env.extras["log"]["ee_gear_kp_error/weight_scale"] = weight_scale
 
         self._step_count += 1
@@ -525,8 +530,8 @@ class keypoint_ee_gear_error(ManagerTermBase):
         carb.log_info(
             f"[ee_gear_kp_error] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
+            f" | penalized_error={mean_penalized_scalar:.5f}"
             f" | weight_scale={weight_scale:.4f}"
-            f" | reward(unweighted)={-mean_error_scalar:.5f}"
         )
 
         return scaled_reward
@@ -568,6 +573,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
 
         self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
+        self.dead_zone_threshold: float = cfg.params.get("dead_zone_threshold", 0.0)
 
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
@@ -600,6 +606,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         add_cube_center_kp: bool = True,
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
+        dead_zone_threshold: float = 0.0,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -642,20 +649,22 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
             keypoint_scale=keypoint_scale,
         )
 
+        penalized_dist_sep = torch.clamp(keypoint_dist_sep - self.dead_zone_threshold, min=0.0)
+
         mean_kp_error = keypoint_dist_sep.mean(-1)
 
-        keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
+        keypoint_reward_exp = torch.zeros_like(penalized_dist_sep[:, 0])
         if kp_use_sum_of_exps:
             for coeff in kp_exp_coeffs:
                 a, b = coeff
                 keypoint_reward_exp += (
-                    1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
+                    1.0 / (torch.exp(a * penalized_dist_sep) + b + torch.exp(-a * penalized_dist_sep))
                 ).mean(-1)
         else:
-            keypoint_dist = keypoint_dist_sep.mean(-1)
+            penalized_dist = penalized_dist_sep.mean(-1)
             for coeff in kp_exp_coeffs:
                 a, b = coeff
-                keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
+                keypoint_reward_exp += 1.0 / (torch.exp(a * penalized_dist) + b + torch.exp(-a * penalized_dist))
 
         weight_scale = self._get_weight_scale(env)
         scaled_reward = keypoint_reward_exp * weight_scale
