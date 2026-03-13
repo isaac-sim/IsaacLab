@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -85,7 +85,9 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=4096, env_spacing=2.5, replicate_physics=True, clone_in_fabric=True
+    )
 
     # robot
     robot: ArticulationCfg = CRAZYFLIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
@@ -151,7 +153,9 @@ class QuadcopterEnv(DirectRLEnv):
         self._moment[:, 0, :] = self.cfg.moment_scale * self._actions[:, 1:]
 
     def _apply_action(self):
-        self._robot.set_external_force_and_torque(self._thrust, self._moment, body_ids=self._body_id)
+        self._robot.permanent_wrench_composer.set_forces_and_torques(
+            body_ids=self._body_id, forces=self._thrust, torques=self._moment
+        )
 
     def _get_observations(self) -> dict:
         desired_pos_b, _ = subtract_frame_transforms(
@@ -232,7 +236,7 @@ class QuadcopterEnv(DirectRLEnv):
         self._robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
+        # create markers if necessary for the first time
         if debug_vis:
             if not hasattr(self, "goal_pos_visualizer"):
                 marker_cfg = CUBOID_MARKER_CFG.copy()

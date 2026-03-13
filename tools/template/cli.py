@@ -1,9 +1,10 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import enum
+import importlib
 import os
 from collections.abc import Callable
 
@@ -72,7 +73,7 @@ class CLIHandler:
         def transformer(result: list[str]) -> str:
             if "all" in result or "both" in result:
                 token = "all" if "all" in result else "both"
-                return f'{token} ({", ".join(choices[:choices.index("---")])})'
+                return f"{token} ({', '.join(choices[: choices.index('---')])})"
             return ", ".join(result)
 
         return inquirer.checkbox(
@@ -147,18 +148,25 @@ def main() -> None:
     """Main function to run template generation from CLI."""
     cli_handler = CLIHandler()
 
-    # project type
-    is_external_project = (
-        cli_handler.input_select(
-            "Task type:",
-            choices=["External", "Internal"],
-            long_instruction=(
-                "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
-                "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
-            ),
-        ).lower()
-        == "external"
-    )
+    lab_module = importlib.import_module("isaaclab")
+    lab_path = os.path.realpath(getattr(lab_module, "__file__", "") or (getattr(lab_module, "__path__", [""])[0]))
+    is_lab_pip_installed = ("site-packages" in lab_path) or ("dist-packages" in lab_path)
+
+    if not is_lab_pip_installed:
+        # project type
+        is_external_project = (
+            cli_handler.input_select(
+                "Task type:",
+                choices=["External", "Internal"],
+                long_instruction=(
+                    "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
+                    "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
+                ),
+            ).lower()
+            == "external"
+        )
+    else:
+        is_external_project = True
 
     # project path (if 'external')
     project_path = None
@@ -218,15 +226,13 @@ def main() -> None:
         ", ".join(algorithms_per_rl_library.get("skrl", [])),
         ", ".join(algorithms_per_rl_library.get("sb3", [])),
     )
-    rl_library_table.add_row("Multi-agent support", State.Yes, State.No, State.Yes, State.No)
+    rl_library_table.add_row("Multi-agent support", State.No, State.No, State.Yes, State.No)
     rl_library_table.add_row("Distributed training", State.Yes, State.No, State.Yes, State.No)
     rl_library_table.add_row("Vectorized training", State.Yes, State.Yes, State.Yes, State.No)
     rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
     cli_handler.output_table(rl_library_table)
     # - prompt for RL libraries
-    supported_rl_libraries = (
-        ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["rl_games", "skrl"]
-    )
+    supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["skrl"]
     selected_rl_libraries = cli_handler.get_choices(
         cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
         default=supported_rl_libraries,

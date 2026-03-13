@@ -1,13 +1,14 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from .modifier_base import ModifierBase
 
@@ -123,11 +124,11 @@ class DigitalFilter(ModifierBase):
     where :math:`\alpha` is a smoothing parameter between 0 and 1. Typically, the value of :math:`\alpha` is
     chosen based on the desired cut-off frequency of the filter.
 
-    This filter can be implemented as a digital filter with the coefficients :math:`A = [\alpha]` and
+    This filter can be implemented as a digital filter with the coefficients :math:`A = [-\alpha]` and
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str) -> None:
+    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
         """Initializes digital filter.
 
         Args:

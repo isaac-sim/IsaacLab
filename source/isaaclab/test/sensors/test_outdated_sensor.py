@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,14 +12,15 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import shutil
 import tempfile
+
+import gymnasium as gym
+import pytest
 import torch
 
 import carb
 import omni.usd
-import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -42,6 +43,7 @@ def temp_dir():
 @pytest.mark.parametrize("task_name", ["Isaac-Stack-Cube-Franka-IK-Rel-v0"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
     """Check FrameTransformer values after reset."""
     omni.usd.get_context().new_stage()

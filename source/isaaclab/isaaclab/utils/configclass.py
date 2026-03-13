@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -61,6 +61,7 @@ def configclass(cls, **kwargs):
             num_envs: int = MISSING
             episode_length: int = 2000
             viewer: ViewerCfg = ViewerCfg()
+
 
         # create configuration instance
         env_cfg = EnvCfg(num_envs=24)
@@ -152,6 +153,7 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
         class C:
             x: int
             y: int
+
 
         c = C(1, 2)
         c1 = c.replace(x=3)
@@ -259,6 +261,9 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     """
     missing_fields = []
 
+    if type(obj).__name__ == "MeshConverterCfg":
+        return missing_fields
+
     if type(obj) is type(MISSING):
         missing_fields.append(prefix)
         return missing_fields
@@ -268,7 +273,11 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
             missing_fields.extend(_validate(item, prefix=current_path))
         return missing_fields
     elif isinstance(obj, dict):
-        obj_dict = obj
+        # Convert any non-string keys to strings to allow validation of dict with non-string keys
+        if any(not isinstance(key, str) for key in obj.keys()):
+            obj_dict = {str(key): value for key, value in obj.items()}
+        else:
+            obj_dict = obj
     elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__
     else:
@@ -294,12 +303,13 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
 def _process_mutable_types(cls):
     """Initialize all mutable elements through :obj:`dataclasses.Field` to avoid unnecessary complaints.
 
-    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects every time a new
-    class instance is created. If a member has a mutable type and it is created without specifying the `field(default_factory=...)`,
-    then Python throws an error requiring the usage of `default_factory`.
+    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects
+    every time a new class instance is created. If a member has a mutable type and it is created without
+    specifying the `field(default_factory=...)`, then Python throws an error requiring the usage of `default_factory`.
 
-    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict. This misses the
-    use-case where the type is class itself. Thus, the code silently carries a bug with it which can lead to undesirable effects.
+    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict.
+    This misses the use-case where the type is class itself. Thus, the code silently carries a bug with it which
+    can lead to undesirable effects.
 
     This function deals with this issue
 
@@ -451,10 +461,15 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
         # check for class methods
         if isinstance(value, types.MethodType):
             return True
+
+        if "CollisionAPI" in value.__name__:
+            return False
+
         # check for instance methods
         signature = inspect.signature(value)
         if "self" in signature.parameters or "cls" in signature.parameters:
             return True
+
     # skip property methods
     if isinstance(value, property):
         return True

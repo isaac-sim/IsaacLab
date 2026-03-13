@@ -1,3 +1,5 @@
+.. _ref_arch:
+
 Reference Architecture
 ======================
 
@@ -195,10 +197,12 @@ Some wrappers include:
 * `Video Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-recording-videos>`__
 * `RL Libraries Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-learning-frameworks>`__
 
+.. currentmodule:: isaaclab_rl
+
 Most RL libraries expect their own variation of an environment interface. This means the
 data types needed by each library differs. Isaac Lab provides its own wrappers to convert
 the environment into the expected interface by the RL library a user wants to use. These are
-specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/isaaclab_rl.html#module-isaaclab_rl>`__.
+specified in :class:`isaaclab_rl`
 
 See the `full list <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs. For more information on how these wrappers work,
 please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.
@@ -345,7 +349,7 @@ Check out our resources on using Isaac Lab with your robots.
 
 Review Our Documentation & Samples Resources
 
-* `Isaac Lab Tutorials`_
+* :ref:`Isaac Lab Tutorials <tutorials>`
 * `Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab`_
 * `Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab`_
 * `Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`__
@@ -360,16 +364,15 @@ Learn More About Featured NVIDIA Solutions
 
 .. _curriculum learning: https://arxiv.org/abs/2109.11978
 .. _CAD Converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html
-.. _URDF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html
-.. _MJCF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
+.. _URDF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html
+.. _MJCF Importer: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html
 .. _Onshape Importer: https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html
-.. _Isaac Sim Reference Architecture: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html
-.. _Importing Assets section: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_sim_reference_architecture.html#importing-assets
+.. _Isaac Sim Reference Architecture: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/reference_architecture.html
+.. _Importing Assets section: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/importers_exporters.html
 
 .. _Scale AI-Enabled Robotics Development Workloads with NVIDIA OSMO: https://developer.nvidia.com/blog/scale-ai-enabled-robotics-development-workloads-with-nvidia-osmo/
 .. _Isaac Perceptor: https://developer.nvidia.com/isaac/perceptor
 .. _Isaac Manipulator: https://developer.nvidia.com/isaac/manipulator
 .. _Additional Resources: https://isaac-sim.github.io/IsaacLab/main/source/refs/additional_resources.html
-.. _Isaac Lab Tutorials: file:///home/oomotuyi/isaac/IsaacLab/docs/_build/current/source/tutorials/index.html
 .. _Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab: https://developer.nvidia.com/blog/fast-track-robot-learning-in-simulation-using-nvidia-isaac-lab/
 .. _Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab: https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,8 +33,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
@@ -49,7 +47,7 @@ def define_sensor() -> RayCaster:
         prim_path="/World/Origin.*/ball",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(2.0, 2.0)),
-        attach_yaw_only=True,
+        ray_alignment="yaw",
         debug_vis=not args_cli.headless,
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
@@ -71,7 +69,7 @@ def design_scene() -> dict:
     # Each group will have a robot in it
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
     # -- Balls
     cfg = RigidObjectCfg(
         prim_path="/World/Origin.*/ball",
@@ -134,7 +132,7 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
-    # Design the scene
+    # Design scene
     scene_entities = design_scene()
     # Play simulator
     sim.reset()

@@ -10,7 +10,7 @@ or soft bodies. For more information, please refer to the `PhysX Determinism doc
 Based on above, Isaac Lab provides a deterministic simulation that ensures consistent simulation
 results across different runs. This is achieved by using the same random seed for the
 simulation environment and the physics engine. At construction of the environment, the random seed
-is set to a fixed value using the :meth:`~isaacsim.core.utils.torch.set_seed` method. This method sets the
+is set to a fixed value using the :meth:`~isaaclab.utils.seed.configure_seed` method. This method sets the
 random seed for both the CPU and GPU globally across different libraries, including PyTorch and
 NumPy.
 

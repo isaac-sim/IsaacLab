@@ -1,11 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
-
-from isaaclab_assets import HUMANOID_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -16,6 +14,8 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.direct.locomotion.locomotion_env import LocomotionEnv
+
+from isaaclab_assets import HUMANOID_CFG
 
 
 @configclass
@@ -45,7 +45,9 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
+    )
 
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")

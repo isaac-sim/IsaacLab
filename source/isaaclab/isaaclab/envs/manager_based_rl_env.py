@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,14 +6,13 @@
 # needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
 
-import gymnasium as gym
 import math
-import numpy as np
-import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
-from isaacsim.core.version import get_version
+import gymnasium as gym
+import numpy as np
+import torch
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
@@ -57,7 +56,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -84,7 +82,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.render_mode = render_mode
 
         # initialize data and constants
-        # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
+        # -- set the framerate of the gym video recorder wrapper so that the playback speed of the
+        #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
 
         print("[INFO]: Completed setting up the environment...")
@@ -188,6 +187,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.scene.write_data_to_sim()
             # simulate
             self.sim.step(render=False)
+            self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -219,13 +219,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
-            self.sim.forward()
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
 
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
@@ -237,7 +235,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="interval", dt=self.step_dt)
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
@@ -248,7 +246,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -333,10 +331,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                self.single_observation_space[group_name] = gym.spaces.Dict({
-                    term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                    for term_name, term_dim in zip(group_term_names, group_dim)
-                })
+                group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
+                term_dict = {}
+                for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
+                    low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
+                    high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
+                    term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)
+                self.single_observation_space[group_name] = gym.spaces.Dict(term_dict)
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))

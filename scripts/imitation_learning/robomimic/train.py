@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -53,37 +53,33 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-# Standard library imports
 import argparse
-
-# Third-party imports
-import gymnasium as gym
-import h5py
+import importlib
 import json
-import numpy as np
 import os
 import shutil
 import sys
 import time
-import torch
 import traceback
 from collections import OrderedDict
-from torch.utils.data import DataLoader
 
+import gymnasium as gym
+import h5py
+import numpy as np
 import psutil
-
-# Robomimic imports
 import robomimic.utils.env_utils as EnvUtils
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.utils.torch_utils as TorchUtils
 import robomimic.utils.train_utils as TrainUtils
+import torch
 from robomimic.algo import algo_factory
 from robomimic.config import Config, config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
+from torch.utils.data import DataLoader
 
-# Isaac Lab imports (needed so that environment is registered)
 import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 
@@ -285,7 +281,8 @@ def train(config: Config, device: str, log_dir: str, ckpt_dir: str, video_dir: s
                 and (epoch % config.experiment.save.every_n_epochs == 0)
             )
             epoch_list_check = epoch in config.experiment.save.epochs
-            should_save_ckpt = time_check or epoch_check or epoch_list_check
+            last_epoch_check = epoch == config.train.num_epochs
+            should_save_ckpt = time_check or epoch_check or epoch_list_check or last_epoch_check
         ckpt_reason = None
         if should_save_ckpt:
             last_ckpt_time = time.time()
@@ -367,7 +364,18 @@ def main(args: argparse.Namespace):
                 f" Please check that the gym registry has the entry point: '{cfg_entry_point_key}'."
             )
 
-        with open(cfg_entry_point_file) as f:
+        # resolve module path if needed
+        if ":" in cfg_entry_point_file:
+            mod_name, file_name = cfg_entry_point_file.split(":")
+            mod = importlib.import_module(mod_name)
+            if mod.__file__ is None:
+                raise ValueError(f"Could not find module file for: '{mod_name}'")
+            mod_path = os.path.dirname(mod.__file__)
+            config_file = os.path.join(mod_path, file_name)
+        else:
+            config_file = cfg_entry_point_file
+
+        with open(config_file) as f:
             ext_cfg = json.load(f)
             config = config_factory(ext_cfg["algo_name"])
         # update config with external json - this will throw errors if
@@ -382,6 +390,9 @@ def main(args: argparse.Namespace):
 
     if args.name is not None:
         config.experiment.name = args.name
+
+    if args.epochs is not None:
+        config.train.num_epochs = args.epochs
 
     # change location of experiment directory
     config.train.output_dir = os.path.abspath(os.path.join("./logs", args.log_dir, args.task))
@@ -428,6 +439,15 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, default=None, help="Name of the algorithm.")
     parser.add_argument("--log_dir", type=str, default="robomimic", help="Path to log directory")
     parser.add_argument("--normalize_training_actions", action="store_true", default=False, help="Normalize actions")
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help=(
+            "Optional: Number of training epochs. If specified, overrides the number of epochs from the JSON training"
+            " config."
+        ),
+    )
 
     args = parser.parse_args()
 

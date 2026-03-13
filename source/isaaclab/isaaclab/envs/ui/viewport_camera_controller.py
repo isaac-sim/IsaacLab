@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,11 +6,12 @@
 from __future__ import annotations
 
 import copy
-import numpy as np
-import torch
 import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import numpy as np
+import torch
 
 import omni.kit.app
 import omni.timeline
@@ -52,8 +53,8 @@ class ViewportCameraController:
         self._env = env
         self._cfg = copy.deepcopy(cfg)
         # cast viewer eye and look-at to numpy arrays
-        self.default_cam_eye = np.array(self._cfg.eye)
-        self.default_cam_lookat = np.array(self._cfg.lookat)
+        self.default_cam_eye = np.array(self._cfg.eye, dtype=float)
+        self.default_cam_lookat = np.array(self._cfg.lookat, dtype=float)
 
         # set the camera origins
         if self.cfg.origin_type == "env":
@@ -207,9 +208,9 @@ class ViewportCameraController:
         """
         # store the camera view pose for later use
         if eye is not None:
-            self.default_cam_eye = np.asarray(eye)
+            self.default_cam_eye = np.asarray(eye, dtype=float)
         if lookat is not None:
-            self.default_cam_lookat = np.asarray(lookat)
+            self.default_cam_lookat = np.asarray(lookat, dtype=float)
         # set the camera locations
         viewer_origin = self.viewer_origin.detach().cpu().numpy()
         cam_eye = viewer_origin + self.default_cam_eye

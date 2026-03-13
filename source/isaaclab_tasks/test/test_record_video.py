@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,29 +13,19 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import os
+
+import gymnasium as gym
+import pytest
 import torch
 
 import omni.usd
-import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
-
-# @pytest.fixture(scope="module", autouse=True)
-def setup_environment():
-    # acquire all Isaac environments names
-    registered_tasks = list()
-    for task_spec in gym.registry.values():
-        if "Isaac" in task_spec.id:
-            registered_tasks.append(task_spec.id)
-    # sort environments by name
-    registered_tasks.sort()
-    # print all existing task names
-    print(">>> All registered environments:", registered_tasks)
-    return registered_tasks
+# Local imports should be imported last
+from env_test_utils import setup_environment  # isort: skip
 
 
 @pytest.fixture(scope="function")
@@ -49,7 +39,7 @@ def setup_video_params():
     return num_envs, device, step_trigger, video_length
 
 
-@pytest.mark.parametrize("task_name", setup_environment())
+@pytest.mark.parametrize("task_name", setup_environment(include_play=True))
 def test_record_video(task_name, setup_video_params):
     """Run random actions agent with recording of videos."""
     num_envs, device, step_trigger, video_length = setup_video_params

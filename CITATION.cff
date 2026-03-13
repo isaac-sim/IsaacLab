@@ -1,0 +1,227 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the technical report of Isaac Lab."
+title: Isaac Lab
+version: 2.3.2
+repository-code: https://github.com/isaac-sim/IsaacLab
+type: software
+authors:
+  - name: Isaac Lab Project Developers
+identifiers:
+  - type: url
+    value: https://github.com/isaac-sim/IsaacLab
+  - type: doi
+    value: 10.48550/arXiv.2511.04831
+url: https://isaac-sim.github.io/IsaacLab
+license: BSD-3-Clause
+preferred-citation:
+  type: article
+  title: Isaac Lab - A GPU-Accelerated Simulation Framework for Multi-Modal Robot Learning
+  authors:
+    - family-names: Mittal
+      given-names: Mayank
+    - family-names: Roth
+      given-names: Pascal
+    - family-names: Tigue
+      given-names: James
+    - family-names: Richard
+      given-names: Antoine
+    - family-names: Zhang
+      given-names: Octi
+    - family-names: Du
+      given-names: Peter
+    - family-names: Serrano-Muñoz
+      given-names: Antonio
+    - family-names: Yao
+      given-names: Xinjie
+    - family-names: Zurbrügg
+      given-names: René
+    - family-names: Rudin
+      given-names: Nikita
+    - family-names: Wawrzyniak
+      given-names: Lukasz
+    - family-names: Rakhsha
+      given-names: Milad
+    - family-names: Denzler
+      given-names: Alain
+    - family-names: Heiden
+      given-names: Eric
+    - family-names: Borovicka
+      given-names: Ales
+    - family-names: Ahmed
+      given-names: Ossama
+    - family-names: Akinola
+      given-names: Iretiayo
+    - family-names: Anwar
+      given-names: Abrar
+    - family-names: Carlson
+      given-names: Mark T.
+    - family-names: Feng
+      given-names: Ji Yuan
+    - family-names: Garg
+      given-names: Animesh
+    - family-names: Gasoto
+      given-names: Renato
+    - family-names: Gulich
+      given-names: Lionel
+    - family-names: Guo
+      given-names: Yijie
+    - family-names: Gussert
+      given-names: M.
+    - family-names: Hansen
+      given-names: Alex
+    - family-names: Kulkarni
+      given-names: Mihir
+    - family-names: Li
+      given-names: Chenran
+    - family-names: Liu
+      given-names: Wei
+    - family-names: Makoviychuk
+      given-names: Viktor
+    - family-names: Malczyk
+      given-names: Grzegorz
+    - family-names: Mazhar
+      given-names: Hammad
+    - family-names: Moghani
+      given-names: Masoud
+    - family-names: Murali
+      given-names: Adithyavairavan
+    - family-names: Noseworthy
+      given-names: Michael
+    - family-names: Poddubny
+      given-names: Alexander
+    - family-names: Ratliff
+      given-names: Nathan
+    - family-names: Rehberg
+      given-names: Welf
+    - family-names: Schwarke
+      given-names: Clemens
+    - family-names: Singh
+      given-names: Ritvik
+    - family-names: Smith
+      given-names: James Latham
+    - family-names: Tang
+      given-names: Bingjie
+    - family-names: Thaker
+      given-names: Ruchik
+    - family-names: Trepte
+      given-names: Matthew
+    - family-names: Van Wyk
+      given-names: Karl
+    - family-names: Yu
+      given-names: Fangzhou
+    - family-names: Millane
+      given-names: Alex
+    - family-names: Ramasamy
+      given-names: Vikram
+    - family-names: Steiner
+      given-names: Remo
+    - family-names: Subramanian
+      given-names: Sangeeta
+    - family-names: Volk
+      given-names: Clemens
+    - family-names: Chen
+      given-names: CY
+    - family-names: Jawale
+      given-names: Neel
+    - family-names: Kuruttukulam
+      given-names: Ashwin Varghese
+    - family-names: Lin
+      given-names: Michael A.
+    - family-names: Mandlekar
+      given-names: Ajay
+    - family-names: Patzwaldt
+      given-names: Karsten
+    - family-names: Welsh
+      given-names: John
+    - family-names: Lafleche
+      given-names: Jean-Francois
+    - family-names: Moënne-Loccoz
+      given-names: Nicolas
+    - family-names: Park
+      given-names: Soowan
+    - family-names: Stepinski
+      given-names: Rob
+    - family-names: Van Gelder
+      given-names: Dirk
+    - family-names: Amevor
+      given-names: Chris
+    - family-names: Carius
+      given-names: Jan
+    - family-names: Chang
+      given-names: Jumyung
+    - family-names: He Chen
+      given-names: Anka
+    - family-names: Ciechomski
+      given-names: Pablo de Heras
+    - family-names: Daviet
+      given-names: Gilles
+    - family-names: Mohajerani
+      given-names: Mohammad
+    - family-names: von Muralt
+      given-names: Julia
+    - family-names: Reutskyy
+      given-names: Viktor
+    - family-names: Sauter
+      given-names: Michael
+    - family-names: Schirm
+      given-names: Simon
+    - family-names: Shi
+      given-names: Eric L.
+    - family-names: Terdiman
+      given-names: Pierre
+    - family-names: Vilella
+      given-names: Kenny
+    - family-names: Widmer
+      given-names: Tobias
+    - family-names: Yeoman
+      given-names: Gordon
+    - family-names: Chen
+      given-names: Tiffany
+    - family-names: Grizan
+      given-names: Sergey
+    - family-names: Li
+      given-names: Cathy
+    - family-names: Li
+      given-names: Lotus
+    - family-names: Smith
+      given-names: Connor
+    - family-names: Wiltz
+      given-names: Rafael
+    - family-names: Alexis
+      given-names: Kostas
+    - family-names: Chang
+      given-names: Yan
+    - family-names: Fan
+      given-names: Linxi "Jim"
+    - family-names: Farshidian
+      given-names: Farbod
+    - family-names: Handa
+      given-names: Ankur
+    - family-names: Huang
+      given-names: Spencer
+    - family-names: Hutter
+      given-names: Marco
+    - family-names: Narang
+      given-names: Yashraj
+    - family-names: Pouya
+      given-names: Soha
+    - family-names: Sheng
+      given-names: Shiwei
+    - family-names: Zhu
+      given-names: Yuke
+    - family-names: Macklin
+      given-names: Miles
+    - family-names: Moravanszky
+      given-names: Adam
+    - family-names: Reist
+      given-names: Philipp
+    - family-names: Guo
+      given-names: Yunrong
+    - family-names: Hoeller
+      given-names: David
+    - family-names: State
+      given-names: Gavriel
+  journal: arXiv preprint arXiv:2511.04831
+  year: 2025
+  url: https://arxiv.org/abs/2511.04831
+  doi: 10.48550/arXiv.2511.04831

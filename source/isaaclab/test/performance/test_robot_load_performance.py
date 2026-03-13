@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,15 +13,16 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
-import omni
 import pytest
-from isaacsim.core.cloner import GridCloner
 
-from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
+import omni
+from isaacsim.core.cloner import GridCloner
 
 from isaaclab.assets import Articulation
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.timer import Timer
+
+from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 
 
 @pytest.mark.parametrize(

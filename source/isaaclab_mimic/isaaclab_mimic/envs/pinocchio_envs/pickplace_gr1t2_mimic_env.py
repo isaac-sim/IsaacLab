@@ -1,22 +1,18 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
+from collections.abc import Sequence
 
 import torch
-from collections.abc import Sequence
 
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
 
 class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
+    """GR1T2 Pick Place Mimic environment."""
 
     def get_robot_eef_pose(self, eef_name: str, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """
@@ -45,7 +41,7 @@ class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
         target_eef_pose_dict: dict,
         gripper_action_dict: dict,
         action_noise_dict: dict | None = None,
-        env_id: int = 0,
+        env_id: int = 0,  # Unused, but required to conform to interface
     ) -> torch.Tensor:
         """
         Takes a target pose and gripper action for the end effector controller and returns an action
@@ -55,7 +51,7 @@ class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
         Args:
             target_eef_pose_dict: Dictionary of 4x4 target eef pose for each end-effector.
             gripper_action_dict: Dictionary of gripper actions for each end-effector.
-            noise: Noise to add to the action. If None, no noise is added.
+            action_noise_dict: Noise to add to the action. If None, no noise is added.
             env_id: Environment index to get the action for.
 
         Returns:

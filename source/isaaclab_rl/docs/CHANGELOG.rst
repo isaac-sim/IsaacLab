@@ -1,6 +1,175 @@
 Changelog
 ---------
 
+0.5.0 (2026-3-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added function to handle deprecated RSL-RL configurations and automatically convert them to the new format compatible
+  with RSL-RL 4.0 and 5.0.
+* Added new configuration classes "MLPModelCfg", "RNNModelCfg", and "CNNModelCfg", and "DistributionCfg" for the new
+  versions of RSL-RL.
+* Added "check_for_nan" and "share_cnn_encoders" parameters to the configuration classes for RSL-RL 5.0.
+* Added recurrent configurations for the "Isaac-Velocity-Flat-Anymal-D-v0" task for RSL-RL. to run RSL-RL CI.
+
+Changed
+^^^^^^^
+* Adapted RSL-RL's train.py and play.py scripts to work with both old and the new versions of RSL-RL.
+
+Deprecated
+^^^^^^^^^^
+* Deprecated old configuration classes "RslRlDistillationStudentTeacherCfg",
+  "RslRlDistillationStudentTeacherRecurrentCfg", "RslRlPpoActorCriticCfg", and "RslRlPpoActorCriticRecurrentCfg" in
+  favor of the new "MLPModelCfg", "RNNModelCfg", and "CNNModelCfg" configuration classes for RSL-RL 4.0.
+* Deprecated old parameters "stochastic", "init_noise_std", "noise_std_type", amd "state_dependent_std" in favor of the
+  new "DistributionCfg" configuration class for RSL-RL 5.0.
+
+
+0.4.7 (2025-12-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added :mod:`isaaclab_rl.utils.pretrained_checkpoint` sub-module to handle various pre-trained checkpoint tasks.
+  This module was previously located in the :mod:`isaaclab.utils` module.
+
+
+0.4.6 (2025-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added support for decoupling RL device from simulation device in for RL games wrapper.
+  This allows users to run simulation on one device (e.g., CPU) while running RL training/inference on another device.
+
+
+0.4.5 (2025-12-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added state_dependent_std rsl_rl param to RSL-RL wrapper.
+
+
+0.4.4 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added onnxscript package to isaaclab_rl setup.py to fix onnxscript package missing issue in aarch64 platform.
+
+
+0.4.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Isaac-Ant-v0's sb3_ppo_cfg default value, so it trains under reasonable amount of time.
+
+
+0.4.2 (2025-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated opset version from 11 to 18 in RSL-RL OnnxPolicyExporter to avoid onnex downcast issue seen in aarch64.
+
+
+0.4.1 (2025-09-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Made PBT a bit nicer by
+* 1. added resume logic to allow wandb to continue on the same run_id
+* 2. corrected broadcasting order in distributed setup
+* 3. made score query general by using dotted keys to access dictionary of arbitrary depth
+
+
+0.4.0 (2025-09-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Introduced PBT to rl-games.
+
+
+0.3.0 (2025-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Enhanced rl-games wrapper to allow dict observation.
+
+
+0.2.4 (2025-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disallowed string values in ``sb3_ppo_cfg.yaml`` from being passed to ``eval()`` in
+  :meth:`~isaaclab_rl.sb3.process_sb3_cfg`. This change prevents accidental or malicious
+  code execution when loading configuration files, improving overall security and reliability.
+
+
+0.2.3 (2025-06-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support SB3 VecEnv wrapper to configure with composite observation spaces properly so that the cnn creation pipelines
+  natively supported by sb3 can be automatically triggered
+
+
+0.2.2 (2025-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Call :meth:`eval` during :meth:`forward`` RSL-RL OnnxPolicyExporter
+
+
+0.2.1 (2025-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Relaxed upper range pin for protobuf python dependency for more permissive installation.
+
+
+0.2.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched to a 3.11 compatible branch for rl-games as Isaac Sim 5.0 is now using Python 3.11.
+
+
+0.1.5 (2025-04-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
+* Upgraded minimum SB3 version to 2.6.0 and added optional dependencies for progress bar
+
+
 0.1.4 (2025-04-10)
 ~~~~~~~~~~~~~~~~~~
 

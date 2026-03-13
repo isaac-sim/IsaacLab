@@ -1,15 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration terms for different managers."""
 
-from dataclasses import MISSING
+from __future__ import annotations
 
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
-from isaaclab.scene import InteractiveScene
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
+    from isaaclab.scene import InteractiveScene
 
 
 @configclass
@@ -105,7 +110,8 @@ class SceneEntityCfg:
     For more details, see the :meth:`isaaclab.utils.string.resolve_matching_names` function.
 
     .. note::
-        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names` are specified.
+        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names`
+        are specified.
 
     """
 
@@ -124,7 +130,8 @@ class SceneEntityCfg:
             ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.
             ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.
             ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.
-            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and are not consistent.
+            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
+                are not consistent.
         """
         # check if the entity is valid
         if self.name not in scene.keys():

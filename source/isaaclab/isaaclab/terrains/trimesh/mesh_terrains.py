@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.spatial.transform as tf
 import torch
 import trimesh
-from typing import TYPE_CHECKING
 
 from .utils import *  # noqa: F401, F403
 from .utils import make_border, make_plane
@@ -253,9 +254,9 @@ def random_grid_terrain(
     """Generate a terrain with cells of random heights and fixed width.
 
     The terrain is generated in the x-y plane and has a height of 1.0. It is then divided into a grid of the
-    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value uniformly
-    sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified width
-    :obj:`cfg.platform_width` is generated.
+    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value
+    uniformly sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified
+    width :obj:`cfg.platform_width` is generated.
 
     If :obj:`cfg.holes` is True, the terrain will have randomized grid cells only along the plane extending
     from the platform (like a plus sign). The remaining area remains empty and no border will be added.
@@ -397,7 +398,7 @@ def rails_terrain(
         A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
-    rail_height = cfg.rail_height_range[1] - difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
+    rail_height = cfg.rail_height_range[0] + difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
 
     # initialize list of meshes
     meshes_list = list()
@@ -773,6 +774,7 @@ def repeated_objects_terrain(
     # -- common parameters
     num_objects = cp_0.num_objects + int(difficulty * (cp_1.num_objects - cp_0.num_objects))
     height = cp_0.height + difficulty * (cp_1.height - cp_0.height)
+    platform_height = cfg.platform_height if cfg.platform_height >= 0.0 else height
     # -- object specific parameters
     # note: SIM114 requires duplicated logical blocks under a single body.
     if isinstance(cfg, MeshRepeatedBoxesTerrainCfg):
@@ -808,11 +810,13 @@ def repeated_objects_terrain(
     # initialize list of meshes
     meshes_list = list()
     # compute quantities
-    origin = np.asarray((0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.5 * height))
-    platform_corners = np.asarray([
-        [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
-        [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
-    ])
+    origin = np.asarray((0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.5 * platform_height))
+    platform_corners = np.asarray(
+        [
+            [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
+            [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
+        ]
+    )
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
     # sample valid center for objects
@@ -840,7 +844,9 @@ def repeated_objects_terrain(
     # generate obstacles (but keep platform clean)
     for index in range(len(object_centers)):
         # randomize the height of the object
-        ob_height = height + np.random.uniform(-cfg.max_height_noise, cfg.max_height_noise)
+        abs_height_noise = np.random.uniform(cfg.abs_height_noise[0], cfg.abs_height_noise[1])
+        rel_height_noise = np.random.uniform(cfg.rel_height_noise[0], cfg.rel_height_noise[1])
+        ob_height = height * rel_height_noise + abs_height_noise
         if ob_height > 0.0:
             object_mesh = object_func(center=object_centers[index], height=ob_height, **object_kwargs)
             meshes_list.append(object_mesh)
@@ -849,8 +855,8 @@ def repeated_objects_terrain(
     ground_plane = make_plane(cfg.size, height=0.0, center_zero=False)
     meshes_list.append(ground_plane)
     # generate a platform in the middle
-    dim = (cfg.platform_width, cfg.platform_width, 0.5 * height)
-    pos = (0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.25 * height)
+    dim = (cfg.platform_width, cfg.platform_width, 0.5 * platform_height)
+    pos = (0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.25 * platform_height)
     platform = trimesh.creation.box(dim, trimesh.transformations.translation_matrix(pos))
     meshes_list.append(platform)
 

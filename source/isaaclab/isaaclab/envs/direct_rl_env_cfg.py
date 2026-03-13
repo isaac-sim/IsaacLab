@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -170,7 +170,8 @@ class DirectRLEnvCfg:
     """
 
     observation_noise_model: NoiseModelCfg | None = None
-    """The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.
+    """The noise model to apply to the computed observations from the environment. Default is None,
+    which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
@@ -207,7 +208,8 @@ class DirectRLEnvCfg:
     """
 
     action_noise_model: NoiseModelCfg | None = None
-    """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.
+    """The noise model applied to the actions provided to the environment. Default is None,
+    which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
@@ -222,6 +224,23 @@ class DirectRLEnvCfg:
       to reflect the latest states from the reset. This comes at a cost of performance as an additional render
       step will be performed after each time an environment is reset.
 
+    .. deprecated:: 2.3.1
+        This attribute is deprecated and will be removed in the future. Please use
+        :attr:`num_rerenders_on_reset` instead.
+
+        To get the same behaviour as setting this parameter to ``True`` or ``False``, set
+        :attr:`num_rerenders_on_reset` to 1 or 0, respectively.
+    """
+
+    num_rerenders_on_reset: int = 0
+    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed
+    after reset.
+
+    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+      reset will be stale and will not reflect the latest states in simulation caused by the reset.
+    * When this is greater than 0, the specified number of extra render steps will be performed to update the
+      sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+      render steps will be performed after each time an environment is reset.
     """
 
     wait_for_textures: bool = True
@@ -229,3 +248,6 @@ class DirectRLEnvCfg:
 
     xr: XrCfg | None = None
     """Configuration for viewing and interacting with the environment through an XR device."""
+
+    log_dir: str | None = None
+    """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""

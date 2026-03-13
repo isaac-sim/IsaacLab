@@ -12,6 +12,7 @@ docs/
 **/output/*
 **/outputs/*
 **/videos/*
+**/wandb/*
 *.tmp
 # ignore docker
 docker/cluster/exports/
@@ -23,3 +24,7 @@ recordings/
 **/*.egg-info/
 # ignore isaac sim symlink
 _isaac_sim?
+# Docker history
+docker/.isaac-lab-docker-history
+# ignore uv environment
+env_isaaclab

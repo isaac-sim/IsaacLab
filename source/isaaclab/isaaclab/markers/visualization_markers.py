@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,12 +19,12 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 # needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None
 from __future__ import annotations
 
-import numpy as np
-import torch
+import logging
 from dataclasses import MISSING
 
-import isaacsim.core.utils.stage as stage_utils
-import omni.kit.commands
+import numpy as np
+import torch
+
 import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
@@ -32,6 +32,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @configclass
@@ -63,9 +66,9 @@ class VisualizationMarkers:
 
     The class parses the configuration to create different the marker prototypes into the stage. Each marker
     prototype prim is created as a child of the :class:`UsdGeom.PointInstancer` prim. The prim path for the
-    the marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`
-    dictionary. The marker prototypes are created using the :meth:`isaacsim.core.utils.create_prim`
-    function, and then then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple
+    marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`
+    dictionary. The marker prototypes are created using the :meth:`isaaclab.sim.utils.prims.create_prim`
+    function, and then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple
     instances of the marker prims.
 
     Switching between different marker prototypes is possible by calling the :meth:`visualize` method with
@@ -97,7 +100,7 @@ class VisualizationMarkers:
                         radius=1.0,
                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
                     ),
-                }
+                },
             )
             # Create the markers instance
             # This will create a UsdGeom.PointInstancer prim at the given path along with the marker prototypes.
@@ -143,10 +146,10 @@ class VisualizationMarkers:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
         # get next free path for the prim
-        prim_path = stage_utils.get_next_free_path(cfg.prim_path)
+        prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         # create a new prim
-        stage = stage_utils.get_current_stage()
-        self._instancer_manager = UsdGeom.PointInstancer.Define(stage, prim_path)
+        self.stage = sim_utils.get_current_stage()
+        self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
         # store inputs
         self.prim_path = prim_path
         self.cfg = cfg
@@ -369,9 +372,7 @@ class VisualizationMarkers:
         to see the marker prims on camera images.
 
         Args:
-            prim_path: The prim path to check.
-            stage: The stage where the prim exists.
-                Defaults to None, in which case the current stage is used.
+            prim: The prim to check.
         """
         # check if prim is valid
         if not prim.IsValid():
@@ -396,11 +397,10 @@ class VisualizationMarkers:
             # check if prim is a mesh -> if so, make it invisible to secondary rays
             if child_prim.IsA(UsdGeom.Gprim):
                 # invisible to secondary rays such as depth images
-                omni.kit.commands.execute(
-                    "ChangePropertyCommand",
-                    prop_path=Sdf.Path(f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays"),
+                sim_utils.change_prim_property(
+                    prop_path=f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays",
                     value=True,
-                    prev=None,
+                    stage=prim.GetStage(),
                     type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
                 )
             # add children to list

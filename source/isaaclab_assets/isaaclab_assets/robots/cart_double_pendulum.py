@@ -1,10 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration for a simple inverted Double Pendulum on a Cart robot."""
-
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -39,16 +38,15 @@ CART_DOUBLE_PENDULUM_CFG = ArticulationCfg(
     actuators={
         "cart_actuator": ImplicitActuatorCfg(
             joint_names_expr=["slider_to_cart"],
-            effort_limit=400.0,
-            velocity_limit=100.0,
+            effort_limit_sim=400.0,
             stiffness=0.0,
             damping=10.0,
         ),
         "pole_actuator": ImplicitActuatorCfg(
-            joint_names_expr=["cart_to_pole"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
+            joint_names_expr=["cart_to_pole"], effort_limit_sim=400.0, stiffness=0.0, damping=0.0
         ),
         "pendulum_actuator": ImplicitActuatorCfg(
-            joint_names_expr=["pole_to_pendulum"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
+            joint_names_expr=["pole_to_pendulum"], effort_limit_sim=400.0, stiffness=0.0, damping=0.0
         ),
     },
 )

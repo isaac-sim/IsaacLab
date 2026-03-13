@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,12 +12,14 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from collections.abc import Generator
+
 import numpy as np
-
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
+import omni.physx
+
+import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -34,13 +36,31 @@ def test_setup_teardown():
     SimulationContext.clear_instance()
 
 
+@pytest.fixture
+def sim_with_stage_in_memory() -> Generator[SimulationContext, None, None]:
+    """Create a simulation context with stage in memory."""
+    # create stage in memory
+    cfg = SimulationCfg(create_stage_in_memory=True)
+    sim = SimulationContext(cfg=cfg)
+    # update stage
+    sim_utils.update_stage()
+    # yield simulation context
+    yield sim
+    # stop simulation
+    omni.physx.get_physx_simulation_interface().detach_stage()
+    sim.stop()
+    # clear simulation context
+    sim.clear()
+    sim.clear_all_callbacks()
+    sim.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
 def test_singleton():
     """Tests that the singleton is working."""
     sim1 = SimulationContext()
     sim2 = SimulationContext()
-    sim3 = IsaacSimulationContext()
     assert sim1 is sim2
-    assert sim1 is sim3
 
     # try to delete the singleton
     sim2.clear_instance()
@@ -48,13 +68,10 @@ def test_singleton():
     # create new instance
     sim4 = SimulationContext()
     assert sim1 is not sim4
-    assert sim3 is not sim4
     assert sim1.instance() is sim4.instance()
-    assert sim3.instance() is sim4.instance()
-    # clear instance
-    sim3.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_initialization():
     """Test the simulation config."""
     cfg = SimulationCfg(physics_prim_path="/Physics/PhysX", render_interval=5, gravity=(0.0, -0.5, -0.5))
@@ -68,14 +85,15 @@ def test_initialization():
     assert sim.get_rendering_dt() == cfg.dt * cfg.render_interval
     assert not sim.has_rtx_sensors()
     # check valid paths
-    assert prim_utils.is_prim_path_valid("/Physics/PhysX")
-    assert prim_utils.is_prim_path_valid("/Physics/PhysX/defaultMaterial")
+    assert sim.stage.GetPrimAtPath("/Physics/PhysX").IsValid()
+    assert sim.stage.GetPrimAtPath("/Physics/PhysX/defaultMaterial").IsValid()
     # check valid gravity
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
 
 
+@pytest.mark.isaacsim_ci
 def test_sim_version():
     """Test obtaining the version."""
     sim = SimulationContext()
@@ -84,6 +102,7 @@ def test_sim_version():
     assert version[0] >= 4
 
 
+@pytest.mark.isaacsim_ci
 def test_carb_setting():
     """Test setting carb settings."""
     sim = SimulationContext()
@@ -95,6 +114,7 @@ def test_carb_setting():
     assert tuple(sim.get_setting("/myExt/using_omniverse_version")) == tuple(sim.get_version())
 
 
+@pytest.mark.isaacsim_ci
 def test_headless_mode():
     """Test that render mode is headless since we are running in headless mode."""
     sim = SimulationContext()
@@ -131,6 +151,7 @@ def test_headless_mode():
 #     assert ctypes.c_long.from_address(id(sim)).value == sim_ref_count - 1
 
 
+@pytest.mark.isaacsim_ci
 def test_zero_gravity():
     """Test that gravity can be properly disabled."""
     cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))

@@ -1,18 +1,23 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Keyboard controller for SE(2) control."""
 
-import numpy as np
+from __future__ import annotations
+
 import weakref
 from collections.abc import Callable
+from dataclasses import dataclass
+
+import numpy as np
+import torch
 
 import carb
 import omni
 
-from ..device_base import DeviceBase
+from ..device_base import DeviceBase, DeviceCfg
 
 
 class Se2Keyboard(DeviceBase):
@@ -39,7 +44,7 @@ class Se2Keyboard(DeviceBase):
 
     """
 
-    def __init__(self, v_x_sensitivity: float = 0.8, v_y_sensitivity: float = 0.4, omega_z_sensitivity: float = 1.0):
+    def __init__(self, cfg: Se2KeyboardCfg):
         """Initialize the keyboard layer.
 
         Args:
@@ -48,9 +53,11 @@ class Se2Keyboard(DeviceBase):
             omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
         """
         # store inputs
-        self.v_x_sensitivity = v_x_sensitivity
-        self.v_y_sensitivity = v_y_sensitivity
-        self.omega_z_sensitivity = omega_z_sensitivity
+        self.v_x_sensitivity = cfg.v_x_sensitivity
+        self.v_y_sensitivity = cfg.v_y_sensitivity
+        self.omega_z_sensitivity = cfg.omega_z_sensitivity
+        self._sim_device = cfg.sim_device
+
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
@@ -69,7 +76,7 @@ class Se2Keyboard(DeviceBase):
 
     def __del__(self):
         """Release the keyboard interface."""
-        self._input.unsubscribe_from_keyboard_events(self._keyboard, self._keyboard_sub)
+        self._input.unsubscribe_to_keyboard_events(self._keyboard, self._keyboard_sub)
         self._keyboard_sub = None
 
     def __str__(self) -> str:
@@ -107,13 +114,13 @@ class Se2Keyboard(DeviceBase):
         """
         self._additional_callbacks[key] = func
 
-    def advance(self) -> np.ndarray:
+    def advance(self) -> torch.Tensor:
         """Provides the result from keyboard event state.
 
         Returns:
-            3D array containing the linear (x,y) and angular velocity (z).
+            Tensor containing the linear (x,y) and angular velocity (z).
         """
-        return self._base_command
+        return torch.tensor(self._base_command, dtype=torch.float32, device=self._sim_device)
 
     """
     Internal helpers.
@@ -165,3 +172,13 @@ class Se2Keyboard(DeviceBase):
             "NUMPAD_9": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
             "X": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
         }
+
+
+@dataclass
+class Se2KeyboardCfg(DeviceCfg):
+    """Configuration for SE2 keyboard devices."""
+
+    v_x_sensitivity: float = 0.8
+    v_y_sensitivity: float = 0.4
+    omega_z_sensitivity: float = 1.0
+    class_type: type[DeviceBase] = Se2Keyboard

@@ -68,7 +68,7 @@ Importing assets
 
 -  `Omniverse Create - Importing FBX Files \| NVIDIA Omniverse Tutorials <https://youtu.be/dQI0OpzfVHw>`__
 -  `Omniverse Asset Importer <https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-importer.html>`__
--  `Isaac Sim URDF impoter <https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html>`__
+-  `Isaac Sim URDF impoter <https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html>`__
 
 
 Part 2: Scripting in Omniverse
@@ -119,6 +119,5 @@ Part 3: More Resources
 
 - `Omniverse Glossary of Terms <https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/reference_glossary.html>`__
 - `Omniverse Code Samples <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref.html>`__
-- `PhysX Collider Compatibility <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#collidercompatibility>`__
 - `PhysX Limitations <https://docs.isaacsim.omniverse.nvidia.com/latest/physics/physics_resources.html>`__
 - `PhysX Documentation <https://nvidia-omniverse.github.io/PhysX/physx/>`__.

@@ -53,7 +53,7 @@ in seconds through the :attr:`sensors.SensorBaseCfg.update_period` attribute.
 Depending on the specified path and the sensor type, the sensors are attached to the prims in the scene.
 They may have an associated prim that is created in the scene or they may be attached to an existing prim.
 For instance, the camera sensor has a corresponding prim that is created in the scene, whereas for the
-contact sensor, the activating the contact reporting is a property on a rigid body prim.
+contact sensor, activating the contact reporting is a property on a rigid body prim.
 
 In the following, we introduce the different sensors we use in this tutorial and how they are configured.
 For more description about them, please check the :mod:`sensors` module.
@@ -101,7 +101,7 @@ For this tutorial, the ray-cast based height scanner is attached to the base fra
 The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For
 a uniform grid pattern, we specify the pattern using :class:`~sensors.patterns.GridPatternCfg`.
 Since we only care about the height information, we do not need to consider the roll and pitch
-of the robot. Hence, we set the :attr:`~sensors.RayCasterCfg.attach_yaw_only` to true.
+of the robot. Hence, we set the :attr:`~sensors.RayCasterCfg.ray_alignment` to "yaw".
 
 For the height-scanner, you can visualize the points where the rays hit the mesh. This is done
 by setting the :attr:`~sensors.SensorBaseCfg.debug_vis` attribute to true.

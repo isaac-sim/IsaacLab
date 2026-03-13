@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,13 +8,16 @@
 # needed to import for allowing type-hinting: torch.Tensor | np.ndarray
 from __future__ import annotations
 
+import logging
 import math
+from typing import Literal
+
 import numpy as np
 import torch
 import torch.nn.functional
-from typing import Literal
 
-import omni.log
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 General
@@ -133,8 +136,8 @@ def copysign(mag: float, other: torch.Tensor) -> torch.Tensor:
     Returns:
         The output tensor.
     """
-    mag_torch = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
-    return torch.abs(mag_torch) * torch.sign(other)
+    mag_torch = abs(mag) * torch.ones_like(other)
+    return torch.copysign(mag_torch, other)
 
 
 """
@@ -250,20 +253,21 @@ def quat_conjugate(q: torch.Tensor) -> torch.Tensor:
     """
     shape = q.shape
     q = q.reshape(-1, 4)
-    return torch.cat((q[:, 0:1], -q[:, 1:]), dim=-1).view(shape)
+    return torch.cat((q[..., 0:1], -q[..., 1:]), dim=-1).view(shape)
 
 
 @torch.jit.script
-def quat_inv(q: torch.Tensor) -> torch.Tensor:
-    """Compute the inverse of a quaternion.
+def quat_inv(q: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
+    """Computes the inverse of a quaternion.
 
     Args:
         q: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+        eps: A small value to avoid division by zero. Defaults to 1e-9.
 
     Returns:
         The inverse quaternion in (w, x, y, z). Shape is (N, 4).
     """
-    return normalize(quat_conjugate(q))
+    return quat_conjugate(q) / q.pow(2).sum(dim=-1, keepdim=True).clamp(min=eps)
 
 
 @torch.jit.script
@@ -400,7 +404,7 @@ def _axis_angle_rotation(axis: Literal["X", "Y", "Z"], angle: torch.Tensor) -> t
 
 def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tensor:
     """
-    Convert rotations given as Euler angles in radians to rotation matrices.
+    Convert rotations given as Euler angles (intrinsic) in radians to rotation matrices.
 
     Args:
         euler_angles: Euler angles in radians. Shape is (..., 3).
@@ -429,14 +433,19 @@ def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tens
 
 
 @torch.jit.script
-def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def euler_xyz_from_quat(
+    quat: torch.Tensor, wrap_to_2pi: bool = False
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Convert rotations given as quaternions to Euler angles in radians.
 
     Note:
-        The euler angles are assumed in XYZ convention.
+        The euler angles are assumed in XYZ extrinsic convention.
 
     Args:
         quat: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+        wrap_to_2pi (bool): Whether to wrap output Euler angles into [0, 2π). If
+            False, angles are returned in the default range (−π, π]. Defaults to
+            False.
 
     Returns:
         A tuple containing roll-pitch-yaw. Each element is a tensor of shape (N,).
@@ -459,7 +468,9 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor,
     cos_yaw = 1 - 2 * (q_y * q_y + q_z * q_z)
     yaw = torch.atan2(sin_yaw, cos_yaw)
 
-    return roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)  # TODO: why not wrap_to_pi here ?
+    if wrap_to_2pi:
+        return roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)
+    return roll, pitch, yaw
 
 
 @torch.jit.script
@@ -674,6 +685,7 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by a quaternion along the last dimension of q and v.
+
     .. deprecated v2.1.0:
          This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply`.
 
@@ -685,7 +697,7 @@ def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
     # deprecation
-    omni.log.warn(
+    logger.warning(
         "The function 'quat_rotate' will be deprecated in favor of the faster method 'quat_apply'."
         " Please use 'quat_apply' instead...."
     )
@@ -696,7 +708,9 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
     .. deprecated v2.1.0:
-         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply_inverse`.
+         This function will be removed in a future release in favor of the faster implementation
+         :meth:`quat_apply_inverse`.
+
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
         v: The vector in (x, y, z). Shape is (..., 3).
@@ -704,7 +718,7 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    omni.log.warn(
+    logger.warning(
         "The function 'quat_rotate_inverse' will be deprecated in favor of the faster method 'quat_apply_inverse'."
         " Please use 'quat_apply_inverse' instead...."
     )
@@ -1514,7 +1528,10 @@ def convert_camera_frame_orientation_convention(
 
     .. math::
 
-        T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+        T_{ROS} =
+            \begin{bmatrix}
+                1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1
+            \end{bmatrix} T_{USD}
 
     On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,
     and +Z pointing up. The camera can also be set in this convention by rotating the camera by :math:`90^{\circ}`
@@ -1522,7 +1539,10 @@ def convert_camera_frame_orientation_convention(
 
     .. math::
 
-        T_{WORLD} = \begin{bmatrix} 0 & 0 & -1 & 0 \\ -1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+        T_{WORLD} =
+            \begin{bmatrix}
+                0 & 0 & -1 & 0 \\ -1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1
+            \end{bmatrix} T_{USD}
 
     Thus, based on their application, cameras follow different conventions for their orientation. This function
     converts a quaternion from one convention to another.
@@ -1691,7 +1711,8 @@ def pose_inv(pose: torch.Tensor) -> torch.Tensor:
     # Take transpose of last 2 dimensions
     inv_pose[..., :3, :3] = pose[..., :3, :3].transpose(-1, -2)
 
-    # note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -> [..., 3, 1] so we add a dimension and take it away after
+    # note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -> [..., 3, 1]
+    # so we add a dimension and take it away after
     inv_pose[..., :3, 3] = torch.matmul(-inv_pose[..., :3, :3], pose[..., :3, 3:4])[..., 0]
     inv_pose[..., 3, 3] = 1.0
     return inv_pose

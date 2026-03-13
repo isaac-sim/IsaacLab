@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,12 +33,17 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
+# disable metrics assembler due to scene graph instancing
+from isaacsim.core.utils.extensions import disable_extension
+
+disable_extension("omni.usd.metrics.assembler.ui")
+
 """Rest everything else."""
+
+from collections.abc import Sequence
 
 import gymnasium as gym
 import torch
-from collections.abc import Sequence
-
 import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_data import RigidObjectData

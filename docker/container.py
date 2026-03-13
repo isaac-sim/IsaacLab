@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -57,9 +57,19 @@ def parse_cli_args() -> argparse.Namespace:
             " passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``."
         ),
     )
+    parent_parser.add_argument(
+        "--info",
+        action="store_true",
+        help="Print the container interface information. This is useful for debugging purposes.",
+    )
 
     # Actual command definition begins here
     subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser(
+        "build",
+        help="Build the docker image without creating the container.",
+        parents=[parent_parser],
+    )
     subparsers.add_parser(
         "start",
         help="Build the docker image and create the container in detached mode.",
@@ -107,9 +117,23 @@ def main(args: argparse.Namespace):
         envs=args.env_files,
         suffix=args.suffix,
     )
+    if args.info:
+        print("[INFO] Printing container interface information...\n")
+        ci.print_info()
+        return
 
     print(f"[INFO] Using container profile: {ci.profile}")
-    if args.command == "start":
+    if args.command == "build":
+        # check if x11 forwarding is enabled
+        x11_outputs = x11_utils.x11_check(ci.statefile)
+        # if x11 forwarding is enabled, add the x11 yaml and environment variables
+        if x11_outputs is not None:
+            (x11_yaml, x11_envar) = x11_outputs
+            ci.add_yamls += x11_yaml
+            ci.environ.update(x11_envar)
+        # build the image
+        ci.build()
+    elif args.command == "start":
         # check if x11 forwarding is enabled
         x11_outputs = x11_utils.x11_check(ci.statefile)
         # if x11 forwarding is enabled, add the x11 yaml and environment variables

@@ -1,13 +1,14 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
+
+import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
@@ -107,7 +108,7 @@ class PreTrainedPolicyAction(ActionTerm):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
-            # create markers if necessary for the first tome
+            # create markers if necessary for the first time
             if not hasattr(self, "base_vel_goal_visualizer"):
                 # -- goal
                 marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()

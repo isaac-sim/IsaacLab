@@ -47,7 +47,7 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
   Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
 * **docker-compose.yaml**: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
-  store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
+  store frequently reused resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * **.env.base**: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image extension <#isaac-lab-image-extensions>`_.
 * **docker-compose.cloudxr-runtime.patch.yaml**: A patch file that is applied to enable CloudXR Runtime support for
@@ -76,6 +76,7 @@ Running the Container
 The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
 or else they will default to the ``base`` image extension. These commands are:
 
+* **build**: This builds the image for the given profile. It does not bring up the container.
 * **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
 * **enter**: This begins a new bash process in an existing Isaac Lab container, and which can be exited
   without bringing down the container.
@@ -291,17 +292,23 @@ Running Pre-Built Isaac Lab Container
 In Isaac Lab 2.0 release, we introduced a minimal pre-built container that contains a very minimal set
 of Isaac Sim and Omniverse dependencies, along with Isaac Lab 2.0 pre-built into the container.
 This container allows users to pull the container directly from NGC without requiring a local build of
-the docker image. The Isaac Lab 2.0 source code will be available in this container under ``/workspace/IsaacLab``.
+the docker image. The Isaac Lab source code will be available in this container under ``/workspace/IsaacLab``.
 
 This container is designed for running **headless** only and does not allow for X11 forwarding or running
 with the GUI. Please only use this container for headless training. For other use cases, we recommend
 following the above steps to build your own Isaac Lab docker image.
 
+.. note::
+
+  Currently, we only provide docker images with every major release of Isaac Lab.
+  For example, we provide the docker image for release 2.0.0 and 2.1.0, but not 2.0.2.
+  In the future, we will provide docker images for every minor release of Isaac Lab.
+
 To pull the minimal Isaac Lab container, run:
 
 .. code:: bash
 
-  docker pull nvcr.io/nvidia/isaac-lab:2.1.0
+  docker pull nvcr.io/nvidia/isaac-lab:2.3.2
 
 To run the Isaac Lab container with an interactive bash session, run:
 
@@ -317,7 +324,7 @@ To run the Isaac Lab container with an interactive bash session, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:2.1.0
+     nvcr.io/nvidia/isaac-lab:2.3.2
 
 To enable rendering through X11 forwarding, run:
 
@@ -336,7 +343,7 @@ To enable rendering through X11 forwarding, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:2.1.0
+     nvcr.io/nvidia/isaac-lab:2.3.2
 
 To run an example within the container, run:
 

@@ -1,15 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
+
 from pxr import UsdPhysics
 
 import isaaclab.utils.math as math_utils
@@ -23,8 +24,12 @@ from isaaclab.sim.utils import find_matching_prims
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DifferentialInverseKinematicsAction(ActionTerm):
@@ -77,11 +82,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        omni.log.info(
+        logger.info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"
         )
         # Avoid indexing across all joints for efficiency
@@ -147,6 +152,37 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
         return jacobian
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - body_name: The name of the body.
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - clip: The clip of the action term.
+        - controller_cfg: The configuration of the controller.
+        - body_offset: The offset of the body.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "TaskSpaceAction"
+        self._IO_descriptor.body_name = self._body_name
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self.cfg.clip
+        else:
+            self._IO_descriptor.clip = None
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
+        return self._IO_descriptor
 
     """
     Operations.
@@ -274,11 +310,11 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobi_joint_idx = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        omni.log.info(
+        logger.info(
             f"Resolved ee body name for the action term {self.__class__.__name__}:"
             f" {self._ee_body_name} [{self._ee_body_idx}]"
         )
@@ -415,6 +451,47 @@ class OperationalSpaceControllerAction(ActionTerm):
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
         return jacobian
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - body_name: The name of the body.
+        - joint_names: The names of the joints.
+        - position_scale: The scale of the position.
+        - orientation_scale: The scale of the orientation.
+        - wrench_scale: The scale of the wrench.
+        - stiffness_scale: The scale of the stiffness.
+        - damping_ratio_scale: The scale of the damping ratio.
+        - nullspace_joint_pos_target: The nullspace joint pos target.
+        - clip: The clip of the action term.
+        - controller_cfg: The configuration of the controller.
+        - body_offset: The offset of the body.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "TaskSpaceAction"
+        self._IO_descriptor.body_name = self._ee_body_name
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.position_scale = self.cfg.position_scale
+        self._IO_descriptor.orientation_scale = self.cfg.orientation_scale
+        self._IO_descriptor.wrench_scale = self.cfg.wrench_scale
+        self._IO_descriptor.stiffness_scale = self.cfg.stiffness_scale
+        self._IO_descriptor.damping_ratio_scale = self.cfg.damping_ratio_scale
+        self._IO_descriptor.nullspace_joint_pos_target = self.cfg.nullspace_joint_pos_target
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self.cfg.clip
+        else:
+            self._IO_descriptor.clip = None
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller_cfg.__dict__
+        self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
+        return self._IO_descriptor
 
     """
     Operations.
@@ -660,10 +737,14 @@ class OperationalSpaceControllerAction(ActionTerm):
             # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
             #        = (v_J_ee + w_J_ee x r_link_ee ) * q
             #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(-math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :])  # type: ignore
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            )  # type: ignore
             # -- rotational part
             # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :])  # type: ignore
+            self._jacobian_b[:, 3:, :] = torch.bmm(
+                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            )  # type: ignore
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
@@ -794,9 +875,9 @@ class OperationalSpaceControllerAction(ActionTerm):
                 max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
             )
         if self._damping_ratio_idx is not None:
-            self._processed_actions[
-                :, self._damping_ratio_idx : self._damping_ratio_idx + 6
-            ] *= self._damping_ratio_scale
+            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] *= (
+                self._damping_ratio_scale
+            )
             self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],

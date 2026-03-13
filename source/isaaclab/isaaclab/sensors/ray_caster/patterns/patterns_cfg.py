@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,10 +7,11 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import Literal
+
+import torch
 
 from isaaclab.utils import configclass
 
@@ -137,8 +138,8 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
             0 & 0 & 1
             \end{bmatrix},
 
-        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
-        principle point offsets along x and y direction respectively.
+        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while
+        :math:`c_x` and :math:`c_y` are the principle point offsets along x and y direction, respectively.
 
         Args:
             intrinsic_matrix: Intrinsic matrix of the camera in row-major format.

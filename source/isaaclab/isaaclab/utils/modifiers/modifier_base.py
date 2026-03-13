@@ -1,14 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from .modifier_cfg import ModifierCfg
@@ -31,7 +32,7 @@ class ModifierBase(ABC):
         from isaaclab.utils import modifiers
 
         # define custom keyword arguments to pass to ModifierCfg
-        kwarg_dict = {"arg_1" : VAL_1, "arg_2" : VAL_2}
+        kwarg_dict = {"arg_1": VAL_1, "arg_2": VAL_2}
 
         # create modifier configuration object
         # func is the class name of the modifier and params is the dictionary of arguments

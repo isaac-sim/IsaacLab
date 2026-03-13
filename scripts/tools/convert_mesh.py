@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -31,7 +31,8 @@ optional arguments:
   -h, --help                    Show this help message and exit
   --make-instanceable,          Make the asset instanceable for efficient cloning. (default: False)
   --collision-approximation     The method used for approximating collision mesh. Defaults to convexDecomposition.
-                                Set to \"none\" to not add a collision mesh to the converted mesh. (default: convexDecomposition)
+                                Set to \"none\" to not add a collision mesh to the converted mesh.
+                                (default: convexDecomposition)
   --mass                        The mass (in kg) to assign to the converted asset. (default: None)
 
 """
@@ -42,6 +43,18 @@ optional arguments:
 import argparse
 
 from isaaclab.app import AppLauncher
+
+# Define collision approximation choices (must be defined before parser)
+_valid_collision_approx = [
+    "convexDecomposition",
+    "convexHull",
+    "triangleMesh",
+    "meshSimplification",
+    "sdf",
+    "boundingCube",
+    "boundingSphere",
+    "none",
+]
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Utility to convert a mesh file into USD format.")
@@ -57,11 +70,8 @@ parser.add_argument(
     "--collision-approximation",
     type=str,
     default="convexDecomposition",
-    choices=["convexDecomposition", "convexHull", "boundingCube", "boundingSphere", "meshSimplification", "none"],
-    help=(
-        'The method used for approximating collision mesh. Set to "none" '
-        "to not add a collision mesh to the converted mesh."
-    ),
+    choices=_valid_collision_approx,
+    help="The method used for approximating the collision mesh. Set to 'none' to disable collision mesh generation.",
 )
 parser.add_argument(
     "--mass",
@@ -84,13 +94,24 @@ import contextlib
 import os
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.app
 
+import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.dict import print_dict
+
+collision_approximation_map = {
+    "convexDecomposition": schemas_cfg.ConvexDecompositionPropertiesCfg,
+    "convexHull": schemas_cfg.ConvexHullPropertiesCfg,
+    "triangleMesh": schemas_cfg.TriangleMeshPropertiesCfg,
+    "meshSimplification": schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
+    "sdf": schemas_cfg.SDFMeshPropertiesCfg,
+    "boundingCube": schemas_cfg.BoundingCubePropertiesCfg,
+    "boundingSphere": schemas_cfg.BoundingSpherePropertiesCfg,
+    "none": None,
+}
 
 
 def main():
@@ -118,6 +139,15 @@ def main():
     collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=args_cli.collision_approximation != "none")
 
     # Create Mesh converter config
+    cfg_class = collision_approximation_map.get(args_cli.collision_approximation)
+    if cfg_class is None and args_cli.collision_approximation != "none":
+        valid_keys = ", ".join(sorted(collision_approximation_map.keys()))
+        raise ValueError(
+            f"Invalid collision approximation type '{args_cli.collision_approximation}'. "
+            f"Valid options are: {valid_keys}."
+        )
+    collision_cfg = cfg_class() if cfg_class is not None else None
+
     mesh_converter_cfg = MeshConverterCfg(
         mass_props=mass_props,
         rigid_props=rigid_props,
@@ -127,7 +157,7 @@ def main():
         usd_dir=os.path.dirname(dest_path),
         usd_file_name=os.path.basename(dest_path),
         make_instanceable=args_cli.make_instanceable,
-        collision_approximation=args_cli.collision_approximation,
+        mesh_collision_props=collision_cfg,
     )
 
     # Print info
@@ -158,7 +188,7 @@ def main():
     # Simulate scene (if not headless)
     if local_gui or livestream_gui:
         # Open the stage with USD
-        stage_utils.open_stage(mesh_converter.usd_path)
+        sim_utils.open_stage(mesh_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation

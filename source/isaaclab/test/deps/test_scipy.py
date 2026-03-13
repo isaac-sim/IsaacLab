@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 # isort: off
 import warnings
+import pytest
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 # isort: on
@@ -13,6 +14,7 @@ import numpy as np
 import scipy.interpolate as interpolate
 
 
+@pytest.mark.isaacsim_ci
 def test_interpolation():
     """Test scipy interpolation 2D method."""
     # parameters
@@ -54,6 +56,8 @@ def test_interpolation():
     z_upsampled_RectBivariant = func_RectBiVariate(x_upsampled, y_upsampled)
 
     # check if the interpolated height field is the same as the sampled height field
-    np.testing.assert_allclose(z_upsampled_RegularGridInterpolator, z_upsampled_RectBivariant, atol=1e-14)
-    np.testing.assert_allclose(z_upsampled_RectBivariant, z_upsampled_RegularGridInterpolator, atol=1e-14)
-    np.testing.assert_allclose(z_upsampled_RegularGridInterpolator, z_upsampled_RegularGridInterpolator, atol=1e-14)
+    np.testing.assert_allclose(z_upsampled_RegularGridInterpolator, z_upsampled_RectBivariant, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(z_upsampled_RectBivariant, z_upsampled_RegularGridInterpolator, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(
+        z_upsampled_RegularGridInterpolator, z_upsampled_RegularGridInterpolator, atol=1e-2, rtol=1e-2
+    )

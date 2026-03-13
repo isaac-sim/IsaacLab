@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -8,8 +8,8 @@
 import itertools
 import os
 import platform
-import toml
 
+import toml
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
@@ -29,7 +29,7 @@ EXTRAS_REQUIRE = {"robomimic": []}
 
 # Check if the platform is Linux and add the dependency
 if platform.system() == "Linux":
-    EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git")
+    EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0")
 
 # Cumulation of all extra-requires
 EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
@@ -54,7 +54,10 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Isaac Sim :: 4.5.0",
+        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

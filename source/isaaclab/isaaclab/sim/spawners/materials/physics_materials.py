@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,11 +7,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 from pxr import PhysxSchema, Usd, UsdPhysics, UsdShade
 
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from . import physics_materials_cfg
@@ -41,12 +40,15 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     Raises:
         ValueError:  When a prim already exists at the specified prim path and is not a material.
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # create material prim if no prim exists
-    if not prim_utils.is_prim_path_valid(prim_path):
-        _ = UsdShade.Material.Define(stage_utils.get_current_stage(), prim_path)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        _ = UsdShade.Material.Define(stage, prim_path)
 
     # obtain prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
@@ -99,12 +101,15 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
 
     .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxFEMSoftBodyMaterialModel.html
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # create material prim if no prim exists
-    if not prim_utils.is_prim_path_valid(prim_path):
-        _ = UsdShade.Material.Define(stage_utils.get_current_stage(), prim_path)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        _ = UsdShade.Material.Define(stage, prim_path)
 
     # obtain prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")

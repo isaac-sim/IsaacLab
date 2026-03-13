@@ -35,6 +35,7 @@ maximum effort:
 .. math::
 
     \tau_{j, computed} & = k_p * (q_{des} - q) + k_d * (\dot{q}_{des} - \dot{q}) + \tau_{ff} \\
+    \tau_{j, max} & = \gamma \times \tau_{motor, max} \\
     \tau_{j, applied} & = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})
 
 
@@ -75,3 +76,25 @@ The following figure shows the actuator groups for a legged mobile manipulator:
 
     We provide implementations for various explicit actuator models. These are detailed in
     `isaaclab.actuators <../../api/lab/isaaclab.actuators.html>`_ sub-package.
+
+Considerations when using actuators
+-----------------------------------
+
+As explained in the previous sections, there are two main types of actuator models: implicit and explicit.
+The implicit actuator model is provided by the physics engine. This means that when the user sets either
+a desired position or velocity, the physics engine will internally compute the efforts that need to be
+applied to the joints to achieve the desired behavior. In PhysX, the PD controller adds numerical damping
+to the desired effort, which results in more stable behavior.
+
+The explicit actuator model is provided by the user. This means that when the user sets either a desired
+position or velocity, the user's model will compute the efforts that need to be applied to the joints to
+achieve the desired behavior. While this provides more flexibility, it can also lead to some numerical
+instabilities. One way to mitigate this is to use the ``armature`` parameter of the actuator model, either in
+the USD file or in the articulation config. This parameter is used to dampen the joint response and helps
+improve the numerical stability of the simulation. More details on how to improve articulation stability
+can be found in the `OmniPhysics documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_.
+
+What does this mean for the user? It means that policies trained with implicit actuators may not transfer
+to the exact same robot model when using explicit actuators. If you are running into issues like this, or
+in cases where policies do not converge on explicit actuators while they do on implicit ones, increasing
+or setting the ``armature`` parameter to a higher value may help.

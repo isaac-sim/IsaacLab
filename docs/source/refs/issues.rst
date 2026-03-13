@@ -91,3 +91,24 @@ This is due to the termination occurring in the middle of a physics event call a
 should not affect the functionality of Isaac Lab. It is safe to ignore the error
 message and continue with terminating the process. On Windows systems, please use
 ``Ctrl+Break`` or ``Ctrl+fn+B`` to terminate the process.
+
+
+URDF Importer: Unresolved references for fixed joints
+-----------------------------------------------------
+
+Starting with Isaac Sim 5.1, links connected through ``fixed_joint`` elements are no longer merged when
+their URDF link entries specify mass and inertia even if ``merge-joint`` set to True.
+This is expected behaviour—those links are treated as full bodies rather than zero-mass reference frames.
+However, the USD importer currently raises ``ReportError`` warnings showing unresolved references for such links
+when they lack visuals or colliders. This is a known bug in the importer; it creates references to visuals
+that do not exist. The warnings can be safely ignored until the importer is updated.
+
+
+GLIBCXX errors in Conda
+-----------------------
+
+In Isaac Sim 5.0, we have observed some workflows exiting with an ``OSError`` indicating
+``version 'GLIBCXX_3.4.30' not found`` when running from a conda environment.
+The issue apperas to be stemming from importing torch or torch-related packages, such as tensorboard,
+prior to launching ``AppLauncher``. As a workaround, ensure that all torch imports happen after
+the ``AppLauncher`` instance has been created, which should resolve the error.

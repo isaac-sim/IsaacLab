@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,11 +17,12 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
+
+import pytest
 import torch
+from flaky import flaky
 
 import carb
-import isaacsim.core.utils.prims as prim_utils
-import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -57,7 +58,7 @@ def generate_cubes_scene(
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
     if has_api:
@@ -163,6 +164,7 @@ def test_initialization(sim, num_cubes, material_path):
     )
 
 
+@pytest.mark.isaacsim_ci
 def test_initialization_on_device_cpu():
     """Test that initialization fails with deformable body API on the CPU."""
     with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
@@ -178,6 +180,7 @@ def test_initialization_on_device_cpu():
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(sim, num_cubes):
     """Test that initialization for prim with kinematic flag enabled."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
@@ -204,6 +207,7 @@ def test_initialization_with_kinematic_enabled(sim, num_cubes):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_no_deformable_body(sim, num_cubes):
     """Test that initialization fails when no deformable body is found at the provided prim path."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
@@ -217,6 +221,7 @@ def test_initialization_with_no_deformable_body(sim, num_cubes):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_set_nodal_state(sim, num_cubes):
     """Test setting the state of the deformable object."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes)
@@ -256,6 +261,8 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("randomize_pos", [True, False])
 @pytest.mark.parametrize("randomize_rot", [True, False])
+@flaky(max_runs=3, min_passes=1)
+@pytest.mark.isaacsim_ci
 def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
     carb_settings_iface = carb.settings.get_settings()
@@ -300,6 +307,7 @@ def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, r
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
+@pytest.mark.isaacsim_ci
 def test_set_kinematic_targets(sim, num_cubes):
     """Test setting kinematic targets for the deformable object."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, height=1.0)

@@ -112,6 +112,19 @@ This guide explains how to record an animation and video in Isaac Lab.
     record_animation
     record_video
 
+
+Dynamically Modifying Environment Parameters With CurriculumTerm
+----------------------------------------------------------------
+
+This guide explains how to dynamically modify environment parameters during training in Isaac Lab.
+It covers the use of curriculum utilities to change environment parameters at runtime.
+
+.. toctree::
+    :maxdepth: 1
+
+    curriculums
+
+
 Mastering Omniverse
 -------------------
 
@@ -136,6 +149,18 @@ teleoperation in Isaac Lab.
     cloudxr_teleoperation
 
 
+Setting up Haply Teleoperation
+------------------------------
+
+This guide explains how to use Haply Inverse3 and VerseGrip devices for robot teleoperation
+with directional force feedback in Isaac Lab.
+
+.. toctree::
+    :maxdepth: 1
+
+    haply_teleoperation
+
+
 Understanding Simulation Performance
 ------------------------------------
 
@@ -147,3 +172,14 @@ Omniverse Physics.
     :maxdepth: 1
 
     simulation_performance
+
+
+Optimize Stage Creation
+-----------------------
+
+This guide explains 2 features that can speed up stage initialization, **fabric cloning** and **stage in memory**.
+
+.. toctree::
+    :maxdepth: 1
+
+    optimize_stage_creation

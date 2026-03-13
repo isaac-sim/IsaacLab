@@ -54,6 +54,9 @@ Please ensure that your code is well-formatted, documented and passes all the te
    Large pull requests are difficult to review and may take a long time to merge.
 
 
+More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
+
+
 Contributing Documentation
 --------------------------
 
@@ -112,11 +115,8 @@ integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omn
 Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
 we need to include the links to the assets in the documentation.
 
-The included assets are part of the `Isaac Sim Content <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/index.html>`__.
-To use this content, you can use the Asset Browser provided in Isaac Sim.
-
-Please check the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/index.html>`__
-for more information on how to download the assets.
+Please checkout the `Isaac Sim Assets <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
+for more information on what is presently available.
 
 .. attention::
 
@@ -236,6 +236,62 @@ type-hinting.
 For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`__
 for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
 Please make sure that your code is well-documented and follows the guidelines.
+
+Code Structure
+^^^^^^^^^^^^^^
+
+We follow a specific structure for the codebase. This helps in maintaining the codebase and makes it easier to
+understand.
+
+In a Python file, we follow the following structure:
+
+.. code:: python
+
+   # Imports: These are sorted by the pre-commit hooks.
+   # Constants
+   # Functions (public)
+   # Classes (public)
+   # _Functions (private)
+   # _Classes (private)
+
+Imports are sorted by the pre-commit hooks. Unless there is a good reason to do otherwise, please do not
+import the modules inside functions or classes. To deal with circular imports, we use the
+:obj:`typing.TYPE_CHECKING` variable. Please refer to the `Circular Imports`_ section for more details.
+
+Python does not have a concept of private and public classes and functions. However, we follow the
+convention of prefixing the private functions and classes with an underscore.
+The public functions and classes are the ones that are intended to be used by the users. The private
+functions and classes are the ones that are intended to be used internally in that file.
+Irrespective of the public or private nature of the functions and classes, we follow the Style Guide
+for the code and make sure that the code and documentation are consistent.
+
+Similarly, within Python classes, we follow the following structure:
+
+.. code:: python
+
+   # Constants
+   # Class variables (public or private): Must have the type hint ClassVar[type]
+   # Dunder methods: __init__, __del__
+   # Representation: __repr__, __str__
+   # Properties: @property
+   # Instance methods (public)
+   # Class methods (public)
+   # Static methods (public)
+   # _Instance methods (private)
+   # _Class methods (private)
+   # _Static methods (private)
+
+The rule of thumb is that the functions within the classes are ordered in the way a user would
+expect to use them. For instance, if the class contains the method :meth:`initialize`, :meth:`reset`,
+:meth:`update`, and :meth:`close`, then they should be listed in the order of their usage.
+The same applies for private functions in the class. Their order is based on the order of call inside the
+class.
+
+.. dropdown:: Code skeleton
+   :icon: code
+
+   .. literalinclude:: snippets/code_skeleton.py
+      :language: python
 
 Circular Imports
 ^^^^^^^^^^^^^^^^
@@ -414,27 +470,70 @@ We summarize the key points below:
 
 
 Unit Testing
-^^^^^^^^^^^^
+------------
 
 We use `pytest <https://docs.pytest.org>`__ for unit testing.
 Good tests not only cover the basic functionality of the code but also the edge cases.
 They should be able to catch regressions and ensure that the code is working as expected.
 Please make sure that you add tests for your changes.
 
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         # Run all tests
+         ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+
+         # Run all tests in a particular file
+         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+         # Run a particular test
+         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: bash
+
+         # Run all tests
+         isaaclab.bat --test  # or "isaaclab.bat -t"
+
+         # Run all tests in a particular file
+         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+         # Run a particular test
+         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+
 Tools
-^^^^^
+-----
 
 We use the following tools for maintaining code quality:
 
 * `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
-* `black <https://black.readthedocs.io/en/stable/>`__: The uncompromising code formatter.
-* `flake8 <https://flake8.pycqa.org/en/latest/>`__: A wrapper around PyFlakes, pycodestyle and
-  McCabe complexity checker.
+* `ruff <https://github.com/astral-sh/ruff/>`__: An extremely fast Python linter and formatter.
 
 Please check `here <https://pre-commit.com/#install>`__ for instructions
 to set these up. To run over the entire repository, please execute the
 following command in the terminal:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh --format  # or "./isaaclab.sh -f"
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh --format  # or "./isaaclab.sh -f"
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: bash
+
+         isaaclab.bat --format  # or "isaaclab.bat -f"

@@ -1,10 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -15,6 +13,8 @@ from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 
 @configclass
@@ -98,7 +98,9 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         },
     )
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+    )
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset

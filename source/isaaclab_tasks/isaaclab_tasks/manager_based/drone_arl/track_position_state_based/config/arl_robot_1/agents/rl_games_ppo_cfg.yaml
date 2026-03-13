@@ -1,0 +1,87 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+params:
+  seed: 42
+
+  # environment wrapper clipping
+  env:
+    clip_actions: 1.0
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: False
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [256,128,64]
+      d2rl: False
+      activation: elu
+      initializer:
+        name: default
+        scale: 2
+    rnn:
+        name: gru
+        units: 64
+        layers: 1
+        # before_mlp: False
+        # layer_norm: True
+  config:
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    env_config:
+      num_envs: 8192
+
+    name: arl_robot_1_track_position_state_based
+    reward_shaper:
+      # min_val: -1
+      scale_value: 0.1
+
+    normalize_advantage: True
+    gamma: 0.98
+    tau: 0.95
+    ppo: True
+    learning_rate: 1e-4
+    lr_schedule: adaptive
+    kl_threshold: 0.016
+    save_best_after: 10
+    score_to_win: 100000
+    grad_norm: 1.0
+    entropy_coef: 0
+    truncate_grads: True
+    e_clip: 0.2
+    clip_value: False
+    num_actors: 1024
+    horizon_length: 32
+    minibatch_size: 2048
+    mini_epochs: 4
+    critic_coef: 2
+    normalize_input: True
+    bounds_loss_coef: 0.0001
+    max_epochs: 1500
+    normalize_value: True
+    use_diagnostics: True
+    value_bootstrap: True
+    #weight_decay: 0.0001
+    use_smooth_clamp: False
+
+    player:
+      render: True
+      deterministic: True
+      games_num: 100000

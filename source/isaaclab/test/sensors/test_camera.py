@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,16 +16,15 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import copy
-import numpy as np
 import os
 import random
+
+import numpy as np
+import pytest
 import scipy.spatial.transform as tf
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
-import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
@@ -60,7 +59,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
         ),
     )
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.01
     # Load kit helper
@@ -69,7 +68,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     # populate scene
     _populate_scene()
     # load stage
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
@@ -891,7 +890,7 @@ def _populate_scene():
         position *= np.asarray([1.5, 1.5, 0.5])
         # create prim
         prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
-        prim = prim_utils.create_prim(
+        prim = sim_utils.create_prim(
             f"/World/Objects/Obj_{i:02d}",
             prim_type,
             translation=position,

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,19 +7,19 @@ from __future__ import annotations
 
 import torch
 
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import sample_uniform
 
 
@@ -46,13 +46,15 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=3.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=4096, env_spacing=3.0, replicate_physics=True, clone_in_fabric=True
+    )
 
     # robot
     robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd",
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -79,22 +81,19 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
         actuators={
             "panda_shoulder": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[1-4]"],
-                effort_limit=87.0,
-                velocity_limit=2.175,
+                effort_limit_sim=87.0,
                 stiffness=80.0,
                 damping=4.0,
             ),
             "panda_forearm": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[5-7]"],
-                effort_limit=12.0,
-                velocity_limit=2.61,
+                effort_limit_sim=12.0,
                 stiffness=80.0,
                 damping=4.0,
             ),
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint.*"],
-                effort_limit=200.0,
-                velocity_limit=0.2,
+                effort_limit_sim=200.0,
                 stiffness=2e3,
                 damping=1e2,
             ),
@@ -121,15 +120,13 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
         actuators={
             "drawers": ImplicitActuatorCfg(
                 joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                effort_limit=87.0,
-                velocity_limit=100.0,
+                effort_limit_sim=87.0,
                 stiffness=10.0,
                 damping=1.0,
             ),
             "doors": ImplicitActuatorCfg(
                 joint_names_expr=["door_left_joint", "door_right_joint"],
-                effort_limit=87.0,
-                velocity_limit=100.0,
+                effort_limit_sim=87.0,
                 stiffness=10.0,
                 damping=2.5,
             ),
@@ -254,6 +251,7 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.left_finger_link_idx = self._robot.find_bodies("panda_leftfinger")[0][0]
         self.right_finger_link_idx = self._robot.find_bodies("panda_rightfinger")[0][0]
         self.drawer_link_idx = self._cabinet.find_bodies("drawer_top")[0][0]
+        self.drawer_joint_idx = self._cabinet.find_joints("drawer_top_joint")[0][0]
 
         self.robot_grasp_rot = torch.zeros((self.num_envs, 4), device=self.device)
         self.robot_grasp_pos = torch.zeros((self.num_envs, 3), device=self.device)
@@ -293,7 +291,7 @@ class FrankaCabinetEnv(DirectRLEnv):
     # post-physics step calls
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        terminated = self._cabinet.data.joint_pos[:, 3] > 0.39
+        terminated = self._cabinet.data.joint_pos[:, self.drawer_joint_idx] > 0.39
         truncated = self.episode_length_buf >= self.max_episode_length - 1
         return terminated, truncated
 
@@ -360,8 +358,8 @@ class FrankaCabinetEnv(DirectRLEnv):
                 dof_pos_scaled,
                 self._robot.data.joint_vel * self.cfg.dof_velocity_scale,
                 to_target,
-                self._cabinet.data.joint_pos[:, 3].unsqueeze(-1),
-                self._cabinet.data.joint_vel[:, 3].unsqueeze(-1),
+                self._cabinet.data.joint_pos[:, self.drawer_joint_idx].unsqueeze(-1),
+                self._cabinet.data.joint_vel[:, self.drawer_joint_idx].unsqueeze(-1),
             ),
             dim=-1,
         )
@@ -439,7 +437,7 @@ class FrankaCabinetEnv(DirectRLEnv):
         action_penalty = torch.sum(actions**2, dim=-1)
 
         # how far the cabinet has been opened out
-        open_reward = cabinet_dof_pos[:, 3]  # drawer_top_joint
+        open_reward = cabinet_dof_pos[:, self.drawer_joint_idx]  # drawer_top_joint
 
         # penalty for distance of each finger from the drawer handle
         lfinger_dist = franka_lfinger_pos[:, 2] - drawer_grasp_pos[:, 2]
@@ -467,9 +465,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         }
 
         # bonus for opening drawer properly
-        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.01, rewards + 0.25, rewards)
-        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.2, rewards + 0.25, rewards)
-        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.35, rewards + 0.25, rewards)
+        drawer_pos = cabinet_dof_pos[:, self.drawer_joint_idx]
+        rewards = torch.where(drawer_pos > 0.01, rewards + 0.25, rewards)
+        rewards = torch.where(drawer_pos > 0.2, rewards + 0.25, rewards)
+        rewards = torch.where(drawer_pos > 0.35, rewards + 0.25, rewards)
 
         return rewards
 

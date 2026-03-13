@@ -204,7 +204,7 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 
 .. _Singularity: https://docs.sylabs.io/guides/2.6/user-guide/index.html
-.. _ETH Zurich Euler: https://scicomp.ethz.ch/wiki/Euler
+.. _ETH Zurich Euler: https://www.gdc-docs.ethz.ch/EulerManual/site/overview/
 .. _PBS Official Site: https://openpbs.org/
 .. _apptainer: https://apptainer.org/
 .. _documentation: https://www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages

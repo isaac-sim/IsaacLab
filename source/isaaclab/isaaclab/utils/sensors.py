@@ -1,9 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import omni
+import logging
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def convert_camera_intrinsics_to_usd(
@@ -16,15 +19,13 @@ def convert_camera_intrinsics_to_usd(
             The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).
         width: Width of the image (in pixels).
         height: Height of the image (in pixels).
-        focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None
-                focal_length will be calculated 1 / width.
+        focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None,
+            in which case, the focal length will be calculated as 1 / width.
 
     Returns:
         A dictionary of USD camera parameters for focal_length, horizontal_aperture, vertical_aperture,
-            horizontal_aperture_offset, and vertical_aperture_offset.
+        horizontal_aperture_offset, and vertical_aperture_offset.
     """
-    usd_params = dict
-
     # extract parameters from matrix
     f_x = intrinsic_matrix[0]
     f_y = intrinsic_matrix[4]
@@ -33,11 +34,11 @@ def convert_camera_intrinsics_to_usd(
 
     # warn about non-square pixels
     if abs(f_x - f_y) > 1e-4:
-        omni.log.warn("Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.")
+        logger.warning("Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.")
 
     # warn about aperture offsets
     if abs((c_x - float(width) / 2) > 1e-4 or (c_y - float(height) / 2) > 1e-4):
-        omni.log.warn(
+        logger.warning(
             "Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height"
         )
 

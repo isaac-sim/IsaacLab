@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,9 +15,8 @@ Reference:
 
 """
 
-
 import isaaclab.sim as sim_utils
-from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -27,7 +26,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowHand/shadow_hand_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -53,7 +52,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
     actuators={
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-            effort_limit={
+            effort_limit_sim={
                 "robot0_WRJ1": 4.785,
                 "robot0_WRJ0": 2.175,
                 "robot0_(FF|MF|RF|LF)J1": 0.7245,

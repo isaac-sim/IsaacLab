@@ -15,4 +15,5 @@ multi-docs:
 
 .PHONY: current-docs
 current-docs:
-	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)/current" $(SPHINXOPTS)
+	@rm -rf "$(BUILDDIR)/current"
+	@$(SPHINXBUILD) -W --keep-going "$(SOURCEDIR)" "$(BUILDDIR)/current" $(SPHINXOPTS)
