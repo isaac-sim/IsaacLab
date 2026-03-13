@@ -42,6 +42,7 @@ EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
     "skrl": ["skrl>=1.4.3"],
     "rl-games": [
+        "aiohttp==3.13.3",
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
         "standard-distutils",
