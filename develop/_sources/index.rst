@@ -133,6 +133,7 @@ Table of Contents
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
+   source/features/visualization
 
 
 .. toctree::
