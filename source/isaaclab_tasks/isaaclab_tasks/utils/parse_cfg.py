@@ -81,20 +81,28 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             f"{msg if agents else ''}"
         )
     # parse the default config file
-    if isinstance(cfg_entry_point, str) and cfg_entry_point.endswith(".yaml"):
+    if isinstance(cfg_entry_point, str) and (cfg_entry_point.endswith(".yaml") or cfg_entry_point.endswith(".json")):
         if os.path.exists(cfg_entry_point):
             # absolute path for the config file
             config_file = cfg_entry_point
         else:
             # resolve path to the module location
             mod_name, file_name = cfg_entry_point.split(":")
-            mod_path = os.path.dirname(importlib.import_module(mod_name).__file__)
+            mod = importlib.import_module(mod_name)
+            if mod.__file__ is None:
+                raise ValueError(f"Could not determine file path for module: {mod_name}")
+            mod_path = os.path.dirname(mod.__file__)
             # obtain the configuration file path
             config_file = os.path.join(mod_path, file_name)
         # load the configuration
         print(f"[INFO]: Parsing configuration from: {config_file}")
         with open(config_file, encoding="utf-8") as f:
-            cfg = yaml.full_load(f)
+            if cfg_entry_point.endswith(".yaml"):
+                cfg = yaml.full_load(f)
+            else:  # .json
+                import json
+
+                cfg = json.load(f)
     else:
         if callable(cfg_entry_point):
             # resolve path to the module location
