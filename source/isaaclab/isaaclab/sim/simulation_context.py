@@ -515,12 +515,18 @@ class SimulationContext:
         self.initialize_scene_data_provider()
         self._visualizers = []
 
+        cli_explicit = self._is_cli_visualizer_explicit()
+
         for cfg in visualizer_cfgs:
             try:
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
             except Exception as exc:
+                if cli_explicit:
+                    raise RuntimeError(
+                        f"Visualizer '{cfg.visualizer_type}' was explicitly requested but failed to initialize: {exc}"
+                    ) from exc
                 logger.exception(
                     "Failed to initialize visualizer '%s' (%s): %s",
                     cfg.visualizer_type,
