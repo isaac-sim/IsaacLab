@@ -71,10 +71,9 @@ def _assert_first_frame_textured(first_frame: torch.Tensor, stable_frame: torch.
     mean_stable = stable_frame.mean(dim=(0, 1))
 
     # Guard 1: not the grey default material
-    channels_equal = (
-        (mean_first[1] - mean_first[0]).abs() < GREY_CHANNEL_TOLERANCE
-        and (mean_first[2] - mean_first[0]).abs() < GREY_CHANNEL_TOLERANCE
-    )
+    channels_equal = (mean_first[1] - mean_first[0]).abs() < GREY_CHANNEL_TOLERANCE and (
+        mean_first[2] - mean_first[0]
+    ).abs() < GREY_CHANNEL_TOLERANCE
     all_low = mean_first.mean() < GREY_MEAN_THRESHOLD
     assert not (channels_equal and all_low), (
         f"First frame looks like the grey default material "
