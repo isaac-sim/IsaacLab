@@ -6,26 +6,13 @@ import os
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.sim.converters.urdf_converter_cfg import UrdfConverterCfg
 
-# Path to the URDF file
-EIGENBOT_URDF_PATH = os.path.join(os.path.dirname(__file__), "eigenbot", "urdf", "eigenbot_hexapod.urdf")
+# Path to the USDZ file
+EIGENBOT_USDZ_PATH = os.path.join(os.path.dirname(__file__), "eigenbot_new.usdz")
 
 EIGENBOT_CFG = ArticulationCfg(
-    spawn=sim_utils.UrdfFileCfg(
-        asset_path=EIGENBOT_URDF_PATH,
-        force_usd_conversion=True,
-        fix_base=True,
-        merge_fixed_joints=True,
-        make_instanceable=False,
-        joint_drive=UrdfConverterCfg.JointDriveCfg(
-            drive_type="force",
-            target_type="position",
-            gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
-                stiffness=20.0,
-                damping=0.5,
-            ),
-        ),
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=EIGENBOT_USDZ_PATH,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=1000.0,
