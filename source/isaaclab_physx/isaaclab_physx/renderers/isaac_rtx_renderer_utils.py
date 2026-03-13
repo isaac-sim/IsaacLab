@@ -49,7 +49,8 @@ def _ensure_streaming_subscription() -> None:
     if _streaming_subscribed:
         return
 
-    # Do not retry if the dispatcher is unavailable on the first attempt.
+    # Mark initialization as attempted even if dispatcher lookup fails.
+    # This flag enforces no-retry behavior after the first attempt.
     _streaming_subscribed = True
 
     from carb.eventdispatcher import get_eventdispatcher
