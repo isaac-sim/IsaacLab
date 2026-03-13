@@ -171,12 +171,15 @@ combinations early with clear error messages.
 Preset System
 -------------
 
-The preset system lets you swap out entire config sections with a single command line argument.
-Instead of overriding individual fields, you select a named preset that **completely replaces** the
-config section (no field merging).
+The preset system lets you swap out entire config sections -- or individual scalar
+values -- with a single command line argument. Instead of overriding individual
+fields, you select a named preset that **completely replaces** the config section
+(no field merging).
 
-Presets are defined directly on config classes using a ``presets`` attribute. The system recursively
-discovers all presets from nested configs automatically.
+Presets are declared by subclassing :class:`~isaaclab_tasks.utils.hydra.PresetCfg`
+or by using the :func:`~isaaclab_tasks.utils.hydra.preset` convenience factory. The
+system recursively discovers all presets from nested configs automatically,
+including presets inside dict-valued fields (e.g. ``actuators``).
 
 
 Override Order
@@ -184,71 +187,18 @@ Override Order
 
 Overrides are applied in sequence:
 
-1. **Auto-default**: Configs with a ``"default"`` preset auto-apply without CLI args
-2. **Global presets**: ``presets=inference,newton`` applies to ALL matching configs
-3. **Path presets**: ``env.actions.arm_action=relative_joint_position`` replaces specific section
+1. **Auto-default**: Configs with a ``"default"`` field auto-apply without CLI args
+2. **Global presets**: ``presets=newton,inference`` applies to ALL matching configs
+3. **Path presets**: ``env.backend=newton`` replaces a specific section
 4. **Scalar overrides**: ``env.sim.dt=0.001`` modifies individual fields
 
 
-Defining Presets
-^^^^^^^^^^^^^^^^
+Defining Presets with PresetCfg
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are four styles for defining presets:
-
-**Style 1: Inheritance** - Default values from base class, presets for alternatives:
-
-.. code-block:: python
-
-    @configclass
-    class FrankaArmActionCfg(mdp.JointPositionActionCfg):
-        """Franka arm action config with presets for different action types."""
-
-        presets = {
-            "joint_position_to_limit": mdp.JointPositionToLimitsActionCfg(
-                asset_name="robot", joint_names=["panda_joint.*"]
-            ),
-            "relative_joint_position": mdp.RelativeJointPositionActionCfg(
-                asset_name="robot", joint_names=["panda_joint.*"], scale=0.2
-            ),
-        }
-
-**Style 2: Inner class** - Self-contained with nested preset definitions:
-
-.. code-block:: python
-
-    @configclass
-    class SimCfg:
-        """Simulation config with physics backend presets."""
-
-        backend: str = "physx"
-        dt: float = 0.005
-        substeps: int = 2
-
-        @configclass
-        class Newton:
-            backend: str = "newton"
-            dt: float = 0.002
-            substeps: int = 4
-            solver_iterations: int = 8
-
-        presets = {"newton": Newton()}
-
-**Style 3: Preset-only with auto-default** - Pure composition, no default fields:
-
-.. code-block:: python
-
-    @configclass
-    class ObservationsCfg:
-        """Observation specifications with presets."""
-
-        presets = {
-            "default": DefaultObservationsCfg(),
-            "noise_less": NoiselessObservationsCfg(),
-        }
-
-With Style 3, the ``"default"`` preset is automatically applied when no preset is selected.
-
-**Style 4: PresetCfg class** - Declarative, class-based preset definitions:
+Create a :class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclass where each field
+is a named alternative. The ``default`` field is the config used when no CLI
+override is given:
 
 .. code-block:: python
 
@@ -256,28 +206,20 @@ With Style 3, the ``"default"`` preset is automatically applied when no preset i
 
     @configclass
     class PhysicsCfg(PresetCfg):
-        """Physics backend presets using class-based pattern."""
-
         default: PhysxCfg = PhysxCfg()
         newton: NewtonCfg = NewtonCfg()
 
     @configclass
-    class SimCfg:
+    class MyEnvCfg:
         physics: PhysicsCfg = PhysicsCfg()
-
-With Style 4, each field on the ``PresetCfg`` subclass is a named preset. The ``default`` field
-holds the config instance used when no CLI override is given. ``collect_presets`` automatically
-discovers ``PresetCfg`` subclasses and converts their fields into a presets dict, so no
-``presets`` attribute is needed. CLI usage is the same as other styles:
 
 .. code-block:: bash
 
     # Use Newton physics backend
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.sim.physics=newton
+    python train.py --task=Isaac-Reach-Franka-v0 env.physics=newton
 
-The ``default`` field can be set to ``None`` to make an optional feature that is disabled unless
-explicitly selected on the command line:
+The ``default`` field can be set to ``None`` to make an optional feature that is
+disabled unless explicitly selected:
 
 .. code-block:: python
 
@@ -291,108 +233,128 @@ explicitly selected on the command line:
     class SceneCfg:
         camera: CameraPresetCfg = CameraPresetCfg()
 
-When no CLI argument is given, ``camera`` resolves to ``None`` (no camera):
-
 .. code-block:: bash
 
-    # camera is None — no camera overhead
+    # camera is None -- no camera overhead
     python train.py --task=Isaac-Reach-Franka-v0
 
     # activate camera with the "large" preset
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.scene.camera=large
+    python train.py --task=Isaac-Reach-Franka-v0 env.scene.camera=large
+
+
+Inline Presets with preset()
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For simple values (scalars, lists) that don't warrant a full subclass, use the
+:func:`~isaaclab_tasks.utils.hydra.preset` factory. It dynamically creates a
+``PresetCfg`` instance from keyword arguments:
+
+.. code-block:: python
+
+    from isaaclab_tasks.utils.hydra import preset
+
+    # Scalar preset -- one line, no boilerplate class
+    self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.01, physx=0.0)
+
+This is equivalent to defining a ``PresetCfg`` subclass with three ``float``
+fields, but without the ceremony. The ``default`` keyword is required.
+
+``preset()`` works for any value type -- scalars, lists, or even config
+instances:
+
+.. code-block:: python
+
+    # Resolution preset on a camera config field
+    width = preset(default=64, res128=128, res256=256)
+
+    # List preset for camera data types
+    @configclass
+    class DataTypeCfg(PresetCfg):
+        default: list = ["rgb"]
+        depth: list = ["depth"]
+        albedo: list = ["albedo"]
+
+Use ``preset()`` when the definition fits on a single line.  Use a
+``PresetCfg`` subclass when the options are verbose enough to benefit from
+type annotations and multiline formatting.
+
+The preset system discovers ``preset()`` values anywhere in the config tree,
+including inside dict-valued fields such as ``actuators``:
+
+.. code-block:: bash
+
+    # Select newton preset globally -- sets armature to 0.01
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton
 
 
 Using Presets
 ^^^^^^^^^^^^^
 
-**Path presets** - Select a specific preset for one config path:
+**Path presets** -- select a specific preset for one config path:
 
 .. code-block:: bash
 
-    # Use relative joint position action
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.actions.arm_action=relative_joint_position
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+        env.events=newton
 
-    # Use noiseless observations
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.observations=noise_less
-
-**Path preset + scalar override** - Select preset then modify a field:
+**Global presets** -- apply the same preset name everywhere it exists:
 
 .. code-block:: bash
 
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.actions.arm_action=relative_joint_position \
-        env.actions.arm_action.scale=0.5
+    # Apply "newton" preset to all configs that define it
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+        presets=newton
 
-**Global presets** - Apply the same preset name everywhere it exists:
-
-.. code-block:: bash
-
-    # Apply "inference" preset to all configs that define it
-    # (e.g., observations, policy, etc.)
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        presets=inference
-
-**Multiple global presets** - Apply several non-conflicting presets:
+**Multiple global presets** -- apply several non-conflicting presets:
 
 .. code-block:: bash
 
-    # Newton physics backend + inference mode
-    python train.py --task=Isaac-Reach-Franka-v0 \
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
         presets=newton,inference
 
-**Combined** - Global presets + path presets + scalar overrides:
+**Combined** -- global presets + scalar overrides:
 
 .. code-block:: bash
 
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        presets=inference \
-        env.actions.arm_action=relative_joint_position \
-        env.actions.arm_action.scale=0.5 \
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+        presets=newton \
         env.sim.dt=0.002
 
 
 Global Preset Conflict Detection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If multiple global presets define the same path, an error is raised:
+If two global presets both match the same config path, an error is raised
+so the ambiguity is caught early:
 
-.. code-block:: bash
+.. code-block:: text
 
-    # ERROR: both "fast" and "noise_less" define env.observations
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        presets=fast,noise_less
-
-    # ValueError: Conflicting global presets: 'fast' and 'noise_less'
-    #             both define preset for 'env.observations'
+    ValueError: Conflicting global presets: 'foo' and 'bar'
+                both define preset for 'env.events'
 
 
 Real-World Example
 ^^^^^^^^^^^^^^^^^^
 
-The Franka Reach environment demonstrates presets in practice:
+The ANYmal-C locomotion environment shows both ``PresetCfg`` and ``preset()``
+working together:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
-    :start-at: @configclass
-    :end-before: class FrankaReachEnvCfg_PLAY
+    :lines: 21-42
 
-This allows users to switch action types:
+A single ``presets=newton`` on the command line resolves every ``PresetCfg``
+and ``preset()`` that defines a ``newton`` field: the physics engine is swapped
+to Newton, ``AnymalCEventsCfg`` selects Newton-compatible events, and the
+actuator armature is set to ``0.01``.
 
 .. code-block:: bash
 
-    # Default: JointPositionActionCfg (from inheritance)
-    python train.py --task=Isaac-Reach-Franka-v0
+    # Default (PhysX events, armature=0.0)
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
 
-    # Switch to relative joint position
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.actions.arm_action=relative_joint_position
-
-    # Switch to joint position with limits
-    python train.py --task=Isaac-Reach-Franka-v0 \
-        env.actions.arm_action=joint_position_to_limit
+    # Newton (Newton events, armature=0.01)
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton
 
 
 Summary
@@ -409,10 +371,10 @@ Summary
      - ``env.sim.dt=0.001``
      - Modify single field
    * - Path preset
-     - ``env.actions.arm_action=relative``
+     - ``env.events=newton``
      - Replace entire section
    * - Global preset
-     - ``presets=inference``
+     - ``presets=newton``
      - Apply everywhere matching
    * - Combined
      - ``presets=newton env.sim.dt=0.001``
