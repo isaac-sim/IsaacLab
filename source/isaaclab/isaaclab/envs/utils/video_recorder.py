@@ -64,7 +64,7 @@ class VideoRecorder:
                 self._fallback_tiled_camera = self._spawn_fallback_cameras(cfg, scene)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for video recording, or ``None`` when no GL viewer and no Kit runtime."""
+        """Return an RGB frame for video recording, or ``None`` when neither GL viewer nor Kit runtime is available."""
         if self.cfg.video_mode == "perspective":
             if not self._gl_viewer_init_attempted:
                 self._try_init_gl_viewer()
@@ -141,8 +141,8 @@ class VideoRecorder:
         except Exception as exc:
             logger.warning("[VideoRecorder] Newton GL viewer unavailable: %s", exc)
 
-    def _render_newton_gl_rgb_array(self) -> np.ndarray | None:
-        """Return one RGB frame from the Newton GL viewer, or ``None`` on error."""
+    def _render_newton_gl_rgb_array(self) -> np.ndarray:
+        """Return one RGB frame from the Newton GL viewer, or a blank frame on error."""
         try:
             from isaaclab.sim import SimulationContext
 
@@ -158,7 +158,7 @@ class VideoRecorder:
             return viewer.get_frame().numpy()
         except Exception as exc:
             logger.warning("[VideoRecorder] GL frame capture failed: %s", exc)
-            return None
+            return np.zeros((self.cfg.gl_viewer_height, self.cfg.gl_viewer_width, 3), dtype=np.uint8)
 
     def _render_kit_perspective_rgb_array(self) -> np.ndarray | None:
         """Return one RGB frame from the Kit /OmniverseKit_Persp camera via omni.replicator.
