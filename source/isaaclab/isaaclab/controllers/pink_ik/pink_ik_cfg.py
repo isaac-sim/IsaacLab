@@ -103,3 +103,10 @@ class PinkIKControllerCfg:
 
     xr_enabled: bool = False
     """If True, the Pink IK controller will send information to the XRVisualization."""
+
+    qp_solver: str = "daqp"
+    """The quadratic programming solver to use for inverse kinematics.
+
+    Common solvers include "daqp", "quadprog", "osqp", but only "daqp" and "quadprog" are installed dependencies.
+    The solver must be installed and available in the environment.
+    """
