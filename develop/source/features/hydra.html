@@ -674,6 +674,7 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-configuration-validation">Custom Configuration Validation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preset-system">Preset System</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#override-order">Override Order</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-presets">Defining Presets</a></li>
@@ -886,6 +887,41 @@ the post init update is as follows:</p>
 </div>
 <p>Here, when modifying <code class="docutils literal notranslate"><span class="pre">env.decimation</span></code> or <code class="docutils literal notranslate"><span class="pre">env.sim.dt</span></code>, the user needs to give the updated <code class="docutils literal notranslate"><span class="pre">env.sim.render_interval</span></code>,
 <code class="docutils literal notranslate"><span class="pre">env.scene.height_scanner.update_period</span></code>, and <code class="docutils literal notranslate"><span class="pre">env.scene.contact_forces.update_period</span></code> as input as well.</p>
+</section>
+<section id="custom-configuration-validation">
+<h2>Custom Configuration Validation<a class="headerlink" href="#custom-configuration-validation" title="Link to this heading">#</a></h2>
+<p>Configclass objects can define a <code class="docutils literal notranslate"><span class="pre">validate_config()</span></code> method to perform domain-specific
+validation after all fields have been resolved. This hook is called automatically after preset
+resolution and MISSING-field checks succeed, allowing you to catch invalid parameter
+combinations early with clear error messages.</p>
+<p><strong>Defining a validation hook:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyEnvCfg</span><span class="p">:</span>
+    <span class="n">physics_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;physx&quot;</span>
+    <span class="n">use_multi_asset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_backend</span> <span class="o">==</span> <span class="s2">&quot;newton&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_multi_asset</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Newton physics does not support multi-asset spawning.&quot;</span>
+                <span class="s2">&quot; Use a single-geometry object preset instead.&quot;</span>
+            <span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>When it runs:</strong></p>
+<ol class="arabic simple">
+<li><p>All <code class="docutils literal notranslate"><span class="pre">MISSING</span></code> fields are checked first — if any remain, <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> is raised.</p></li>
+<li><p>Only then is <code class="docutils literal notranslate"><span class="pre">validate_config()</span></code> called on the <strong>top-level</strong> config object.</p></li>
+<li><p>The hook should raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> with a clear message and migration guidance.</p></li>
+</ol>
+<p><strong>Common validation patterns:</strong></p>
+<ul class="simple">
+<li><p>Physics backend compatibility (e.g., Newton does not support multi-asset spawning)</p></li>
+<li><p>Renderer and camera data type compatibility (e.g., Newton Warp only supports <code class="docutils literal notranslate"><span class="pre">rgb</span></code> and <code class="docutils literal notranslate"><span class="pre">depth</span></code>)</p></li>
+<li><p>Feature extractor compatibility with camera configuration</p></li>
+</ul>
 </section>
 <section id="preset-system">
 <h2>Preset System<a class="headerlink" href="#preset-system" title="Link to this heading">#</a></h2>
@@ -1192,6 +1228,7 @@ python<span class="w"> </span>train.py<span class="w"> </span>--task<span class=
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-configuration-validation">Custom Configuration Validation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preset-system">Preset System</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#override-order">Override Order</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-presets">Defining Presets</a></li>
