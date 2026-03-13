@@ -1,17 +1,53 @@
 """Configuration for the Eigenbot hexapod modular robot."""
 
-import math
 import os
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 
 # Path to the USDZ file
 EIGENBOT_USDZ_PATH = os.path.join(os.path.dirname(__file__), "eigenbot_new.usdz")
 
-EIGENBOT_CFG = ArticulationCfg(
+
+def _spawn_eigenbot_usdz(prim_path: str, cfg: sim_utils.UsdFileCfg, *args, **kwargs):
+    """Custom spawner that adds physics APIs to a geometry-only USDZ.
+
+    The eigenbot_new.usdz is a CAD export with no physics data. This spawner
+    creates the USD reference and then applies RigidBodyAPI so it can be used
+    as a RigidObject in the simulation.
+    """
+    import omni.usd
+    from pxr import Usd, UsdPhysics
+
+    stage = omni.usd.get_context().get_stage()
+
+    # Create prim and add USD reference
+    prim = stage.DefinePrim(prim_path)
+    prim.GetReferences().AddReference(cfg.usd_path)
+
+    # Apply RigidBodyAPI so the object participates in physics
+    if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+
+    # Apply collision API to all mesh children so the object doesn't fall through the ground
+    from pxr import UsdGeom
+
+    for child_prim in Usd.PrimRange(prim):
+        if child_prim.IsA(UsdGeom.Mesh):
+            if not child_prim.HasAPI(UsdPhysics.CollisionAPI):
+                UsdPhysics.CollisionAPI.Apply(child_prim)
+
+    # Now modify rigid body properties if specified
+    if cfg.rigid_props is not None:
+        from isaaclab.sim import schemas
+        schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
+
+    return prim
+
+
+EIGENBOT_CFG = RigidObjectCfg(
     spawn=sim_utils.UsdFileCfg(
+        func=_spawn_eigenbot_usdz,
         usd_path=EIGENBOT_USDZ_PATH,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
@@ -20,42 +56,8 @@ EIGENBOT_CFG = ArticulationCfg(
             max_depenetration_velocity=100.0,
             enable_gyroscopic_forces=True,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
-        ),
     ),
-    init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.42),
-        joint_pos={
-            "bendy_joint_M1_S1": -math.pi / 4,
-            "bendy_joint_M2_S2": 0.0,
-            "bendy_joint_M3_S3": math.pi / 4,
-            "bendy_joint_M4_S4": -math.pi / 4,
-            "bendy_joint_M5_S5": 0.0,
-            "bendy_joint_M6_S6": math.pi / 4,
-            "bendy_joint_M7_S7": math.pi / 4,
-            "bendy_joint_M8_S8": math.pi / 4,
-            "bendy_joint_M9_S9": math.pi / 4,
-            "bendy_joint_M10_S10": math.pi / 4,
-            "bendy_joint_M11_S11": math.pi / 4,
-            "bendy_joint_M12_S12": math.pi / 4,
-            "bendy_joint_M13_S13": math.pi / 4,
-            "bendy_joint_M14_S14": math.pi / 4,
-            "bendy_joint_M15_S15": math.pi / 4,
-            "bendy_joint_M16_S16": math.pi / 4,
-            "bendy_joint_M17_S17": math.pi / 4,
-            "bendy_joint_M18_S18": math.pi / 4,
-        },
-        joint_vel={".*": 0.0},
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.5),
     ),
-    actuators={
-        "bendy_joints": ImplicitActuatorCfg(
-            joint_names_expr=["bendy_joint_.*"],
-            effort_limit_sim=100.0,
-            stiffness=20.0,
-            damping=0.5,
-        ),
-    },
 )

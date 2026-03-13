@@ -17,12 +17,12 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Eigenbody.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/eigenbody.stl" scale="1 1 1"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Eigenbody.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/eigenbody.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -37,7 +37,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -45,7 +45,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -60,7 +60,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -69,7 +69,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -92,7 +92,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -100,7 +100,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -115,7 +115,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -124,7 +124,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -147,7 +147,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -155,7 +155,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -170,7 +170,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -179,7 +179,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -202,7 +202,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -210,7 +210,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -225,7 +225,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -234,7 +234,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -257,7 +257,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -265,7 +265,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -280,7 +280,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -289,7 +289,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -312,7 +312,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -320,7 +320,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -335,7 +335,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -344,7 +344,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -367,7 +367,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -375,7 +375,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -390,7 +390,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -399,7 +399,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -422,7 +422,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -430,7 +430,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -445,7 +445,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -454,7 +454,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -477,7 +477,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -485,7 +485,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -500,7 +500,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -509,7 +509,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -532,7 +532,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -540,7 +540,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -555,7 +555,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -564,7 +564,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -587,7 +587,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -595,7 +595,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -610,7 +610,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -619,7 +619,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -642,7 +642,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -650,7 +650,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -665,7 +665,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -674,7 +674,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -697,7 +697,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -705,7 +705,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -720,7 +720,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -729,7 +729,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -752,7 +752,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -760,7 +760,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -775,7 +775,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -784,7 +784,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -807,7 +807,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -815,7 +815,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -830,7 +830,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -839,7 +839,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -862,7 +862,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -870,7 +870,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -885,7 +885,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -894,7 +894,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -917,7 +917,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -925,7 +925,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -940,7 +940,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -949,7 +949,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -972,7 +972,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -980,7 +980,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyIn.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyin.stl" scale="1 1 1"/>
       </geometry>
     </collision>
     <material name="black">
@@ -995,7 +995,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1004,7 +1004,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/BendyOut.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/bendyout.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0"/>
     </collision>
@@ -1027,7 +1027,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
       <material name="black">
@@ -1036,7 +1036,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
     </collision>
@@ -1052,7 +1052,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
       <material name="black">
@@ -1061,7 +1061,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
     </collision>
@@ -1077,7 +1077,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
       <material name="black">
@@ -1086,7 +1086,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
     </collision>
@@ -1102,7 +1102,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
       <material name="black">
@@ -1111,7 +1111,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
     </collision>
@@ -1127,7 +1127,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
       <material name="black">
@@ -1136,7 +1136,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
     </collision>
@@ -1152,7 +1152,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
       <material name="black">
@@ -1161,7 +1161,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Elbow.STL" scale="1 1 1"/>
+        <mesh filename="../meshes/elbow.stl" scale="1 1 1"/>
       </geometry>
       <origin rpy="-1.57079632679 0 0" xyz="0 0 0"/>
     </collision>
@@ -1177,7 +1177,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1185,7 +1185,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
     </collision>
     <material name="black">
@@ -1200,7 +1200,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1208,7 +1208,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
     </collision>
     <material name="black">
@@ -1223,7 +1223,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1231,7 +1231,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
     </collision>
     <material name="black">
@@ -1246,7 +1246,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1254,7 +1254,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
     </collision>
     <material name="black">
@@ -1269,7 +1269,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1277,7 +1277,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
     </collision>
     <material name="black">
@@ -1292,7 +1292,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
@@ -1300,7 +1300,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="../meshes/Foot.STL" scale=" 1 1 1 "/>
+        <mesh filename="../meshes/foot.stl" scale=" 1 1 1 "/>
       </geometry>
     </collision>
     <material name="black">
