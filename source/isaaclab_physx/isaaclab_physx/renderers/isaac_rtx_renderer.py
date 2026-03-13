@@ -8,9 +8,7 @@
 from __future__ import annotations
 
 import json
-import logging
 import math
-import os
 import weakref
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -48,12 +46,6 @@ class IsaacRtxRenderData:
     render_product_paths: list[str]
     output_data: dict[str, torch.Tensor] | None = None
     sensor: SensorBase | None = None
-
-
-_logger = logging.getLogger(__name__)
-
-_TILED_DUMP_DIR = "/tmp/il-rtx"
-_tiled_frame_counter = 0
 
 
 class IsaacRtxRenderer(BaseRenderer):
@@ -256,10 +248,6 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type in SIMPLE_SHADING_MODES:
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
-            # Dump the tiled image to disk (first visual data type per frame only)
-            #if tiled_data_buffer.dtype == wp.uint8:
-            #    self._save_tiled_image(tiled_data_buffer)
-
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
@@ -291,20 +279,6 @@ class IsaacRtxRenderer(BaseRenderer):
                 output_data[data_type][torch.isinf(output_data[data_type])] = (
                     0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
-
-    def _save_tiled_image(self, tiled_data: wp.array):
-        """Save the raw tiled render product to disk as a PNG."""
-        global _tiled_frame_counter
-        os.makedirs(_TILED_DUMP_DIR, exist_ok=True)
-        path = os.path.join(_TILED_DUMP_DIR, f"frame_{_tiled_frame_counter:06d}.png")
-        _tiled_frame_counter += 1
-        try:
-            from PIL import Image
-
-            img_np = wp.to_torch(tiled_data).cpu().numpy()
-            Image.fromarray(img_np).save(path)
-        except Exception:
-            _logger.warning("Failed to save tiled image to %s", path, exc_info=True)
 
     def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
         """No-op for Isaac RTX - all outputs written in render().
