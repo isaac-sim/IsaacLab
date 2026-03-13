@@ -47,6 +47,17 @@ useful when you want to create diverse environments with different objects.
 
     multi_asset_spawning
 
+Cloning Environments
+--------------------
+
+This guide explains how Isaac Lab's template-based cloning system works, including
+cloning strategies, heterogeneous environments, and collision filtering.
+
+.. toctree::
+    :maxdepth: 1
+
+    cloning
+
 Saving Camera Output
 --------------------
 
