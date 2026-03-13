@@ -6,6 +6,7 @@
 """Script to play a checkpoint if an RL agent from RL-Games."""
 
 import argparse
+import contextlib
 import math
 import os
 import random
@@ -29,6 +30,8 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from RL-Games.")

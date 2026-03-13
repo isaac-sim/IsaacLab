@@ -96,6 +96,7 @@ Guidelines for modifications:
 * Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
+* Jichuan Hu
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
