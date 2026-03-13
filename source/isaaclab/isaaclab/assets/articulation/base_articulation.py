@@ -2157,7 +2157,6 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-
     """
     Deprecated methods.
     """

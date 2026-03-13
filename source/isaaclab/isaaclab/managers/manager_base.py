@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-
-
 class ManagerTermBase(ABC):
     """Base class for manager terms.
 

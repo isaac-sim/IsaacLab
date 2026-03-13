@@ -31,8 +31,6 @@ if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
 
-
-
 class RigidObject(BaseRigidObject):
     """A rigid object asset class.
 

@@ -29,7 +29,6 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -3188,7 +3187,6 @@ class Articulation(BaseArticulation):
         )
         # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
         SimulationManager.get_physics_sim_view().append(self._root_view)
-
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)

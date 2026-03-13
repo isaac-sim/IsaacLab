@@ -32,8 +32,6 @@ if TYPE_CHECKING:
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 
 
-
-
 class RigidObjectCollection(BaseRigidObjectCollection):
     """A rigid object collection class.
 
