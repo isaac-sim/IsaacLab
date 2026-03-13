@@ -77,20 +77,20 @@ dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
 
 FLAKY_TESTS = [
     # Consistently failing or highly flaky (<60% pass rate across recent CI runs)
-    # "test_rigid_object_collection_iface.py",  # 0%
+    "test_rigid_object_collection_iface.py",  # 0%
     "test_environments_newton.py",  # 5.9%
-    # "test_articulation_iface.py",  # 7.7%
-    "test_articulation.py",  # 10.5%
+    "test_articulation_iface.py",  # 7.7%
+    # "test_articulation.py",  # 10.5%
     "test_rigid_object_iface.py",  # 23.1%
-    "test_rigid_object_collection.py",  # 26.7%
-    # "test_physx_scene_data_provider_visualizer_contract.py",  # 30.8%
-    # "test_shadow_hand_vision_presets.py",  # 47.4%
+    # "test_rigid_object_collection.py",  # 26.7%
+    "test_physx_scene_data_provider_visualizer_contract.py",  # 30.8%
+    "test_shadow_hand_vision_presets.py",  # 47.4%
     "test_mock_data_properties.py",  # 50.0%
-    "test_rigid_object.py",  # 57.7%
+    # "test_rigid_object.py",  # 57.7%
     # "test_contact_sensor.py",  # 60.0%
     "test_robot_load_performance.py",  # 60.0%
     # Failing in recent CI runs
-    "test_camera.py",
+    # "test_camera.py",
     "test_logger.py",
     "test_multirotor.py",
     "test_null_command_term.py",
@@ -107,7 +107,7 @@ These tests are skipped in normal CI runs and executed in the dedicated
 SLIGHTLY_FLAKY_TESTS = [
     # Mildly intermittent (96%+ pass rate across recent CI runs)
     # "test_multi_mesh_ray_caster_camera.py",  # 96.2%
-    "test_ray_caster_camera.py",  # 96.2%
+    # "test_ray_caster_camera.py",  # 96.2%
     "test_surface_gripper.py",  # 96.2%
     "test_env_cfg_no_forbidden_imports.py",  # 96.4%
 ]
