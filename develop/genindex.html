@@ -319,6 +319,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/core-concepts/multi_backend_architecture.html">Multi-Backend Architecture</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/core-concepts/actuators.html">Actuators</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="source/overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -368,8 +369,6 @@
 <li class="toctree-l1"><a class="reference internal" href="source/experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/installation.html">Installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab 3.0 Beta</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
@@ -405,17 +404,20 @@
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.cloner.html">isaaclab.cloner</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.physics.html">isaaclab.physics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.renderers.html">isaaclab.renderers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.visualizers.html">isaaclab.visualizers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
@@ -435,7 +437,43 @@
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_teleop/isaaclab_teleop.html">isaaclab_teleop</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.assets.html">isaaclab_physx.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.cloner.html">isaaclab_physx.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.physics.html">isaaclab_physx.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.renderers.html">isaaclab_physx.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.scene_data_providers.html">isaaclab_physx.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.sensors.html">isaaclab_physx.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.assets.html">isaaclab_physx.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.cloner.html">isaaclab_physx.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.physics.html">isaaclab_physx.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.renderers.html">isaaclab_physx.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.scene_data_providers.html">isaaclab_physx.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_physx/isaaclab_physx.sensors.html">isaaclab_physx.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.assets.html">isaaclab_newton.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.cloner.html">isaaclab_newton.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.physics.html">isaaclab_newton.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.renderers.html">isaaclab_newton.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.scene_data_providers.html">isaaclab_newton.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.sensors.html">isaaclab_newton.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.assets.html">isaaclab_newton.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.cloner.html">isaaclab_newton.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.physics.html">isaaclab_newton.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.renderers.html">isaaclab_newton.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.scene_data_providers.html">isaaclab_newton.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_newton/isaaclab_newton.sensors.html">isaaclab_newton.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_ov/isaaclab_ov.renderers.html">isaaclab_ov.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_ov/isaaclab_ov.renderers.html">isaaclab_ov.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_assets/isaaclab_assets.robots.html">isaaclab_assets.robots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_assets/isaaclab_assets.sensors.html">isaaclab_assets.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_assets/isaaclab_assets.robots.html">isaaclab_assets.robots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_assets/isaaclab_assets.sensors.html">isaaclab_assets.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.kit.html">isaaclab_visualizers.kit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.newton.html">isaaclab_visualizers.newton</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.rerun.html">isaaclab_visualizers.rerun</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.viser.html">isaaclab_visualizers.viser</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.kit.html">isaaclab_visualizers.kit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.newton.html">isaaclab_visualizers.newton</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.rerun.html">isaaclab_visualizers.rerun</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_visualizers/isaaclab_visualizers.viser.html">isaaclab_visualizers.viser</a></li>
 </ul>
 </details></li>
 </ul>
@@ -5390,8 +5428,6 @@
         <li><a href="source/api/lab/isaaclab.actuators.html#module-isaaclab.actuators">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.app
 
@@ -5404,6 +5440,13 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#module-isaaclab.assets">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.cloner
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.cloner.html#module-isaaclab.cloner">module</a>
 </li>
       </ul></li>
       <li>
@@ -5462,6 +5505,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.commands">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs.mdp.commands.commands_cfg
 
@@ -5523,6 +5568,13 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.markers.html#module-isaaclab.markers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.physics
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.physics.html#module-isaaclab.physics">module</a>
 </li>
       </ul></li>
       <li>
@@ -5862,6 +5914,27 @@
 </li>
       </ul></li>
       <li>
+    isaaclab.visualizers
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.visualizers.html#module-isaaclab.visualizers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_assets.robots
+
+      <ul>
+        <li><a href="source/api/lab_assets/isaaclab_assets.robots.html#module-isaaclab_assets.robots">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_assets.sensors
+
+      <ul>
+        <li><a href="source/api/lab_assets/isaaclab_assets.sensors.html#module-isaaclab_assets.sensors">module</a>
+</li>
+      </ul></li>
+      <li>
     isaaclab_contrib.actuators
 
       <ul>
@@ -5897,6 +5970,13 @@
 </li>
       </ul></li>
       <li>
+    isaaclab_contrib.rl.rlinf
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.rl.html#module-isaaclab_contrib.rl.rlinf">module</a>
+</li>
+      </ul></li>
+      <li>
     isaaclab_contrib.sensors
 
       <ul>
@@ -5917,8 +5997,92 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#module-isaaclab_mimic.envs">module</a>
 </li>
       </ul></li>
+      <li>
+    isaaclab_newton.assets
+
+      <ul>
+        <li><a href="source/api/lab_newton/isaaclab_newton.assets.html#module-isaaclab_newton.assets">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_newton.cloner
+
+      <ul>
+        <li><a href="source/api/lab_newton/isaaclab_newton.cloner.html#module-isaaclab_newton.cloner">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_newton.physics
+
+      <ul>
+        <li><a href="source/api/lab_newton/isaaclab_newton.physics.html#module-isaaclab_newton.physics">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_newton.renderers
+
+      <ul>
+        <li><a href="source/api/lab_newton/isaaclab_newton.renderers.html#module-isaaclab_newton.renderers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_newton.scene_data_providers
+
+      <ul>
+        <li><a href="source/api/lab_newton/isaaclab_newton.scene_data_providers.html#module-isaaclab_newton.scene_data_providers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_newton.sensors
+
+      <ul>
+        <li><a href="source/api/lab_newton/isaaclab_newton.sensors.html#module-isaaclab_newton.sensors">module</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR">ISAACLAB_NUCLEUS_DIR (in module isaaclab.utils.assets)</a>
 </li>
+      <li>
+    isaaclab_ov.renderers
+
+      <ul>
+        <li><a href="source/api/lab_ov/isaaclab_ov.renderers.html#module-isaaclab_ov.renderers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_physx.cloner
+
+      <ul>
+        <li><a href="source/api/lab_physx/isaaclab_physx.cloner.html#module-isaaclab_physx.cloner">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_physx.physics
+
+      <ul>
+        <li><a href="source/api/lab_physx/isaaclab_physx.physics.html#module-isaaclab_physx.physics">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_physx.renderers
+
+      <ul>
+        <li><a href="source/api/lab_physx/isaaclab_physx.renderers.html#module-isaaclab_physx.renderers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_physx.scene_data_providers
+
+      <ul>
+        <li><a href="source/api/lab_physx/isaaclab_physx.scene_data_providers.html#module-isaaclab_physx.scene_data_providers">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_physx.sensors
+
+      <ul>
+        <li><a href="source/api/lab_physx/isaaclab_physx.sensors.html#module-isaaclab_physx.sensors">module</a>
+</li>
+      </ul></li>
       <li>
     isaaclab_rl
 
@@ -5966,6 +6130,34 @@
 
       <ul>
         <li><a href="source/api/lab_teleop/isaaclab_teleop.html#module-isaaclab_teleop">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_visualizers.kit
+
+      <ul>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.kit.html#module-isaaclab_visualizers.kit">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_visualizers.newton
+
+      <ul>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.newton.html#module-isaaclab_visualizers.newton">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_visualizers.rerun
+
+      <ul>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.rerun.html#module-isaaclab_visualizers.rerun">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_visualizers.viser
+
+      <ul>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.viser.html#module-isaaclab_visualizers.viser">module</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab_teleop/isaaclab_teleop.html#isaaclab_teleop.IsaacTeleopCfg">IsaacTeleopCfg (class in isaaclab_teleop)</a>
@@ -6784,8 +6976,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg">MeshRepeatedObjectsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.ObjectCfg">MeshRepeatedObjectsTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg">MeshRepeatedPyramidsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -6818,6 +7008,8 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.metadata">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.PreviewSurfaceCfg.metallic">metallic (isaaclab.sim.spawners.materials.PreviewSurfaceCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.MimicEnvCfg">MimicEnvCfg (class in isaaclab.envs)</a>
@@ -6888,6 +7080,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#module-isaaclab.assets">isaaclab.assets</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.cloner.html#module-isaaclab.cloner">isaaclab.cloner</a>
+</li>
         <li><a href="source/api/lab/isaaclab.controllers.html#module-isaaclab.controllers">isaaclab.controllers</a>
 </li>
         <li><a href="source/api/lab/isaaclab.controllers.html#module-isaaclab.controllers.pink_ik">isaaclab.controllers.pink_ik</a>
@@ -6921,6 +7115,8 @@
         <li><a href="source/api/lab/isaaclab.managers.html#module-isaaclab.managers">isaaclab.managers</a>
 </li>
         <li><a href="source/api/lab/isaaclab.markers.html#module-isaaclab.markers">isaaclab.markers</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.physics.html#module-isaaclab.physics">isaaclab.physics</a>
 </li>
         <li><a href="source/api/lab/isaaclab.renderers.html#module-isaaclab.renderers">isaaclab.renderers</a>
 </li>
@@ -7018,6 +7214,12 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.warp">isaaclab.utils.warp</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.visualizers.html#module-isaaclab.visualizers">isaaclab.visualizers</a>
+</li>
+        <li><a href="source/api/lab_assets/isaaclab_assets.robots.html#module-isaaclab_assets.robots">isaaclab_assets.robots</a>
+</li>
+        <li><a href="source/api/lab_assets/isaaclab_assets.sensors.html#module-isaaclab_assets.sensors">isaaclab_assets.sensors</a>
+</li>
         <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#module-isaaclab_contrib.actuators">isaaclab_contrib.actuators</a>
 </li>
         <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#module-isaaclab_contrib.assets">isaaclab_contrib.assets</a>
@@ -7028,11 +7230,37 @@
 </li>
         <li><a href="source/api/lab_contrib/isaaclab_contrib.rl.html#module-isaaclab_contrib.rl">isaaclab_contrib.rl</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.rl.html#module-isaaclab_contrib.rl.rlinf">isaaclab_contrib.rl.rlinf</a>
+</li>
         <li><a href="source/api/lab_contrib/isaaclab_contrib.sensors.html#module-isaaclab_contrib.sensors">isaaclab_contrib.sensors</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#module-isaaclab_mimic.datagen">isaaclab_mimic.datagen</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#module-isaaclab_mimic.envs">isaaclab_mimic.envs</a>
+</li>
+        <li><a href="source/api/lab_newton/isaaclab_newton.assets.html#module-isaaclab_newton.assets">isaaclab_newton.assets</a>
+</li>
+        <li><a href="source/api/lab_newton/isaaclab_newton.cloner.html#module-isaaclab_newton.cloner">isaaclab_newton.cloner</a>
+</li>
+        <li><a href="source/api/lab_newton/isaaclab_newton.physics.html#module-isaaclab_newton.physics">isaaclab_newton.physics</a>
+</li>
+        <li><a href="source/api/lab_newton/isaaclab_newton.renderers.html#module-isaaclab_newton.renderers">isaaclab_newton.renderers</a>
+</li>
+        <li><a href="source/api/lab_newton/isaaclab_newton.scene_data_providers.html#module-isaaclab_newton.scene_data_providers">isaaclab_newton.scene_data_providers</a>
+</li>
+        <li><a href="source/api/lab_newton/isaaclab_newton.sensors.html#module-isaaclab_newton.sensors">isaaclab_newton.sensors</a>
+</li>
+        <li><a href="source/api/lab_ov/isaaclab_ov.renderers.html#module-isaaclab_ov.renderers">isaaclab_ov.renderers</a>
+</li>
+        <li><a href="source/api/lab_physx/isaaclab_physx.cloner.html#module-isaaclab_physx.cloner">isaaclab_physx.cloner</a>
+</li>
+        <li><a href="source/api/lab_physx/isaaclab_physx.physics.html#module-isaaclab_physx.physics">isaaclab_physx.physics</a>
+</li>
+        <li><a href="source/api/lab_physx/isaaclab_physx.renderers.html#module-isaaclab_physx.renderers">isaaclab_physx.renderers</a>
+</li>
+        <li><a href="source/api/lab_physx/isaaclab_physx.scene_data_providers.html#module-isaaclab_physx.scene_data_providers">isaaclab_physx.scene_data_providers</a>
+</li>
+        <li><a href="source/api/lab_physx/isaaclab_physx.sensors.html#module-isaaclab_physx.sensors">isaaclab_physx.sensors</a>
 </li>
         <li><a href="source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl">isaaclab_rl</a>
 </li>
@@ -7047,6 +7275,14 @@
         <li><a href="source/api/lab_tasks/isaaclab_tasks.utils.html#module-isaaclab_tasks.utils">isaaclab_tasks.utils</a>
 </li>
         <li><a href="source/api/lab_teleop/isaaclab_teleop.html#module-isaaclab_teleop">isaaclab_teleop</a>
+</li>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.kit.html#module-isaaclab_visualizers.kit">isaaclab_visualizers.kit</a>
+</li>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.newton.html#module-isaaclab_visualizers.newton">isaaclab_visualizers.newton</a>
+</li>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.rerun.html#module-isaaclab_visualizers.rerun">isaaclab_visualizers.rerun</a>
+</li>
+        <li><a href="source/api/lab_visualizers/isaaclab_visualizers.viser.html#module-isaaclab_visualizers.viser">isaaclab_visualizers.viser</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task">motion_control_axes_task (isaaclab.controllers.OperationalSpaceControllerCfg attribute)</a>

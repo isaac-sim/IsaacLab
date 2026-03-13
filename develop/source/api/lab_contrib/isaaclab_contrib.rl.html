@@ -320,6 +320,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/multi_backend_architecture.html">Multi-Backend Architecture</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -369,8 +370,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab 3.0 Beta</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
@@ -406,17 +405,20 @@
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.cloner.html">isaaclab.cloner</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.managers.html">isaaclab.managers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.physics.html">isaaclab.physics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.renderers.html">isaaclab.renderers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.scene.html">isaaclab.scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.html">isaaclab.sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.visualizers.html">isaaclab.visualizers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
@@ -436,7 +438,43 @@
 <li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_teleop/isaaclab_teleop.html">isaaclab_teleop</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.assets.html">isaaclab_physx.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.cloner.html">isaaclab_physx.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.physics.html">isaaclab_physx.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.renderers.html">isaaclab_physx.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.scene_data_providers.html">isaaclab_physx.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.sensors.html">isaaclab_physx.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.assets.html">isaaclab_physx.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.cloner.html">isaaclab_physx.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.physics.html">isaaclab_physx.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.renderers.html">isaaclab_physx.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.scene_data_providers.html">isaaclab_physx.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_physx/isaaclab_physx.sensors.html">isaaclab_physx.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.assets.html">isaaclab_newton.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.cloner.html">isaaclab_newton.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.physics.html">isaaclab_newton.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.renderers.html">isaaclab_newton.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.scene_data_providers.html">isaaclab_newton.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.sensors.html">isaaclab_newton.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.assets.html">isaaclab_newton.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.cloner.html">isaaclab_newton.cloner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.physics.html">isaaclab_newton.physics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.renderers.html">isaaclab_newton.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.scene_data_providers.html">isaaclab_newton.scene_data_providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_newton/isaaclab_newton.sensors.html">isaaclab_newton.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_ov/isaaclab_ov.renderers.html">isaaclab_ov.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_ov/isaaclab_ov.renderers.html">isaaclab_ov.renderers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_assets/isaaclab_assets.robots.html">isaaclab_assets.robots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_assets/isaaclab_assets.sensors.html">isaaclab_assets.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_assets/isaaclab_assets.robots.html">isaaclab_assets.robots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_assets/isaaclab_assets.sensors.html">isaaclab_assets.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.kit.html">isaaclab_visualizers.kit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.newton.html">isaaclab_visualizers.newton</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.rerun.html">isaaclab_visualizers.rerun</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.viser.html">isaaclab_visualizers.viser</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.kit.html">isaaclab_visualizers.kit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.newton.html">isaaclab_visualizers.newton</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.rerun.html">isaaclab_visualizers.rerun</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_visualizers/isaaclab_visualizers.viser.html">isaaclab_visualizers.viser</a></li>
 </ul>
 </details></li>
 </ul>
@@ -644,7 +682,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
 </div></div>
       
     </div>
@@ -660,6 +700,21 @@
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#submodules">Submodules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_contrib.rl.rlinf">isaaclab_contrib.rl.rlinf</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#extension-module">Extension Module</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Extension Module</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -672,6 +727,79 @@
   <section id="module-isaaclab_contrib.rl">
 <span id="isaaclab-contrib-rl"></span><h1>isaaclab_contrib.rl<a class="headerlink" href="#module-isaaclab_contrib.rl" title="Link to this heading">#</a></h1>
 <p>Reinforcement learning extensions contributed by the community.</p>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">#</a></h2>
+<section id="module-isaaclab_contrib.rl.rlinf">
+<span id="isaaclab-contrib-rl-rlinf"></span><h3>isaaclab_contrib.rl.rlinf<a class="headerlink" href="#module-isaaclab_contrib.rl.rlinf" title="Link to this heading">#</a></h3>
+<p>RLinf integration for IsaacLab.</p>
+<p>This package provides the extension mechanism for integrating IsaacLab tasks
+with RLinf’s distributed RL training framework for VLA models like GR00T.</p>
+<section id="extension-module">
+<h4>Extension Module<a class="headerlink" href="#extension-module" title="Link to this heading">#</a></h4>
+<p>The extension module (<code class="docutils literal notranslate"><span class="pre">extension.py</span></code>) is loaded by RLinf via the
+<code class="docutils literal notranslate"><span class="pre">RLINF_EXT_MODULE</span></code> environment variable and handles:</p>
+<ol class="arabic simple">
+<li><p>Registering IsaacLab tasks into RLinf’s <code class="docutils literal notranslate"><span class="pre">REGISTER_ISAACLAB_ENVS</span></code></p></li>
+<li><p>Registering GR00T obs/action converters</p></li>
+<li><p>Patching GR00T <code class="docutils literal notranslate"><span class="pre">get_model</span></code> for custom embodiments</p></li>
+</ol>
+<dl>
+<dt>Usage:</dt><dd><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">RLINF_EXT_MODULE</span><span class="o">=</span><span class="s2">&quot;isaaclab_contrib.rl.rlinf.extension&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">RLINF_CONFIG_FILE</span><span class="o">=</span><span class="s2">&quot;/path/to/config.yaml&quot;</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</section>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The extension module requires the external <code class="docutils literal notranslate"><span class="pre">rlinf</span></code> package and cannot be
+introspected at documentation build time. The API is described textually below.</p>
+</div>
+<section id="id1">
+<h4>Extension Module<a class="headerlink" href="#id1" title="Link to this heading">#</a></h4>
+<p>The extension module (<code class="docutils literal notranslate"><span class="pre">isaaclab_contrib.rl.rlinf.extension</span></code>) is loaded by RLinf’s
+worker framework via the <code class="docutils literal notranslate"><span class="pre">RLINF_EXT_MODULE</span></code> environment variable. It is not imported
+directly by user code.</p>
+<p><strong>Setup:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">RLINF_EXT_MODULE</span><span class="o">=</span><span class="s2">&quot;isaaclab_contrib.rl.rlinf.extension&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">RLINF_CONFIG_FILE</span><span class="o">=</span><span class="s2">&quot;/path/to/config.yaml&quot;</span>
+</pre></div>
+</div>
+<p><strong>Public entry point:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">register()</span></code> – Called by RLinf’s worker to perform all setup. It:</p>
+<ol class="arabic simple">
+<li><p>Registers GR00T observation and action converters.</p></li>
+<li><p>Patches GR00T’s <code class="docutils literal notranslate"><span class="pre">get_model</span></code> for custom embodiment tags.</p></li>
+<li><p>Registers IsaacLab tasks into RLinf’s <code class="docutils literal notranslate"><span class="pre">REGISTER_ISAACLAB_ENVS</span></code> registry.</p></li>
+</ol>
+</li>
+</ul>
+<p><strong>Expected YAML configuration</strong> (under <code class="docutils literal notranslate"><span class="pre">env.train.isaaclab</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">train</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">isaaclab</span><span class="p">:</span><span class="w"> </span><span class="nl">&amp;isaaclab_config</span>
+<span class="w">      </span><span class="nt">task_description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Assemble</span><span class="nv"> </span><span class="s">trocar</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">dual-arm</span><span class="nv"> </span><span class="s">robot&quot;</span>
+<span class="w">      </span><span class="nt">main_images</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;front_camera&quot;</span>
+<span class="w">      </span><span class="nt">extra_view_images</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;left_wrist_camera&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;right_wrist_camera&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">states</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;robot_joint_state&quot;</span>
+<span class="w">          </span><span class="nt">slice</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">29</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">gr00t_mapping</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">video</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">main_images</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;video.room_view&quot;</span>
+<span class="w">      </span><span class="nt">action_mapping</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">prefix_pad</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<span class="w">  </span><span class="nt">eval</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">isaaclab</span><span class="p">:</span><span class="w"> </span><span class="nv">*isaaclab_config</span><span class="w">  </span><span class="c1"># Reuse via YAML anchor</span>
+</pre></div>
+</div>
+<p>Task IDs are read automatically from <code class="docutils literal notranslate"><span class="pre">env.train.init_params.id</span></code> and
+<code class="docutils literal notranslate"><span class="pre">env.eval.init_params.id</span></code> in the YAML config.</p>
+</section>
+</section>
+</section>
 </section>
 
 
@@ -709,6 +837,30 @@
             </div>
             
             
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#submodules">Submodules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_contrib.rl.rlinf">isaaclab_contrib.rl.rlinf</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#extension-module">Extension Module</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Extension Module</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>

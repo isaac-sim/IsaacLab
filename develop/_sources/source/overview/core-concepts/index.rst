@@ -7,6 +7,7 @@ This section we introduce core concepts in Isaac Lab.
   :maxdepth: 1
 
 
+  multi_backend_architecture
   task_workflows
   actuators
   sensors/index.rst
