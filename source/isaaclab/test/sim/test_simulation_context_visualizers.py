@@ -384,3 +384,165 @@ def test_is_rendering_false_when_cli_disable_all_even_with_cfg_visualizer():
     ctx.get_setting = lambda name: settings.get(name)
 
     assert ctx.is_rendering is False
+
+
+# ---------------------------------------------------------------------------
+# Tests for explicit CLI visualizer error handling
+# ---------------------------------------------------------------------------
+
+
+class _FakeVisualizerCfg:
+    """Minimal visualizer config for testing initialize_visualizers."""
+
+    def __init__(self, visualizer_type: str, *, fail_create: bool = False, fail_init: bool = False):
+        self.visualizer_type = visualizer_type
+        self._fail_create = fail_create
+        self._fail_init = fail_init
+
+    def create_visualizer(self):
+        if self._fail_create:
+            raise RuntimeError("create failed")
+        return _FakeVisualizer() if not self._fail_init else _FailingInitVisualizer()
+
+
+class _FailingInitVisualizer(_FakeVisualizer):
+    def initialize(self, provider):
+        raise RuntimeError("init failed")
+
+
+def _make_context_for_init(settings: dict, visualizer_cfgs=None):
+    """Build a minimal SimulationContext suitable for testing initialize_visualizers."""
+    cfg = type(
+        "Cfg",
+        (),
+        {
+            "visualizer_cfgs": visualizer_cfgs,
+            "physics": type("PhysicsCfg", (), {"dt": 0.01})(),
+            "dt": 0.01,
+            "render_interval": 1,
+        },
+    )()
+    ctx = object.__new__(SimulationContext)
+    ctx.cfg = cfg
+    ctx._visualizers = []
+    ctx._scene_data_provider = _FakeProvider()
+    ctx._scene_data_requirements = None
+    ctx._visualizer_prebuilt_artifact = None
+    ctx._visualizer_step_counter = 0
+    ctx._viz_dt = 0.01
+    ctx.get_setting = lambda name: settings.get(name)
+    return ctx
+
+
+def test_explicit_unknown_visualizer_type_raises():
+    """Requesting an unknown visualizer type via CLI raises RuntimeError."""
+    settings = {
+        "/isaaclab/visualizer/types": "bogus_viz",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_for_init(settings)
+
+    with pytest.raises(RuntimeError, match="bogus_viz"):
+        ctx.initialize_visualizers()
+
+
+def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
+    """Requesting a valid type whose package is not installed raises RuntimeError."""
+    settings = {
+        "/isaaclab/visualizer/types": "rerun",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_for_init(settings)
+
+    # Force import to fail for the rerun visualizer module
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _failing_import(name, *args, **kwargs):
+        if "isaaclab_visualizers.rerun" in name:
+            raise ImportError("No module named 'isaaclab_visualizers.rerun'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", _failing_import)
+
+    with pytest.raises(RuntimeError, match="rerun"):
+        ctx.initialize_visualizers()
+
+
+def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPatch):
+    """When cli_explicit, a failure in create_visualizer raises RuntimeError."""
+    failing_cfg = _FakeVisualizerCfg("newton", fail_create=True)
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_for_init(settings, visualizer_cfgs=[failing_cfg])
+
+    import isaaclab.sim.simulation_context as sc_mod
+
+    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
+
+    with pytest.raises(RuntimeError, match="failed to initialize"):
+        ctx.initialize_visualizers()
+
+
+def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch):
+    """When cli_explicit, a failure in visualizer.initialize raises RuntimeError."""
+    failing_cfg = _FakeVisualizerCfg("newton", fail_init=True)
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_for_init(settings, visualizer_cfgs=[failing_cfg])
+
+    import isaaclab.sim.simulation_context as sc_mod
+
+    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
+
+    with pytest.raises(RuntimeError, match="failed to initialize"):
+        ctx.initialize_visualizers()
+
+
+def test_non_explicit_unknown_type_silently_skipped(caplog):
+    """Without --visualizer flag, unknown types are silently skipped (no error)."""
+    settings = {
+        "/isaaclab/visualizer/types": "bogus_viz",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_for_init(settings)
+
+    # Non-explicit: should not raise
+    ctx.initialize_visualizers()
+    assert ctx._visualizers == []
+
+
+def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyPatch, caplog):
+    """Without --visualizer flag, create_visualizer failures are logged, not raised."""
+    failing_cfg = _FakeVisualizerCfg("newton", fail_create=True)
+    settings = {
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_for_init(settings, visualizer_cfgs=[failing_cfg])
+
+    import isaaclab.sim.simulation_context as sc_mod
+
+    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
+
+    with caplog.at_level("ERROR"):
+        ctx.initialize_visualizers()
+    assert ctx._visualizers == []
+    assert any("Failed to initialize visualizer" in r.message for r in caplog.records)

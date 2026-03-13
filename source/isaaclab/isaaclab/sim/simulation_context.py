@@ -503,6 +503,24 @@ class SimulationContext:
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
         visualizer_cfgs = self._resolve_visualizer_cfgs()
+
+        cli_explicit = self._is_cli_visualizer_explicit()
+
+        # When visualizers were explicitly requested via CLI, verify all requested
+        # types were resolved to configs.  This catches unknown types and missing
+        # packages that _create_default_visualizer_configs silently skips.
+        if cli_explicit:
+            cli_requested = self._get_cli_visualizer_types()
+            resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
+            missing = [t for t in cli_requested if t not in resolved_types]
+            if missing:
+                raise RuntimeError(
+                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
+                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
+                    "Ensure the required package is installed "
+                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                )
+
         if not visualizer_cfgs:
             return
 
