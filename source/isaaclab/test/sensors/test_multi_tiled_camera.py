@@ -381,6 +381,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
 
     # update rendering
+    sim.reset()
     sim.step()
 
     # update cameras
