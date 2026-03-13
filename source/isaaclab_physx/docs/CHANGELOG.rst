@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.10 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed verbose ``logger.info`` calls from
+  :class:`~isaaclab_physx.assets.RigidObject` and
+  :class:`~isaaclab_physx.assets.Articulation` initialization that logged body
+  names, joint names, and instance counts. Articulation joint parameter tables and
+  actuator group summaries are retained.
+
+
 0.5.9 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~
 
