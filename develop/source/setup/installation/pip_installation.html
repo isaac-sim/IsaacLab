@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 12, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 13, 2026"/>
   </head>
   
   
@@ -964,22 +964,19 @@ Isaac Lab CLI
 options:
   -h, --help            show this help message and exit
   -i [INSTALL], --install [INSTALL]
-                        Install Isaac Lab sub-packages and RL frameworks.
-                        Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.
+                        Install Isaac Lab submodules and RL frameworks.
+                        Accepts a comma-separated list of submodule names, one of the RL frameworks, or a special value.
 
-                        Sub-packages: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.
-                        Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.
-                        Visualizer selectors: visualizers[all|kit|newton|rerun|viser].
+                        Isaac Lab Submodules: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.
+                        Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].
                         RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.
 
-                        Passing an RL framework name installs all sub-packages + that framework.
+                        Passing an RL framework name installs all Isaac Lab submodules + that framework.
 
                         Special values:
-                        - all  - Install all sub-packages + all RL frameworks (default).
+                        - all  - Install all Isaac Lab submodules + all RL frameworks (default).
                         - none - Install only the core &#39;isaaclab&#39; package.
-                        - &lt;empty&gt; (-i or --install without value) - Install all sub-packages + all RL frameworks.
-
-                        Quote visualizer selectors in bash, e.g. --install &#39;visualizers[rerun]&#39;.
+                        - &lt;empty&gt; (-i or --install without value) - Install all Isaac Lab submodules + all RL frameworks.
   -f, --format          Run pre-commit to format the code and check lints.
   -p ..., --python ...  Run the python executable provided by Isaac Sim or virtual environment (if active).
   -s ..., --sim ...     Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
@@ -1006,22 +1003,19 @@ Isaac Lab CLI
 options:
   -h, --help            show this help message and exit
   -i [INSTALL], --install [INSTALL]
-                        Install Isaac Lab sub-packages and RL frameworks.
-                        Accepts a comma-separated list of sub-package names, one of the RL frameworks, or a special value.
+                        Install Isaac Lab submodules and RL frameworks.
+                        Accepts a comma-separated list of submodule names, one of the RL frameworks, or a special value.
 
-                        Sub-packages: assets, physx, contrib, mimic, newton, rl, tasks, teleop, visualizers.
-                        Use -i ovrtx to install the ovrtx dependency for isaaclab_ov.
-                        Visualizer selectors: visualizers[all|kit|newton|rerun|viser].
+                        Isaac Lab Submodules: assets, physx, contrib, mimic, newton, ov, rl, tasks, teleop, visualizers.
+                        Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].
                         RL frameworks: rl_games, rsl_rl, sb3, skrl, robomimic.
 
-                        Passing an RL framework name installs all sub-packages + that framework.
+                        Passing an RL framework name installs all Isaac Lab submodules + that framework.
 
                         Special values:
-                        - all  - Install all sub-packages + all RL frameworks (default).
+                        - all  - Install all Isaac Lab submodules + all RL frameworks (default).
                         - none - Install only the core &#39;isaaclab&#39; package.
-                        - &lt;empty&gt; (-i or --install without value) - Install all sub-packages + all RL frameworks.
-
-                        Quote visualizer selectors in bash, e.g. --install &#39;visualizers[rerun]&#39;.
+                        - &lt;empty&gt; (-i or --install without value) - Install all Isaac Lab submodules + all RL frameworks.
   -f, --format          Run pre-commit to format the code and check lints.
   -p ..., --python ...  Run the python executable provided by Isaac Sim or virtual environment (if active).
   -s ..., --sim ...     Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
@@ -1071,7 +1065,7 @@ using pip (with <code class="docutils literal notranslate"><span class="pre">--e
 </div>
 </div>
 </div>
-<p>By default, the above will install <strong>all</strong> the learning framework and all Isaac Lab sub-packages (under <code class="docutils literal notranslate"><span class="pre">source/isaaclab</span></code>). Available RL frameworks are:
+<p>By default, the above will install <strong>all</strong> the learning framework and all Isaac Lab submodules (under <code class="docutils literal notranslate"><span class="pre">source/isaaclab</span></code>). Available RL frameworks are:
 <code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>.</p>
 <p>If you want to install only a specific framework, you can pass the name of the framework
 as an argument. For example, to install only the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> framework, you can run:</p>
@@ -1091,9 +1085,9 @@ as an argument. For example, to install only the <code class="docutils literal n
 </div>
 </div>
 </div>
-<p>To install only specific sub-packages, pass a comma-separated list of sub-package names. The available
-sub-packages are: <code class="docutils literal notranslate"><span class="pre">assets</span></code>, <code class="docutils literal notranslate"><span class="pre">physx</span></code>, <code class="docutils literal notranslate"><span class="pre">contrib</span></code>, <code class="docutils literal notranslate"><span class="pre">mimic</span></code>, <code class="docutils literal notranslate"><span class="pre">newton</span></code>, <code class="docutils literal notranslate"><span class="pre">ov</span></code>, <code class="docutils literal notranslate"><span class="pre">rl</span></code>, <code class="docutils literal notranslate"><span class="pre">tasks</span></code>,
-<code class="docutils literal notranslate"><span class="pre">teleop</span></code>. For example, to install only the <code class="docutils literal notranslate"><span class="pre">mimic</span></code> and <code class="docutils literal notranslate"><span class="pre">assets</span></code> sub-packages:</p>
+<p>To install only specific Isaac Lab submodules, pass a comma-separated list of submodule names. The available
+Isaac Lab submodules are: <code class="docutils literal notranslate"><span class="pre">assets</span></code>, <code class="docutils literal notranslate"><span class="pre">contrib</span></code>, <code class="docutils literal notranslate"><span class="pre">mimic</span></code>, <code class="docutils literal notranslate"><span class="pre">newton</span></code>, <code class="docutils literal notranslate"><span class="pre">ov</span></code>, <code class="docutils literal notranslate"><span class="pre">physx</span></code>, <code class="docutils literal notranslate"><span class="pre">rl</span></code>, <code class="docutils literal notranslate"><span class="pre">tasks</span></code>,
+<code class="docutils literal notranslate"><span class="pre">teleop</span></code>, <code class="docutils literal notranslate"><span class="pre">visualizers</span></code>. For example, to install only the <code class="docutils literal notranslate"><span class="pre">mimic</span></code> and <code class="docutils literal notranslate"><span class="pre">assets</span></code> submodules:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-17">
@@ -1110,7 +1104,7 @@ sub-packages are: <code class="docutils literal notranslate"><span class="pre">a
 </div>
 </div>
 </div>
-<p>Pass <code class="docutils literal notranslate"><span class="pre">none</span></code> to install only the core <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> package without any sub-packages or RL frameworks.</p>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">none</span></code> to install only the core <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> package without any Isaac Lab submodules or RL frameworks.</p>
 </li>
 </ul>
 </section>
@@ -1297,7 +1291,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 12, 2026.
+  Last updated on Mar 13, 2026.
   <br/>
 </p>
   </div>
