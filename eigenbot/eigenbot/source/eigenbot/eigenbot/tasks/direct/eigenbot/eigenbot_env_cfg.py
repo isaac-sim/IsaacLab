@@ -5,11 +5,14 @@
 
 from eigenbot.assets import EIGENBOT_CFG
 
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+
+# Number of actuated joints in the eigenbot hexapod: 18 bendy joints
+NUM_JOINTS = 18
 
 
 @configclass
@@ -17,17 +20,21 @@ class EigenbotEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 4
     episode_length_s = 20.0
-    # USDZ is geometry-only: no joints, so action/observation are minimal
-    # observations: root position (3) + root orientation quaternion (4) = 7
-    action_space = 0
-    observation_space = 7
+    # - spaces definition
+    # actions: one per actuated joint (position targets)
+    action_space = NUM_JOINTS
+    # observations: joint positions + joint velocities
+    observation_space = NUM_JOINTS * 2
     state_space = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
 
-    # robot (rigid body - USDZ has no joints)
-    robot_cfg: RigidObjectCfg = EIGENBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    # robot
+    robot_cfg: ArticulationCfg = EIGENBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=4.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+
+    # action scale: target angle = action_scale * action + default_joint_pos
+    action_scale = 0.25
