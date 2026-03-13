@@ -27,7 +27,6 @@ import math
 import pytest
 import torch
 import warp as wp
-from flaky import flaky
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
