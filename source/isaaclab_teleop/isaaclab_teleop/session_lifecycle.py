@@ -247,10 +247,12 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        Tries to acquire OpenXR handles from Kit's XR.  If the handles
-        are available, creates and enters the ``TeleopSession``.  If not (e.g.
-        the user hasn't started AR yet), the attempt is silently deferred and
-        will be retried on the next :meth:`step` call.
+        Tries to acquire OpenXR handles from Kit's XR bridge.  If the
+        handles are available, creates and enters the ``TeleopSession``.
+        If the handles are not yet complete — either because the XR session
+        has not started or because the bridge component has not finished
+        registering — session creation is deferred and will be retried on
+        the next :meth:`step` call.
 
         Returns:
             ``True`` if the session was successfully started (or was already
@@ -259,6 +261,13 @@ class TeleopSessionLifecycle:
         if self._session is not None:
             return True
 
+        # In headless mode the AR profile setting is deliberately omitted
+        # from the .kit file so that all extensions (including the teleop
+        # bridge and its BridgeComponent) can load and register before Kit
+        # creates the OpenXR instance.  We enable it here, after extensions
+        # are loaded; Kit will process the change on the next event-loop tick.
+        self._ensure_xr_ar_profile_enabled()
+
         from isaacteleop.oxr import OpenXRSessionHandles
         from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
@@ -266,9 +275,15 @@ class TeleopSessionLifecycle:
 
         if oxr_handles is None:
             if not self._session_start_deferred_logged:
-                logger.info(
-                    "OpenXR handles not yet available (waiting for AR to start); IsaacTeleop session creation deferred"
-                )
+                if self._kit_xr_session_is_active():
+                    logger.info(
+                        "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
+                    )
+                else:
+                    logger.info(
+                        "OpenXR handles not yet available (waiting for XR session); "
+                        "IsaacTeleop session creation deferred"
+                    )
                 self._session_start_deferred_logged = True
             return False
 
@@ -425,11 +440,64 @@ class TeleopSessionLifecycle:
     # OpenXR handle acquisition
     # ------------------------------------------------------------------
 
+    _xr_ar_profile_enabled = False
+
+    @classmethod
+    def _ensure_xr_ar_profile_enabled(cls) -> None:
+        """Enable the XR AR profile via carb.settings when running headless.
+
+        In headless mode the ``xr.profile.ar.enabled`` setting is intentionally
+        omitted from the ``.kit`` file so that all extensions — including
+        ``isaacsim.kit.xr.teleop.bridge`` and its ``BridgeComponent`` — can
+        load and register with Kit's XR system *before* the OpenXR instance is
+        created.  This method sets the flag from Python once extensions are
+        loaded.  Kit's XR system picks up the change on the next event-loop
+        tick, which is why handle acquisition may be deferred by one frame.
+
+        Headless mode is detected via ``--headless`` in ``sys.argv``.  In
+        non-headless mode this is a no-op because Kit's profile system manages
+        AR activation through the UI.
+        """
+        if cls._xr_ar_profile_enabled:
+            return
+        cls._xr_ar_profile_enabled = True
+        try:
+            import sys
+
+            import carb.settings
+
+            if "--headless" not in sys.argv:
+                return
+
+            settings = carb.settings.get_settings()
+            if not settings.get("/xr/profile/ar/enabled"):
+                settings.set("/xr/profile/ar/enabled", True)
+                logger.info("Enabled /xr/profile/ar/enabled via carb.settings")
+        except (ImportError, AttributeError):
+            pass
+
+    @staticmethod
+    def _kit_xr_session_is_active() -> bool:
+        """Check whether Kit's XR system has an active OpenXR session.
+
+        Used to provide a more specific log message when deferring session
+        creation: "waiting for XR session" vs "bridge handles incomplete".
+
+        Returns:
+            ``True`` if Kit reports non-zero instance **and** session handles.
+        """
+        try:
+            import omni.kit.xr.system.openxr as openxr
+
+            return bool(openxr.get_instance_handle() and openxr.get_session_handle())
+        except (ImportError, ModuleNotFoundError, AttributeError):
+            return False
+
     @staticmethod
     def _acquire_kit_oxr_handles(handles_cls: type[OpenXRSessionHandles]) -> OpenXRSessionHandles | None:
         """Acquire OpenXR session handles from Kit's XR bridge extension.
 
-        Imports ``omni.kit.xr.openxr`` and reads the four raw handle
+        Imports ``omni.kit.xr.system.openxr`` and reads the four raw handle
         values (XrInstance, XrSession, XrSpace, xrGetInstanceProcAddr) that Kit's
         OpenXR system exposes.  The handles are returned as an
         ``OpenXRSessionHandles`` instance ready for ``DeviceIOSession.run()``.
@@ -440,7 +508,7 @@ class TeleopSessionLifecycle:
 
         Returns:
             An ``OpenXRSessionHandles`` instance, or ``None`` if the bridge
-            extension is not available (e.g. running outside Isaac Sim).
+            extension is not available or any handle is missing.
         """
         try:
             import omni.kit.xr.system.openxr as openxr
@@ -455,7 +523,7 @@ class TeleopSessionLifecycle:
 
         if not all((instance, session, space, proc_addr)):
             logger.debug(
-                "XR bridge returned incomplete handles "
+                "Kit XR bridge returned incomplete handles "
                 f"(instance={instance}, session={session}, space={space}, proc_addr={proc_addr})"
             )
             return None
