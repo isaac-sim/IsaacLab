@@ -59,7 +59,7 @@ standard :meth:`argparse.ArgumentParser.parse_args` method and passed directly t
    :start-at: import argparse
    :end-at: simulation_app = app_launcher.app
 
-The above only illustrates only one of several ways of passing arguments to :class:`~app.AppLauncher`.
+The above illustrates one of several ways of passing arguments to :class:`~app.AppLauncher`.
 Please consult its documentation page to see further options.
 
 Understanding the output of --help
@@ -76,7 +76,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
    [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
    [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
    usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2}]
-                        [--enable_cameras] [--verbose] [--experience EXPERIENCE]
+                        [--enable_cameras] [--visualizer VISUALIZER] [--verbose] [--experience EXPERIENCE]
 
    Tutorial on running IsaacSim via the AppLauncher.
 
@@ -87,10 +87,12 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --height HEIGHT       Height of the viewport and generated images. Defaults to 720
 
    app_launcher arguments:
-   --headless            Force display off at all times.
+   --headless            [DEPRECATED] Disable visualizers and force headless mode (display off).
    --livestream {0,1,2}
                          Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
    --enable_cameras      Enable cameras when running without a GUI.
+   --visualizer VISUALIZER, --viz VISUALIZER
+                        Visualizer backends as CSV (e.g., kit,newton,rerun,viser) or none.
    --verbose             Enable verbose terminal logging from the SimulationApp.
    --experience EXPERIENCE
                          The experience file to load when launching the SimulationApp.
@@ -112,7 +114,8 @@ for more examples.
 Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--headless``)
+As noted in the help message, the :class:`~app.AppLauncher` arguments (for example ``--livestream``
+and deprecated ``--headless``)
 have corresponding environment variables (envar) as well. These are detailed in :mod:`isaaclab.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.
@@ -139,7 +142,7 @@ We will now run the example script:
    LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
-to if we had passed the ``--headless`` flag because headlessness is implied by our ``LIVESTREAM``
+to omitting ``--visualizer`` in this setup because headlessness is implied by our ``LIVESTREAM``
 envar. If a visualization is desired, we could get one via Isaac's `WebRTC Livestreaming`_. Streaming
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing ``Ctrl+C`` in the launching terminal.
@@ -170,6 +173,9 @@ This will cause the same behavior as before, but now the viewport will be render
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we
 want our simulation to be more performant. The process can be killed by pressing ``Ctrl+C`` in the launching
 terminal.
+
+For more details on headless mode and launching visualizers, see
+:doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 
 .. _specification: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG

@@ -38,7 +38,9 @@ INSTALL_REQUIRES = [
     "warp-lang==1.12.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
-    "pillow==12.0.0",
+    "pillow==12.1.1",
+    # required by omni.replicator.core S3 backend
+    "botocore",
     # livestream
     "starlette==0.49.1",
     "omniverseclient",
@@ -69,7 +71,7 @@ INSTALL_REQUIRES += [
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    f"usd-core==25.5.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-core==25.8.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 

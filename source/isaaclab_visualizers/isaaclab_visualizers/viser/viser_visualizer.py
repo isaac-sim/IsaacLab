@@ -62,12 +62,17 @@ def _suppress_viser_startup_logs(enabled: bool):
 
 def _open_viser_web_viewer(port: int) -> None:
     """Open the local viser web UI in a browser."""
-    url = f"http://localhost:{int(port)}"
+    url = _viser_web_viewer_url(port)
     try:
         if not webbrowser.open_new_tab(url):
             logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
     except Exception:
         logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
+
+
+def _viser_web_viewer_url(port: int) -> str:
+    """Return local viser web UI URL."""
+    return f"http://localhost:{int(port)}"
 
 
 class NewtonViewerViser(ViewerViser):
@@ -152,6 +157,7 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
@@ -161,6 +167,7 @@ class ViserVisualizer(BaseVisualizer):
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("port", self.cfg.port),
+                ("viewer_url", viewer_url),
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
@@ -248,6 +255,8 @@ class ViserVisualizer(BaseVisualizer):
             )
         max_worlds = self.cfg.max_worlds
         self._viewer.set_model(self._model, max_worlds=max_worlds)
+        # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
             _open_viser_web_viewer(self.cfg.port)
         self._set_viser_camera_view(self._resolve_initial_camera_pose())

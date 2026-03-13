@@ -32,8 +32,10 @@ from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_
 # import logger
 logger = logging.getLogger(__name__)
 
-# Suppress noisy debug-level websocket frame logs from the Kit LiveSync server
+# Suppress noisy debug-level logs from third-party libraries
 logging.getLogger("websockets").setLevel(logging.WARNING)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("h5py").setLevel(logging.WARNING)
 
 
 class ExplicitAction(argparse.Action):
@@ -48,16 +50,16 @@ class ExplicitAction(argparse.Action):
 
 def _parse_visualizer_csv(value: str) -> list[str]:
     """Parse visualizer list from a single comma-delimited CLI token."""
-    valid = {"kit", "newton", "rerun", "viser"}
+    valid = {"kit", "newton", "rerun", "viser", "none"}
     token = (value or "").strip()
     if not token:
         raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --visualizer kit,newton."
+            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
         )
     if " " in token:
         raise argparse.ArgumentTypeError(
             "Invalid --visualizer value: spaces are not allowed. "
-            "Use a comma-separated list without spaces, e.g. --visualizer kit,newton,rerun,viser."
+            "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
         )
 
     names = [item.strip().lower() for item in token.split(",")]
@@ -73,6 +75,41 @@ def _parse_visualizer_csv(value: str) -> list[str]:
         )
     # De-duplicate while preserving order.
     return list(dict.fromkeys(names))
+
+
+def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
+    """Normalize and validate upstream config visualizer intent payload.
+
+    The expected schema is:
+    ``{"has_any_visualizers": bool, "has_kit_visualizer": bool}``.
+    """
+    if intent is None:
+        return False, False
+    if not isinstance(intent, dict):
+        raise ValueError("Invalid value for `visualizer_intent`: expected dict or None.")
+
+    has_any = intent.get("has_any_visualizers", False)
+    has_kit = intent.get("has_kit_visualizer", False)
+    if not isinstance(has_any, bool) or not isinstance(has_kit, bool):
+        raise ValueError(
+            "Invalid `visualizer_intent` values: expected booleans for `has_any_visualizers` and `has_kit_visualizer`."
+        )
+    if has_kit and not has_any:
+        raise ValueError("Invalid `visualizer_intent`: `has_kit_visualizer=True` requires `has_any_visualizers=True`.")
+    return has_any, has_kit
+
+
+class ExplicitTrueAction(argparse.Action):
+    """Custom action to track explicit use of boolean flags."""
+
+    def __init__(self, option_strings, dest, default=False, required=False, help=None):
+        super().__init__(
+            option_strings=option_strings, dest=dest, nargs=0, default=default, required=required, help=help
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, True)
+        setattr(namespace, f"{self.dest}_explicit", True)
 
 
 class AppLauncher:
@@ -224,9 +261,9 @@ class AppLauncher:
 
         Currently, it adds the following parameters to the argparser object:
 
-        * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
-          as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the
-          ``HEADLESS`` environment variable.
+        * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
+          To run headless by default, omit ``--viz``. To force headless when config visualizers may be enabled,
+          use ``--viz none``.
         * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
@@ -265,26 +302,23 @@ class AppLauncher:
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
 
-
-        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
+        * ``visualizer`` (str): Visualizer backends to enable.
+          Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
           - ``newton``: Use Newton visualizer.
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
+          - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
-            ``--visualizer rerun,newton,viser``
-          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
-
-          Note: If visualizer configs are not defined in the simulation config, default configs will be
-          automatically created with all default parameters.
-          If --headless is specified, it takes precedence and NO visualizers will be initialized.
-          When kit visualizer is specified, the app will launch in non-headless mode automatically.
-          When only non-GUI visualizers (rerun, newton, viser) are specified, headless mode is auto-enabled.
+            ``--viz rerun,newton,viser``.
 
         * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
           rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
           config default.
+
+
+        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -311,7 +345,7 @@ class AppLauncher:
         known, _ = parser.parse_known_args()
         config = vars(known)
         if len(config) == 0:
-            print(
+            logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
                 " If you have your own arguments, please load your own arguments before calling the"
                 " `AppLauncher.add_app_launcher_args` method. This allows the method to check the validity"
@@ -327,9 +361,12 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--headless",
-            action="store_true",
+            action=ExplicitTrueAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
-            help="Force display off at all times.",
+            help=(
+                "[DEPRECATED] Disable visualizers and force headless mode (display off)."
+                " Omit '--viz' for default headless, or use '--viz none' to force-disable visualizers."
+            ),
         )
         arg_group.add_argument(
             "--livestream",
@@ -359,7 +396,9 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--visualizer",
+            "--viz",
             type=_parse_visualizer_csv,
+            action=ExplicitAction,
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
@@ -544,7 +583,7 @@ class AppLauncher:
                         " intended for the SimulationApp or change the name of the argument to avoid name conflicts."
                     )
                 # Print out values which will be used
-                print(f"[INFO][AppLauncher]: The argument '{key}' will be used to configure the SimulationApp.")
+                logger.info("The argument '%s' will be used to configure the SimulationApp.", key)
 
     def _config_resolution(self, launcher_args: dict):
         """Resolve the input arguments and environment variables.
@@ -554,6 +593,7 @@ class AppLauncher:
         """
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
+        self._resolve_visualizer_settings(launcher_args)
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
         self._resolve_camera_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
@@ -594,9 +634,10 @@ class AppLauncher:
             if livestream_arg in livestream_valid_vals:
                 self._livestream = livestream_arg
                 # print info that we overrode the env-var
-                print(
-                    f"[INFO][AppLauncher]: Input keyword argument `livestream={livestream_arg}` has overridden"
-                    f" the environment variable `LIVESTREAM={livestream_env}`."
+                logger.info(
+                    "Input keyword argument `livestream=%s` has overridden the environment variable `LIVESTREAM=%s`.",
+                    livestream_arg,
+                    livestream_env,
                 )
             else:
                 raise ValueError(
@@ -642,12 +683,25 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
+        headless_arg_explicit = launcher_args.pop("headless_explicit", False)
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
+        if headless_arg and headless_arg_explicit:
+            logger.warning(
+                "The '--headless' CLI argument is deprecated. Omit '--viz' for default headless. "
+                "If config visualizers are enabled and you want to force headless, use '--viz none'."
+            )
+            if self._cli_visualizer_explicit:
+                logger.warning(
+                    "Both '--headless' and '--visualizer/--viz' were provided. "
+                    "Deprecated '--headless' takes precedence and disables all visualizers."
+                )
+            self._cli_visualizer_disable_all = True
+            self._cli_visualizer_types = []
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -657,33 +711,89 @@ class AppLauncher:
             self._headless = True
             # inform who has toggled the headless flag
             if self._livestream == livestream_arg:
-                print(
-                    f"[INFO][AppLauncher]: Input keyword argument `livestream={self._livestream}` has implicitly"
-                    f" overridden the environment variable `HEADLESS={headless_env}` to True."
+                logger.info(
+                    "Input keyword argument `livestream=%s` has implicitly overridden the "
+                    "environment variable `HEADLESS=%s` to True.",
+                    self._livestream,
+                    headless_env,
                 )
             elif self._livestream == livestream_env:
-                print(
-                    f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly"
-                    f" overridden the environment variable `HEADLESS={headless_env}` to True."
+                logger.info(
+                    "Environment variable `LIVESTREAM=%s` has implicitly overridden the "
+                    "environment variable `HEADLESS=%s` to True.",
+                    self._livestream,
+                    headless_env,
                 )
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
 
-        # If visualizers are explicitly requested and Kit viewport is not among them,
-        # force headless mode so Isaac Sim GUI does not launch unnecessarily.
-        visualizers_arg = launcher_args.get("visualizer")
-        if visualizers_arg:
-            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
-            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
-                if not self._headless:
-                    print(
-                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
-                        "'kit' and livestream is disabled."
-                    )
-                self._headless = True
+        # Resolve headless from visualizer intent when livestream is disabled.
+        if self._livestream == 0:
+            if self._cli_visualizer_explicit:
+                # Explicit CLI selection controls headless: only Kit implies non-headless.
+                requested_visualizers = set(self._cli_visualizer_types)
+                if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
+                    if not self._headless:
+                        logger.debug(
+                            "Forcing headless mode because visualizer selection "
+                            "excludes 'kit' and livestream is disabled."
+                        )
+                    self._headless = True
+            else:
+                # No CLI visualizer selection: use upstream config intent defaults.
+                # - no config visualizers => headless
+                # - config visualizers without kit => headless
+                # - config includes kit => allow non-headless
+                if (not self._cfg_has_any_visualizers) or (not self._cfg_has_kit_visualizer):
+                    if not headless_arg_explicit:
+                        logger.info(
+                            "No visualizer was selected, so running in headless mode. "
+                            "To launch a visualizer app, pass '--viz <names>' "
+                            "(for example '--viz kit')."
+                        )
+                    if not self._headless:
+                        logger.debug(
+                            "Forcing headless mode because no Kit visualizer was requested via CLI or upstream "
+                            "visualizer config intent."
+                        )
+                    self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
+
+    def _resolve_visualizer_settings(self, launcher_args: dict) -> None:
+        """Resolve visualizer CLI semantics and normalize selection."""
+        raw_visualizers = launcher_args.get("visualizer")
+        cfg_has_any, cfg_has_kit = _normalize_visualizer_intent(launcher_args.pop("visualizer_intent", None))
+        self._cfg_has_any_visualizers = cfg_has_any
+        self._cfg_has_kit_visualizer = cfg_has_kit
+        visualizer_explicit = bool(launcher_args.pop("visualizer_explicit", False))
+        if not visualizer_explicit and "visualizer" in launcher_args:
+            visualizer_explicit = raw_visualizers is not None
+
+        visualizer_types: list[str] = []
+        if raw_visualizers is not None:
+            if isinstance(raw_visualizers, str):
+                visualizer_types = _parse_visualizer_csv(raw_visualizers)
+            else:
+                visualizer_types = [str(v).strip().lower() for v in raw_visualizers if str(v).strip()]
+
+        if visualizer_explicit and "none" in visualizer_types and len(visualizer_types) > 1:
+            raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
+
+        valid_visualizer_types = {"kit", "newton", "rerun", "viser", "none"}
+        # Secondary validation for the list path (kwargs); the string path is already validated by
+        invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
+        if invalid_visualizers:
+            raise ValueError(
+                f"Invalid value(s) for '--visualizer': {invalid_visualizers}. "
+                "Expected one or more of: ['kit', 'newton', 'rerun', 'viser', 'none']."
+            )
+
+        self._cli_visualizer_explicit = visualizer_explicit
+        self._cli_visualizer_disable_all = visualizer_explicit and "none" in visualizer_types
+        self._cli_visualizer_types = [] if self._cli_visualizer_disable_all else visualizer_types
+        launcher_args["visualizer"] = self._cli_visualizer_types
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -785,7 +895,7 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
-        print(f"[INFO][AppLauncher]: Using device: {device}")
+        logger.info("Using device: %s", device)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -844,7 +954,7 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
-        print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
+        logger.info("Loading experience file: %s", self._sim_experience_file)
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings."""
@@ -928,6 +1038,10 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized.
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
+
+        # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
+        # Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.
+        logging.getLogger().setLevel(logging.WARNING)
         settings = get_settings_manager()
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
@@ -1009,12 +1123,17 @@ class AppLauncher:
 
         with contextlib.suppress(Exception):
             visualizer_str = " ".join(visualizers) if visualizers else ""
-            get_settings_manager().set_string("/isaaclab/visualizer/types", visualizer_str)
+            settings = get_settings_manager()
+            cli_visualizer_explicit = getattr(self, "_cli_visualizer_explicit", False)
+            cli_visualizer_disable_all = getattr(self, "_cli_visualizer_disable_all", False)
+            settings.set_string("/isaaclab/visualizer/types", visualizer_str)
+            settings.set_bool("/isaaclab/visualizer/explicit", cli_visualizer_explicit)
+            settings.set_bool("/isaaclab/visualizer/disable_all", cli_visualizer_disable_all)
             # Store as int setting where -1 means "use per-visualizer defaults".
             if visualizer_max_worlds is None:
-                get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", -1)
+                settings.set_int("/isaaclab/visualizer/max_worlds", -1)
             else:
-                get_settings_manager().set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
+                settings.set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""

@@ -396,9 +396,10 @@ will get warnings if you don't.  If you aren't planning on using those undefined
 Apps and Sims
 --------------
 
-Using the simulation means launching the Isaac Sim app to provide simulation context. If you are not running a task defined by the standard workflows, then you
-are responsible for creating the app, managing the context, and stepping the simulation forward through time.  This is the "third workflow": a **Standalone** app, which
-is what we call the scripts for the frameworks, demos, benchmarks, etc...
+Using the simulation with PhysX requires launching the Isaac Sim app to provide simulation context. When using Newton,
+launching the app is not required. If you are not running a task defined by the standard workflows, then you
+are responsible for creating the app, managing the context, and stepping the simulation forward through time.  This is
+the "third workflow": a **Standalone** app, which is what we call the scripts for the frameworks, demos, benchmarks, etc...
 
 The Standalone workflow gives you total control over *everything* in the app and simulation
 context. Developing standalone apps is discussed at length in the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/index.html>`_ but there
@@ -424,7 +425,7 @@ are a few points worth touching on that can be incredibly useful.
     simulation_app = app_launcher.app
 
 The ``AppLauncher`` is the entrypoint to any and all Isaac Sim applications, like Isaac Lab! *Many Isaac Lab and Isaac Sim modules
-cannot be imported until the app is launched!*.  This is done on the second to last line of the code above, when the ``AppLauncher`` is constructed.
+cannot be imported until the app is launched!*. This is done on the second to last line of the code above, when the ``AppLauncher`` is constructed.
 The ``app_launcher.app`` is our interface to the Kit App Framework; the broader interstitial code that binds the simulation to things the extension
 management system, or the GUI, etc...  In the standalone workflow, this interface, often called the ``simulation_app`` is predominantly used
 to check if the simulation is running, and cleanup after the simulation finishes.

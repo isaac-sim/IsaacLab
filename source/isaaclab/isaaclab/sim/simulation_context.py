@@ -343,7 +343,7 @@ class SimulationContext:
             self._has_gui
             or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.get_setting("/isaaclab/visualizer/types"))
+            or bool(self.resolve_visualizer_types())
         )
 
     def get_physics_dt(self) -> float:
@@ -437,9 +437,26 @@ class SimulationContext:
             if hasattr(cfg, "max_worlds"):
                 cfg.max_worlds = max_worlds_override
 
+    def _is_cli_visualizer_explicit(self) -> bool:
+        """Return ``True`` when visualizers were explicitly provided via CLI."""
+        return bool(self.get_setting("/isaaclab/visualizer/explicit"))
+
+    def _is_cli_visualizer_disable_all(self) -> bool:
+        """Return ``True`` when CLI requested ``--viz none`` semantics."""
+        return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
+
     def resolve_visualizer_types(self) -> list[str]:
-        """Resolve effective visualizer types with CLI overrides applied."""
-        visualizer_cfgs = self._resolve_visualizer_cfgs()
+        """Resolve visualizer types from config or CLI settings."""
+        if self._is_cli_visualizer_disable_all():
+            return []
+        if self._is_cli_visualizer_explicit():
+            return self._get_cli_visualizer_types()
+
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            return []
+        if not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
@@ -451,14 +468,20 @@ class SimulationContext:
             )
 
         cli_requested = self._get_cli_visualizer_types()
+        cli_explicit = self._is_cli_visualizer_explicit()
+        cli_disable_all = self._is_cli_visualizer_disable_all()
+
+        if cli_disable_all:
+            return []
+
+        if not cli_explicit:
+            self._apply_visualizer_cli_overrides(visualizer_cfgs)
+            return visualizer_cfgs
+
         if not visualizer_cfgs:
             resolved_cfgs = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
             self._apply_visualizer_cli_overrides(resolved_cfgs)
             return resolved_cfgs
-
-        if not cli_requested:
-            self._apply_visualizer_cli_overrides(visualizer_cfgs)
-            return visualizer_cfgs
 
         # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
         cli_requested_set = set(cli_requested)
