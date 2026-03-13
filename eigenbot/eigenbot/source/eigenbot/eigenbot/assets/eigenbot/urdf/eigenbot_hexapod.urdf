@@ -5,7 +5,13 @@
 <!-- =================================================================================== -->
 <robot name="modular_robot_compiled" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <link name="base_link" />
+  <link name="base_link">
+    <inertial>
+      <mass value="0.001"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
 
 
 
