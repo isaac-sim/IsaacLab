@@ -104,6 +104,10 @@ class NewtonManager(PhysicsManager):
     _clone_physics_only = False
     _transforms_dirty: bool = False
 
+    # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
+    _cubric = None
+    _cubric_adapter: int | None = None
+
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
 
@@ -174,6 +178,12 @@ class NewtonManager(PhysicsManager):
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
         The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
         corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
+
+        When cubric is available the method mirrors PhysX's ``DirectGpuHelper``
+        pattern: pause Fabric change tracking, write transforms, resume tracking,
+        then call ``IAdapter::compute`` on the GPU to propagate the hierarchy and
+        notify the Fabric Scene Delegate.  Otherwise it falls back to the CPU
+        ``update_world_xforms()`` path.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
             return
@@ -182,32 +192,70 @@ class NewtonManager(PhysicsManager):
         try:
             import usdrt
 
-            selection = cls._usdrt_stage.SelectPrims(
-                require_attrs=[
-                    (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
-                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
-                ],
-                device=str(PhysicsManager._device),
-            )
-            if selection.GetCount() == 0:
-                return
-            fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
-            newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
-            wp.launch(
-                _set_fabric_transforms,
-                dim=newton_indices.shape[0],
-                inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
-                device=PhysicsManager._device,
-            )
-            wp.synchronize_device(PhysicsManager._device)
+            # Lazy adapter creation: deferred from initialize_solver() to avoid
+            # startup-ordering issues with the cubric plugin.
+            if cls._cubric is not None and cls._cubric.available and cls._cubric_adapter is None:
+                cls._cubric_adapter = cls._cubric.create_adapter()
+                if cls._cubric_adapter is not None:
+                    logger.info("cubric GPU transform hierarchy enabled")
+                else:
+                    logger.warning("cubric adapter creation failed; falling back to update_world_xforms()")
+                    cls._cubric = None
+
+            use_cubric = cls._cubric is not None and cls._cubric_adapter is not None
+
+            fabric_hierarchy = None
             if hasattr(usdrt, "hierarchy"):
                 fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                     cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
                 )
-                fabric_hierarchy.update_world_xforms()
-            cls._transforms_dirty = False
-        except Exception as exc:
-            logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
+
+            # Pause hierarchy change tracking BEFORE SelectPrims.
+            # SelectPrims with ReadWrite access calls getAttributeArrayGpu
+            # internally, which marks Fabric buffers dirty.  If tracking is
+            # still active at that point the hierarchy records the change and
+            # Kit's updateWorldXforms will do an expensive connectivity
+            # rebuild every frame.  PhysX avoids this via ScopedUSDRT which
+            # pauses tracking before any Fabric writes.
+            if use_cubric and fabric_hierarchy is not None:
+                fabric_hierarchy.track_world_xform_changes(False)
+                fabric_hierarchy.track_local_xform_changes(False)
+
+            try:
+                selection = cls._usdrt_stage.SelectPrims(
+                    require_attrs=[
+                        (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+                        (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
+                    ],
+                    device=str(PhysicsManager._device),
+                )
+                if selection.GetCount() == 0:
+                    return
+
+                fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
+                newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
+                wp.launch(
+                    _set_fabric_transforms,
+                    dim=newton_indices.shape[0],
+                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
+                    device=PhysicsManager._device,
+                )
+                wp.synchronize_device(PhysicsManager._device)
+
+                cls._transforms_dirty = False
+
+                if use_cubric and fabric_hierarchy is not None:
+                    fabric_id = cls._usdrt_stage.GetFabricId().id
+                    cls._cubric.bind_to_stage(cls._cubric_adapter, fabric_id)
+                    cls._cubric.compute(cls._cubric_adapter)
+                elif fabric_hierarchy is not None:
+                    fabric_hierarchy.update_world_xforms()
+            finally:
+                if use_cubric and fabric_hierarchy is not None:
+                    fabric_hierarchy.track_world_xform_changes(True)
+                    fabric_hierarchy.track_local_xform_changes(True)
+        except Exception:
+            logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
 
     @classmethod
     def _mark_transforms_dirty(cls) -> None:
@@ -288,6 +336,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
+        if cls._cubric is not None and cls._cubric_adapter is not None:
+            cls._cubric.release_adapter(cls._cubric_adapter)
+        cls._cubric = None
+        cls._cubric_adapter = None
         cls._builder = None
         cls._model = None
         cls._solver = None
@@ -365,6 +417,10 @@ class NewtonManager(PhysicsManager):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
+                # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
+                # applies Inverse propagation (preserves Newton's world
+                # transforms and derives local) instead of Forward.
+                prim.AddAppliedSchema("PhysicsRigidBodyAPI")
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 if not xformable_prim.HasWorldXform():
                     xformable_prim.SetWorldXformFromUsd()
@@ -528,6 +584,20 @@ class NewtonManager(PhysicsManager):
 
             # Initialize contacts and collision pipeline
             cls._initialize_contacts()
+
+        # Prepare cubric ctypes bindings (acquires IAdapter from carb framework).
+        # Adapter creation is deferred to the first sync_transforms_to_usd() call
+        # at render time to avoid any startup-ordering issues with the cubric
+        # plugin initialisation.
+        if cls._usdrt_stage is not None:
+            from isaaclab_newton.physics._cubric import CubricBindings
+
+            cls._cubric = CubricBindings()
+            if cls._cubric.initialize():
+                logger.info("cubric bindings ready (adapter deferred to first render)")
+            else:
+                logger.warning("cubric bindings init failed; falling back to update_world_xforms()")
+                cls._cubric = None
 
         device = PhysicsManager._device
 
