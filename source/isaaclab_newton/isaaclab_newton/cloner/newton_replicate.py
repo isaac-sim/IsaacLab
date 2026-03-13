@@ -53,9 +53,8 @@ def _build_newton_builder_from_mapping(
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
     builder = ModelBuilder(up_axis=up_axis)
-    builder.default_shape_cfg.margin = 0.01
-    builder.default_body_armature = 0.1
-    # builder.default_shape_cfg.gap = 0.002
+    builder.default_body_armature = 0.001
+    builder.default_shape_cfg.gap = 0.002
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs"] + sources,
@@ -68,9 +67,8 @@ def _build_newton_builder_from_mapping(
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
-        builder.default_shape_cfg.margin = 0.01
-        builder.default_body_armature = 0.1
-        # builder.default_shape_cfg.gap = 0.002
+        p.default_body_armature = 0.001
+        builder.default_shape_cfg.gap = 0.002
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
             stage,

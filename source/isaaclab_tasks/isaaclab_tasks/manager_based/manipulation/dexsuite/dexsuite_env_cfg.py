@@ -414,7 +414,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     viewer: ViewerCfg = ViewerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45), origin_type="env")
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=2.0, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

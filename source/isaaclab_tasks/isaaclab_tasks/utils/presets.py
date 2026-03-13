@@ -18,3 +18,4 @@ class MultiBackendRendererCfg(PresetCfg):
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
     ovrtx_renderer: OVRTXRendererCfg = OVRTXRendererCfg()
     isaacsim_rtx_renderer = default
+
