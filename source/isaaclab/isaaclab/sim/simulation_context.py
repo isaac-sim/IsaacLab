@@ -474,27 +474,47 @@ class SimulationContext:
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
         if cli_disable_all:
-            return []
-
-        if not cli_explicit:
+            resolved = []
+        elif not cli_explicit:
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
-            return visualizer_cfgs
+            resolved = visualizer_cfgs
+        elif not visualizer_cfgs:
+            resolved = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            self._apply_visualizer_cli_overrides(resolved)
+        else:
+            # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
+            cli_requested_set = set(cli_requested)
+            resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            for viz_type in cli_requested:
+                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                    resolved.extend(self._create_default_visualizer_configs([viz_type]))
+                    existing_types.add(viz_type)
+            self._apply_visualizer_cli_overrides(resolved)
 
-        if not visualizer_cfgs:
-            resolved_cfgs = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
-            self._apply_visualizer_cli_overrides(resolved_cfgs)
-            return resolved_cfgs
+        # XR auto-start: auto-inject a KitVisualizer when XR is active and no
+        # Kit visualizer is already present.  The KitVisualizer pumps
+        # app.update() and triggers forward() (via requires_forward_before_step)
+        # to sync Fabric data so the XR runtime receives up-to-date hand/joint
+        # transforms each frame.
+        if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
+            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
+            if not has_kit:
+                try:
+                    import importlib
 
-        # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
-        cli_requested_set = set(cli_requested)
-        selected_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
-        existing_types = {getattr(cfg, "visualizer_type", None) for cfg in selected_cfgs}
-        for viz_type in cli_requested:
-            if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
-                existing_types.add(viz_type)
-        self._apply_visualizer_cli_overrides(selected_cfgs)
-        return selected_cfgs
+                    mod = importlib.import_module("isaaclab_visualizers.kit")
+                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
+                    resolved.append(kit_cfg_cls())
+                    logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
+                except (ImportError, ModuleNotFoundError, AttributeError) as exc:
+                    logger.warning(
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
+                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        exc,
+                    )
+
+        return resolved
 
     def initialize_visualizers(self) -> None:
         """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
@@ -621,49 +641,13 @@ class SimulationContext:
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
         fetching data, so this method remains backend-agnostic.
-
-        When XR is enabled and no visualizer pumps the Kit application loop,
-        this method pumps it directly so the XR runtime receives frame updates.
         """
         self.update_visualizers(self.get_rendering_dt())
-
-        # When XR is active and no visualizer already pumps the Kit app,
-        # pump it here so the XR runtime (OpenXR) keeps receiving frames.
-        if self._xr_enabled and not any(
-            getattr(viz, "pumps_app_update", lambda: False)() for viz in self._visualizers
-        ):
-            self._pump_kit_app()
 
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):
             for callback in self._render_callbacks.values():
                 callback(None)  # Pass None as event data
-
-    def _pump_kit_app(self) -> None:
-        """Pump the Kit application event loop without stepping physics.
-
-        Used by XR mode to ensure the OpenXR runtime receives frame updates
-        when no visualizer (e.g. KitVisualizer) is doing it.
-
-        Calls :meth:`PhysicsManager.forward` first to sync articulation
-        kinematics and Fabric data so the renderer / XR sees the latest
-        joint positions and transforms (mirroring what
-        :class:`~isaaclab_visualizers.kit.KitVisualizer` does via
-        :meth:`update_scene_data_provider`).
-        """
-        # Sync physics results → Fabric so the renderer / XR sees updated positions.
-        self.physics_manager.forward()
-
-        try:
-            import omni.kit.app
-
-            app = omni.kit.app.get_app()
-            if app is not None and app.is_running():
-                self.set_setting("/app/player/playSimulations", False)
-                app.update()
-                self.set_setting("/app/player/playSimulations", True)
-        except (ImportError, AttributeError):
-            pass
 
     def update_visualizers(self, dt: float) -> None:
         """Update visualizers without triggering renderer/GUI."""

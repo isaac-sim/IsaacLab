@@ -732,13 +732,7 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._xr:
-                # XR requires the Kit rendering / app-update pipeline.  Preserve
-                # the user's explicit headless choice without forcing headless
-                # based on visualizer intent.  The headless XR experience file
-                # auto-starts XR; the non-headless one requires manual GUI start.
-                pass
-            elif self._cli_visualizer_explicit:
+            if self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -835,6 +829,17 @@ class AppLauncher:
         else:
             self._xr = bool(xr_env)
 
+        # Determine whether XR should auto-inject a KitVisualizer.
+        # When XR is enabled but no Kit visualizer was explicitly requested via
+        # CLI, we auto-inject one so that app.update() and forward() are pumped
+        # each frame -- the XR runtime needs both to receive updated hand/joint
+        # transforms.
+        if self._xr:
+            has_explicit_kit = self._cli_visualizer_explicit and "kit" in set(self._cli_visualizer_types)
+            self._xr_auto_start = not has_explicit_kit
+        else:
+            self._xr_auto_start = False
+
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
         # Check if we can disable the viewport to improve performance
@@ -930,7 +935,7 @@ class AppLauncher:
                 else:
                     self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.rendering.kit")
             elif self._xr:
-                if self._headless:
+                if self._headless and not self._livestream:
                     self._sim_experience_file = os.path.join(
                         isaaclab_app_exp_path, "isaaclab.python.xr.openxr.headless.kit"
                     )
@@ -1058,8 +1063,10 @@ class AppLauncher:
         # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
-        # set setting to indicate XR mode is enabled (used by SimulationContext to pump Kit app)
+        # set setting to indicate XR mode is enabled
         settings.set_bool("/isaaclab/xr/enabled", self._xr)
+        # set setting to indicate XR auto-start mode (auto-inject KitVisualizer for app.update() pumping)
+        settings.set_bool("/isaaclab/xr/auto_start", getattr(self, "_xr_auto_start", False))
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
