@@ -695,24 +695,14 @@ def clone(func: Callable) -> Callable:
                 imageable.MakeInvisible()
         # set the semantic annotations
         if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
-            # note: taken from replicator scripts.utils.utils.py
             for semantic_type, semantic_value in cfg.semantic_tags:
                 # deal with spaces by replacing them with underscores
                 semantic_type_sanitized = semantic_type.replace(" ", "_")
                 semantic_value_sanitized = semantic_value.replace(" ", "_")
-                instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-
-                type_attr_name = f"semantic:{instance_name}:semantic:type"
-                type_attr = prim.GetAttribute(type_attr_name)
-                if not type_attr:
-                    type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
-                type_attr.Set(semantic_type)
-
-                data_attr_name = f"semantic:{instance_name}:semantic:data"
-                data_attr = prim.GetAttribute(data_attr_name)
-                if not data_attr:
-                    data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
-                data_attr.Set(semantic_value)
+                # add labels to the prim
+                add_labels(
+                    prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized, overwrite=False
+                )
         # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas

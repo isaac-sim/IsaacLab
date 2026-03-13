@@ -72,12 +72,17 @@ def _ensure_rerun_server(app_id: str, bind_address: str, grpc_port: int, web_por
 
 def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
     """Open rerun web UI and prefill endpoint connection URL."""
-    url = f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe='')}"
+    url = _rerun_web_viewer_url(host, web_port, connect_to)
     try:
         if not webbrowser.open_new_tab(url):
             logger.info("[RerunVisualizer] Could not auto-open browser tab. Open manually: %s", url)
     except Exception:
         logger.info("[RerunVisualizer] Could not auto-open browser tab. Open manually: %s", url)
+
+
+def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
+    """Return rerun web UI URL with prefilled endpoint."""
+    return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe='')}"
 
 
 class NewtonViewerRerun(ViewerRerun):
@@ -176,9 +181,13 @@ class RerunVisualizer(BaseVisualizer):
         )
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
+        viewer_host = _normalize_host(bind_address)
+        viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
         if self.cfg.open_browser and not start_server_in_viewer:
-            _open_rerun_web_viewer(_normalize_host(bind_address), web_port, rerun_address)
-        self._viewer.set_model(self._model)
+            _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
+        self._viewer.set_model(self._model, max_worlds=self.cfg.max_worlds)
+        # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         self._apply_camera_pose(self._resolve_initial_camera_pose())
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0
@@ -193,7 +202,8 @@ class RerunVisualizer(BaseVisualizer):
                 ("camera_target", self.cfg.camera_target),
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
-                ("endpoint", f"http://{_normalize_host(bind_address)}:{web_port}"),
+                ("endpoint", f"http://{viewer_host}:{web_port}"),
+                ("viewer_url", viewer_url),
                 ("bind_address", bind_address),
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),

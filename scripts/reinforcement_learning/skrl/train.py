@@ -214,6 +214,13 @@ def main():
         try:
             runner.run()
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+
+            # skrl only saves checkpoints at checkpoint_interval multiples during training,
+            # so save a final checkpoint to ensure at least one always exists
+            total_timesteps = agent_cfg["trainer"]["timesteps"]
+            os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
+            runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
+            print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
             # close the simulator
             env.close()
         except KeyboardInterrupt:

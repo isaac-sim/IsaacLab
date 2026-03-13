@@ -166,6 +166,37 @@ This will train the mujoco ant to "run".  You can see the various launch option 
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
 (so long as those definitions are part of a ``@configclass``, see below).
 
+Selecting the Physics Backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the ``presets=`` argument to select the physics backend at runtime:
+
+.. code-block:: bash
+
+   # Newton (Kit-less) with Newton visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer newton
+
+   # PhysX (Kit) — requires Isaac Sim installed
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=physx
+
+   # Newton with a specific visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer viser
+
+Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.
+Multiple visualizers can be combined: ``--visualizer newton,rerun``.
+
+
 List Available Environments
 -----------------------------
 
@@ -365,9 +396,10 @@ will get warnings if you don't.  If you aren't planning on using those undefined
 Apps and Sims
 --------------
 
-Using the simulation means launching the Isaac Sim app to provide simulation context. If you are not running a task defined by the standard workflows, then you
-are responsible for creating the app, managing the context, and stepping the simulation forward through time.  This is the "third workflow": a **Standalone** app, which
-is what we call the scripts for the frameworks, demos, benchmarks, etc...
+Using the simulation with PhysX requires launching the Isaac Sim app to provide simulation context. When using Newton,
+launching the app is not required. If you are not running a task defined by the standard workflows, then you
+are responsible for creating the app, managing the context, and stepping the simulation forward through time.  This is
+the "third workflow": a **Standalone** app, which is what we call the scripts for the frameworks, demos, benchmarks, etc...
 
 The Standalone workflow gives you total control over *everything* in the app and simulation
 context. Developing standalone apps is discussed at length in the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/index.html>`_ but there
@@ -393,7 +425,7 @@ are a few points worth touching on that can be incredibly useful.
     simulation_app = app_launcher.app
 
 The ``AppLauncher`` is the entrypoint to any and all Isaac Sim applications, like Isaac Lab! *Many Isaac Lab and Isaac Sim modules
-cannot be imported until the app is launched!*.  This is done on the second to last line of the code above, when the ``AppLauncher`` is constructed.
+cannot be imported until the app is launched!*. This is done on the second to last line of the code above, when the ``AppLauncher`` is constructed.
 The ``app_launcher.app`` is our interface to the Kit App Framework; the broader interstitial code that binds the simulation to things the extension
 management system, or the GUI, etc...  In the standalone workflow, this interface, often called the ``simulation_app`` is predominantly used
 to check if the simulation is running, and cleanup after the simulation finishes.

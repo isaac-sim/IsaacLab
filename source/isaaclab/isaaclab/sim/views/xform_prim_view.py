@@ -152,6 +152,18 @@ class XformPrimView:
             )
             self._use_fabric = False
 
+        # Check for unsupported Fabric + non-primary CUDA device combination.
+        # USDRT SelectPrims and Warp fabric arrays only support cuda:0 internally.
+        # When running on cuda:1 or higher, SelectPrims raises a C++ error regardless of
+        # the device argument, because USDRT uses the active CUDA context (which is cuda:1).
+        if self._use_fabric and self._device not in ("cuda", "cuda:0"):
+            logger.warning(
+                f"Fabric mode is not supported on device '{self._device}'. "
+                "USDRT SelectPrims and Warp fabric arrays only support cuda:0. "
+                "Falling back to standard USD operations. This may impact performance."
+            )
+            self._use_fabric = False
+
         # Create indices buffer
         # Since we iterate over the indices, we need to use range instead of torch tensor
         self._ALL_INDICES = list(range(len(self._prims)))
@@ -735,6 +747,7 @@ class XformPrimView:
         world_matrices = self._fabric_world_matrices
 
         # Batch compose matrices with a single kernel launch
+        # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
@@ -749,7 +762,7 @@ class XformPrimView:
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
 
         # Synchronize to ensure kernel completes
@@ -805,6 +818,7 @@ class XformPrimView:
         world_matrices = self._fabric_world_matrices
 
         # Batch compose matrices on GPU with a single kernel launch
+        # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
@@ -819,7 +833,7 @@ class XformPrimView:
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
 
         # Synchronize to ensure kernel completes before syncing
@@ -865,6 +879,7 @@ class XformPrimView:
         world_matrices = self._fabric_world_matrices
 
         # Launch GPU kernel to decompose matrices in parallel
+        # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
         wp.launch(
             kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
             dim=count,
@@ -876,7 +891,7 @@ class XformPrimView:
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
 
         # Return tensors: zero-copy for cached buffers, conversion for partial reads
@@ -936,6 +951,7 @@ class XformPrimView:
         world_matrices = self._fabric_world_matrices
 
         # Launch GPU kernel to decompose matrices in parallel
+        # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
         wp.launch(
             kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
             dim=count,
@@ -947,7 +963,7 @@ class XformPrimView:
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
 
         # Return tensor: zero-copy for cached buffers, conversion for partial reads
@@ -1027,9 +1043,22 @@ class XformPrimView:
         # (which comes from USD's find_matching_prims). We create a bidirectional mapping
         # (_view_to_fabric and _fabric_to_view) to handle this ordering difference.
         # This works correctly for full-view operations but partial indexing still has issues.
+        #
+        # NOTE: SelectPrims only supports "cuda:0" regardless of which GPU the simulation
+        # is running on. In multi-GPU setups, we must use "cuda:0" for SelectPrims even if
+        # the simulation device is "cuda:1" or higher.
         fabric_device = self._device
         if self._device == "cuda":
             logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
+            fabric_device = "cuda:0"
+        elif self._device.startswith("cuda:"):
+            # SelectPrims only supports cuda:0, so we always use cuda:0 for SelectPrims
+            # even if the simulation is running on a different GPU
+            if self._device != "cuda:0":
+                logger.debug(
+                    f"SelectPrims only supports cuda:0. Using cuda:0 for SelectPrims "
+                    f"even though simulation device is {self._device}."
+                )
             fabric_device = "cuda:0"
 
         self._fabric_selection = fabric_stage.SelectPrims(
@@ -1041,14 +1070,16 @@ class XformPrimView:
         )
 
         # Step 4: Create bidirectional mapping between view and fabric indices
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32).to(self._device)
+        # Note: fabric_to_view is tied to fabric_device (cuda:0) because it's created from SelectPrims.
+        # view_to_fabric must also be on fabric_device since it's always used with fabricarrays in kernels.
+        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32).to(fabric_device)
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
 
         wp.launch(
             kernel=fabric_utils.set_view_to_fabric_array,
             dim=self._fabric_to_view.shape[0],
             inputs=[self._fabric_to_view, self._view_to_fabric],
-            device=self._device,
+            device=fabric_device,
         )
         # Synchronize to ensure mapping is ready before any operations
         wp.synchronize()
@@ -1073,6 +1104,9 @@ class XformPrimView:
 
         # Cache Fabric stage to avoid expensive get_current_stage() calls
         self._fabric_stage = fabric_stage
+
+        # Store fabric_device for use in kernel launches that involve fabricarrays
+        self._fabric_device = fabric_device
 
         self._fabric_initialized = True
         # Force a one-time USD->Fabric sync on first read to pick up any USD edits

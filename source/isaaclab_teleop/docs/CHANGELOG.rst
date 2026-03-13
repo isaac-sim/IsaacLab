@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.3.2 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add nvidia-srl-usd-to-urdf dependency to isaaclab_teleop extension.
+
+
 0.3.1 (2026-02-26)
 ~~~~~~~~~~~~~~~~~~~
 

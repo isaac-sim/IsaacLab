@@ -127,6 +127,8 @@ rtx.hydra.mdlMaterialWarmup = true # start loading the MDL shaders needed before
 omni.replicator.asyncRendering = false # Async rendering must be disabled for SDG
 exts."omni.kit.test".includeTests = ["*isaac*"] # Add isaac tests to test runner
 foundation.verifyOsVersion.enabled = false
+log.level = "Warn" # Suppress third-party debug/info noise
+log.outputStreamLevel = "Warn"
 
 # disable the metrics assembler change listener, we don't want to do any runtime changes
 metricsAssembler.changeListenerEnabled = false

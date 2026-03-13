@@ -13,6 +13,27 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
+Visualizer CLI and Headless Behavior
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--visualizer`` / ``--viz``
+to determine whether viewer apps are launched with an Isaac Lab command.
+
+Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
+(see :doc:`/source/features/visualization`).
+
+The details below describe how CLI visualizer arguments resolve together with
+``SimulationCfg.visualizer_cfgs``.
+
+- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
+- If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
+- ``--viz none`` explicitly disables all visualizers, including config-defined ones.
+- ``--headless`` is deprecated (still supported) and overrides ``--viz`` by forcing headless mode.
+
+For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
+and ``--headless``, see :ref:`visualization-common-modes`.
+
+
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -40,6 +61,8 @@ imports the matching class from ``isaaclab_{backend}.assets.articulation``. This
    actively developed. When backend selection is fully configurable, you will be able to
    switch backends without changing any asset import paths.
 
+For a comprehensive overview of the factory pattern, backend selection, and how to add a new
+backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
 
 New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
