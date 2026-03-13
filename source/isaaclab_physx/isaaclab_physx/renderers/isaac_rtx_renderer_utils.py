@@ -16,6 +16,16 @@ import isaaclab.sim as sim_utils
 _last_render_update_key: tuple[int, int] = (0, -1)
 
 
+def invalidate_render_update() -> None:
+    """Invalidate the per-step render update stamp so the next camera read will pump the RTX renderer.
+
+    Call this from :meth:`SimulationContext.reset` so that the first observation after a reset
+    triggers a fresh render instead of reusing the pre-reset frame (which would appear stale).
+    """
+    global _last_render_update_key
+    _last_render_update_key = (0, -1)
+
+
 def ensure_isaac_rtx_render_update() -> None:
     """Ensure the Isaac RTX renderer has been pumped for the current physics step.
 
