@@ -454,7 +454,10 @@ class TeleopSessionLifecycle:
         loaded.  Kit's XR system picks up the change on the next event-loop
         tick, which is why handle acquisition may be deferred by one frame.
 
-        Headless mode is detected via ``--headless`` in ``sys.argv``.  In
+        Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
+        setting which the :class:`~isaaclab.app.AppLauncher` stores after
+        resolving the headless state (covers both explicit ``--headless`` and
+        implicit headless when no Kit visualizer is requested).  In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.
         """
@@ -462,14 +465,13 @@ class TeleopSessionLifecycle:
             return
         cls._xr_ar_profile_enabled = True
         try:
-            import sys
-
             import carb.settings
 
-            if "--headless" not in sys.argv:
+            settings = carb.settings.get_settings()
+
+            if not settings.get("/isaaclab/xr/auto_start"):
                 return
 
-            settings = carb.settings.get_settings()
             if not settings.get("/xr/profile/ar/enabled"):
                 settings.set("/xr/profile/ar/enabled", True)
                 logger.info("Enabled /xr/profile/ar/enabled via carb.settings")
