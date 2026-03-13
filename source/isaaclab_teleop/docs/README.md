@@ -146,17 +146,17 @@ rendering without blocking.
 
 Teleoperation with Isaac Lab runs in a **single container**. Build the image yourself and run a single container. **Do not use Docker Compose** for this workflow (no multi-container setup). Everything runs inside one container with Isaac Lab.
 
-Inside the container: install Isaac Teleop once (`./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
+Inside the container: install Isaac Teleop once (`./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
 
 ```bash
 ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
 source ~/.cloudxr/run/cloudxr.env
-./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr
+./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
 ```
 
 In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html).
 
-For a fully headless experience, add `--headless` after `--xr` when running docker and XR session will run automatically.
+For a fully headless experience, replace `--visualizer kit` with `--headless` when running docker and XR teleop session will run automatically.
 
 ## Dependencies
 

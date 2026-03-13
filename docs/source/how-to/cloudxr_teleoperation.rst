@@ -506,7 +506,7 @@ when starting the runtime so there is no interactive prompt.
 
    .. code-block:: bash
 
-      ./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0' --extra-index-url https://pypi.nvidia.com
+      ./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com
 
 #. Start the CloudXR runtime in the background, load the environment, and run the teleop script
    (e.g. ``record_demos.py`` to record demonstrations):
@@ -519,11 +519,11 @@ when starting the runtime so there is no interactive prompt.
         --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
         --num_demos 5 \
         --dataset_file ./datasets/dataset.hdf5 \
-        --xr
+        --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, add ``--headless`` after ``--xr`` when running docker and XR session will run automatically.
+For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` when running docker and XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 
