@@ -66,7 +66,11 @@ def _ensure_streaming_subscription() -> None:
 
 
 def _wait_for_streaming_complete() -> None:
-    """Pump ``app.update()`` until RTX streaming reports idle or timeout."""
+    """Pump ``app.update()`` until RTX streaming reports idle or timeout.
+
+    After streaming finishes a final ``app.update()`` is issued so that the
+    frame captured by downstream annotators reflects the newly loaded textures.
+    """
     import omni.kit.app
 
     start = time.monotonic()
@@ -81,6 +85,8 @@ def _wait_for_streaming_complete() -> None:
         )
     elif elapsed > 0.01:
         logger.info("RTX streaming completed in %.2f s.", elapsed)
+
+    omni.kit.app.get_app().update()
 
 
 def ensure_isaac_rtx_render_update() -> None:
