@@ -42,6 +42,7 @@ class TiledCamera(Camera):
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: Alias for ``"distance_to_image_plane"``.
+    - ``"depth_new"``: A depth image from the Depth AOV.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -192,6 +193,16 @@ class TiledCamera(Camera):
                     "distance_to_image_plane", device=self.device, do_array_copy=False
                 )
                 self._annotators[annotator_type] = annotator
+            elif annotator_type == "depth_new":
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                rep.AnnotatorRegistry.register_annotator_from_aov(
+                    aov="Depth", output_data_type=np.float32, output_channels=1
+                )
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "Depth", device=self.device, do_array_copy=False
+                )
+                self._annotators["depth_new"] = annotator
             # note: we are verbose here to make it easier to understand the code.
             #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
             #   if colorize is false, the data is returned as a uint32 image with ids as values.
@@ -293,7 +304,10 @@ class TiledCamera(Camera):
                 )
             # apply defined clipping behavior
             if (
-                data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"
+                data_type == "distance_to_camera"
+                or data_type == "distance_to_image_plane"
+                or data_type == "depth"
+                or data_type == "depth_new"
             ) and self.cfg.depth_clipping_behavior != "none":
                 self._data.output[data_type][torch.isinf(self._data.output[data_type])] = (
                     0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
@@ -349,6 +363,10 @@ class TiledCamera(Camera):
             ).contiguous()
         if "depth" in self.cfg.data_types:
             data_dict["depth"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
+            ).contiguous()
+        if "depth_new" in self.cfg.data_types:
+            data_dict["depth_new"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
             ).contiguous()
         if "distance_to_camera" in self.cfg.data_types:
