@@ -9,7 +9,6 @@ on:
   schedule:
     # Run daily at 8 PM PST (4 AM UTC)
     - cron: '0 4 * * *'
-
   workflow_dispatch:
     inputs:
       isaacsim_version:
