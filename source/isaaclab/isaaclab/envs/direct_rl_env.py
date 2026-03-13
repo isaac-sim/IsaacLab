@@ -8,6 +8,7 @@ from __future__ import annotations
 import inspect
 import logging
 import math
+import os
 import warnings
 import weakref
 from abc import abstractmethod
@@ -33,6 +34,9 @@ from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
+DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 
 if has_kit():
     import omni.kit.app
@@ -352,6 +356,7 @@ class DirectRLEnv(gym.Env):
         # return observations
         return self._get_observations(), self.extras
 
+    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMERS, time_unit="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 

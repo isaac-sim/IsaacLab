@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
@@ -16,8 +17,12 @@ import torch
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.timer import Timer
 
 from .common import VecEnvStepReturn
+
+DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
+DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
@@ -150,6 +155,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
+    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMERS, time_unit="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 

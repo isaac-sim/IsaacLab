@@ -38,6 +38,10 @@ For an overview of how the multi-backend architecture works, including how to ad
   :titlesonly:
 
   installation
+  warp-environments
+  warp-env-migration
+  training-environments
+  visualization
   limitations-and-known-bugs
   solver-transitioning
   sim-to-sim
