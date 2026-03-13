@@ -2157,6 +2157,15 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def _log_articulation_info(self) -> None:
+        """Log information about the articulation.
+
+        .. note::
+            We purposefully read the values from the simulator to ensure that the values are configured as expected.
+        """
+        raise NotImplementedError()
+
     """
     Deprecated methods.
     """
