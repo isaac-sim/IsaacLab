@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
@@ -49,7 +49,7 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -667,12 +667,16 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#workflow-overview">Workflow Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-workspace">Create a Workspace</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-1-isaac-lab-isaac-sim-installation">Terminal 1 — Isaac Lab &amp; Isaac Sim Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-2-compass-installation">Terminal 2 — COMPASS Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-the-setup">Testing the Setup</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#authentication">Authentication</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-the-policy">Training the Policy</a><ul class="nav section-nav flex-column">
@@ -716,6 +720,28 @@
 <p>This tutorial shows you how to train and deploy COMPASS navigation policies using NuRec Real2Sim assets in the Isaac Lab simulation environment.
 COMPASS (Cross-embodiment Mobility Policy via Residual RL and Skill Synthesis) is a novel framework for cross-embodiment mobility.
 For more details about the project, please visit the <a class="reference external" href="https://github.com/NVlabs/COMPASS">COMPASS Repository</a>.</p>
+<section id="workflow-overview">
+<h2>Workflow Overview<a class="headerlink" href="#workflow-overview" title="Link to this heading">#</a></h2>
+<p>The following provides a high-level overview of the complete workflow:</p>
+<ol class="arabic simple">
+<li><p><strong>Create workspace</strong>: Create the <code class="docutils literal notranslate"><span class="pre">compass-nurec</span></code> workspace directory</p></li>
+<li><p><strong>Install Isaac Sim &amp; Isaac Lab</strong> (Terminal 1): Follow installation steps for Isaac Sim 6.0 and Isaac Lab 3.0</p></li>
+<li><p><strong>Install COMPASS Repository</strong> (Terminal 2): Clone and set up the COMPASS repository</p></li>
+<li><p><strong>Test setup</strong>: Verify installation using <code class="docutils literal notranslate"><span class="pre">play.py</span></code></p></li>
+<li><p><strong>Authenticate with Hugging Face</strong>: Generate access token and run <code class="docutils literal notranslate"><span class="pre">hf</span> <span class="pre">auth</span> <span class="pre">login</span> <span class="pre">--token</span> <span class="pre">&lt;token&gt;</span></code></p></li>
+<li><p><strong>Download assets</strong> (can be done in parallel):
+- Download X-Mobility checkpoint: <code class="docutils literal notranslate"><span class="pre">hf</span> <span class="pre">download</span> <span class="pre">nvidia/X-Mobility</span> <span class="pre">x_mobility-nav2-semantic_action_path.ckpt</span></code>
+- Download COMPASS USD assets: <code class="docutils literal notranslate"><span class="pre">hf</span> <span class="pre">download</span> <span class="pre">nvidia/COMPASS</span> <span class="pre">compass_usds.zip</span></code>
+- Download NuRec Real2Sim assets: <code class="docutils literal notranslate"><span class="pre">hf</span> <span class="pre">download</span> <span class="pre">nvidia/PhysicalAI-Robotics-NuRec</span> <span class="pre">--repo-type</span> <span class="pre">dataset</span></code></p></li>
+<li><p><strong>Prepare assets</strong>:
+- Extract and place <code class="docutils literal notranslate"><span class="pre">usd/</span></code> folder into <code class="docutils literal notranslate"><span class="pre">compass/rl_env/exts/mobility_es/mobility_es/</span></code>
+- Place environment files (e.g., <code class="docutils literal notranslate"><span class="pre">nova_carter-galileo/</span></code>) in the appropriate location</p></li>
+<li><p><strong>Train Residual RL Policy</strong>: Run training with <code class="docutils literal notranslate"><span class="pre">run.py</span></code> and <code class="docutils literal notranslate"><span class="pre">train_config_real2sim.gin</span></code></p></li>
+<li><p><strong>Evaluate Trained Policy</strong>: Run evaluation with <code class="docutils literal notranslate"><span class="pre">run.py</span></code> and <code class="docutils literal notranslate"><span class="pre">eval_config_real2sim.gin</span></code></p></li>
+<li><p><strong>Export to ONNX / TensorRT</strong>: Convert the trained model for deployment</p></li>
+<li><p><strong>ROS2 Deployment / Sim-to-Real Transfer</strong>: Deploy the policy for real-world use</p></li>
+</ol>
+</section>
 <section id="setup">
 <h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
 <div class="admonition note">
@@ -852,14 +878,42 @@ git<span class="w"> </span>checkout<span class="w"> </span>samc/support_nurec_as
 </section>
 <section id="downloading-assets-checkpoints">
 <h3>Downloading Assets &amp; Checkpoints<a class="headerlink" href="#downloading-assets-checkpoints" title="Link to this heading">#</a></h3>
+<section id="authentication">
+<h4>Authentication<a class="headerlink" href="#authentication" title="Link to this heading">#</a></h4>
+<p>Before downloading assets, you need to authenticate with Hugging Face. Follow the <a class="reference external" href="https://huggingface.co/docs/hub/security-tokens">Hugging Face security tokens documentation</a> to generate a Hugging Face access token.</p>
+<p>Once you have generated your access token, authenticate using:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>hf<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>--token<span class="w"> </span>&lt;generated<span class="w"> </span>access<span class="w"> </span>token&gt;
+</pre></div>
+</div>
 <p><strong>1. Pre-trained X-Mobility checkpoint</strong></p>
-<p>Download the checkpoint from:
+<p>Download the checkpoint using the Hugging Face CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>hf<span class="w"> </span>download<span class="w"> </span>nvidia/X-Mobility<span class="w"> </span>x_mobility-nav2-semantic_action_path.ckpt<span class="w"> </span>--local-dir<span class="w"> </span>&lt;compass-nurec&gt;/X-Mobility
+</pre></div>
+</div>
+<p>Alternatively, you can download it manually from:
 <a class="reference external" href="https://huggingface.co/nvidia/X-Mobility/blob/main/x_mobility-nav2-semantic_action_path.ckpt">https://huggingface.co/nvidia/X-Mobility/blob/main/x_mobility-nav2-semantic_action_path.ckpt</a></p>
 <p><strong>2. COMPASS USD Assets</strong></p>
-<p>Download the pre-packaged COMPASS USD assets:
+<p>Download the pre-packaged COMPASS USD assets using the Hugging Face CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>hf<span class="w"> </span>download<span class="w"> </span>nvidia/COMPASS<span class="w"> </span>compass_usds.zip<span class="w"> </span>--local-dir<span class="w"> </span>&lt;compass-nurec&gt;/COMPASS
+</pre></div>
+</div>
+<p>Alternatively, you can download it manually from:
 <a class="reference external" href="https://huggingface.co/nvidia/COMPASS/blob/main/compass_usds.zip">https://huggingface.co/nvidia/COMPASS/blob/main/compass_usds.zip</a></p>
+<p>Extract the downloaded <code class="docutils literal notranslate"><span class="pre">compass_usds.zip</span></code> file. Then move/copy the <code class="docutils literal notranslate"><span class="pre">usd</span></code> folder from the extracted location:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&lt;download_path&gt;/compass_usds/groot_mobility_rl_es_usds/usd
+</pre></div>
+</div>
+<p>into the COMPASS extension directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>..<span class="w"> </span>Ensure<span class="w"> </span>that<span class="w"> </span>you<span class="w"> </span>are<span class="w"> </span><span class="k">in</span><span class="w"> </span>COMPASS<span class="w"> </span>root<span class="w"> </span>directory
+compass/rl_env/exts/mobility_es/mobility_es/
+</pre></div>
+</div>
 <p><strong>3. NuRec Real2Sim Assets</strong></p>
-<p>Download the NuRec Real2Sim assets from the <a class="reference external" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec">PhysicalAI-Robotics-NuRec dataset</a> on Hugging Face:</p>
+<p>Download the NuRec Real2Sim assets from the <a class="reference external" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec">PhysicalAI-Robotics-NuRec dataset</a> on Hugging Face using the Hugging Face CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>hf<span class="w"> </span>download<span class="w"> </span>nvidia/PhysicalAI-Robotics-NuRec<span class="w"> </span>--repo-type<span class="w"> </span>dataset<span class="w"> </span>--local-dir<span class="w"> </span>&lt;compass-nurec&gt;/PhysicalAI-Robotics-NuRec
+</pre></div>
+</div>
+<p>Alternatively, you can download them manually from the <a class="reference external" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec">PhysicalAI-Robotics-NuRec dataset</a> on Hugging Face:</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>You need to agree to the dataset terms on Hugging Face before accessing the files.</p>
@@ -870,16 +924,22 @@ git<span class="w"> </span>checkout<span class="w"> </span>samc/support_nurec_as
 compass/rl_env/exts/mobility_es/mobility_es/usd/&lt;environment_name&gt;/
 </pre></div>
 </div>
-<p>For example, for the Galileo environment:</p>
+<p>For example, for the Galileo environment (nova_carter-galileo):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>compass/rl_env/exts/mobility_es/mobility_es/usd/nova_carter-galileo/
 ├──<span class="w"> </span>stage.usdz
 ├──<span class="w"> </span>occupancy_map.yaml
-└──<span class="w"> </span>occupancy_map.png
+├──<span class="w"> </span>occupancy_map.png
+└──<span class="w"> </span>3dgrt
+<span class="w">    </span>├──<span class="w"> </span>last.usdz
+<span class="w">    </span>├──<span class="w"> </span>real2sim_galileo.usd
+<span class="w">    </span>└──<span class="w"> </span>omap
+<span class="w">        </span>├──<span class="w"> </span>occupancy_map.yaml
+<span class="w">        </span>└──<span class="w"> </span>occupancy_map.png
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The following environments are available in the dataset:</p>
+<p>The following are the available COMPASS compatible scenes from the NuRec dataset:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 30.0%" />
@@ -909,10 +969,23 @@ compass/rl_env/exts/mobility_es/mobility_es/usd/&lt;environment_name&gt;/
 <td><p>Living room in NVIDIA Endeavor building</p></td>
 <td><p>Yes</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hand_hold-endeavor-andoria</span></code></p></td>
+<td><p>Meeting room in NVIDIA Endeavor building</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hand_hold-endeavor-wormhole</span></code></p></td>
+<td><p>Conference room in NVIDIA Endeavor building</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hand_hold-voyager-babyboom-2</span></code></p></td>
+<td><p>Conference room in NVIDIA Voyager building</p></td>
+<td><p>Yes</p></td>
+</tr>
 </tbody>
 </table>
 </div>
 </div>
+</section>
 </section>
 </section>
 <section id="training-the-policy">
@@ -942,9 +1015,12 @@ This configuration includes optimized settings for Real2Sim environments:</p>
 <span class="w">    </span>--video_interval<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--enable_cameras<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--precompute_valid_poses
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To run in headless mode, either omit the <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">kit</span></code> flag or specify <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">None</span></code>.</p>
 </div>
 <p>Where:
 - <code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;</span></code>: Directory where training outputs and checkpoints will be saved
@@ -992,9 +1068,12 @@ Orientation computation is slow so use it only if necessary.</p>
 <span class="w">    </span>--video<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--video_interval<span class="w"> </span><span class="m">1</span>
 <span class="w">    </span>--enable_cameras<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--visualizer<span class="w"> </span>kit<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--headless
+<span class="w">    </span>--visualizer<span class="w"> </span>kit
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To run in headless mode, either omit the <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">kit</span></code> flag or specify <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">None</span></code>.</p>
 </div>
 <p>Where:
 - <code class="docutils literal notranslate"><span class="pre">&lt;path/to/residual_policy_ckpt&gt;</span></code>: Path to the trained residual policy checkpoint (e.g., <code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;/checkpoints/model_1000.pt</span></code>)
@@ -1127,12 +1206,16 @@ The Real2Sim assets provide a bridge between simulation and reality, enabling po
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#workflow-overview">Workflow Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-workspace">Create a Workspace</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-1-isaac-lab-isaac-sim-installation">Terminal 1 — Isaac Lab &amp; Isaac Sim Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#terminal-2-compass-installation">Terminal 2 — COMPASS Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-the-setup">Testing the Setup</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#downloading-assets-checkpoints">Downloading Assets &amp; Checkpoints</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#authentication">Authentication</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-the-policy">Training the Policy</a><ul class="nav section-nav flex-column">

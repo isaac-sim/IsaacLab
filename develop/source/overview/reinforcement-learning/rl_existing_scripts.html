@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
@@ -49,7 +49,7 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -889,6 +889,13 @@ Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl
 Note that JAX GPU support is only available on Linux.</p>
 <p>JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab’s PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
 To install a compatible version of JAX for CUDA 12 use <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;jax[cuda12]&lt;0.6.0&quot;</span> <span class="pre">&quot;flax&lt;0.10.7&quot;</span></code>, for example.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>When using JAX its default behavior is to pre-allocate 75% of the GPU memory for its own computations. If you run into memory issues,
+you can set the <code class="docutils literal notranslate"><span class="pre">XLA_PYTHON_CLIENT_PREALLOCATE=false</span></code> environment variable to disable this behavior, or reduce the amount of
+pre-allocated memory by setting <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">XLA_PYTHON_CLIENT_MEM_FRACTION=0.5</span></code> which will allocate 50% of the GPU memory for JAX.
+Any value between 0 and 1 can be set, where 0 will allocate no memory for JAX and 1 will allocate 100% of the GPU memory for JAX.</p>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
