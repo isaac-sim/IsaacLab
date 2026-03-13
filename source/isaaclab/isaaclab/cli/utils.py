@@ -317,11 +317,20 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
                 capture_output=True,
                 text=True,
                 check=False,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
             )
             if result.returncode == 0:
                 # Helper to print env var.
                 cmd = [sys.executable, "-c", "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"]
-                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                res = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    # avoid EULA prompt
+                    stdin=subprocess.DEVNULL,
+                )
                 if res.returncode == 0:
                     output = res.stdout.strip()
                     if output:
@@ -365,7 +374,14 @@ def extract_isaacsim_exe() -> list[str]:
         # python environment, so we can directly use 'python' here.
         python_exe = sys.executable
         try:
-            result = run_command([python_exe, "-c", "import isaacsim"], capture_output=True, text=True, check=False)
+            result = run_command(
+                [python_exe, "-c", "import isaacsim"],
+                capture_output=True,
+                text=True,
+                check=False,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
+            )
             if result.returncode == 0:
                 # Isaac Sim - Python packages entry point.
                 return ["isaacsim", "isaacsim.exp.full"]

@@ -36,6 +36,10 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_teleop"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_teleop/isaaclab_teleop"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ov"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ov/isaaclab_ov"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_visualizers"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_visualizers/isaaclab_visualizers"))
 
 # -- Project information -----------------------------------------------------
 
