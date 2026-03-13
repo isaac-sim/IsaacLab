@@ -31,7 +31,7 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Webviewer, time scrubbing, recording export
    * - **Viser**
      - Web-based remote visualization, sharing, recording
-     - Warp-based 3D display, browser-based, share URL
+     - Warp-based rendering, browser-based, share URL
 
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
