@@ -780,44 +780,13 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _simulate(cls) -> None:
-        """Run one simulation step with substeps."""
+        """Run one simulation step with substeps and USD sync.
 
-        # MJWarp can use its internal collision pipeline.
-        if cls._needs_collision_pipeline:
-            cls._collision_pipeline.collide(cls._state_0, cls._contacts)
-            contacts = cls._contacts
-        else:
-            contacts = None
+        Delegates physics work to :meth:`_simulate_physics_only` and then
+        marks transforms dirty for the next render-cadence sync.
+        """
+        cls._simulate_physics_only()
 
-        def step_fn(state_0, state_1):
-            cls._solver.step(state_0, state_1, cls._control, contacts, cls._solver_dt)
-
-        if cls._use_single_state:
-            for i in range(cls._num_substeps):
-                step_fn(cls._state_0, cls._state_0)
-                cls._state_0.clear_forces()
-        else:
-            cfg = PhysicsManager._cfg
-            need_copy_on_last_substep = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
-
-            for i in range(cls._num_substeps):
-                step_fn(cls._state_0, cls._state_1)
-                if need_copy_on_last_substep and i == cls._num_substeps - 1:
-                    cls._state_0.assign(cls._state_1)
-                else:
-                    cls._state_0, cls._state_1 = cls._state_1, cls._state_0
-                cls._state_0.clear_forces()
-
-        # Populate contacts for contact sensors
-        if cls._report_contacts:
-            # For newton_contacts (unified pipeline): use locally computed contacts
-            # For mujoco_contacts: use class-level _contacts, solver populates it from MuJoCo data
-            eval_contacts = contacts if contacts is not None else cls._contacts
-            cls._solver.update_contacts(eval_contacts, cls._state_0)
-            for sensor in cls._newton_contact_sensors.values():
-                sensor.update(cls._state_0, eval_contacts)
-
-        # Mark transforms dirty so the next render-cadence sync picks them up.
         if cls._usdrt_stage is not None:
             cls._mark_transforms_dirty()
 
