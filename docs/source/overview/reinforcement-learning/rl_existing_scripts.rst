@@ -21,8 +21,8 @@ from the default PhysX to Newton:
 
    **Not all environments support the Newton backend yet.** Using ``presets=newton`` with an
    environment that has not been configured for Newton will raise an error at launch. See
-   :doc:`/source/experimental-features/newton-physics-integration/training-environments`
-   for the current list of supported environments, and the :ref:`migrating-to-isaaclab-3-0`
+   :doc:`/source/experimental-features/newton-physics-integration/index`
+   for more details, and the :ref:`migrating-to-isaaclab-3-0`
    guide for how to add Newton support to your own environments.
 
 Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installation` for setup.
@@ -209,6 +209,14 @@ SKRL
 
             JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab's PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
             To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0" "flax<0.10.7"``, for example.
+
+         .. hint::
+
+            When using JAX its default behavior is to pre-allocate 75% of the GPU memory for its own computations. If you run into memory issues,
+            you can set the ``XLA_PYTHON_CLIENT_PREALLOCATE=false`` environment variable to disable this behavior, or reduce the amount of
+            pre-allocated memory by setting ``export XLA_PYTHON_CLIENT_MEM_FRACTION=0.5`` which will allocate 50% of the GPU memory for JAX.
+            Any value between 0 and 1 can be set, where 0 will allocate no memory for JAX and 1 will allocate 100% of the GPU memory for JAX.
+
 
          .. code:: bash
 

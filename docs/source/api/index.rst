@@ -16,17 +16,20 @@ The following modules are available in the ``isaaclab`` extension:
    app
    actuators
    assets
+   cloner
    controllers
    devices
    envs
    managers
    markers
+   physics
    renderers
    scene
    sensors
    sim
    terrains
    utils
+   visualizers
 
 .. toctree::
    :hidden:
@@ -122,8 +125,104 @@ The following modules are available in the ``isaaclab_physx`` extension:
    :toctree: lab_physx
 
    assets
+   cloner
+   physics
+   renderers
+   scene_data_providers
+   sensors
 
 .. toctree::
    :hidden:
 
    lab_physx/isaaclab_physx.assets
+   lab_physx/isaaclab_physx.cloner
+   lab_physx/isaaclab_physx.physics
+   lab_physx/isaaclab_physx.renderers
+   lab_physx/isaaclab_physx.scene_data_providers
+   lab_physx/isaaclab_physx.sensors
+
+isaaclab_newton extension
+-------------------------
+
+The following modules are available in the ``isaaclab_newton`` extension:
+
+.. currentmodule:: isaaclab_newton
+
+.. autosummary::
+   :toctree: lab_newton
+
+   assets
+   cloner
+   physics
+   renderers
+   scene_data_providers
+   sensors
+
+.. toctree::
+   :hidden:
+
+   lab_newton/isaaclab_newton.assets
+   lab_newton/isaaclab_newton.cloner
+   lab_newton/isaaclab_newton.physics
+   lab_newton/isaaclab_newton.renderers
+   lab_newton/isaaclab_newton.scene_data_providers
+   lab_newton/isaaclab_newton.sensors
+
+isaaclab_ov extension
+---------------------
+
+The following modules are available in the ``isaaclab_ov`` extension:
+
+.. currentmodule:: isaaclab_ov
+
+.. autosummary::
+   :toctree: lab_ov
+
+   renderers
+
+.. toctree::
+   :hidden:
+
+   lab_ov/isaaclab_ov.renderers
+
+isaaclab_assets extension
+-------------------------
+
+The following modules are available in the ``isaaclab_assets`` extension:
+
+.. currentmodule:: isaaclab_assets
+
+.. autosummary::
+   :toctree: lab_assets
+
+   robots
+   sensors
+
+.. toctree::
+   :hidden:
+
+   lab_assets/isaaclab_assets.robots
+   lab_assets/isaaclab_assets.sensors
+
+isaaclab_visualizers extension
+------------------------------
+
+The following modules are available in the ``isaaclab_visualizers`` extension:
+
+.. currentmodule:: isaaclab_visualizers
+
+.. autosummary::
+   :toctree: lab_visualizers
+
+   kit
+   newton
+   rerun
+   viser
+
+.. toctree::
+   :hidden:
+
+   lab_visualizers/isaaclab_visualizers.kit
+   lab_visualizers/isaaclab_visualizers.newton
+   lab_visualizers/isaaclab_visualizers.rerun
+   lab_visualizers/isaaclab_visualizers.viser

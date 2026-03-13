@@ -38,7 +38,9 @@ INSTALL_REQUIRES = [
     "warp-lang==1.12.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
-    "pillow==12.0.0",
+    "pillow==12.1.1",
+    # required by omni.replicator.core S3 backend
+    "botocore",
     # livestream
     "starlette==0.49.1",
     "omniverseclient",
@@ -69,8 +71,18 @@ INSTALL_REQUIRES += [
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    f"usd-core==25.5.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-core==25.8.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+]
+
+# Pin hf-xet to avoid broken tarball (hf_xet-1.1.8.dev2) cached on NVIDIA Artifactory.
+# (https://urm.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi) that gets installed with --pre
+# and --extra-index-url flags. The broken hf-xet-1.1.8.dev2 package is present as of Mar 12 2026.
+# TODO: Can be removed once the broken hf-xet-1.1.8.dev2 package is removed from NVIDIA Artifactory.
+# Issue: https://nvbugs/5974917 includes verification steps.
+INSTALL_REQUIRES += [
+    # 1.4.1 is latest as of Mar 12 2026
+    f"hf-xet>=1.4.1,<2.0.0 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]

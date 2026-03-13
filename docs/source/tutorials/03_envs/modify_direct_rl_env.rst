@@ -119,7 +119,7 @@ where you started the simulation.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task Isaac-H1-Direct-v0 --num_envs 64
+  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
 .. figure:: ../../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center
