@@ -93,14 +93,6 @@ def _read_u64(addr: int) -> int:
     return ctypes.c_uint64.from_address(addr).value
 
 
-def _dump_fn_ptrs(base: int, names: list[str], label: str) -> None:
-    """Log function pointer values at 8-byte intervals from *base*."""
-    for i, name in enumerate(names):
-        addr = _read_u64(base + i * 8)
-        tag = "OK" if addr else "NULL"
-        logger.info("  %s+%d (%s) = 0x%016x  [%s]", label, i * 8, name, addr, tag)
-
-
 # ---------------------------------------------------------------------------
 #  Public API
 # ---------------------------------------------------------------------------
@@ -117,7 +109,6 @@ class CubricBindings:
         self._release_fn = None
         self._bind_fn = None
         self._compute_fn = None
-        self._log_count = 0
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -128,13 +119,11 @@ class CubricBindings:
             import omni.kit.app
 
             ext_mgr = omni.kit.app.get_app().get_extension_manager()
-            cubric_enabled = ext_mgr.is_extension_enabled("omni.cubric")
-            logger.info("omni.cubric extension enabled: %s", cubric_enabled)
-            if not cubric_enabled:
-                logger.info("Enabling omni.cubric extension")
+            if not ext_mgr.is_extension_enabled("omni.cubric"):
                 ext_mgr.set_extension_enabled_immediate("omni.cubric", True)
-                cubric_enabled = ext_mgr.is_extension_enabled("omni.cubric")
-                logger.info("omni.cubric after enable: %s", cubric_enabled)
+            if not ext_mgr.is_extension_enabled("omni.cubric"):
+                logger.warning("Failed to enable omni.cubric extension")
+                return False
         except Exception as exc:
             logger.warning("Cannot enable omni.cubric: %s", exc)
             return False
@@ -146,55 +135,18 @@ class CubricBindings:
             logger.warning("Could not load libcarb.so")
             return False
 
-        # Check which symbols libcarb exports for framework access
-        for sym_name in ("acquireFramework", "carbGetSdkVersion", "isFrameworkValid"):
-            try:
-                sym = getattr(libcarb, sym_name, None)
-                logger.info("libcarb.%s: %s", sym_name, "found" if sym else "missing")
-            except Exception:
-                logger.info("libcarb.%s: not accessible", sym_name)
-
-        # Verify framework is alive
-        try:
-            libcarb.isFrameworkValid.restype = ctypes.c_bool
-            libcarb.isFrameworkValid.argtypes = []
-            fw_valid = libcarb.isFrameworkValid()
-            logger.info("isFrameworkValid() = %s", fw_valid)
-        except Exception as exc:
-            logger.warning("isFrameworkValid() failed: %s", exc)
-
-        # Get SDK version for diagnostics
-        try:
-            libcarb.carbGetSdkVersion.restype = ctypes.c_char_p
-            libcarb.carbGetSdkVersion.argtypes = []
-            sdk_ver = libcarb.carbGetSdkVersion()
-            logger.info("carbGetSdkVersion() = %s", sdk_ver)
-        except Exception as exc:
-            logger.info("carbGetSdkVersion() failed: %s", exc)
-
         libcarb.acquireFramework.restype = ctypes.c_void_p
         libcarb.acquireFramework.argtypes = [ctypes.c_char_p, _Version]
         fw_ptr = libcarb.acquireFramework(b"isaaclab.cubric", _Version(0, 0))
         if not fw_ptr:
             logger.warning("acquireFramework returned null")
             return False
-        logger.info("carb Framework* = 0x%016x", fw_ptr)
 
-        # Dump first several framework function pointers for diagnosis
-        fw_fn_names = [
-            "loadPluginsEx",
-            "unloadAllPlugins",
-            "acquireInterfaceWithClient",
-            "tryAcquireInterfaceWithClient",
-        ]
-        _dump_fn_ptrs(fw_ptr, fw_fn_names, "Framework")
-
-        # Read tryAcquireInterfaceWithClient fn-ptr from Framework.
+        # Read tryAcquireInterfaceWithClient fn-ptr from Framework vtable.
         try_acquire_addr = _read_u64(fw_ptr + _FW_OFF_TRY_ACQUIRE)
         if try_acquire_addr == 0:
             logger.warning("tryAcquireInterfaceWithClient is null in Framework")
             return False
-        logger.info("tryAcquireInterfaceWithClient addr = 0x%016x", try_acquire_addr)
 
         try_acquire_fn = ctypes.CFUNCTYPE(
             ctypes.c_void_p,   # return: void* (IAdapter*)
@@ -207,24 +159,14 @@ class CubricBindings:
             name=b"omni::cubric::IAdapter",
             version=_Version(0, 1),
         )
-        logger.info(
-            "Calling tryAcquireInterfaceWithClient("
-            "client=%r, iface=%r, ver=%d.%d, plugin=%r)",
-            b"carb.scripting-python.plugin",
-            desc.name,
-            desc.version.major,
-            desc.version.minor,
-            None,
-        )
+
+        # Try several acquisition strategies — the required client name
+        # varies across Kit configurations.
         ia_ptr = try_acquire_fn(b"carb.scripting-python.plugin", desc, None)
         if not ia_ptr:
-            # Try without client name restriction
-            logger.info("First attempt returned null; retrying with client=None")
             ia_ptr = try_acquire_fn(None, desc, None)
         if not ia_ptr:
-            # Try acquireInterfaceWithClient (offset 16) which logs errors
-            logger.info("tryAcquire returned null; trying acquireInterfaceWithClient")
-            acquire_addr = _read_u64(fw_ptr + 16)
+            acquire_addr = _read_u64(fw_ptr + 16)  # acquireInterfaceWithClient
             if acquire_addr:
                 acquire_fn = ctypes.CFUNCTYPE(
                     ctypes.c_void_p,
@@ -235,19 +177,11 @@ class CubricBindings:
                 ia_ptr = acquire_fn(b"isaaclab.cubric", desc, None)
         if not ia_ptr:
             logger.warning(
-                "All IAdapter acquisition attempts returned null — "
-                "cubric plugin may not be registered or interface mismatch"
+                "Could not acquire omni::cubric::IAdapter — "
+                "cubric plugin may not be registered or interface version mismatch"
             )
             return False
         self._ia_ptr = ia_ptr
-        logger.info("IAdapter* = 0x%016x", ia_ptr)
-
-        # Dump all IAdapter function pointers
-        ia_fn_names = [
-            "getAttribute", "create", "refcount", "retain",
-            "release", "bindToStage", "unbind", "compute",
-        ]
-        _dump_fn_ptrs(ia_ptr, ia_fn_names, "IAdapter")
 
         # Wrap the four IAdapter function pointers we need.
         create_addr = _read_u64(ia_ptr + _IA_OFF_CREATE)
@@ -259,23 +193,19 @@ class CubricBindings:
             logger.warning("One or more IAdapter function pointers are null")
             return False
 
-        # create(AdapterId* out) -> bool
         self._create_fn = ctypes.CFUNCTYPE(
             ctypes.c_bool, ctypes.POINTER(ctypes.c_uint64),
         )(create_addr)
 
-        # release(AdapterId) -> bool
         self._release_fn = ctypes.CFUNCTYPE(
             ctypes.c_bool, ctypes.c_uint64,
         )(release_addr)
 
-        # bindToStage(AdapterId, const FabricId&) -> bool
-        # FabricId is uint64, passed by const-ref → pointer on x86_64
+        # FabricId is uint64, passed by const-ref -> pointer on x86_64
         self._bind_fn = ctypes.CFUNCTYPE(
             ctypes.c_bool, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64),
         )(bind_addr)
 
-        # compute(AdapterId, options, dirtyMode, outAccountFlags*) -> bool
         self._compute_fn = ctypes.CFUNCTYPE(
             ctypes.c_bool,
             ctypes.c_uint64,   # adapterId
@@ -284,11 +214,7 @@ class CubricBindings:
             ctypes.c_void_p,   # outAccountFlags* (nullable)
         )(compute_addr)
 
-        logger.info(
-            "cubric IAdapter bindings ready (opts=0x%x [eRigidBody|eForceUpdate], dirty=%d [eAll])",
-            _OPT_DEFAULT,
-            _DIRTY_ALL,
-        )
+        logger.info("cubric IAdapter bindings ready")
         return True
 
     @property
@@ -306,7 +232,6 @@ class CubricBindings:
         if not ok or adapter_id.value == _INVALID_ADAPTER_ID:
             logger.warning("IAdapter::create failed")
             return None
-        logger.info("cubric adapter created (id=%d)", adapter_id.value)
         return adapter_id.value
 
     def bind_to_stage(self, adapter_id: int, fabric_id: int) -> bool:
@@ -317,8 +242,6 @@ class CubricBindings:
         ok = self._bind_fn(adapter_id, ctypes.byref(fid))
         if not ok:
             logger.warning("IAdapter::bindToStage failed (adapter=%d, fabricId=%d)", adapter_id, fabric_id)
-        elif self._log_count < 3:
-            logger.info("IAdapter::bindToStage ok (adapter=%d, fabricId=%d)", adapter_id, fabric_id)
         return ok
 
     def compute(self, adapter_id: int) -> bool:
