@@ -675,7 +675,11 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-retargeters">Available Retargeters</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-environment-reference">Teleoperation Environment Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-environment-reference">Teleoperation Environment Reference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaac-teleop-xr-headset-environments">Isaac Teleop (XR Headset) Environments</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keyboard-and-spacemouse-environments">Keyboard and SpaceMouse Environments</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#switch-between-controllers-and-hand-tracking">Switch Between Controllers and Hand Tracking</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-your-environment">Configure Your Environment</a></li>
@@ -927,8 +931,12 @@ tensor. The <code class="docutils literal notranslate"><span class="pre">output_
 </section>
 <section id="teleoperation-environment-reference">
 <span id="isaac-teleop-env-control-reference"></span><h2>Teleoperation Environment Reference<a class="headerlink" href="#teleoperation-environment-reference" title="Link to this heading">#</a></h2>
-<p>The table below lists every built-in Isaac Lab environment that ships with an Isaac Teleop
-pipeline, what input mode it expects, and how the operator interacts with the robot.</p>
+<p>The tables below list every built-in Isaac Lab environment that supports teleoperation,
+organized by input method. Environments whose Task ID ends in <code class="docutils literal notranslate"><span class="pre">-Play</span></code> are designed for
+closed-loop policy evaluation and are not included here.</p>
+<section id="isaac-teleop-xr-headset-environments">
+<h3>Isaac Teleop (XR Headset) Environments<a class="headerlink" href="#isaac-teleop-xr-headset-environments" title="Link to this heading">#</a></h3>
+<p>These environments use the Isaac Teleop XR pipeline with motion controllers or hand tracking.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 28.0%" />
@@ -999,6 +1007,184 @@ pipeline, what input mode it expects, and how the operator interacts with the ro
 ideal for tasks that need a gripper or simple hand mapping. <strong>Hand tracking</strong> captures 26
 wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.</p>
 </div>
+</section>
+<section id="keyboard-and-spacemouse-environments">
+<h3>Keyboard and SpaceMouse Environments<a class="headerlink" href="#keyboard-and-spacemouse-environments" title="Link to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Keyboard and SpaceMouse teleoperation uses the legacy native Isaac Lab teleop stack
+(<code class="docutils literal notranslate"><span class="pre">isaaclab.devices</span></code>), not Isaac Teleop. These environments do not require an XR headset.</p>
+</div>
+<p>The device button layouts below apply to all environments in this section. Per-environment
+differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
+follows.</p>
+<p><strong>Keyboard</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Function</p></th>
+<th class="head"><p>Keys</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Position X</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">W</span></code> / <code class="docutils literal notranslate"><span class="pre">S</span></code></p></td>
+<td><p>Move end-effector forward / backward.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Position Y</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">A</span></code> / <code class="docutils literal notranslate"><span class="pre">D</span></code></p></td>
+<td><p>Move end-effector left / right.</p></td>
+</tr>
+<tr class="row-even"><td><p>Position Z</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Q</span></code> / <code class="docutils literal notranslate"><span class="pre">E</span></code></p></td>
+<td><p>Move end-effector up / down.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Roll</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Z</span></code> / <code class="docutils literal notranslate"><span class="pre">X</span></code></p></td>
+<td><p>Rotate about X axis.</p></td>
+</tr>
+<tr class="row-even"><td><p>Pitch</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">T</span></code> / <code class="docutils literal notranslate"><span class="pre">G</span></code></p></td>
+<td><p>Rotate about Y axis.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Yaw</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">C</span></code> / <code class="docutils literal notranslate"><span class="pre">V</span></code></p></td>
+<td><p>Rotate about Z axis.</p></td>
+</tr>
+<tr class="row-even"><td><p>Gripper toggle</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">K</span></code></p></td>
+<td><p>Open / close gripper or suction (disabled in Reach envs).</p></td>
+</tr>
+<tr class="row-odd"><td><p>Reset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">L</span></code></p></td>
+<td><p>Clear accumulated delta pose and gripper state.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>SpaceMouse</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Function</p></th>
+<th class="head"><p>Control</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Translation</p></td>
+<td><p>6-DOF knob</p></td>
+<td><p>Push/pull/slide the knob to move the end-effector in X/Y/Z.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Rotation</p></td>
+<td><p>6-DOF knob</p></td>
+<td><p>Tilt/twist the knob to rotate the end-effector in roll/pitch/yaw.</p></td>
+</tr>
+<tr class="row-even"><td><p>Gripper toggle</p></td>
+<td><p>Left button</p></td>
+<td><p>Open / close gripper or suction (disabled in Reach envs).</p></td>
+</tr>
+<tr class="row-odd"><td><p>Reset</p></td>
+<td><p>Right button</p></td>
+<td><p>Clear accumulated delta pose and gripper state.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Gamepad</strong> (Reach environments only)</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Function</p></th>
+<th class="head"><p>Control</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Position X / Y</p></td>
+<td><p>Left stick</p></td>
+<td><p>Move end-effector forward/backward and left/right.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Position Z</p></td>
+<td><p>Right stick (up/down)</p></td>
+<td><p>Move end-effector up / down.</p></td>
+</tr>
+<tr class="row-even"><td><p>Roll / Pitch</p></td>
+<td><p>D-Pad</p></td>
+<td><p>Left/right for roll, up/down for pitch.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Yaw</p></td>
+<td><p>Right stick (left/right)</p></td>
+<td><p>Rotate about Z axis.</p></td>
+</tr>
+<tr class="row-even"><td><p>Gripper toggle</p></td>
+<td><p>X button</p></td>
+<td><p>Open / close gripper (disabled in Reach envs).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 18.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Task ID</p></th>
+<th class="head"><p>Devices</p></th>
+<th class="head"><p>Operator Interaction</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0</span></code></p></td>
+<td><p>Keyboard, SpaceMouse</p></td>
+<td><p><strong>Arm:</strong> end-effector pose via RMPFlow.
+<strong>Gripper:</strong> <code class="docutils literal notranslate"><span class="pre">K</span></code> on keyboard, left button on SpaceMouse.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0</span></code></p></td>
+<td><p>Keyboard, SpaceMouse</p></td>
+<td><p><strong>Arm:</strong> end-effector pose via RMPFlow.
+<strong>Suction:</strong> <code class="docutils literal notranslate"><span class="pre">K</span></code> on keyboard, left button on SpaceMouse.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0</span></code></p></td>
+<td><p>Keyboard, SpaceMouse</p></td>
+<td><p>Same as left-arm gripper above with camera observations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0</span></code></p></td>
+<td><p>Keyboard, SpaceMouse</p></td>
+<td><p><strong>Arm:</strong> relative IK end-effector control.
+<strong>Suction:</strong> <code class="docutils literal notranslate"><span class="pre">K</span></code> on keyboard, left button on SpaceMouse.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0</span></code></p></td>
+<td><p>Keyboard, SpaceMouse</p></td>
+<td><p>Same as long-suction UR10 above with a shorter suction cup.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Reach-Franka-IK-Abs-v0</span></code></p></td>
+<td><p>Keyboard, Gamepad, SpaceMouse</p></td>
+<td><p><strong>Arm:</strong> absolute IK end-effector control. Gripper disabled.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Isaac-Reach-Franka-IK-Rel-v0</span></code></p></td>
+<td><p>Keyboard, Gamepad, SpaceMouse</p></td>
+<td><p><strong>Arm:</strong> relative IK end-effector control. Gripper disabled.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
 </section>
 <section id="switch-between-controllers-and-hand-tracking">
 <span id="isaac-teleop-switching-input-mode"></span><h2>Switch Between Controllers and Hand Tracking<a class="headerlink" href="#switch-between-controllers-and-hand-tracking" title="Link to this heading">#</a></h2>
@@ -1427,7 +1613,11 @@ environment is present, since it avoids GPU contention with rendering.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-retargeters">Available Retargeters</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-environment-reference">Teleoperation Environment Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-environment-reference">Teleoperation Environment Reference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaac-teleop-xr-headset-environments">Isaac Teleop (XR Headset) Environments</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keyboard-and-spacemouse-environments">Keyboard and SpaceMouse Environments</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#switch-between-controllers-and-hand-tracking">Switch Between Controllers and Hand Tracking</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-your-environment">Configure Your Environment</a></li>

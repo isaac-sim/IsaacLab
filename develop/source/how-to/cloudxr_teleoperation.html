@@ -746,7 +746,7 @@ NVIDIA driver installed, <code class="docutils literal notranslate"><span class=
 </li>
 <li><p>Activate the <strong>same</strong> virtual environment you use for Isaac Lab, then install the
 <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> package with the extras you need:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,ui,cloudxr]&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,ui,cloudxr]~=1.0.0&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
 </pre></div>
 </div>
 <p>The extras provide the following functionality:</p>
@@ -816,7 +816,7 @@ TLS for CloudXR.js web clients. A self-signed certificate is generated automatic
 <p>Keep this terminal running for the duration of your teleoperation session.</p>
 <p class="rubric" id="cloudxr-runtime-configuration">Runtime Configuration</p>
 <p><strong>Install directory</strong> – by default the runtime stores its OpenXR libraries, IPC socket,
-logs, certificates, and a generated <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> file under <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/</span></code>. To use a
+logs, certificates, and a generated <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> file under <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/run/</span></code>. To use a
 different location, pass the <code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span></code> flag:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--cloudxr-install-dir<span class="o">=</span>~/my_cloudxr
 </pre></div>
@@ -863,7 +863,7 @@ repository for the legacy Docker Compose files.</p>
 its first start. This sets the <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and <code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code> variables that
 Isaac Sim needs to locate the OpenXR runtime:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Activate the Isaac Lab virtual environment (conda or uv)</span>
-<span class="nb">source</span><span class="w"> </span>~/.cloudxr/cloudxr.env
+<span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
 </pre></div>
 </div>
 <p>If you specified a custom install directory with <code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span></code>, source
