@@ -256,13 +256,131 @@ jobs:
         container-name: "isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
-        filter-pattern: "not isaaclab_tasks"
+        filter-pattern: "not isaaclab_tasks,isaaclab_newton,isaaclab_physx"
 
     - name: Upload General Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: general-test-results
+        path: reports/${{ github.job }}-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
+    # ECR images must be pruned with a lifecycle policy.
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
+  test-newton:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: build
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Run Newton Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "isaac-lab-newton-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_newton"
+
+    - name: Upload Newton Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: newton-test-results
+        path: reports/${{ github.job }}-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
+    # ECR images must be pruned with a lifecycle policy.
+    - name: Clean up stale Docker images
+      if: always()
+      run: docker image prune -f --filter "until=24h" || true
+
+  test-physx:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: build
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Run PhysX Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "isaac-lab-physx-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_physx"
+
+    - name: Upload PhysX Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: physx-test-results
         path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
@@ -532,7 +650,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   combine-results:
-    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo, test-flaky, test-slightly-flaky, test-environments-training]
+    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-flaky, test-slightly-flaky, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
     name: Combine Results
@@ -569,6 +687,20 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: general-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download Newton Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: newton-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download PhysX Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: physx-test-results
         path: reports/
       continue-on-error: true
 
