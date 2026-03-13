@@ -257,14 +257,9 @@ class DirectRLEnvCfg:
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
     video_recorder: VideoRecorderCfg = VideoRecorderCfg()
-    """Configuration for the viewport recorder used when ``render_mode="rgb_array"``.
+    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``).
 
-    Defaults to a :class:`~isaaclab.envs.VideoRecorderCfg` that captures all environments
-    in a square tile-grid using :class:`~isaaclab.envs.VideoRecorder`.
-
-    Set :attr:`~isaaclab.envs.VideoRecorderCfg.class_type` to a custom subclass to swap the
-    capture implementation without modifying environment code.  Set to ``None`` to disable
-    TiledCamera-based recording entirely and fall back to the Kit-based omni.replicator path.
-
-    CLI example: ``env.video_recorder.video_num_tiles=9``
+    See :class:`~isaaclab.envs.VideoRecorderCfg` for available options including
+    ``video_mode`` (``"perspective"`` or ``"tiled"``), ``camera_eye``/``camera_lookat``,
+    and ``video_num_tiles``.  Set to ``None`` to disable the recorder entirely.
     """

@@ -181,6 +181,8 @@ class DirectRLEnv(gym.Env):
         # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
         if self.cfg.video_recorder is not None:
             self.cfg.video_recorder.render_mode = render_mode
+            self.cfg.video_recorder.kit_cam_prim_path = self.cfg.viewer.cam_prim_path
+            self.cfg.video_recorder.kit_resolution = self.cfg.viewer.resolution
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
                 self.cfg.video_recorder, self.scene
             )
@@ -503,53 +505,7 @@ class DirectRLEnv(gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # Prefer TiledCamera in tiled mode; works for all backends and produces
-            # consistent per-agent frames. In perspective mode the recorder returns None
-            # intentionally (bypassing TiledCamera entirely) so we always reach the
-            # omni.replicator Kit-viewport path below.
-            if self.video_recorder is not None:
-                frame = self.video_recorder.render_rgb_array()
-                if frame is not None:
-                    return frame
-            # In perspective mode the recorder returns None intentionally so we fall through
-            # to the omni.replicator viewport path below. Skip the has_offscreen_render guard
-            # in that case; the annotator works in non-headless Kit sessions too.
-            _perspective_mode = (
-                self.video_recorder is not None
-                and self.cfg.video_recorder is not None
-                and getattr(self.cfg.video_recorder, "video_mode", "tiled") == "perspective"
-            )
-            if not _perspective_mode and not self.sim.has_gui and not self.sim.has_offscreen_render:
-                raise RuntimeError(
-                    "Cannot render 'rgb_array': no TiledCamera sensor with RGB output was found in"
-                    " the scene, and neither GUI nor offscreen rendering is available."
-                    " Add a TiledCamera sensor to the scene configuration to enable video recording."
-                )
-            # Kit-based fallback: use an omni.replicator annotator on the viewer camera.
-            # /OmniverseKit_Persp is NOT an RTX sensor, so the guard above may have skipped
-            # sim.render() when has_rtx_sensors=True (e.g., vision tasks with TiledCamera).
-            # Force a render pass here so the annotator receives non-empty data.
-            if self.has_rtx_sensors:
-                self.sim.render()
-            if not hasattr(self, "_rgb_annotator"):
-                import omni.replicator.core as rep
-
-                # create render product
-                self._render_product = rep.create.render_product(
-                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
-                )
-                # create rgb annotator -- used to read data from the render product
-                self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-                self._rgb_annotator.attach([self._render_product])
-            # obtain the rgb data
-            rgb_data = self._rgb_annotator.get_data()
-            # convert to numpy array
-            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # note: initially the renderer is warming up and returns empty data
-            if rgb_data.size == 0:
-                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
-            else:
-                return rgb_data[:, :, :3]
+            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
