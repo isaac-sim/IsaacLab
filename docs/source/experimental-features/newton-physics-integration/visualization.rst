@@ -77,6 +77,12 @@ To run in headless mode, omit the ``--viz`` argument:
     The ``--headless`` argument is deprecated.
     For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
+.. note::
+
+    In Docker containers, browser auto-open for the web-based visualizers (Rerun and Viser)
+    may not work. If no browser tab opens automatically, use the ``viewer_url`` logged in
+    each visualizer's initialization block and open that URL manually from your host browser.
+
 
 .. _visualization-configuration:
 
