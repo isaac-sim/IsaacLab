@@ -11,7 +11,7 @@ You can use any visualizer regardless of your chosen physics engine or rendering
 Overview
 --------
 
-Isaac Lab supports three visualizer backends, each optimized for different use cases:
+Isaac Lab supports four visualizer backends, each optimized for different use cases:
 
 .. list-table:: Visualizer Comparison
    :widths: 15 35 50
@@ -29,23 +29,26 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export
+   * - **Viser**
+     - Web-based remote visualization, sharing, recording
+     - Warp-based rendering, browser-based, share URL
 
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
 
-.. figure:: ../../_static/visualizers/ov_viz.jpg
+.. figure:: ../_static/visualizers/ov_viz.jpg
    :width: 100%
    :alt: Omniverse Visualizer
 
    Omniverse Visualizer
 
-.. figure:: ../../_static/visualizers/newton_viz.jpg
+.. figure:: ../_static/visualizers/newton_viz.jpg
    :width: 100%
    :alt: Newton Visualizer
 
    Newton Visualizer
 
-.. figure:: ../../_static/visualizers/rerun_viz.jpg
+.. figure:: ../_static/visualizers/rerun_viz.jpg
    :width: 100%
    :alt: Rerun Visualizer
 
@@ -65,6 +68,9 @@ Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` ali
     # Launch only the Newton visualizer
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz newton
 
+    # Launch the Viser web-based visualizer
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz viser
+
 
 To run in headless mode, omit the ``--viz`` argument:
 
@@ -77,19 +83,13 @@ To run in headless mode, omit the ``--viz`` argument:
     The ``--headless`` argument is deprecated.
     For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
-.. note::
-
-    In Docker containers, browser auto-open for the web-based visualizers (Rerun and Viser)
-    may not work. If no browser tab opens automatically, use the ``viewer_url`` logged in
-    each visualizer's initialization block and open that URL manually from your host browser.
-
 
 .. _visualization-configuration:
 
 Configuration
 ~~~~~~~~~~~~~
 
-Launching visualizers with the command line will use default visualizer configurations. Visualizer backends live in the ``isaaclab_visualizers`` package (e.g. ``source/isaaclab_visualizers/isaaclab_visualizers/kit``, ``newton``, ``rerun``).
+Launching visualizers with the command line will use default visualizer configurations. Visualizer backends live in the ``isaaclab_visualizers`` package (e.g. ``source/isaaclab_visualizers/isaaclab_visualizers/kit``, ``newton``, ``rerun``, ``viser``).
 
 You can also configure custom visualizers in the code by defining ``VisualizerCfg`` instances for the ``SimulationCfg``, for example:
 
@@ -99,6 +99,7 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
     from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
     from isaaclab_visualizers.rerun import RerunVisualizerCfg
+    from isaaclab_visualizers.viser import ViserVisualizerCfg
 
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
@@ -120,6 +121,10 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
                 keep_historical_data=True,
                 keep_scalar_history=True,
                 record_to_rrd="my_training.rrd",
+            ),
+            ViserVisualizerCfg(
+                port=8080,
+                share=False,
             ),
         ]
     )
@@ -206,7 +211,7 @@ Omniverse Visualizer
 
 
 Newton Visualizer
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 **Main Features:**
 
@@ -314,6 +319,55 @@ management). If ``grpc_port`` is already active, Isaac Lab reuses that server. I
 starting a new server, initialization fails with a clear port-conflict error.
 
 
+Viser Visualizer
+~~~~~~~~~~~~~~~~
+
+The `Viser <https://viser.studio/>`_ visualizer provides a **web-based** 3D viewer for Isaac Lab
+simulations powered by the Newton Warp renderer. It streams the simulation state to a local web
+server, allowing you to view and interact with the scene from any browser.
+
+**Key features:**
+
+- Browser-based visualization accessible at ``http://localhost:8080`` by default
+- Optional public share URL for remote viewing
+- Recording to ``.viser`` format for replay
+- Environment filtering to control which environments are rendered
+
+**Launch with Viser:**
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py --viz viser
+
+**Configuration example:**
+
+.. code-block:: python
+
+    from isaaclab_visualizers.viser import ViserVisualizerCfg
+
+    visualizer_cfg = ViserVisualizerCfg(
+        port=8080,
+        open_browser=True,
+        label="Isaac Lab Simulation",
+        share=False,
+        max_worlds=64,
+    )
+
+**Configuration options:**
+
+- ``port`` (int, default ``8080``): Port of the local Viser web server.
+- ``open_browser`` (bool, default ``True``): Automatically open the viewer URL in a browser.
+- ``label`` (str or None, default ``"Isaac Lab Simulation"``): Page title shown in the viewer.
+- ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
+- ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
+- ``verbose`` (bool, default ``True``): Print viewer server startup information.
+- ``max_worlds`` (int or None, default ``None``): Maximum number of environments rendered.
+
+.. note::
+
+   The Viser visualizer does not currently support markers or live plots.
+
+
 Performance Note
 ----------------
 
@@ -355,6 +409,19 @@ The FPS control in the Rerun visualizer UI may not affect the visualization fram
 Contact and center of mass markers are not yet supported in the Newton visualizer. This will be addressed in a future release.
 
 
+**Viser Visualizer Markers and Live Plots**
+
+The Viser visualizer does not currently support visualization markers or live plots. For these features, use the
+Omniverse or Newton visualizers.
+
+
+**Viser Visualizer Renderer Requirement**
+
+The Viser visualizer requires a Newton model, which is provided automatically by
+:class:`~isaaclab.physics.SceneDataProvider` regardless of the active physics backend or
+renderer. It is compatible with all rendering backends (RTX, Newton Warp, OVRTX).
+
+
 **Newton Visualizer CUDA/OpenGL Interoperability Warnings**
 
 On some system configurations, the Newton visualizer may display warnings about CUDA/OpenGL interoperability:
@@ -369,3 +436,12 @@ On some system configurations, the Newton visualizer may display warnings about 
 
 The visualizer will still function correctly but may experience reduced performance due to falling back to
 CPU copy operations instead of direct GPU memory sharing.
+
+
+See Also
+--------
+
+- :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
+- :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
+- :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration guide
+- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details
