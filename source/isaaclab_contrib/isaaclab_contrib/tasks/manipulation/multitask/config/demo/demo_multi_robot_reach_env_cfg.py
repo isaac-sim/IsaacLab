@@ -407,7 +407,7 @@ class MultiRobotReachEnvCfg(ManagerBasedRLEnvCfg):
     """
 
     scene: MultiRobotReachSceneCfg = MultiRobotReachSceneCfg(
-        num_envs=2048,
+        num_envs=4096,
         env_spacing=2.0,
         replicate_physics=False,
     )
@@ -426,3 +426,11 @@ class MultiRobotReachEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 60.0
         self.sim.render_interval = self.decimation
         self.sim.physics = MultitaskPhysicsCfg()
+
+
+@configclass
+class MultiRobotReachEnvCfg_PLAY(MultiRobotReachEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 64
+        self.observations.policy.enable_corruption = False
