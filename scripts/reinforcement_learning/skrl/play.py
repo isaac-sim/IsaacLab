@@ -11,6 +11,7 @@ a more user-friendly way.
 """
 
 import argparse
+import contextlib
 import os
 import random
 import sys
@@ -30,6 +31,8 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 SKRL_VERSION = "1.4.3"
 
