@@ -2,4 +2,5 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Tests for Newton sensors."""
+
+"""Tests for Newton site index map logic."""
