@@ -2,6 +2,19 @@ Changelog
 ---------
 
 
+0.5.8 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed overly tight numerical tolerances in
+  ``test_object_state_properties`` for
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` that caused
+  spurious failures on CPU. Aligned tolerances with the equivalent
+  articulation test (``atol=2e-3, rtol=2e-3``).
+
+
 0.5.7 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~
 
