@@ -492,7 +492,7 @@ The recommended workflow:
 
 
 Run with Docker
--------------------------
+---------------
 
 Teleoperation runs in a **single container**. Build the image yourself and run a single container.
 Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
@@ -516,7 +516,7 @@ when starting the runtime so there is no interactive prompt.
       ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
       source ~/.cloudxr/run/cloudxr.env
       ./isaaclab.sh -p scripts/tools/record_demos.py \
-        --task Isaac-PickPlace-GR1T2-Abs-v0 \
+        --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
         --num_demos 5 \
         --dataset_file ./datasets/dataset.hdf5 \
         --xr

@@ -151,7 +151,7 @@ Inside the container: install Isaac Teleop once (`./isaaclab.sh -p -m pip instal
 ```bash
 ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
 source ~/.cloudxr/run/cloudxr.env
-./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-PickPlace-GR1T2-Abs-v0 --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr
+./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr
 ```
 
 In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html).
