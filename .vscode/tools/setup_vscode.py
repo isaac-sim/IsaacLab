@@ -35,13 +35,12 @@ except EOFError:
 
 # check if the isaac-sim directory exists
 if not os.path.exists(isaacsim_dir):
-    raise FileNotFoundError(
-        f"Could not find the isaac-sim directory: {isaacsim_dir}. There are two possible reasons for this:"
-        f"\n\t1. The Isaac Sim directory does not exist as a symlink at: {os.path.join(ISAACLAB_DIR, '_isaac_sim')}"
-        "\n\t2. The script could not import the 'isaacsim' package. This could be due to the 'isaacsim' package not "
-        "being installed in the Python environment.\n"
-        "\nPlease make sure that the Isaac Sim directory exists or that the 'isaacsim' package is installed."
+    print(
+        f"[WARN] Could not find the isaac-sim directory: {isaacsim_dir}."
+        "\n\tIsaac Sim does not appear to be installed. VS Code settings will be generated"
+        "\n\twithout Isaac Sim extra paths."
     )
+    isaacsim_dir = ""
 
 ISAACSIM_DIR = isaacsim_dir
 """Path to the isaac-sim directory."""
@@ -66,7 +65,7 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
 
     # we use the isaac-sim settings file to get the python.analysis.extraPaths for kit extensions
     # if this file does not exist, we will not add any extra paths
-    if os.path.exists(isaacsim_vscode_filename):
+    if ISAACSIM_DIR and os.path.exists(isaacsim_vscode_filename):
         # read the path names from the isaac-sim settings file
         with open(isaacsim_vscode_filename) as f:
             vscode_settings = f.read()
@@ -89,13 +88,6 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
         path_names = ['"${workspaceFolder}/' + rel_path + "/" + path_name + '"' for path_name in path_names]
     else:
         path_names = []
-        print(
-            f"[WARN] Could not find Isaac Sim VSCode settings: {isaacsim_vscode_filename}."
-            "\n\tThis will result in missing 'python.analysis.extraPaths' in the VSCode"
-            "\n\tsettings, which limits the functionality of the Python language server."
-            "\n\tHowever, it does not affect the functionality of the Isaac Lab project."
-            "\n\tWe are working on a fix for this issue with the Isaac Sim team."
-        )
 
     # add the path names that are in the Isaac Lab extensions directory
     isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source"))
