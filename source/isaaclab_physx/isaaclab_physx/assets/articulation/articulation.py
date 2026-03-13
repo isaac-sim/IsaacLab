@@ -3625,15 +3625,6 @@ class Articulation(BaseArticulation):
         if self.root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
-        # log information about the articulation
-        logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        logger.info(f"Is fixed root: {self.is_fixed_base}")
-        logger.info(f"Number of bodies: {self.num_bodies}")
-        logger.info(f"Body names: {self.body_names}")
-        logger.info(f"Number of joints: {self.num_joints}")
-        logger.info(f"Joint names: {self.joint_names}")
-        logger.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
-
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
 
@@ -3785,12 +3776,6 @@ class Articulation(BaseArticulation):
                 viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
                 effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
                 velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
-            )
-            # log information on actuator groups
-            model_type = "implicit" if actuator.is_implicit_model else "explicit"
-            logger.info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
-                f" (type: {model_type}) and joint names: {joint_names} [{joint_ids}]."
             )
             # store actuator group
             self.actuators[actuator_name] = actuator

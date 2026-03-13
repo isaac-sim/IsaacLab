@@ -71,7 +71,7 @@ Install Isaac Teleop
 
    .. code-block:: bash
 
-      pip install "isaacteleop[retargeters,ui,cloudxr]" --extra-index-url https://pypi.nvidia.com
+      pip install "isaacteleop[retargeters,ui,cloudxr]~=1.0.0" --extra-index-url https://pypi.nvidia.com
 
    The extras provide the following functionality:
 
@@ -153,7 +153,7 @@ Keep this terminal running for the duration of your teleoperation session.
 .. rubric:: Runtime Configuration
 
 **Install directory** -- by default the runtime stores its OpenXR libraries, IPC socket,
-logs, certificates, and a generated ``cloudxr.env`` file under ``~/.cloudxr/``. To use a
+logs, certificates, and a generated ``cloudxr.env`` file under ``~/.cloudxr/run/``. To use a
 different location, pass the ``--cloudxr-install-dir`` flag:
 
 .. code-block:: bash
@@ -213,7 +213,7 @@ Isaac Sim needs to locate the OpenXR runtime:
 .. code-block:: bash
 
    # Activate the Isaac Lab virtual environment (conda or uv)
-   source ~/.cloudxr/cloudxr.env
+   source ~/.cloudxr/run/cloudxr.env
 
 If you specified a custom install directory with ``--cloudxr-install-dir``, source
 ``cloudxr.env`` from that directory instead.

@@ -7,9 +7,14 @@
 
 from setuptools import setup
 
-INSTALL_REQUIRES = [
-    "ovrtx>=0.2.0,<0.3.0",
-]
+EXTRAS_REQUIRE = {
+    "ovrtx": [
+        "ovrtx>=0.2.0,<0.3.0",
+    ],
+}
+
+# add "[all]" for convenience
+EXTRAS_REQUIRE["all"] = sorted(set(dep for deps in EXTRAS_REQUIRE.values() for dep in deps))
 
 setup(
     name="isaaclab_ov",
@@ -22,7 +27,8 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     python_requires=">=3.11",
-    install_requires=INSTALL_REQUIRES,
+    install_requires=[],
+    extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_ov"],
     classifiers=[
         "Natural Language :: English",
