@@ -205,33 +205,31 @@ class VideoRecorder:
 
             self._gl_viewer = viewer
 
-            # Frame the camera once using the current (reset) physics state.
-            # 1. Set an isometric CAD-viewport angle (pitch/yaw in degrees) so that
-            #    _frame_camera_on_model() preserves the viewing direction and only
-            #    adjusts the distance to fit the scene.
-            # 2. Run a throwaway begin_frame/log_state/end_frame cycle so the viewer
-            #    has geometry context (needed for accurate bounding-box computation).
-            # 3. Call _frame_camera_on_model() to auto-set the distance.
-            # All subsequent renders in _render_newton_gl_rgb_array() reuse this camera.
+            # Position the camera to match the Kit /OmniverseKit_Persp viewport.
+            # Convert cfg.camera_eye / cfg.camera_lookat (same defaults as ViewerCfg)
+            # into Newton GL pitch/yaw (Z-up convention, degrees).
             try:
                 import warp as wp
 
-                sim = SimulationContext.instance()
-                state = sdp.get_newton_state()
-                dt = sim.get_physics_dt()
-                # Match the Kit /OmniverseKit_Persp default FOV (60°) so the distance
-                # computed by _frame_camera_on_model() is consistent.  Newton GL defaults
-                # to 45°, which places the camera ~1.3× further back for the same extent.
-                viewer.camera.fov = 60.0
-                # Isometric angle: ~35° down, 45° to the right - matches the style of
-                # the Kit /OmniverseKit_Persp default "user" viewport camera.
-                viewer.set_camera(pos=wp.vec3(0.0, 0.0, 0.0), pitch=-35.0, yaw=45.0)
-                viewer.begin_frame(dt)
-                viewer.log_state(state)
-                viewer.end_frame()
-                viewer._frame_camera_on_model()
+                ex, ey, ez = self.cfg.camera_eye
+                lx, ly, lz = self.cfg.camera_lookat
+                dx, dy, dz = lx - ex, ly - ey, lz - ez
+                length = math.sqrt(dx**2 + dy**2 + dz**2)
+                dx, dy, dz = dx / length, dy / length, dz / length
+                pitch = math.degrees(math.asin(max(-1.0, min(1.0, dz))))
+                yaw = math.degrees(math.atan2(dy, dx))
+
+                # Kit's /OmniverseKit_Persp uses a *horizontal* FOV of 60° (derived
+                # from its default focal_length=18.15 mm / horizontal_aperture=20.955 mm).
+                # pyglet / Newton GL use *vertical* FOV.  Convert so both cameras see
+                # the same scene extent.
+                aspect = self.cfg.gl_viewer_width / self.cfg.gl_viewer_height
+                kit_h_fov_rad = math.radians(60.0)
+                v_fov_deg = math.degrees(2.0 * math.atan(math.tan(kit_h_fov_rad / 2.0) / aspect))
+                viewer.camera.fov = v_fov_deg  # ≈ 36° for 1280×720
+                viewer.set_camera(pos=wp.vec3(ex, ey, ez), pitch=pitch, yaw=yaw)
             except Exception as frame_exc:
-                logger.warning("[VideoRecorder] GL viewer camera framing failed: %s", frame_exc)
+                logger.warning("[VideoRecorder] GL viewer camera setup failed: %s", frame_exc)
 
             logger.info(
                 "[VideoRecorder] Newton GL perspective viewer ready (%dx%d, max_worlds=%s).",

@@ -146,6 +146,26 @@ class VideoRecorderCfg:
         the scene.
     """
 
+    camera_eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    """World-space position of the Newton GL perspective camera (in metres).
+
+    Defaults to ``(7.5, 7.5, 7.5)`` — the same value as :attr:`~isaaclab.envs.common.ViewerCfg.eye`
+    — so the Newton GL video matches the Kit ``/OmniverseKit_Persp`` viewport exactly.
+
+    Override to reposition the camera for tasks with a very different scene scale::
+
+        self.video_recorder.camera_eye    = (20.0, 20.0, 20.0)
+        self.video_recorder.camera_lookat = (0.0,  0.0,  0.0)
+
+    Only used by Newton backends in perspective mode.
+    """
+
+    camera_lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """World-space point the Newton GL perspective camera looks at (in metres).
+
+    Defaults to ``(0.0, 0.0, 0.0)`` — the same as :attr:`~isaaclab.envs.common.ViewerCfg.lookat`.
+    """
+
     gl_viewer_width: int = 1280
     """Width in pixels of the Newton OpenGL perspective video frame.
 
