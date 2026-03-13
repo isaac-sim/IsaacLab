@@ -355,11 +355,11 @@ class EventManager(ManagerBase):
         if term_cfg.per_robot:
             # lazy build: entries are deferred because EventManager is created before
             # CommandManager/ActionManager register robot metadata into the layout.
-            entries = self._per_robot_entries.get(term_name)
+            entries = self._per_robot_caches.get(term_name)
             if entries is None or len(entries) == 0:
-                entries = self._build_per_robot_dispatch_entries(term_cfg)
+                entries = self._build_per_robot_mdp_term_caches(term_cfg)
                 if len(entries) > 0:
-                    self._per_robot_entries[term_name] = entries
+                    self._per_robot_caches[term_name] = entries
             for entry in entries:
                 if entry.group_key is None:
                     continue
@@ -413,10 +413,10 @@ class EventManager(ManagerBase):
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
             # mark per_robot terms for deferred dispatch-entry building.
-            # EventManager is created before CommandManager/ActionManager, so layout.robot_specs
+            # EventManager is created before CommandManager/ActionManager, so layout.robot_infos
             # is empty at this point. The entries are built lazily on first dispatch in _dispatch_event().
             if term_cfg.per_robot:
-                self._per_robot_entries[term_name] = []
+                self._per_robot_caches[term_name] = []
             # register task-group mapping
             if term_cfg.task_group is not None:
                 layout.resolve_task_group(term_name, term_cfg.task_group)

@@ -70,13 +70,16 @@ class ManagerTermBaseCfg:
     per_robot: bool = False
     """Automatically dispatch this term once per robot group.
 
-    When ``True``, the manager iterates :attr:`EnvLayout.robot_specs` and calls the function once for each
-    :class:`RobotSpec`.  Parameters ``asset_cfg`` and ``command_name`` are **auto-injected** from the spec
-    when they appear in the function signature.  They must **not** be provided in :attr:`params`:
+    When ``True``, the manager iterates :attr:`EnvLayout.robot_infos` and calls the function once for each
+    :class:`RobotInfo`.  Parameters ``asset_cfg`` and ``command_name`` are **auto-injected** from the robot's
+    metadata when they appear in the function signature.  They must **not** be provided in :attr:`params`:
 
-    * ``asset_cfg`` — a :class:`SceneEntityCfg` built from the spec's ``asset_name``, ``ee_body``, and
-      ``joint_patterns``, already resolved against the scene.
-    * ``command_name`` — the spec's :attr:`RobotSpec.command_name`.
+    * ``asset_cfg`` — a :class:`SceneEntityCfg` built from the robot's ``asset_name``, ``ee_body``, and
+      ``joint_patterns``, already resolved against the scene (via :meth:`RobotInfo.resolved_cfg`).
+    * ``command_name`` — the robot's :attr:`RobotInfo.command_name`.
+
+    Additionally, **any** metadata key stored in :attr:`RobotInfo.meta` that matches a function parameter
+    name is auto-injected, making the mechanism extensible without core code changes.
 
     This allows reuse of standard term functions (e.g.
     :func:`~isaaclab_tasks.manager_based.manipulation.reach.mdp.rewards.position_command_error`,

@@ -79,18 +79,21 @@ class CommandTerm(ManagerTermBase):
     """
 
     @property
+    def group_key(self) -> str | None:
+        """Resolved layout group key for this term, or ``None`` for homogeneous scenes."""
+        return self._env.scene.layout.resolve_group_key(
+            task_group=getattr(self.cfg, "task_group", None),
+            asset_name=getattr(self.cfg, "asset_name", None),
+        )
+
+    @property
     def num_envs(self) -> int:
         """Number of environments managed by this command term.
 
         Resolves the subset count from the centralized :class:`EnvLayout`
         based on the ``task_group`` or ``asset_name`` config attribute.
         """
-        layout = self._env.scene.layout
-        key = layout.resolve_group_key(
-            task_group=getattr(self.cfg, "task_group", None),
-            asset_name=getattr(self.cfg, "asset_name", None),
-        )
-        return layout.num_envs_for(key)
+        return self._env.scene.layout.num_envs_for(self.group_key)
 
     @property
     @abstractmethod
@@ -213,7 +216,7 @@ class CommandTerm(ManagerTermBase):
         """Return indices to slice asset data so it aligns with this term's buffers.
 
         Delegates to :meth:`EnvLayout.cross_slice` via the centralized
-        layout registry.
+        layout registry. Needs 'cross slice' for heterogeneous commands with same robot.
 
         Args:
             asset_name: Scene-level name of the asset whose data tensors
@@ -223,15 +226,11 @@ class CommandTerm(ManagerTermBase):
             A 1-D long tensor of global indices, or ``slice(None)`` when no
             slicing is needed (i.e. the shapes already agree).
         """
-        layout = self._env.scene.layout
-        term_group = layout.resolve_group_key(
-            task_group=getattr(self.cfg, "task_group", None),
-            asset_name=getattr(self.cfg, "asset_name", None),
-        )
-        if term_group is None:
+        if self.group_key is None:
             return slice(None)
+        layout = self._env.scene.layout
         asset_group = layout.group_for_asset(asset_name)
-        return layout.cross_slice(term_group, asset_group)
+        return layout.cross_slice(self.group_key, asset_group)
 
     """
     Implementation specific functions.
@@ -472,14 +471,13 @@ class CommandManager(ManagerBase):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")
             # register term → group mapping in the centralized layout
             layout = self._env.scene.layout
-            group_key = layout.resolve_group_key(
-                task_group=getattr(term_cfg, "task_group", None),
-                asset_name=getattr(term_cfg, "asset_name", None),
-            )
+            group_key = term.group_key
             if group_key is not None:
                 layout.register_term(term_name, group_key)
                 asset = getattr(term_cfg, "asset_name", None)
                 if asset is not None:
-                    layout.register_robot_meta(asset, command_name=term_name)
+                    meta = term.robot_metadata()
+                    meta["command_name"] = term_name
+                    layout.register_robot_meta(asset, **meta)
             # add class to dict
             self._terms[term_name] = term

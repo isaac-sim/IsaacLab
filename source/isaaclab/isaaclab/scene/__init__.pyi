@@ -7,10 +7,10 @@ __all__ = [
     "EnvLayout",
     "InteractiveScene",
     "InteractiveSceneCfg",
-    "RobotSpec",
+    "RobotInfo",
     "partition_env_ids",
 ]
 
-from .env_layout import EnvLayout, RobotSpec, partition_env_ids
+from .env_layout import EnvLayout, RobotInfo, partition_env_ids
 from .interactive_scene import InteractiveScene
 from .interactive_scene_cfg import InteractiveSceneCfg

@@ -12,8 +12,8 @@ produce ``total_action_dim = 6`` instead of 18.
 
 Observations are task-space-centric: EE pose, command target,
 and position error are the same dimension for all robots
-(no padding).  Joint-space terms are auto-padded to
-``layout.max_arm_dof``.
+(no padding).  Joint-space terms are auto-padded to the
+maximum arm DoF across all registered robots.
 
 Layout (3 groups, evenly split):
     Group 0:  OpenArm -- Reach (7 arm DoF)
@@ -25,15 +25,14 @@ from __future__ import annotations
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.controllers.differential_ik_cfg import (
-    DifferentialIKControllerCfg,
-)
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.actions.actions_cfg import (
-    DifferentialInverseKinematicsActionCfg,
-)
+from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -41,26 +40,18 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import (
-    GroundPlaneCfg,
-    UsdFileCfg,
-)
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_contrib.tasks.manipulation.multitask import mdp
 
 from isaaclab_tasks.manager_based.manipulation.reach.mdp import rewards as reach_rewards
+from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.franka import (
-    FRANKA_PANDA_HIGH_PD_CFG,
-)
-from isaaclab_assets.robots.openarm import (
-    OPENARM_UNI_HIGH_PD_CFG,
-)
+from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
+from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG
 from isaaclab_assets.robots.universal_robots import UR10_CFG
-
-from .demo_multitask_flat_env_cfg import MultitaskPhysicsCfg
 
 # -----------------------------------------------------------
 # Constants
@@ -71,13 +62,44 @@ TASK_FRANKA = "franka_reach"
 TASK_UR10 = "ur10_reach"
 
 _TABLE_SPAWN = UsdFileCfg(
-    usd_path=(f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
 )
 
 
 # ===========================================================
 # Scene
 # ===========================================================
+
+
+@configclass
+class MultitaskPhysicsCfg(PresetCfg):
+    """Physics backend presets for the single-robot multitask environment."""
+
+    default: PhysxCfg = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+    physx: PhysxCfg = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+    newton: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=60,
+            nconmax=80,
+            ls_iterations=20,
+            cone="pyramidal",
+            ls_parallel=True,
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
 
 
 @configclass
@@ -252,7 +274,7 @@ class MultiRobotReachObsCfg:
 
     Terms with ``per_robot=True`` reuse standard observation functions;
     the manager auto-injects ``asset_cfg`` and ``command_name`` from
-    each :class:`RobotSpec` and scatters results (with zero-padding)
+    each :class:`RobotInfo` and scatters results (with zero-padding)
     into a single ``(num_envs, max_feat)`` tensor.
 
     Task-space terms (EE pose, command, error) have the same
@@ -262,7 +284,6 @@ class MultiRobotReachObsCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
-        robot_type = ObsTerm(func=mdp.multi_robot_type_onehot)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, per_robot=True)
         joint_vel = ObsTerm(func=mdp.joint_vel, per_robot=True)
         ee_pose = ObsTerm(func=mdp.ee_pose_b, per_robot=True)
@@ -288,7 +309,7 @@ class MultiRobotReachRewardsCfg:
 
     Terms with ``per_robot=True`` reuse standard reward functions;
     the manager auto-injects ``asset_cfg`` and ``command_name``
-    from each :class:`RobotSpec` and scatters results into a
+    from each :class:`RobotInfo` and scatters results into a
     single ``(num_envs,)`` tensor.
     """
 
@@ -329,7 +350,7 @@ class MultiRobotReachEventsCfg:
     """Reset events auto-dispatched across all robot groups.
 
     Both terms use ``per_robot=True`` — the manager auto-injects
-    ``asset_cfg`` from each :class:`RobotSpec` and passes
+    ``asset_cfg`` from each :class:`RobotInfo` and passes
     group-local ``env_ids``.
     """
 

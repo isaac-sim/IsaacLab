@@ -161,7 +161,7 @@ class RewardManager(ManagerBase):
             # compute term's value
             if term_cfg.per_robot:
                 value = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
-                for entry in self._per_robot_entries[name]:
+                for entry in self._per_robot_caches[name]:
                     if entry.gids is None:
                         continue
                     value[entry.gids] = term_cfg.func(self._env, **entry.params)
@@ -267,7 +267,7 @@ class RewardManager(ManagerBase):
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
             # pre-build per_robot dispatch entries
             if term_cfg.per_robot:
-                self._per_robot_entries[term_name] = self._build_per_robot_dispatch_entries(term_cfg)
+                self._per_robot_caches[term_name] = self._build_per_robot_mdp_term_caches(term_cfg)
             # register task-group mapping
             if term_cfg.task_group is not None:
                 layout.resolve_task_group(term_name, term_cfg.task_group)

@@ -476,11 +476,11 @@ class ObservationManager(ManagerBase):
         """Dispatch an obs term across robot specs and scatter with auto-padding."""
         feat_dim = self._per_robot_feat_dims[id(term_cfg)]
         out = torch.zeros(self._env.num_envs, feat_dim, device=self._env.device)
-        for entry in self._per_robot_entries[term_name]:
-            if entry.gids is None:
+        for cache in self._per_robot_caches[term_name]:
+            if cache.gids is None:
                 continue
-            group_val = term_cfg.func(self._env, **entry.params)
-            out[entry.gids, : group_val.shape[-1]] = group_val
+            group_val = term_cfg.func(self._env, **cache.params)
+            out[cache.gids, : group_val.shape[-1]] = group_val
         return out
 
     def _prepare_terms(self):
@@ -569,7 +569,7 @@ class ObservationManager(ManagerBase):
                 # pre-build per_robot auto-inject params
                 layout = self._env.scene.layout
                 if term_cfg.per_robot:
-                    self._per_robot_entries[full_name] = self._build_per_robot_dispatch_entries(term_cfg)
+                    self._per_robot_caches[full_name] = self._build_per_robot_mdp_term_caches(term_cfg)
                 # register task-group mapping
                 if term_cfg.task_group is not None:
                     layout.resolve_task_group(full_name, term_cfg.task_group)
@@ -617,8 +617,8 @@ class ObservationManager(ManagerBase):
         """Compute the observation dimensions for a single term by running a trial forward pass."""
         if term_cfg.per_robot:
             max_feat = 0
-            for entry in self._per_robot_entries[full_name]:
-                trial = term_cfg.func(self._env, **entry.params)
+            for cache in self._per_robot_caches[full_name]:
+                trial = term_cfg.func(self._env, **cache.params)
                 max_feat = max(max_feat, trial.shape[-1])
             self._per_robot_feat_dims[id(term_cfg)] = max_feat
             return (self._env.num_envs, max_feat)

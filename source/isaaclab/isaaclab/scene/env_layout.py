@@ -7,43 +7,82 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
-from typing import NamedTuple
+from collections.abc import Sequence
+from typing import Any
 
 import torch
 
 
-@dataclass
-class _RobotMetaEntry:
-    """Mutable accumulator for per-robot metadata.
+class RobotInfo:
+    """Per-robot metadata accumulator and public descriptor.
 
-    Populated incrementally by :class:`ActionManager` (``ee_body``,
-    ``joint_patterns``, ``num_joints``) and :class:`CommandManager`
-    (``command_name``) during ``_prepare_terms``.
+    Populated incrementally by :class:`ActionManager` and :class:`CommandManager` during ``_prepare_terms`` via
+    :meth:`EnvLayout.register_robot_meta`.  Each ``ActionTerm`` / ``CommandTerm`` contributes its own slice of
+    metadata through :meth:`~isaaclab.managers.ManagerTermBase.robot_metadata`.
+
+    Well-known keys (used by the auto-injection in :meth:`ManagerBase._build_per_robot_mdp_term_caches`):
+
+    * ``ee_body`` — end-effector body name (from task-space actions).
+    * ``joint_patterns`` — arm joint regex patterns (from actions).
+    * ``command_name`` — command-manager term name.
+
+    Additional keys (e.g. ``num_joints``, ``gripper_joint_patterns``, ``body_offset``) can be registered
+    freely and are auto-injected into MDP term functions whose signatures declare matching parameter names.
     """
 
-    ee_body: str | None = None
-    joint_patterns: list[str] = field(default_factory=list)
-    num_joints: int | None = None
-    command_name: str | None = None
+    __slots__ = ("asset_name", "_meta", "_resolved_cfg")
 
+    def __init__(self, asset_name: str):
+        self.asset_name: str = asset_name
+        self._meta: dict[str, Any] = {}
+        self._resolved_cfg: Any = None
 
-class RobotSpec(NamedTuple):
-    """Per-robot metadata auto-generated from action and command manager configs.
+    # ── accumulation ──────────────────────────────────────────────
 
-    Instances are produced by :attr:`EnvLayout.robot_specs` and consumed by
-    multi-robot observation, reward, and event functions.
-    """
+    def update(self, **kwargs: Any) -> None:
+        """Merge keyword metadata into this robot's store, invalidating cached cfg."""
+        for k, v in kwargs.items():
+            if v is not None:
+                self._meta[k] = v
+        self._resolved_cfg = None
 
-    asset_name: str
-    """Scene-level asset name (e.g. ``"franka_robot"``)."""
-    ee_body: str
-    """End-effector body name (e.g. ``"panda_hand"``)."""
-    command_name: str
-    """Command-manager term name (e.g. ``"franka_ee_pose"``)."""
-    joint_patterns: list[str]
-    """Joint name regex patterns (e.g. ``["panda_joint.*"]``)."""
+    # ── read access ───────────────────────────────────────────────
+
+    @property
+    def ee_body(self) -> str | None:
+        return self._meta.get("ee_body")
+
+    @property
+    def command_name(self) -> str | None:
+        return self._meta.get("command_name")
+
+    @property
+    def joint_patterns(self) -> list[str]:
+        return self._meta.get("joint_patterns", [])
+
+    @property
+    def meta(self) -> dict[str, Any]:
+        """Read-only view of all stored metadata."""
+        return self._meta
+
+    def resolved_cfg(self, scene: Any) -> Any:
+        """Return a cached, resolved :class:`SceneEntityCfg` for this robot.
+
+        The cfg is built from ``asset_name``, ``ee_body``, and ``joint_patterns`` and resolved against *scene*.
+        Subsequent calls with the same scene return the cached instance.
+        """
+        if self._resolved_cfg is not None:
+            return self._resolved_cfg
+        from isaaclab.managers import SceneEntityCfg
+
+        body_names = [self.ee_body] if self.ee_body else []
+        cfg = SceneEntityCfg(name=self.asset_name, body_names=body_names, joint_names=self.joint_patterns)
+        cfg.resolve(scene)
+        self._resolved_cfg = cfg
+        return self._resolved_cfg
+
+    def __repr__(self) -> str:
+        return f"RobotInfo({self.asset_name!r}, {self._meta})"
 
 
 class EnvLayout:
@@ -81,13 +120,12 @@ class EnvLayout:
     def __init__(self, num_envs: int, device: str = "cuda:0"):
         self._num_envs = num_envs
         self._device = device
-        # name → canonical id tuple
-        self._groups: dict[str, tuple[int, ...]] = {}
-        # canonical id tuple → cached tensors (shared when ids are identical)
-        self._lookups: dict[tuple[int, ...], torch.Tensor] = {}
-        self._slices: dict[tuple[int, ...], slice | torch.Tensor] = {}
-        self._masks: dict[tuple[int, ...], torch.Tensor] = {}
-        self._id_tensors: dict[tuple[int, ...], torch.Tensor] = {}
+        # group name → env-id tuple
+        self._env_ids: dict[str, tuple[int, ...]] = {}
+        # group name → cached long tensor of env IDs (lazily populated)
+        self._env_id_tensors: dict[str | None, torch.Tensor] = {}
+        # group name → cached global-to-local lookup table (lazily populated)
+        self._lookups: dict[str, torch.Tensor] = {}
         # task-group partition (populated by apply_task_groups)
         self._task_group_partition: dict[str, list[int]] | None = None
         # entity → group key mappings (centralized registry)
@@ -95,10 +133,8 @@ class EnvLayout:
         self._term_groups: dict[str, str] = {}
         # cached default ids for unregistered / None keys
         self._all_env_ids: tuple[int, ...] = tuple(range(num_envs))
-        # per-task group robot metadata (populated by action/command managers)
-        self._robot_meta: dict[str, _RobotMetaEntry] = {}
-        self._max_arm_dof: int | None = None
-        self._robot_specs_cache: list[RobotSpec] | None = None
+        # per-task robot metadata (populated by action/command managers)
+        self._robots: dict[str, RobotInfo] = {}
 
     # ── properties ────────────────────────────────────────────────────────
 
@@ -108,31 +144,20 @@ class EnvLayout:
         return self._num_envs
 
     @property
-    def device(self) -> str:
-        """Compute device."""
-        return self._device
-
-    @property
     def is_heterogeneous(self) -> bool:
         """Whether any partial group has been registered."""
-        return len(self._groups) > 0
+        return len(self._env_ids) > 0
 
     @property
     def group_names(self) -> list[str]:
         """Names of all registered groups."""
-        return list(self._groups.keys())
-
-    @property
-    def task_group_partition(self) -> dict[str, list[int]] | None:
-        """The task-group partition, or ``None`` if not configured."""
-        return self._task_group_partition
+        return list(self._env_ids.keys())
 
     def apply_task_groups(self, task_groups: dict[str, int] | int) -> None:
         """Partition environments by task groups and register each group.
 
         Calls :func:`partition_env_ids` internally and registers every
-        resulting group.  The partition is stored and accessible via
-        :attr:`task_group_partition`.
+        resulting group.
 
         Args:
             task_groups: Either an ``int`` for equal-sized anonymous groups,
@@ -206,7 +231,7 @@ class EnvLayout:
         return self._term_groups.get(term_id)
 
     def resolve_group_key(self, *, task_group: str | None = None, asset_name: str | None = None) -> str | None:
-        """Resolve a group key from configuration parameters.
+        """Resolve a group key from configuration parameters for 'command' terms.
 
         Priority: *task_group* (if it names a registered group) >
         *asset_name* (via :meth:`group_for_asset`).
@@ -218,7 +243,7 @@ class EnvLayout:
         Returns:
             The resolved group key, or ``None`` when homogeneous.
         """
-        if task_group is not None and task_group in self._groups:
+        if task_group is not None and task_group in self._env_ids:
             return task_group
         if asset_name is not None:
             return self._asset_groups.get(asset_name)
@@ -226,124 +251,47 @@ class EnvLayout:
 
     # ── robot metadata registry ───────────────────────────────────────
 
-    def register_robot_meta(
-        self,
-        asset_name: str,
-        *,
-        ee_body: str | None = None,
-        joint_patterns: list[str] | None = None,
-        num_joints: int | None = None,
-        command_name: str | None = None,
-    ) -> None:
+    def register_robot_meta(self, asset_name: str, **kwargs: Any) -> None:
         """Register per-robot metadata for a grouped asset.
 
-        Called by :class:`ActionManager` and :class:`CommandManager` during
-        ``_prepare_terms``.  Fields are merged by *asset_name* so that action
-        and command managers can each contribute their part independently.
+        Called by :class:`ActionManager` and :class:`CommandManager` during ``_prepare_terms``.  Fields are merged
+        by *asset_name* so that action and command managers can each contribute their part independently.
+
+        Any keyword arguments are accepted; use well-known keys such as ``ee_body``, ``joint_patterns``,
+        ``num_joints``, and ``command_name`` for auto-injection by the per-robot dispatch mechanism.
 
         Args:
             asset_name: Scene-level name of the asset.
-            ee_body: End-effector body name (from task-space action configs such as DiffIK).
-            joint_patterns: Joint name regex patterns (from action configs).
-            num_joints: Resolved joint count for this robot's arm (pushed by :class:`ActionManager`).
-            command_name: Manager-level command term name.
+            **kwargs: Metadata key-value pairs to merge into this robot's :class:`RobotInfo`.
         """
-        if asset_name not in self._robot_meta:
-            self._robot_meta[asset_name] = _RobotMetaEntry()
-        meta = self._robot_meta[asset_name]
-        if ee_body is not None:
-            meta.ee_body = ee_body
-        if joint_patterns is not None:
-            meta.joint_patterns = joint_patterns
-        if num_joints is not None:
-            meta.num_joints = num_joints
-        if command_name is not None:
-            meta.command_name = command_name
-        self._max_arm_dof = None
-        self._robot_specs_cache = None
+        if asset_name not in self._robots:
+            self._robots[asset_name] = RobotInfo(asset_name)
+        self._robots[asset_name].update(**kwargs)
 
     @property
-    def robot_specs(self) -> list[RobotSpec]:
-        """Auto-generated robot specifications for grouped assets.
-
-        Only assets with *both* action metadata (``ee_body``) and command
-        metadata (``command_name``) are included.  The result is cached
-        after the first call.
+    def robot_infos(self) -> list[RobotInfo]:
+        """Registered :class:`RobotInfo` instances for grouped assets.
 
         Returns:
-            :class:`RobotSpec` instances for all fully-registered grouped robots,
-            ordered by asset registration.
+            :class:`RobotInfo` instances ordered by registration time.
         """
-        if self._robot_specs_cache is not None:
-            return self._robot_specs_cache
-        specs: list[RobotSpec] = []
-        for asset_name, meta in self._robot_meta.items():
-            if meta.ee_body is not None and meta.command_name is not None and len(meta.joint_patterns) > 0:
-                specs.append(RobotSpec(asset_name, meta.ee_body, meta.command_name, meta.joint_patterns))
-        self._robot_specs_cache = specs
-        return specs
-
-    @property
-    def max_arm_dof(self) -> int:
-        """Maximum joint count across all registered robots.
-
-        Returns 0 when no robots have ``num_joints`` registered.
-        """
-        if self._max_arm_dof is not None:
-            return self._max_arm_dof
-        self._max_arm_dof = max(
-            (meta.num_joints for meta in self._robot_meta.values() if meta.num_joints is not None),
-            default=0,
-        )
-        return self._max_arm_dof
+        return list(self._robots.values())
 
     # ── scatter helpers ────────────────────────────────────────────────────
 
-    def scatter_per_robot(
-        self,
-        feat_dim: int,
-        compute_fn: Callable[[RobotSpec], torch.Tensor],
-    ) -> torch.Tensor:
-        """Scatter per-robot features into a global ``(num_envs, feat_dim)`` tensor.
+    def multi_task_onehot(self) -> torch.Tensor:
+        """One-hot encoding of task group for every environment.
 
-        Iterates over :attr:`robot_specs`, resolves each robot's group env IDs,
-        calls *compute_fn* for that robot, and writes the result into the
-        corresponding rows of the output tensor.
-
-        Args:
-            feat_dim: Feature width of the output.
-            compute_fn: ``(spec) -> Tensor`` of shape ``(group_envs, feat_dim)``.
-                The caller typically captures ``env`` via closure.
+        Column *i* is 1.0 for all envs assigned to the *i*-th task group.
 
         Returns:
-            Shape ``(num_envs, feat_dim)``.
+            Shape ``(num_envs, num_task_groups)``.
         """
-        out = torch.zeros(self._num_envs, feat_dim, device=self._device)
-        for spec in self.robot_specs:
-            gids = self.asset_env_ids_t(spec[0])
-            if gids is None:
-                continue
-            out[gids] = compute_fn(spec)
-        return out
-
-    def scatter_per_robot_1d(
-        self,
-        compute_fn: Callable[[RobotSpec], torch.Tensor],
-    ) -> torch.Tensor:
-        """Like :meth:`scatter_per_robot` but for scalar-per-env outputs.
-
-        Args:
-            compute_fn: ``(spec) -> Tensor`` of shape ``(group_envs,)``.
-
-        Returns:
-            Shape ``(num_envs,)``.
-        """
-        out = torch.zeros(self._num_envs, device=self._device)
-        for spec in self.robot_specs:
-            gids = self.asset_env_ids_t(spec[0])
-            if gids is None:
-                continue
-            out[gids] = compute_fn(spec)
+        n_tasks = len(self._env_ids)
+        out = torch.zeros(self._num_envs, n_tasks, device=self._device)
+        for i, group in enumerate(self._env_ids):
+            env_ids = self.env_ids(group)
+            out[env_ids, i] = 1.0
         return out
 
     # ── registration ──────────────────────────────────────────────────────
@@ -370,19 +318,19 @@ class EnvLayout:
             raise ValueError(f"env_ids for '{key}' out of range [0, {self._num_envs}): got {ids}")
         if len(ids) != len(set(ids)):
             raise ValueError(f"env_ids for '{key}' contain duplicates: {ids}")
-        self._groups[key] = ids
+        self._env_ids[key] = ids
 
     # ── simple queries ────────────────────────────────────────────────────
 
     def num_envs_for(self, key: str | None) -> int:
         """Number of environments in a group (all envs if *key* is ``None`` or unregistered)."""
-        return len(self._groups[key]) if key in self._groups else self._num_envs
+        return len(self._env_ids[key]) if key in self._env_ids else self._num_envs
 
     def env_ids(self, key: str | None) -> tuple[int, ...]:
         """Global env indices for a group (all envs if *key* is ``None`` or unregistered)."""
         if key is None:
             return self._all_env_ids
-        return self._groups.get(key, self._all_env_ids)
+        return self._env_ids.get(key, self._all_env_ids)
 
     def env_ids_t(self, key: str | None) -> torch.Tensor:
         """Like :meth:`env_ids` but returns a cached ``torch.long`` tensor.
@@ -390,10 +338,9 @@ class EnvLayout:
         Suitable for direct tensor row-indexing (avoids the tuple → multi-dim
         indexing pitfall).
         """
-        ids = self.env_ids(key)
-        if ids not in self._id_tensors:
-            self._id_tensors[ids] = torch.tensor(ids, device=self._device, dtype=torch.long)
-        return self._id_tensors[ids]
+        if key not in self._env_id_tensors:
+            self._env_id_tensors[key] = torch.tensor(self.env_ids(key), device=self._device, dtype=torch.long)
+        return self._env_id_tensors[key]
 
     def asset_env_ids_t(self, asset_name: str) -> torch.Tensor | None:
         """Cached long tensor of global env IDs for an asset's group, or ``None``."""
@@ -406,26 +353,12 @@ class EnvLayout:
         """Fast indexer: ``slice(None)`` if *key* is ``None`` or full,
         ``slice(a, b)`` if contiguous, else a long tensor.
         """
-        if key not in self._groups:
+        if key not in self._env_ids:
             return slice(None)
-        ids = self._groups[key]
-        if ids not in self._slices:
-            self._slices[ids] = _build_slice(ids, self._device)
-        return self._slices[ids]
-
-    def mask(self, key: str | None) -> torch.Tensor:
-        """Boolean mask of shape ``(num_envs,)`` — ``True`` for envs in the
-        named group.  Returns an all-``True`` mask for unregistered keys.
-        """
-        if key not in self._groups:
-            ids: tuple[int, ...] = self._all_env_ids
-        else:
-            ids = self._groups[key]
-        if ids not in self._masks:
-            m = torch.zeros(self._num_envs, dtype=torch.bool, device=self._device)
-            m[list(ids)] = True
-            self._masks[ids] = m
-        return self._masks[ids]
+        ids = self._env_ids[key]
+        if len(ids) > 0 and ids == tuple(range(ids[0], ids[0] + len(ids))):
+            return slice(ids[0], ids[0] + len(ids))
+        return self.env_ids_t(key)
 
     # ── env-id mapping ────────────────────────────────────────────────────
 
@@ -442,9 +375,9 @@ class EnvLayout:
         Returns:
             1-D long tensor of local indices.
         """
-        if key not in self._groups:
+        if key not in self._env_ids:
             return global_ids
-        lut = self._get_lookup(self._groups[key])
+        lut = self._get_lookup(key)
         max_id = lut.shape[0] - 1
         clamped = global_ids.clamp(max=max_id)
         valid = (global_ids <= max_id) & (lut[clamped] >= 0)
@@ -462,7 +395,7 @@ class EnvLayout:
         Returns:
             1-D long tensor of global indices.
         """
-        if key not in self._groups:
+        if key not in self._env_ids:
             return local_ids
         id_t = self.env_ids_t(key)
         return id_t[local_ids]
@@ -483,9 +416,9 @@ class EnvLayout:
         Returns:
             Tuple of (local_ids, matching_global_ids).
         """
-        if key not in self._groups:
+        if key not in self._env_ids:
             return global_ids, global_ids
-        lut = self._get_lookup(self._groups[key])
+        lut = self._get_lookup(key)
         max_id = lut.shape[0] - 1
         clamped = global_ids.clamp(max=max_id)
         valid = (global_ids <= max_id) & (lut[clamped] >= 0)
@@ -504,26 +437,12 @@ class EnvLayout:
         Returns:
             Tensor of shape ``(num_envs, ...)``.
         """
-        if key not in self._groups:
+        if key not in self._env_ids:
             return local_data
         shape = (self._num_envs, *local_data.shape[1:])
         out = local_data.new_full(shape, fill)
         out[self.env_slice(key)] = local_data
         return out
-
-    def gather(self, key: str | None, full_data: torch.Tensor) -> torch.Tensor:
-        """Gather entries from a full-env tensor for a specific group.
-
-        Args:
-            key: Group name.
-            full_data: Tensor of shape ``(num_envs, ...)``.
-
-        Returns:
-            Tensor of shape ``(num_local_envs, ...)``.
-        """
-        if key not in self._groups:
-            return full_data
-        return full_data[self.env_slice(key)]
 
     def cross_slice(self, term_key: str | None, asset_key: str | None) -> slice | torch.Tensor:
         """Return indices to align asset data with a term's local buffers.
@@ -542,9 +461,9 @@ class EnvLayout:
         Returns:
             ``slice(None)`` or a long tensor suitable for indexing.
         """
-        if term_key not in self._groups:
+        if term_key not in self._env_ids:
             return slice(None)
-        if asset_key not in self._groups:
+        if asset_key not in self._env_ids:
             return self.env_slice(term_key)
         return slice(None)
 
@@ -570,7 +489,7 @@ class EnvLayout:
             Local env indices, ``slice(None)``/``None`` (pass-through),
             or ``None`` if no environments belong to this group.
         """
-        if key is None or key not in self._groups:
+        if key is None or key not in self._env_ids:
             return env_ids
         if env_ids is None or isinstance(env_ids, slice):
             return env_ids
@@ -598,91 +517,24 @@ class EnvLayout:
         """
         return self.env_slice(self._term_groups.get(term_id))
 
-    def term_num_envs(self, term_id: str) -> int:
-        """Return the number of environments managed by a registered term."""
-        return self.num_envs_for(self._term_groups.get(term_id))
-
-    def term_cross_slice(self, term_id: str, asset_name: str) -> slice | torch.Tensor:
-        """Return a cross-slice aligning asset data with a term's buffers."""
-        term_key = self._term_groups.get(term_id)
-        asset_key = self._asset_groups.get(asset_name)
-        return self.cross_slice(term_key, asset_key)
-
-    # ── metrics ───────────────────────────────────────────────────────────
-
-    def per_group_mean(self, values: torch.Tensor) -> dict[str, float]:
-        """Compute per-group mean of a ``(num_envs,)`` tensor.
-
-        Args:
-            values: Per-environment values.
-
-        Returns:
-            Dict mapping group name to the mean value within that group.
-        """
-        result: dict[str, float] = {}
-        for name in self._groups:
-            result[name] = self.gather(name, values).mean().item()
-        return result
-
-    # ── validation helpers ────────────────────────────────────────────────
-
-    def validate_no_overlap(self, keys: Sequence[str]) -> None:
-        """Assert that listed groups have disjoint env indices.
-
-        Args:
-            keys: Group names to check.
-
-        Raises:
-            ValueError: If any two groups share env indices.
-        """
-        seen: set[int] = set()
-        for k in keys:
-            ids = set(self._groups.get(k, ()))
-            overlap = seen & ids
-            if overlap:
-                raise ValueError(f"Overlapping env_ids {overlap} among groups {list(keys)}")
-            seen |= ids
-
-    def validate_full_coverage(self, keys: Sequence[str]) -> None:
-        """Assert that the union of listed groups covers all environments.
-
-        Args:
-            keys: Group names whose union should equal ``range(num_envs)``.
-
-        Raises:
-            ValueError: If some env indices are not covered.
-        """
-        covered: set[int] = set()
-        for k in keys:
-            covered |= set(self._groups.get(k, ()))
-        missing = set(range(self._num_envs)) - covered
-        if missing:
-            raise ValueError(f"Env indices {sorted(missing)} not covered by groups {list(keys)}")
-
     # ── internals ─────────────────────────────────────────────────────────
 
-    def _get_lookup(self, ids: tuple[int, ...]) -> torch.Tensor:
-        """Return a cached global→local lookup table for a canonical id set."""
-        if ids not in self._lookups:
+    def _get_lookup(self, key: str) -> torch.Tensor:
+        """Return a cached global-to-local lookup table for a registered group."""
+        if key not in self._lookups:
+            ids = self._env_ids[key]
             t = torch.tensor(ids, device=self._device, dtype=torch.long)
             lut = torch.full((int(t.max().item()) + 1,), -1, dtype=torch.long, device=self._device)
             lut[t] = torch.arange(len(t), device=self._device)
-            self._lookups[ids] = lut
-        return self._lookups[ids]
+            self._lookups[key] = lut
+        return self._lookups[key]
 
     def __repr__(self) -> str:
-        groups_info = ", ".join(f"{k}({len(v)} envs)" for k, v in self._groups.items())
+        groups_info = ", ".join(f"{k}({len(v)} envs)" for k, v in self._env_ids.items())
         return f"EnvLayout(num_envs={self._num_envs}, groups=[{groups_info or 'homogeneous'}])"
 
 
 # ── utility functions ─────────────────────────────────────────────────────
-
-
-def _build_slice(ids: tuple[int, ...], device: str) -> slice | torch.Tensor:
-    """Build the most efficient indexer for the given id set."""
-    if len(ids) > 0 and ids == tuple(range(ids[0], ids[0] + len(ids))):
-        return slice(ids[0], ids[0] + len(ids))
-    return torch.tensor(ids, dtype=torch.long, device=device)
 
 
 def partition_env_ids(

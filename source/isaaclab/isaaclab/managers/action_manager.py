@@ -485,18 +485,9 @@ class ActionManager(ManagerBase):
             group_key = layout.group_for_asset(term_cfg.asset_name)
             if group_key is not None:
                 layout.register_term(term_name, group_key)
-                ee_body = getattr(term_cfg, "body_name", None)
-                joint_names = getattr(term_cfg, "joint_names", None)
-                if ee_body is not None or joint_names is not None:
-                    meta_kwargs: dict[str, Any] = {}
-                    if ee_body is not None:
-                        meta_kwargs["ee_body"] = ee_body
-                    if joint_names is not None:
-                        art = self._env.scene[term_cfg.asset_name]
-                        jids, _ = art.find_joints(joint_names)
-                        meta_kwargs["joint_patterns"] = joint_names
-                        meta_kwargs["num_joints"] = len(jids)
-                    layout.register_robot_meta(term_cfg.asset_name, **meta_kwargs)
+                meta = term.robot_metadata()
+                if meta:
+                    layout.register_robot_meta(term_cfg.asset_name, **meta)
             # add term name and parameters
             self._term_names.append(term_name)
             self._terms[term_name] = term

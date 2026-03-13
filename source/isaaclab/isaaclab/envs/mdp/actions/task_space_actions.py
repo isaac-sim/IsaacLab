@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -124,6 +124,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+
+    def robot_metadata(self) -> dict[str, Any]:
+        return {
+            "ee_body": self.cfg.body_name,
+            "joint_patterns": self.cfg.joint_names,
+            "num_joints": self._num_joints,
+            "body_offset": getattr(self.cfg, "body_offset", None),
+        }
 
     """
     Properties.
@@ -413,6 +421,14 @@ class OperationalSpaceControllerAction(ActionTerm):
         # Nullspace position control joint targets
         self._nullspace_joint_pos_target = None
         self._resolve_nullspace_joint_pos_targets()
+
+    def robot_metadata(self) -> dict[str, Any]:
+        return {
+            "ee_body": self.cfg.body_name,
+            "joint_patterns": self.cfg.joint_names,
+            "num_joints": self._num_joints,
+            "body_offset": getattr(self.cfg, "body_offset", None),
+        }
 
     """
     Properties.
