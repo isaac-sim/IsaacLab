@@ -519,10 +519,11 @@ when starting the runtime so there is no interactive prompt.
         --task Isaac-PickPlace-GR1T2-Abs-v0 \
         --num_demos 5 \
         --dataset_file ./datasets/dataset.hdf5 \
-        --xr --visualizer kit
+        --xr
 
 Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
 
+For a fully headless experience, add ``--headless`` after ``--xr`` when running docker and XR session will run automatically.
 
 .. admonition:: Next Steps
 
