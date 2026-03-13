@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+import getpass
+import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -44,10 +47,10 @@ class ContainerInterface:
                 which case a new configuration object is created by reading the configuration file at the path
                 ``context_dir/.container.cfg``.
             suffix:
-                Optional docker image and container name suffix.  Defaults to None, in which case, the docker name
-                suffix is set to the empty string. A hyphen is inserted in between the profile and the suffix if
-                the suffix is a nonempty string.  For example, if "base" is passed to profile, and "custom" is
-                passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``.
+                Optional docker image/container name suffix.
+                If omitted (``None``), a username-based suffix is used to avoid collisions in multi-user setups.
+                If explicitly set to an empty string, legacy no-suffix behavior is preserved.
+                For non-empty values, a hyphen is inserted before the suffix.
         """
         # set the context directory
         self.context_dir = context_dir
@@ -66,12 +69,22 @@ class ContainerInterface:
             # but not a real profile
             self.profile = "base"
 
-        # set the docker image and container name suffix
-        if suffix is None or suffix == "":
-            # if no name suffix is given, default to the empty string as the name suffix
+        if suffix == "":
+            # explicit empty string -> preserve legacy behavior (no suffix)
             self.suffix = ""
+        elif suffix is None:
+            # no suffix provided -> default to current user to avoid name collisions in multi-user environments
+            try:
+                user = getpass.getuser()
+            except Exception:
+                user = ""
+            # sanitize username to be safe for docker names (replace problematic chars)
+            safe_user = "".join(c if c.isalnum() or c in ["-", "_"] else "_" for c in user)
+            if not safe_user:
+                safe_user = "user"
+            self.suffix = f"-{safe_user}"
         else:
-            # insert a hyphen before the suffix if a suffix is given
+            # insert a hyphen before the provided suffix
             self.suffix = f"-{suffix}"
 
         # set names for easier reference
@@ -84,6 +97,9 @@ class ContainerInterface:
         # except make sure that the docker name suffix is set from the script
         self.environ = os.environ.copy()
         self.environ["DOCKER_NAME_SUFFIX"] = self.suffix
+
+        project_name = re.sub(r"-+", "-", f"isaac-lab{self.suffix}").rstrip("-")
+        self.environ["COMPOSE_PROJECT_NAME"] = project_name
 
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
@@ -166,6 +182,23 @@ class ContainerInterface:
 
     def start(self):
         """Build and start the Docker container using the Docker compose command."""
+        # detect potential conflicting containers from other users/projects
+        conflicts = self._detect_conflicting_containers()
+        if conflicts:
+            print("[ERROR] Found existing containers that may conflict with this start:")
+            for c in conflicts:
+                print(f"  - {c}")
+            print(
+                "\nTo avoid unintentionally recreating others' containers, choose one of the following:\n"
+                "  * Start with an explicit --suffix (e.g. --suffix yourname) to create an isolated container.\n"
+                "  * Start with `--suffix ''` to intentionally use the shared legacy container (not recommended).\n"
+                "  * If you are sure, set the environment variable ISAACLAB_FORCE_START=1 to override and proceed.\n"
+            )
+            # allow forced start via environment variable
+            if os.environ.get("ISAACLAB_FORCE_START") == "1":
+                print("[WARN] ISAACLAB_FORCE_START=1 set — proceeding despite conflicts.")
+            else:
+                raise RuntimeError("Aborting start due to potential container conflicts.")
         print(
             f"[INFO] Building the docker image and starting the container '{self.container_name}' in the"
             " background...\n"
@@ -292,6 +325,67 @@ class ContainerInterface:
         # run the docker compose config command to generate the configuration
         cmd = ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["config"] + output
         subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+
+    def _detect_conflicting_containers(self) -> list[str]:
+        """Detect existing containers in the same compose project namespace."""
+        project_name = self.environ.get("COMPOSE_PROJECT_NAME", "isaac-lab")
+
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "ps",
+                    "-a",
+                    "--filter",
+                    f"label=com.docker.compose.project={project_name}",
+                    "--format",
+                    "{{.Names}}",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception:
+            result = None
+
+        if result is not None and result.returncode == 0:
+            names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
+            return [n for n in names if n != self.container_name]
+
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-a", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception:
+            return []
+        if result.returncode != 0:
+            return []
+        names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
+        conflicts: list[str] = []
+
+        for n in names:
+            if n == self.container_name:
+                continue
+
+            try:
+                out = subprocess.run(
+                    ["docker", "inspect", "--format", "{{json .Config.Labels}}", n],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                ).stdout
+                labels = json.loads(out) if out else {}
+            except Exception:
+                labels = {}
+
+            comp_proj = labels.get("com.docker.compose.project")
+            if comp_proj == project_name:
+                conflicts.append(n)
+
+        return conflicts
 
     """
     Helper functions.

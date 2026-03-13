@@ -33,7 +33,7 @@ We recommend using these versions or newer.
 
 .. note::
 
-    Due to limitations with `snap <https://snapcraft.io/docs/home-outside-home>`_, please make sure
+Due to limitations with snap_, please make sure
     the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
 
 
@@ -238,21 +238,40 @@ Only one image extension can be passed at a time.  The produced image and contai
 ``isaac-lab-${profile}``, where ``${profile}`` is the image extension name.
 
 ``suffix`` is an optional string argument to ``container.py`` that specifies a docker image and
-container name suffix, which can be useful for development purposes. By default ``${suffix}`` is the empty string.
-If ``${suffix}`` is a nonempty string, then the produced docker image and container will be named
-``isaac-lab-${profile}-${suffix}``, where a hyphen is inserted between ``${profile}`` and ``${suffix}`` in
-the name. ``suffix`` should not be used with cluster deployments.
+container name suffix, which is useful for local development in multi-user environments:
+
+* If ``--suffix`` is omitted, Isaac Lab uses a per-user suffix derived from the current username.
+  This creates names such as ``isaac-lab-base-<username>`` and isolates Docker Compose projects by user.
+* Passing ``--suffix`` without a value is not supported. Omit the flag to use the default behavior.
+* If ``--suffix ''`` is passed explicitly, Isaac Lab preserves the legacy no-suffix behavior
+  (for example, ``isaac-lab-base``).
+* If ``--suffix <value>`` is provided, Isaac Lab inserts a hyphen and uses
+  ``isaac-lab-${profile}-${suffix}``.
+
+.. note::
+
+   This is a breaking change from earlier releases where omitting ``--suffix`` produced containers named
+   ``isaac-lab-${profile}``. If you have existing legacy containers created without a suffix, explicitly
+   pass ``--suffix ''`` to target them when running ``stop``/``enter``/``copy``.
+
+``suffix`` should not be used with cluster deployments.
 
 .. code:: bash
 
-    # start base by default, named isaac-lab-base
+    # start base with the default user-derived suffix (for example, isaac-lab-base-gplong)
     ./docker/container.py start
-    # stop base explicitly, named isaac-lab-base
+    # stop base with the same default user-derived suffix
     ./docker/container.py stop base
+
+    # explicitly preserve legacy behavior (no suffix), named isaac-lab-base
+    ./docker/container.py start base --suffix ''
+    # stop base explicitly, named isaac-lab-base
+    ./docker/container.py stop base --suffix ''
+
     # start ros2 container named isaac-lab-ros2
-    ./docker/container.py start ros2
+    ./docker/container.py start ros2 --suffix ''
     # stop ros2 container named isaac-lab-ros2
-    ./docker/container.py stop ros2
+    ./docker/container.py stop ros2 --suffix ''
 
     # start base container named isaac-lab-base-custom
     ./docker/container.py start base --suffix custom
@@ -262,6 +281,16 @@ the name. ``suffix`` should not be used with cluster deployments.
     ./docker/container.py start ros2 --suffix custom
     # stop ros2 container named isaac-lab-ros2-custom
     ./docker/container.py stop ros2 --suffix custom
+
+When starting a container, Isaac Lab checks whether another container from the same Docker Compose
+project is already running. This prevents accidental recreation of containers owned by another user
+or another shell session.
+
+If you intentionally want to proceed despite a detected conflict, set ``ISAACLAB_FORCE_START=1``:
+
+.. code:: bash
+
+    ISAACLAB_FORCE_START=1 ./docker/container.py start
 
 The passed image extension argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
@@ -367,3 +396,4 @@ To run an example within the container, run:
 .. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages
 .. _`various middleware`: https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html
 .. _`tuned`: https://docs.ros.org/en/foxy/How-To-Guides/DDS-tuning.html
+.. _snap: https://snapcraft.io/docs/home-outside-home

@@ -48,13 +48,16 @@ def parse_cli_args() -> argparse.Namespace:
     )
     parent_parser.add_argument(
         "--suffix",
-        nargs="?",
+        type=str,
         default=None,
         help=(
-            "Optional docker image and container name suffix.  Defaults to None, in which case, the docker name"
-            " suffix is set to the empty string. A hyphen is inserted in between the profile and the suffix if"
-            ' the suffix is a nonempty string.  For example, if "base" is passed to profile, and "custom" is'
-            " passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``."
+            "Optional docker image and container name suffix. If omitted (default), a per-user suffix"
+            " derived from the current username is used to avoid name collisions in multi-user environments."
+            " If you explicitly pass an empty string (``--suffix ''``), the old behavior (no suffix) is preserved."
+            " Passing ``--suffix`` without a value is not supported; omit ``--suffix`` to use the default behavior."
+            " A hyphen is inserted between the profile and the suffix when a nonempty suffix is used."
+            " For example, with profile 'base' and suffix 'custom' the container will be named"
+            " ``isaac-lab-base-custom``."
         ),
     )
     parent_parser.add_argument(
