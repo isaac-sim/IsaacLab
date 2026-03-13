@@ -456,7 +456,7 @@ class OperationalSpaceControllerAction(ActionTerm):
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
 
-        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        This descriptor is used to describe the action term of the operational space controller.
         It adds the following information to the base descriptor:
         - body_name: The name of the body.
         - joint_names: The names of the joints.
@@ -465,6 +465,9 @@ class OperationalSpaceControllerAction(ActionTerm):
         - wrench_scale: The scale of the wrench.
         - stiffness_scale: The scale of the stiffness.
         - damping_ratio_scale: The scale of the damping ratio.
+        - position_clip: The clip of the position command.
+        - orientation_clip: The clip of the orientation command.
+        - wrench_clip: The clip of the wrench command.
         - nullspace_joint_pos_target: The nullspace joint pos target.
         - clip: The clip of the action term.
         - controller_cfg: The configuration of the controller.
@@ -484,11 +487,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._IO_descriptor.wrench_scale = self.cfg.wrench_scale
         self._IO_descriptor.stiffness_scale = self.cfg.stiffness_scale
         self._IO_descriptor.damping_ratio_scale = self.cfg.damping_ratio_scale
+        self._IO_descriptor.position_clip = self.cfg.position_clip
+        self._IO_descriptor.orientation_clip = self.cfg.orientation_clip
+        self._IO_descriptor.wrench_clip = self.cfg.wrench_clip
         self._IO_descriptor.nullspace_joint_pos_target = self.cfg.nullspace_joint_pos_target
-        if self.cfg.clip is not None:
-            self._IO_descriptor.clip = self.cfg.clip
-        else:
-            self._IO_descriptor.clip = None
         self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller_cfg.__dict__
         self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
         return self._IO_descriptor
