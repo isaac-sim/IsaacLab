@@ -6,6 +6,7 @@
 """Script to train RL agent with RL-Games."""
 
 import argparse
+import contextlib
 import logging
 import math
 import os
@@ -33,6 +34,8 @@ from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_t
 logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
