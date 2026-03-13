@@ -56,7 +56,7 @@ parser.add_argument(
     const="perspective",
     default=None,
     metavar="MODE",
-    help="Enable video recording. MODE is 'perspective' (default) or 'tiled'.",
+    help="Enable video recording. MODE is 'perspective' (default) or 'tiled'. Note: mode selection is not yet supported for rlinf; any non-None value enables recording.",
 )
 cli_args.add_rlinf_args(parser)
 args_cli = parser.parse_args()
