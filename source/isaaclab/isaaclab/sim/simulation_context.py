@@ -462,7 +462,12 @@ class SimulationContext:
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
-        """Resolve final visualizer configs from cfg and optional CLI override."""
+        """Resolve final visualizer configs from cfg and optional CLI override.
+
+        When visualizers are explicitly requested via ``--visualizer`` CLI flag,
+        a :class:`RuntimeError` is raised if any requested type cannot be
+        resolved (unknown type or missing package).
+        """
         visualizer_cfgs: list[Any] = []
         if self.cfg.visualizer_cfgs is not None:
             visualizer_cfgs = (
@@ -491,6 +496,21 @@ class SimulationContext:
                     resolved.extend(self._create_default_visualizer_configs([viz_type]))
                     existing_types.add(viz_type)
             self._apply_visualizer_cli_overrides(resolved)
+
+        # When visualizers were explicitly requested via CLI, verify all
+        # requested types were resolved.  This catches unknown types and
+        # missing packages that _create_default_visualizer_configs silently
+        # skips.
+        if cli_explicit and cli_requested:
+            resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            missing = [t for t in cli_requested if t not in resolved_types]
+            if missing:
+                raise RuntimeError(
+                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
+                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
+                    "Ensure the required package is installed "
+                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                )
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
         # Kit visualizer is already present.  The KitVisualizer pumps
@@ -525,26 +545,10 @@ class SimulationContext:
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
         visualizer_cfgs = self._resolve_visualizer_cfgs()
-
-        cli_explicit = self._is_cli_visualizer_explicit()
-
-        # When visualizers were explicitly requested via CLI, verify all requested
-        # types were resolved to configs.  This catches unknown types and missing
-        # packages that _create_default_visualizer_configs silently skips.
-        if cli_explicit:
-            cli_requested = self._get_cli_visualizer_types()
-            resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
-            missing = [t for t in cli_requested if t not in resolved_types]
-            if missing:
-                raise RuntimeError(
-                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
-                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    "Ensure the required package is installed "
-                    "(e.g., pip install isaaclab_visualizers[<type>])."
-                )
-
         if not visualizer_cfgs:
             return
+
+        cli_explicit = self._is_cli_visualizer_explicit()
 
         # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
         visualizer_types = [
@@ -555,8 +559,6 @@ class SimulationContext:
         self.initialize_scene_data_provider()
         self._visualizers = []
 
-        cli_explicit = self._is_cli_visualizer_explicit()
-
         for cfg in visualizer_cfgs:
             try:
                 visualizer = cfg.create_visualizer()
@@ -565,7 +567,8 @@ class SimulationContext:
             except Exception as exc:
                 if cli_explicit:
                     raise RuntimeError(
-                        f"Visualizer '{cfg.visualizer_type}' was explicitly requested but failed to initialize: {exc}"
+                        f"Visualizer '{cfg.visualizer_type}' was explicitly requested "
+                        f"but failed to create or initialize: {exc}"
                     ) from exc
                 logger.exception(
                     "Failed to initialize visualizer '%s' (%s): %s",

@@ -346,48 +346,8 @@ def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
     assert ctx._get_cli_visualizer_types() == []
 
 
-def test_is_rendering_true_when_only_cfg_visualizer_is_set():
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton"})()
-    cfg = type("Cfg", (), {"visualizer_cfgs": [cfg_visualizer]})()
-
-    ctx = object.__new__(SimulationContext)
-    ctx._has_gui = False
-    ctx._has_offscreen_render = False
-    ctx.cfg = cfg
-
-    settings = {
-        "/isaaclab/render/rtx_sensors": False,
-        "/isaaclab/visualizer/types": "",
-        "/isaaclab/visualizer/explicit": False,
-        "/isaaclab/visualizer/disable_all": False,
-    }
-    ctx.get_setting = lambda name: settings.get(name)
-
-    assert ctx.is_rendering is True
-
-
-def test_is_rendering_false_when_cli_disable_all_even_with_cfg_visualizer():
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton"})()
-    cfg = type("Cfg", (), {"visualizer_cfgs": [cfg_visualizer]})()
-
-    ctx = object.__new__(SimulationContext)
-    ctx._has_gui = False
-    ctx._has_offscreen_render = False
-    ctx.cfg = cfg
-
-    settings = {
-        "/isaaclab/render/rtx_sensors": False,
-        "/isaaclab/visualizer/types": "",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": True,
-    }
-    ctx.get_setting = lambda name: settings.get(name)
-
-    assert ctx.is_rendering is False
-
-
 # ---------------------------------------------------------------------------
-# Tests for explicit CLI visualizer error handling
+# Shared helpers for config-resolution and initialize_visualizers tests
 # ---------------------------------------------------------------------------
 
 
@@ -410,8 +370,19 @@ class _FailingInitVisualizer(_FakeVisualizer):
         raise RuntimeError("init failed")
 
 
-def _make_context_for_init(settings: dict, visualizer_cfgs=None):
-    """Build a minimal SimulationContext suitable for testing initialize_visualizers."""
+def _make_context_with_settings(
+    settings: dict,
+    visualizer_cfgs=None,
+    *,
+    has_gui: bool = False,
+    has_offscreen_render: bool = False,
+):
+    """Build a minimal SimulationContext suitable for testing is_rendering, _resolve_visualizer_cfgs,
+    and initialize_visualizers.
+
+    Centralises the ``object.__new__`` construction so new internal attributes only need to be added
+    in one place when the production code changes.
+    """
     cfg = type(
         "Cfg",
         (),
@@ -424,6 +395,9 @@ def _make_context_for_init(settings: dict, visualizer_cfgs=None):
     )()
     ctx = object.__new__(SimulationContext)
     ctx.cfg = cfg
+    ctx._has_gui = has_gui
+    ctx._has_offscreen_render = has_offscreen_render
+    ctx._xr_enabled = False
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
@@ -434,6 +408,30 @@ def _make_context_for_init(settings: dict, visualizer_cfgs=None):
     return ctx
 
 
+def test_is_rendering_true_when_only_cfg_visualizer_is_set():
+    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton"})()
+    settings = {
+        "/isaaclab/render/rtx_sensors": False,
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
+    assert ctx.is_rendering is True
+
+
+def test_is_rendering_false_when_cli_disable_all_even_with_cfg_visualizer():
+    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton"})()
+    settings = {
+        "/isaaclab/render/rtx_sensors": False,
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": True,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
+    assert ctx.is_rendering is False
+
+
 def test_explicit_unknown_visualizer_type_raises():
     """Requesting an unknown visualizer type via CLI raises RuntimeError."""
     settings = {
@@ -442,7 +440,7 @@ def test_explicit_unknown_visualizer_type_raises():
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_worlds": None,
     }
-    ctx = _make_context_for_init(settings)
+    ctx = _make_context_with_settings(settings)
 
     with pytest.raises(RuntimeError, match="bogus_viz"):
         ctx.initialize_visualizers()
@@ -456,7 +454,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_worlds": None,
     }
-    ctx = _make_context_for_init(settings)
+    ctx = _make_context_with_settings(settings)
 
     # Force import to fail for the rerun visualizer module
     import builtins
@@ -483,13 +481,13 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_worlds": None,
     }
-    ctx = _make_context_for_init(settings, visualizer_cfgs=[failing_cfg])
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     import isaaclab.sim.simulation_context as sc_mod
 
     monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
 
-    with pytest.raises(RuntimeError, match="failed to initialize"):
+    with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
 
 
@@ -502,13 +500,27 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_worlds": None,
     }
-    ctx = _make_context_for_init(settings, visualizer_cfgs=[failing_cfg])
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     import isaaclab.sim.simulation_context as sc_mod
 
     monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
 
-    with pytest.raises(RuntimeError, match="failed to initialize"):
+    with pytest.raises(RuntimeError, match="failed to create or initialize"):
+        ctx.initialize_visualizers()
+
+
+def test_explicit_partial_valid_types_raises_for_invalid():
+    """Requesting 'newton,bogus_viz' via CLI raises for the unknown type even though newton is valid."""
+    settings = {
+        "/isaaclab/visualizer/types": "newton,bogus_viz",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_worlds": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    with pytest.raises(RuntimeError, match="bogus_viz"):
         ctx.initialize_visualizers()
 
 
@@ -520,7 +532,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_worlds": None,
     }
-    ctx = _make_context_for_init(settings)
+    ctx = _make_context_with_settings(settings)
 
     # Non-explicit: should not raise
     ctx.initialize_visualizers()
@@ -536,7 +548,7 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_worlds": None,
     }
-    ctx = _make_context_for_init(settings, visualizer_cfgs=[failing_cfg])
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     import isaaclab.sim.simulation_context as sc_mod
 
