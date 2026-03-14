@@ -13,7 +13,6 @@ from isaaclab.sensors import ContactSensorCfg, TiledCameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import NanReplayCfg
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
@@ -56,7 +55,6 @@ class KukaAllegroPhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
             ccd_iterations=5000,
         ),
-        nan_replay=NanReplayCfg(),
         num_substeps=2,
         debug_mode=False,
     )
