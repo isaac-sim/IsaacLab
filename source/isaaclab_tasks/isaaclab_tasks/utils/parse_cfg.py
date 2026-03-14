@@ -50,18 +50,23 @@ def _resolve_presets_to_default(cfg: object) -> object:
         return cfg
     for field_name in list(cfg.__dataclass_fields__):
         value = getattr(cfg, field_name, None)
-        if value is None or not hasattr(value, "__dataclass_fields__"):
+        if value is None:
             continue
-        if _is_preset_cfg(value):
-            resolved = value.default
-            setattr(cfg, field_name, resolved)
-            _resolve_presets_to_default(resolved)
-        elif _is_old_style_preset(value):
-            resolved = value.presets["default"]
-            setattr(cfg, field_name, resolved)
-            _resolve_presets_to_default(resolved)
-        else:
-            _resolve_presets_to_default(value)
+        if hasattr(value, "__dataclass_fields__"):
+            if _is_preset_cfg(value):
+                resolved = value.default
+                setattr(cfg, field_name, resolved)
+                _resolve_presets_to_default(resolved)
+            elif _is_old_style_preset(value):
+                resolved = value.presets["default"]
+                setattr(cfg, field_name, resolved)
+                _resolve_presets_to_default(resolved)
+            else:
+                _resolve_presets_to_default(value)
+        elif isinstance(value, dict):
+            for dict_val in value.values():
+                if hasattr(dict_val, "__dataclass_fields__"):
+                    _resolve_presets_to_default(dict_val)
     return cfg
 
 
@@ -85,22 +90,32 @@ def apply_named_preset(env_cfg: object, raw_cfg: object, preset_name: str) -> No
         return
     for field_name in raw_cfg.__dataclass_fields__:
         raw_value = getattr(raw_cfg, field_name, None)
-        if raw_value is None or not hasattr(raw_value, "__dataclass_fields__"):
+        if raw_value is None:
             continue
-        if _is_preset_cfg(raw_value):
-            if hasattr(raw_value, preset_name):
-                resolved = getattr(raw_value, preset_name)
-                setattr(env_cfg, field_name, resolved)
-                apply_named_preset(resolved, resolved, preset_name)
-        elif _is_old_style_preset(raw_value):
-            if preset_name in raw_value.presets:
-                resolved = raw_value.presets[preset_name]
-                setattr(env_cfg, field_name, resolved)
-                apply_named_preset(resolved, resolved, preset_name)
-        else:
-            env_value = getattr(env_cfg, field_name, None)
-            if env_value is not None and hasattr(env_value, "__dataclass_fields__"):
-                apply_named_preset(env_value, raw_value, preset_name)
+        if hasattr(raw_value, "__dataclass_fields__"):
+            if _is_preset_cfg(raw_value):
+                if hasattr(raw_value, preset_name):
+                    resolved = getattr(raw_value, preset_name)
+                    setattr(env_cfg, field_name, resolved)
+                    apply_named_preset(resolved, resolved, preset_name)
+            elif _is_old_style_preset(raw_value):
+                if preset_name in raw_value.presets:
+                    resolved = raw_value.presets[preset_name]
+                    setattr(env_cfg, field_name, resolved)
+                    apply_named_preset(resolved, resolved, preset_name)
+            else:
+                env_value = getattr(env_cfg, field_name, None)
+                if env_value is not None and hasattr(env_value, "__dataclass_fields__"):
+                    apply_named_preset(env_value, raw_value, preset_name)
+        elif isinstance(raw_value, dict):
+            env_dict = getattr(env_cfg, field_name, None)
+            if not isinstance(env_dict, dict):
+                continue
+            for key, raw_dict_val in raw_value.items():
+                if hasattr(raw_dict_val, "__dataclass_fields__") and key in env_dict:
+                    env_dict_val = env_dict[key]
+                    if hasattr(env_dict_val, "__dataclass_fields__"):
+                        apply_named_preset(env_dict_val, raw_dict_val, preset_name)
 
 
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:

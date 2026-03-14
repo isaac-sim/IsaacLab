@@ -7,23 +7,23 @@
 
 This module bypasses Hydra's default MERGE behavior for config groups.
 Instead, when a preset is selected, the entire config section is REPLACED
-with the preset - no field merging.
+with the preset -- no field merging.
 
-Presets are defined on individual configclasses using a `presets` dict.
-The system recursively discovers all presets and their paths automatically.
+Presets are declared by subclassing :class:`PresetCfg` (or using the
+:func:`preset` factory for scalars). The system recursively discovers all
+presets and their paths automatically, including inside dict-valued fields.
 
 Override categories (applied in order):
-    1. Global presets: `presets=inference,newton` -> apply everywhere matching
-    2. Path presets: `env.actions=joint_control` -> REPLACE specific section
-    3. Preset-path scalars: `env.actions.scale=5.0` -> handled by us
-    4. Global scalars: `env.sim.dt=0.01` -> handled by Hydra
+    1. Global presets: ``presets=inference,newton`` -- apply everywhere matching
+    2. Path presets: ``env.backend=newton`` -- REPLACE specific section
+    3. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
+    4. Global scalars: ``env.decimation=10`` -- handled by Hydra
 
-Example usage:
-    # Apply "inference" preset everywhere it exists, then override scale
-    presets=inference env.actions.arm_action.scale=0.5 env.sim.dt=0.01
+Example usage::
+
+    presets=newton env.backend.dt=0.001 env.decimation=10
 """
 
-import contextlib
 import functools
 import sys
 from collections.abc import Callable, Mapping
@@ -61,37 +61,60 @@ class PresetCfg:
     pass
 
 
+def preset(**options) -> PresetCfg:
+    """Create a :class:`PresetCfg` instance from keyword arguments.
+
+    A convenience factory that dynamically builds a ``PresetCfg`` subclass
+    with one field per keyword argument, then returns an instance of it.
+    The caller **must** supply a ``default`` key.
+
+    Example::
+
+        armature = preset(default=0.0, newton=0.01)
+        # Equivalent to:
+        # @configclass
+        # class _Preset(PresetCfg):
+        #     default: float = 0.0
+        #     newton: float = 0.01
+        # armature = _Preset()
+
+    Args:
+        **options: Preset alternatives keyed by name.  Must include ``default``.
+
+    Returns:
+        A ``PresetCfg`` instance whose fields are the supplied options.
+
+    Raises:
+        ValueError: If ``default`` is not provided.
+    """
+    if "default" not in options:
+        raise ValueError("preset() requires a 'default' keyword argument.")
+    annotations = {k: type(v) if v is not None else object for k, v in options.items()}
+    ns = {"__annotations__": annotations, **options}
+    cls = configclass(type("_Preset", (PresetCfg,), ns))
+    return cls()
+
+
 def collect_presets(cfg, path: str = "") -> dict:
-    """Recursively walk config tree and collect presets with auto-discovered paths.
+    """Recursively walk config tree and collect :class:`PresetCfg` fields.
 
-    Each configclass can define a `presets` dict attribute. Presets are collected
-    at the path where they're found. The dict can have two formats:
-
-    1. Simple format (presets for the current field):
-       presets = {"preset_name": ConfigInstance(), ...}
-       -> Collected at current path
-
-    2. Nested format (presets for child fields, legacy support):
-       presets = {"child.path": {"preset_name": ConfigInstance()}, ...}
-       -> Collected at specified sub-path
+    Presets are defined by subclassing :class:`PresetCfg` with typed fields for
+    each alternative, or by using the :func:`preset` factory for scalar values.
+    This function discovers them at every level of the config tree, including
+    inside dict-valued fields (e.g. ``actuators``).
 
     Args:
         cfg: A configclass instance to walk.
         path: Current path prefix (used during recursion).
 
     Returns:
-        Dict mapping paths to preset dicts, e.g.:
-        {"actions.arm_action": {"relative_joint_position": <cfg>, ...}}
+        Dict mapping dotted paths to preset dicts, e.g.:
+        ``{"backend": {"default": PhysxCfg(), "newton": NewtonCfg()}}``
     """
     result = {}
 
     # Root-level PresetCfg: the cfg itself is a PresetCfg subclass
     if isinstance(cfg, PresetCfg) and hasattr(cfg, "__dataclass_fields__"):
-        if getattr(cfg, "presets", None):
-            raise ValueError(
-                f"PresetCfg subclass at '{path or '<root>'}' must not define a 'presets' attribute. "
-                "Use typed fields instead (e.g., default: MyCfg = MyCfg())."
-            )
         preset_dict = {}
         for field_name in cfg.__dataclass_fields__:
             preset_dict[field_name] = getattr(cfg, field_name)
@@ -101,51 +124,32 @@ def collect_presets(cfg, path: str = "") -> dict:
                 result.update(collect_presets(alt, path))
         return result
 
-    # Check if this config has presets
-    presets = getattr(cfg, "presets", None)
-    if presets and isinstance(presets, dict):
-        # Check format: simple (values are configs) or nested (values are dicts)
-        first_val = next(iter(presets.values()), None) if presets else None
-        is_nested_format = isinstance(first_val, dict)
-
-        if is_nested_format:
-            # Nested format: {"field.path": {"name": cfg}}
-            for sub_path, sub_presets in presets.items():
-                full_path = f"{path}.{sub_path}" if path else sub_path
-                result[full_path] = sub_presets
-        else:
-            # Simple format: {"name": cfg} - presets for current field
-            if path:
-                result[path] = presets
-
     # Recurse into nested configclass attributes
     for name in dir(cfg):
-        if name.startswith("_") or name == "presets":
+        if name.startswith("_"):
             continue
         try:
             value = getattr(cfg, name)
         except Exception:
             continue
 
-        # Check if it's a configclass (has __dataclass_fields__)
+        child_path = f"{path}.{name}" if path else name
+
         if hasattr(value, "__dataclass_fields__"):
-            child_path = f"{path}.{name}" if path else name
             if isinstance(value, PresetCfg):
-                if getattr(value, "presets", None):
-                    raise ValueError(
-                        f"PresetCfg subclass at '{child_path}' must not define a 'presets' attribute. "
-                        "Use typed fields instead (e.g., default: MyCfg = MyCfg())."
-                    )
                 preset_dict = {}
                 for field_name in value.__dataclass_fields__:
                     preset_dict[field_name] = getattr(value, field_name)
                 result[child_path] = preset_dict
-                # Recurse into each alternative to find nested PresetCfg
                 for alt in preset_dict.values():
                     if hasattr(alt, "__dataclass_fields__"):
                         result.update(collect_presets(alt, child_path))
             else:
                 result.update(collect_presets(value, child_path))
+        elif isinstance(value, dict):
+            for dict_key, dict_val in value.items():
+                if hasattr(dict_val, "__dataclass_fields__"):
+                    result.update(collect_presets(dict_val, f"{child_path}.{dict_key}"))
 
     return result
 
@@ -179,9 +183,6 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
         env_cfg, agent_cfg = apply_overrides(
             env_cfg, agent_cfg, hydra_cfg, global_presets, preset_sel, preset_scalar, presets
         )
-        _cleanup_presets(env_cfg)
-        _cleanup_presets(agent_cfg)
-        _cleanup_presets_dict(hydra_cfg)
         env_cfg.from_dict(hydra_cfg["env"])
         env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
         if isinstance(agent_cfg, dict) or agent_cfg is None:
@@ -228,9 +229,6 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 env_cfg, agent_cfg = apply_overrides(
                     env_cfg, agent_cfg, hydra_cfg, global_presets, preset_sel, preset_scalar, presets
                 )
-                _cleanup_presets(env_cfg)
-                _cleanup_presets(agent_cfg)
-                _cleanup_presets_dict(hydra_cfg)
                 env_cfg.from_dict(hydra_cfg["env"])
                 env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
                 if isinstance(agent_cfg, dict) or agent_cfg is None:
@@ -271,9 +269,14 @@ def resolve_preset_defaults(cfg):
             default = getattr(value, "default", None)
             if default is not None:
                 setattr(cfg, name, default)
-                resolve_preset_defaults(default)
+                if hasattr(default, "__dataclass_fields__"):
+                    resolve_preset_defaults(default)
         elif hasattr(value, "__dataclass_fields__"):
             resolve_preset_defaults(value)
+        elif isinstance(value, dict):
+            for dict_val in value.values():
+                if hasattr(dict_val, "__dataclass_fields__"):
+                    resolve_preset_defaults(dict_val)
     return cfg
 
 
@@ -402,8 +405,11 @@ def apply_overrides(
         obj = cfgs[sec]
         for part in path.split("."):
             try:
-                obj = getattr(obj, part)
-            except (AttributeError, TypeError):
+                if isinstance(obj, dict):
+                    obj = obj[part]
+                else:
+                    obj = getattr(obj, part)
+            except (AttributeError, TypeError, KeyError):
                 return False
             if obj is None:
                 return False
@@ -415,8 +421,10 @@ def apply_overrides(
             node_dict = None
         elif hasattr(node, "to_dict"):
             node_dict = node.to_dict()
-        else:
+        elif isinstance(node, Mapping):
             node_dict = dict(node)
+        else:
+            node_dict = node
         if path == "":
             cfgs[sec] = node
             hydra_cfg[sec] = node_dict
@@ -479,39 +487,6 @@ def apply_overrides(
             _setattr(hydra_cfg, full_path, val)
 
     return cfgs["env"], cfgs["agent"]
-
-
-def _cleanup_presets(cfg):
-    """Recursively remove ``presets`` fields from a config tree after resolution.
-
-    Once all presets have been selected and applied, the ``presets`` metadata
-    is no longer needed and would confuse downstream managers that expect every
-    field to be a term config.
-    """
-    if cfg is None:
-        return
-    if hasattr(cfg, "presets"):
-        with contextlib.suppress(Exception):
-            delattr(cfg, "presets")
-    for name in list(getattr(cfg, "__dataclass_fields__", {}).keys()):
-        if name == "presets":
-            continue
-        try:
-            value = getattr(cfg, name)
-        except Exception:
-            continue
-        if hasattr(value, "__dataclass_fields__"):
-            _cleanup_presets(value)
-
-
-def _cleanup_presets_dict(d: dict):
-    """Recursively remove ``presets`` keys from a nested dict."""
-    if not isinstance(d, dict):
-        return
-    d.pop("presets", None)
-    for v in d.values():
-        if isinstance(v, dict):
-            _cleanup_presets_dict(v)
 
 
 def _setattr(obj, path: str, val):
