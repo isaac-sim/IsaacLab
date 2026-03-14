@@ -258,6 +258,18 @@ def extract_python_exe() -> str:
         else:
             print_debug("extract_python_exe(): No CONDA_PREFIX found.")
 
+    # Try the default Isaac Lab uv venv (env_isaaclab/) in the repo root.
+    if not python_exe or not Path(python_exe).exists():
+        default_venv = ISAACLAB_ROOT / "env_isaaclab"
+        if default_venv.is_dir():
+            if is_windows():
+                candidate = default_venv / "Scripts" / "python.exe"
+            else:
+                candidate = default_venv / "bin" / "python"
+            if candidate.exists():
+                print_debug(f"extract_python_exe(): Found default venv python: {candidate}")
+                python_exe = candidate
+
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
         print_debug("extract_python_exe(): Checking for Kit python...")

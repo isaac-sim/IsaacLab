@@ -608,15 +608,20 @@ def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
         text=True,
         check=False,
     )
-    if result.returncode == 0:
-        actual_ver = result.stdout.strip()
-        if actual_ver != required_ver:
-            print_error(f"Virtual environment Python is {actual_ver}, but Isaac Sim requires {required_ver}.")
-            print_error(
-                "Please recreate the environment with the correct Python version, e.g.:\n"
-                f"\tuv venv --python {required_ver} {env_path}"
-            )
-            sys.exit(1)
+    if result.returncode != 0:
+        print_warning(
+            f"Could not determine Python version in virtual environment at {env_path}. "
+            "The environment may be corrupted."
+        )
+        return
+    actual_ver = result.stdout.strip()
+    if actual_ver != required_ver:
+        print_error(f"Virtual environment Python is {actual_ver}, but Isaac Sim requires {required_ver}.")
+        print_error(
+            "Please recreate the environment with the correct Python version, e.g.:\n"
+            f"\tuv venv --python {required_ver} {env_path}"
+        )
+        sys.exit(1)
 
 
 def command_setup_uv(env_name: str) -> None:
@@ -674,7 +679,10 @@ def command_setup_uv(env_name: str) -> None:
 
         print_info("Added Isaac Lab environment hooks to the active virtual environment.")
         print_info("Deactivate and reactivate the environment for hooks to take effect:\n")
-        print("\t\tdeactivate && source " + str(env_path / "bin" / "activate"))
+        if is_windows():
+            print("\t\tdeactivate && " + str(env_path / "Scripts" / "activate"))
+        else:
+            print("\t\tdeactivate && source " + str(env_path / "bin" / "activate"))
         print("\n")
         return
 
