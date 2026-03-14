@@ -97,11 +97,14 @@ class RenderData:
             orientations, origin="world", target="opengl"
         )
 
-        self.camera_transforms = wp.empty((1, self.render_context.world_count), dtype=wp.transformf)
+        self.camera_transforms = wp.empty(
+            (1, self.render_context.world_count), dtype=wp.transform, device=self.render_context.device
+        )
         wp.launch(
             RenderData._update_transforms,
             self.render_context.world_count,
             [positions, converted_orientations, self.camera_transforms],
+            device=self.render_context.device,
         )
 
         if self.render_context is not None:
