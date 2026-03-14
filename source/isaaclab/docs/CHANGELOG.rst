@@ -7,8 +7,6 @@ Changelog
 Changed
 ^^^^^^^
 
-* Update has_visualizers in envs to use self.sim.resolve_visualizer_types() to get visualizers when headless is used.
-* Allow app launcher to set visualizer type when headless is used.
 * Invalidate render update when reset is called.
 
 

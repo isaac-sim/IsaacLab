@@ -157,7 +157,7 @@ class DirectRLEnv(gym.Env):
         # non-rendering modes.
         # Initialize when GUI is available OR when visualizers are active (headless rendering)
         # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
-        has_visualizers = bool(self.sim.resolve_visualizer_types())
+        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
         if self.sim.has_gui or has_visualizers:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
