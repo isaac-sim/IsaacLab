@@ -511,6 +511,8 @@ def command_setup_conda(env_name: str) -> None:
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        # avoid EULA prompt
+        stdin=subprocess.DEVNULL,
     )
     if result.returncode == 0:
         pip_package_missing = False  # installed
@@ -606,6 +608,8 @@ def command_setup_uv(env_name: str) -> None:
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
             )
             if result.returncode != 0 and not (ISAACLAB_ROOT / "_isaac_sim").exists():
                 print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")

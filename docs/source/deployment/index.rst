@@ -60,13 +60,6 @@ After cloning, you can choose the deployment workflow that fits your needs:
   - Includes tested workflows for ETH Zurich's Euler cluster and IIT Genoa's Franklin cluster,
     with notes on adapting to other environments.
 
-- :doc:`cloudxr_teleoperation_cluster`
-
-  - Deploy CloudXR Teleoperation for Isaac Lab on a Kubernetes cluster.
-  - Covers system requirements, software dependencies, and preparation steps including RBAC permissions.
-  - Demonstrates how to install and verify the Helm chart, run the pod, and uninstall it.
-
-
 .. toctree::
    :maxdepth: 1
    :hidden:
@@ -74,4 +67,3 @@ After cloning, you can choose the deployment workflow that fits your needs:
    docker
    run_docker_example
    cluster
-   cloudxr_teleoperation_cluster

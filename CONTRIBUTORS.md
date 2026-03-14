@@ -85,6 +85,7 @@ Guidelines for modifications:
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
+* HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
@@ -95,6 +96,7 @@ Guidelines for modifications:
 * Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
+* Jichuan Hu
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei

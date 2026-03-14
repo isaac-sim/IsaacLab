@@ -6,6 +6,7 @@
 """Script to play a checkpoint if an RL agent from RSL-RL."""
 
 import argparse
+import contextlib
 import importlib.metadata as metadata
 import os
 import sys
@@ -37,6 +38,8 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 import cli_args  # isort: skip
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")

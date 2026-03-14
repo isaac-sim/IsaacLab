@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.3.3 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed race condition in headless XR where ``xr.profile.ar.enabled`` was set
+  in the ``.kit`` file before the teleop bridge extension finished loading,
+  causing ``BridgeComponent`` to miss its lifecycle callbacks.  The setting is
+  now deferred to
+  :meth:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle._ensure_xr_ar_profile_enabled`
+  after all extensions have loaded.
+
+
 0.3.2 (2026-03-12)
 ~~~~~~~~~~~~~~~~~~~
 

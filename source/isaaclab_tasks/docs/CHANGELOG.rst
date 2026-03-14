@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+1.5.10 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``test_rendering_correctness.py`` to validate rendering correctness of the environments.
+
 1.5.9 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
