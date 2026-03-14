@@ -7,6 +7,7 @@ Changelog
 Changed
 ^^^^^^^
 
+* Allow app launcher to set visualizer type when headless is used.
 * Invalidate render update when reset is called.
 
 
