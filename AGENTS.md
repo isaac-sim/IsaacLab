@@ -149,6 +149,67 @@ Follow conventional commit message practices.
   ```
 - Do not change the year in existing file headers.
 
+## Issue Triage Workflow
+
+Automated pipeline for triaging, reproducing, and fixing GitHub bug reports. Trigger it for a single issue with:
+
+```bash
+claude "Run the issue triage workflow for issue #<NUMBER>"
+```
+
+The workflow chains three skills in `.agent/skills/` and follows this decision tree:
+
+```
+Fetch issue #N
+├─ Not a bug report → Skip
+├─ Missing reproduction steps (and no other useful details)
+│  └─ Comment asking for steps → STOP
+├─ Has reproduction steps (use latest develop if commit is missing)
+│  └─ Checkout commit, run repro steps
+│     ├─ Cannot reproduce
+│     │  └─ Comment with what was tried, ask for details → STOP
+│     └─ Reproduces
+│        └─ Checkout latest develop, re-run
+│           ├─ Fixed on latest
+│           │  └─ Comment with evidence, close issue → STOP
+│           └─ Still broken
+│              └─ Create branch, fix, test, changelog, pre-commit, PR → DONE
+```
+
+### Skills
+
+| Skill | Path | Purpose |
+|-------|------|---------|
+| `isaaclab-issue-triage` | `.agent/skills/isaaclab-issue-triage/SKILL.md` | Fetch issue, validate bug template fields, route |
+| `isaaclab-bug-reproduce` | `.agent/skills/isaaclab-bug-reproduce/SKILL.md` | Checkout commit, run repro steps, evaluate result |
+| `isaaclab-bug-fix` | `.agent/skills/isaaclab-bug-fix/SKILL.md` | Branch, fix, test, changelog, pre-commit, PR |
+
+### Required context files
+
+The skills reference these repo files directly (no duplication):
+- `.github/ISSUE_TEMPLATE/bug.md` — expected bug report fields
+- `.github/PULL_REQUEST_TEMPLATE.md` — PR format
+- `docs/source/refs/contributing.rst` — coding style and contribution process
+- `AGENTS.md` (this file) — changelog, commit, naming, and testing rules
+
+### Running for a single issue
+
+When asked to triage a specific issue number, execute the full chain:
+
+1. **Read** `.agent/skills/isaaclab-issue-triage/SKILL.md` — fetch and validate the issue
+2. If the issue is valid for reproduction, **read** `.agent/skills/isaaclab-bug-reproduce/SKILL.md` — attempt reproduction
+3. If the bug still reproduces on latest, **read** `.agent/skills/isaaclab-bug-fix/SKILL.md` — implement and submit the fix
+
+Stop at any step that reaches a terminal state (commented, closed, or needs user input).
+
+### Running for all open bugs
+
+```bash
+claude "Run the issue triage workflow for all open bug issues"
+```
+
+This processes each open bug issue sequentially through the full chain.
+
 ## Sandbox & Networking
 
 - Network access (e.g., `git push`) is blocked by the sandbox. Use `dangerouslyDisableSandbox: true` so the user gets an approval prompt — don't ask them to run it manually.
