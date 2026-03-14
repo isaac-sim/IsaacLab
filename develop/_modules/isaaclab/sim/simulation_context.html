@@ -1125,7 +1125,12 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_visualizer_cfgs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve final visualizer configs from cfg and optional CLI override.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve final visualizer configs from cfg and optional CLI override.</span>
+
+<span class="sd">        When visualizers are explicitly requested via ``--visualizer`` CLI flag,</span>
+<span class="sd">        a :class:`RuntimeError` is raised if any requested type cannot be</span>
+<span class="sd">        resolved (unknown type or missing package).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">visualizer_cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfgs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">visualizer_cfgs</span> <span class="o">=</span> <span class="p">(</span>
@@ -1154,6 +1159,21 @@
                     <span class="n">resolved</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_default_visualizer_configs</span><span class="p">([</span><span class="n">viz_type</span><span class="p">]))</span>
                     <span class="n">existing_types</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">viz_type</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_apply_visualizer_cli_overrides</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+        <span class="c1"># When visualizers were explicitly requested via CLI, verify all</span>
+        <span class="c1"># requested types were resolved.  This catches unknown types and</span>
+        <span class="c1"># missing packages that _create_default_visualizer_configs silently</span>
+        <span class="c1"># skips.</span>
+        <span class="k">if</span> <span class="n">cli_explicit</span> <span class="ow">and</span> <span class="n">cli_requested</span><span class="p">:</span>
+            <span class="n">resolved_types</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">resolved</span><span class="p">}</span>
+            <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">cli_requested</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">resolved_types</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Explicitly requested visualizer(s) </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2"> could not be configured. &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;Valid types: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">_VISUALIZER_TYPES</span><span class="p">)</span><span class="si">}</span><span class="s2">. &quot;</span>
+                    <span class="s2">&quot;Ensure the required package is installed &quot;</span>
+                    <span class="s2">&quot;(e.g., pip install isaaclab_visualizers[&lt;type&gt;]).&quot;</span>
+                <span class="p">)</span>
 
         <span class="c1"># XR auto-start: auto-inject a KitVisualizer when XR is active and no</span>
         <span class="c1"># Kit visualizer is already present.  The KitVisualizer pumps</span>
@@ -1193,6 +1213,8 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">visualizer_cfgs</span><span class="p">:</span>
             <span class="k">return</span>
 
+        <span class="n">cli_explicit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_cli_visualizer_explicit</span><span class="p">()</span>
+
         <span class="c1"># Resolve visualizer-driven requirements once and keep optional artifact payload untouched.</span>
         <span class="n">visualizer_types</span> <span class="o">=</span> <span class="p">[</span>
             <span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_type</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">visualizer_cfgs</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
@@ -1208,6 +1230,11 @@
                 <span class="n">visualizer</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scene_data_provider</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_visualizers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">visualizer</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">cli_explicit</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Visualizer &#39;</span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_type</span><span class="si">}</span><span class="s2">&#39; was explicitly requested &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;but failed to create or initialize: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span>
                     <span class="s2">&quot;Failed to initialize visualizer &#39;</span><span class="si">%s</span><span class="s2">&#39; (</span><span class="si">%s</span><span class="s2">): </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
                     <span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_type</span><span class="p">,</span>
