@@ -32,6 +32,8 @@ from isaaclab.utils.version import has_kit
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
+from .utils.video_recorder import VideoRecorder
+from .utils.video_recorder_cfg import VideoRecorderCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 
 if has_kit():
@@ -172,6 +174,18 @@ class DirectRLEnv(gym.Env):
             # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
+
+        # Instantiate the video recorder before sim.reset() so that any fallback TiledCamera
+        # (used for state-based envs without an observation camera) is spawned into the USD
+        # stage and registered for the PHYSICS_READY callback before physics initialises.
+        # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
+        if self.cfg.video_recorder is not None:
+            self.cfg.video_recorder.render_mode = render_mode
+            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
+                self.cfg.video_recorder, self.scene
+            )
+        else:
+            self.video_recorder = None
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -489,33 +503,9 @@ class DirectRLEnv(gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            if not self.sim.has_gui and not self.sim.has_offscreen_render:
-                raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
-                    " If running headless, make sure --enable_cameras is set."
-                )
-            # create the annotator if it does not exist
-            if not hasattr(self, "_rgb_annotator"):
-                import omni.replicator.core as rep
-
-                # create render product
-                self._render_product = rep.create.render_product(
-                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
-                )
-                # create rgb annotator -- used to read data from the render product
-                self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-                self._rgb_annotator.attach([self._render_product])
-            # obtain the rgb data
-            rgb_data = self._rgb_annotator.get_data()
-            # convert to numpy array
-            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # return the rgb data
-            # note: initially the renerer is warming up and returns empty data
-            if rgb_data.size == 0:
-                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
-            else:
-                return rgb_data[:, :, :3]
+            if self.video_recorder is None:
+                return None
+            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."

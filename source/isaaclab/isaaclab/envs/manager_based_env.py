@@ -26,6 +26,7 @@ from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
+from .utils.video_recorder import VideoRecorder
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -181,6 +182,16 @@ class ManagerBasedEnv:
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
+
+        # Instantiate the video recorder before sim.reset() so that any fallback TiledCamera
+        # (used for state-based envs without an observation camera) is spawned into the USD
+        # stage and registered for the PHYSICS_READY callback before physics initialises.
+        if self.cfg.video_recorder is not None:
+            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
+                self.cfg.video_recorder, self.scene
+            )
+        else:
+            self.video_recorder = None
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs

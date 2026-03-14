@@ -17,6 +17,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import AgentID, SpaceType, ViewerCfg
+from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 @configclass
@@ -234,3 +235,11 @@ class DirectMARLEnvCfg:
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
+
+    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
+    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``).
+
+    See :class:`~isaaclab.envs.VideoRecorderCfg` for available options including
+    ``video_mode`` (``"perspective"`` or ``"tiled"``), ``camera_eye``/``camera_lookat``,
+    and ``video_num_tiles``.  Set to ``None`` to disable the recorder entirely.
+    """
