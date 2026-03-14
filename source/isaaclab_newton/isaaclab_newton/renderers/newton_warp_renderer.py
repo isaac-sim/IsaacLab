@@ -98,7 +98,7 @@ class RenderData:
         )
 
         self.camera_transforms = wp.empty(
-            (1, self.render_context.world_count), dtype=wp.transform, device=self.render_context.device
+            (1, self.render_context.world_count), dtype=wp.transformf, device=self.render_context.device
         )
         wp.launch(
             RenderData._update_transforms,
