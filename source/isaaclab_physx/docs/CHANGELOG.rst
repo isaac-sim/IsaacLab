@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.5.12 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add function to invalidate render update so next camera read will pump the RTX renderer.
+
+
 0.5.11 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 

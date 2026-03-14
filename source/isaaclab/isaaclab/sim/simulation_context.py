@@ -594,6 +594,13 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
+        # Invalidate RTX render dedup so the first camera read after reset pumps a fresh frame.
+        try:
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import invalidate_render_update
+
+            invalidate_render_update()
+        except ImportError:
+            pass
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
         if not self._visualizers:

@@ -698,10 +698,10 @@ class AppLauncher:
             if self._cli_visualizer_explicit:
                 logger.warning(
                     "Both '--headless' and '--visualizer/--viz' were provided. "
-                    "Deprecated '--headless' takes precedence and disables all visualizers."
+                    "Visualizers are still enabled so viewport/camera pipeline runs correctly in headless."
                 )
-            self._cli_visualizer_disable_all = True
-            self._cli_visualizer_types = []
+            # Do not clear visualizers when --headless is used with --viz: headless only suppresses the
+            # GUI window; visualizers (e.g. Kit) can run headless and are needed for correct camera/resolution.
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
