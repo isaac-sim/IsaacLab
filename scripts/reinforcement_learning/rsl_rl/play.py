@@ -11,6 +11,7 @@ import importlib.metadata as metadata
 import os
 import sys
 import time
+import logging
 
 import gymnasium as gym
 import torch
@@ -68,6 +69,13 @@ if args_cli.video:
     args_cli.enable_cameras = True
 
 sys.argv = [sys.argv[0]] + hydra_args
+
+# Reduce noisy logs from third-party libraries without changing behavior.
+# - onnxscript / onnx_ir: hide DEBUG converter chatter
+# - isaaclab_physx: hide repetitive WARNINGs (e.g., body count mismatch) while keeping errors
+logging.getLogger("onnxscript").setLevel(logging.INFO)
+logging.getLogger("onnx_ir").setLevel(logging.INFO)
+logging.getLogger("isaaclab_physx").setLevel(logging.ERROR)
 
 # Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")
