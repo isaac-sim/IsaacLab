@@ -33,9 +33,14 @@ cameras_enabled = true
 [dependencies]
 "isaaclab.python.xr.openxr" = {}
 
-[settings]
-xr.profile.ar.enabled = true
+# NOTE: xr.profile.ar.enabled is intentionally NOT set here.
+# Setting it in the .kit file causes Kit's XR system to create the OpenXR
+# instance before the teleop bridge extension loads, so the BridgeComponent
+# misses its lifecycle callbacks (getRequiredExtensions, initialize).
+# Instead, TeleopSessionLifecycle._ensure_xr_ar_profile_enabled() sets it
+# via carb.settings after extensions have loaded.
 
+[settings]
 # explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
 app.extensions.excluded = ["omni.kit.pip_archive"]
 
@@ -50,6 +55,7 @@ folders = [
     "${exe-path}/exts",  # kit extensions
     "${exe-path}/extscore",  # kit core extensions
     "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsInternal",  # isaac internal extensions
     "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
     "${exe-path}/../extscache",  # isaac cache extensions
     "${exe-path}/../extsPhysics",  # isaac physics extensions
