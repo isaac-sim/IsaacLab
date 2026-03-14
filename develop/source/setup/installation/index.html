@@ -243,6 +243,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quick_installation.html">Quick Installation</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/own-project/template.html">Create new project or task</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/own-project/project_structure.html">Project Structure</a></li>
@@ -282,6 +283,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/robots.html">Robot Configurations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/cloning.html">Cloning Environments</a></li>
@@ -381,7 +383,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -714,6 +715,9 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#kit-less-installation">Kit-less Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#selective-install">Selective Install</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ovrtx-rendering">OVRTX Rendering</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-installation-tests">Running Installation Tests</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaac-sim-installation">Isaac Sim Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-an-installation-method">Choosing an Installation Method</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
@@ -842,6 +846,12 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac
 
 <span class="c1"># Install Isaac Lab (Newton backend, no Isaac Sim required)</span>
 ./isaaclab.sh<span class="w"> </span>--install<span class="w">   </span><span class="c1"># or ./isaaclab.sh -i</span>
+
+<span class="c1"># Kickoff training with Newton physics and Newton visualizer</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
+--task<span class="o">=</span>Isaac-Cartpole-Direct-v0<span class="w"> </span><span class="se">\</span>
+--num_envs<span class="o">=</span><span class="m">16</span><span class="w"> </span>--max_iterations<span class="o">=</span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="nv">presets</span><span class="o">=</span>newton<span class="w"> </span>--visualizer<span class="w"> </span>newton
 </pre></div>
 </div>
 <p><strong>Features available in kit-less mode (Newton backend, no Isaac Sim):</strong></p>
@@ -860,9 +870,94 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac
 <li><p>ROS / ROS2 integration</p></li>
 <li><p>URDF and MJCF importers (GUI-based)</p></li>
 <li><p>Deformable objects and surface gripper (PhysX-only)</p></li>
-<li><p>Teleoperation and imitiation learning workflows</p></li>
+<li><p>Teleoperation and imitation learning workflows</p></li>
 </ul>
 <p>To install Isaac Sim, use the pip method described in <a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip Package</span></a>.</p>
+</section>
+<section id="selective-install">
+<span id="installation-selective-install"></span><h2>Selective Install<a class="headerlink" href="#selective-install" title="Link to this heading">#</a></h2>
+<p>If you want a minimal environment, <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span></code> accepts comma-separated
+sub-package names:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">isaacsim</span></code></p></td>
+<td><p>Install Isaac Sim pip package</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">newton</span></code></p></td>
+<td><p>Install Newton physics + Newton visualizer</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">physx</span></code></p></td>
+<td><p>Install PhysX physics runtime</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ovrtx</span></code></p></td>
+<td><p>Install OVRTX renderer runtime</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tasks</span></code></p></td>
+<td><p>Install built-in task environments</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">assets</span></code></p></td>
+<td><p>Install robot/object configurations</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">visualizers</span></code></p></td>
+<td><p>Install all visualizer backends</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code></p></td>
+<td><p>Install RSL-RL framework</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">skrl</span></code></p></td>
+<td><p>Install skrl framework</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sb3</span></code></p></td>
+<td><p>Install Stable Baselines3 framework</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rl_games</span></code></p></td>
+<td><p>Install rl_games framework</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">robomimic</span></code></p></td>
+<td><p>Install robomimic framework</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p>Install only core <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> package</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Examples:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Minimal Newton setup</span>
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>newton,tasks,assets
+
+<span class="c1"># Newton with OVRTX and RSL-RL only</span>
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>newton,tasks,assets,ovrtx,rsl_rl
+
+<span class="c1"># Full Kit install with skrl</span>
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>isaacsim,skrl
+</pre></div>
+</div>
+</section>
+<section id="ovrtx-rendering">
+<span id="installation-ovrtx"></span><h2>OVRTX Rendering<a class="headerlink" href="#ovrtx-rendering" title="Link to this heading">#</a></h2>
+<p>OVRTX provides GPU-accelerated rendering for vision tasks without Kit.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>ov<span class="o">[</span>ovrtx<span class="o">]</span>
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">LD_PRELOAD</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / &#39;bin/plugins/libcarb.so&#39;)&quot;</span><span class="k">)</span>
+
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/benchmarks/benchmark_rsl_rl.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--task<span class="w"> </span>Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--headless<span class="w"> </span>--enable_cameras<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">16</span><span class="w"> </span>--max_iterations<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="nv">presets</span><span class="o">=</span>newton,ovrtx_renderer,simple_shading_diffuse_mdl
+</pre></div>
+</div>
+</section>
+<section id="running-installation-tests">
+<h2>Running Installation Tests<a class="headerlink" href="#running-installation-tests" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>source/isaaclab/test/cli/test_cli_utils.py<span class="w"> </span>-v
+</pre></div>
+</div>
 </section>
 <section id="isaac-sim-installation">
 <h2>Isaac Sim Installation<a class="headerlink" href="#isaac-sim-installation" title="Link to this heading">#</a></h2>
@@ -1049,6 +1144,9 @@ or if your deployment environment is offline.</p></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#kit-less-installation">Kit-less Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#selective-install">Selective Install</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ovrtx-rendering">OVRTX Rendering</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-installation-tests">Running Installation Tests</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaac-sim-installation">Isaac Sim Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-an-installation-method">Choosing an Installation Method</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>

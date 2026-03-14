@@ -58,7 +58,7 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Build your Own Project or Task" href="../overview/own-project/index.html" />
+    <link rel="next" title="Quick Installation" href="quick_installation.html" />
     <link rel="prev" title="Reference Architecture" href="../refs/reference_architecture/index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -243,6 +243,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_installation.html">Quick Installation</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../overview/own-project/template.html">Create new project or task</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/own-project/project_structure.html">Project Structure</a></li>
@@ -282,6 +283,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/robots.html">Robot Configurations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/cloning.html">Cloning Environments</a></li>
@@ -381,7 +383,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="installation/cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -732,7 +733,7 @@
 <span id="isaac-lab-quickstart"></span><h1>Quickstart Guide<a class="headerlink" href="#quickstart-guide" title="Link to this heading">#</a></h1>
 <p>This guide is written for those who just can’t wait to get their hands dirty and will touch on the most common concepts you will encounter as you build your own
 projects with Isaac Lab! This includes installation, running RL, finding environments, creating new projects, and more!</p>
-<p>The power of Isaac Lab comes from from a few key features that we will very briefly touch on in this guide.</p>
+<p>The power of Isaac Lab comes from a few key features that we will very briefly touch on in this guide.</p>
 <ol class="arabic simple">
 <li><p><strong>Vectorization</strong>: Reinforcement Learning requires attempting a task many times. Isaac Lab speeds this process along by vectorizing the
 environment, a process by which training can be run in parallel across many copies of the same environment, thus reducing the amount of time
@@ -862,7 +863,7 @@ HTTPS</label><div class="sd-tab-content docutils">
 </section>
 <section id="launch-training">
 <h2>Launch Training<a class="headerlink" href="#launch-training" title="Link to this heading">#</a></h2>
-<p>The various backends of Isaac Lab are accessed through their corresponding <code class="docutils literal notranslate"><span class="pre">train.py</span></code> and <code class="docutils literal notranslate"><span class="pre">play.py</span></code> scripts located in the <code class="docutils literal notranslate"><span class="pre">isaaclab/scripts/reinforcement_learning</span></code> directory.
+<p>The various backends of Isaac Lab are accessed through their corresponding <code class="docutils literal notranslate"><span class="pre">train.py</span></code> and <code class="docutils literal notranslate"><span class="pre">play.py</span></code> scripts located in the <code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning</span></code> directory.
 Invoking these scripts will require a <strong>Task Name</strong> and a corresponding <strong>Entry Point</strong> to the gymnasium API. For example</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Ant-v0
 </pre></div>
@@ -902,7 +903,7 @@ Multiple visualizers can be combined: <code class="docutils literal notranslate"
 <h2>List Available Environments<a class="headerlink" href="#list-available-environments" title="Link to this heading">#</a></h2>
 <p>Above, <code class="docutils literal notranslate"><span class="pre">Isaac-Ant-v0</span></code> is the task name and <code class="docutils literal notranslate"><span class="pre">skrl</span></code> is the RL framework being used.  The <code class="docutils literal notranslate"><span class="pre">Isaac-Ant-v0</span></code> environment
 has been registered with the <a class="reference external" href="https://gymnasium.farama.org/">Gymnasium API</a>, and you can see how the entry point is defined
-by calling the <code class="docutils literal notranslate"><span class="pre">list_envs.py</span></code> script, which can be found in <code class="docutils literal notranslate"><span class="pre">isaaclab/scripts/environments/list_envs.py</span></code>. You should see entries like the following</p>
+by calling the <code class="docutils literal notranslate"><span class="pre">list_envs.py</span></code> script, which can be found in <code class="docutils literal notranslate"><span class="pre">scripts/environments/list_envs.py</span></code>. You should see entries like the following</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$&gt;<span class="w"> </span>python<span class="w"> </span>scripts/environments/list_envs.py
 
 +--------------------------------------------------------------------------------------------------------------------------------------------+
@@ -1015,66 +1016,8 @@ to modify anything “configured” by the environment at launch time.</p>
 </section>
 <section id="robots">
 <h2>Robots<a class="headerlink" href="#robots" title="Link to this heading">#</a></h2>
-<p>Robots are entirely defined as instances of configurations within Isaac Lab.  If you examine <code class="docutils literal notranslate"><span class="pre">source/isaaclab_assets/isaaclab_assets/robots</span></code>, you will see a number of files, each of which
-contains configurations for the robot in question.  The purpose of these individual files is to better define scope for all the different robots, but there is nothing preventing
-you from <a class="reference internal" href="../tutorials/01_assets/add_new_robot.html#tutorial-add-new-robot"><span class="std std-ref">adding your own</span></a> to your project or even to the <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> repository! For example, consider the following configuration for
-the Dofbot</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuatorCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.articulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
-
-<span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
-        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
-        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
-            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
-        <span class="p">),</span>
-        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
-            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
-        <span class="p">),</span>
-    <span class="p">),</span>
-    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
-        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
-            <span class="s2">&quot;joint1&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-            <span class="s2">&quot;joint2&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-            <span class="s2">&quot;joint3&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-            <span class="s2">&quot;joint4&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
-        <span class="p">},</span>
-        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
-    <span class="p">),</span>
-    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;front_joints&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
-            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint[1-2]&quot;</span><span class="p">],</span>
-            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
-            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-        <span class="p">),</span>
-        <span class="s2">&quot;joint3_act&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
-            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint3&quot;</span><span class="p">],</span>
-            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
-            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-        <span class="p">),</span>
-        <span class="s2">&quot;joint4_act&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
-            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;joint4&quot;</span><span class="p">],</span>
-            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
-            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
-        <span class="p">),</span>
-    <span class="p">},</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-<p>This completely defines the dofbot! You could copy this into a <code class="docutils literal notranslate"><span class="pre">.py</span></code> file and import it as a module and you would be able to use the dofbot in
-your own lab sims. One common feature you will see in any config defining things with state is the presence of an <code class="docutils literal notranslate"><span class="pre">InitialStateCfg</span></code>.  Remember, the configurations
-are what informs vectorization, and it’s the <code class="docutils literal notranslate"><span class="pre">InitialStateCfg</span></code> that describes the state of the joints of our robot when it gets created in each environment. The
-<code class="docutils literal notranslate"><span class="pre">ImplicitActuatorCfg</span></code> defines the joints of the robot using the default actuation model determined by the joint time.  Not all joints need to be actuated, but you
-will get warnings if you don’t.  If you aren’t planning on using those undefined joints, you can generally ignore these.</p>
+<p>Robots are entirely defined as instances of configurations within Isaac Lab. For details on how robot
+configurations work, including a full example, see the <a class="reference internal" href="../how-to/robots.html"><span class="doc">Robot Configurations</span></a> guide.</p>
 </section>
 <section id="apps-and-sims">
 <h2>Apps and Sims<a class="headerlink" href="#apps-and-sims" title="Link to this heading">#</a></h2>
@@ -1132,11 +1075,11 @@ to check if the simulation is running, and cleanup after the simulation finishes
       </div>
     </a>
     <a class="right-next"
-       href="../overview/own-project/index.html"
+       href="quick_installation.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Build your Own Project or Task</p>
+        <p class="prev-next-title">Quick Installation</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

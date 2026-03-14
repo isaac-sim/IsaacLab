@@ -243,6 +243,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/quick_installation.html">Quick Installation</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../overview/own-project/template.html">Create new project or task</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/own-project/project_structure.html">Project Structure</a></li>
@@ -282,6 +283,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/robots.html">Robot Configurations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/cloning.html">Cloning Environments</a></li>
@@ -381,7 +383,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -706,6 +707,17 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation-troubleshooting">Installation Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-pip"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'pip'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-isaacsim"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaacsim'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-isaaclab-physx-or-isaaclab-ov"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaaclab_physx'</span></code> or <code class="docutils literal notranslate"><span class="pre">'isaaclab_ov'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-isaaclab-assets"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaaclab_assets'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-rsl-rl"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'rsl_rl'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#crash-in-libusd-tf-usd-symbol-collision-with-ovrtx">Crash in <code class="docutils literal notranslate"><span class="pre">libusd_tf</span></code> / USD Symbol Collision with OVRTX</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-not-appearing">Visualizer Not Appearing</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#glibc-version-too-old"><code class="docutils literal notranslate"><span class="pre">GLIBC</span> <span class="pre">Version</span> <span class="pre">Too</span> <span class="pre">Old</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#debugging-physics-simulation-stability-issues">Debugging physics simulation stability issues</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
@@ -732,6 +744,66 @@
 Please also check the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html">troubleshooting page on Omniverse</a> for more
 assistance.</p>
 </div>
+<section id="installation-troubleshooting">
+<h2>Installation Troubleshooting<a class="headerlink" href="#installation-troubleshooting" title="Link to this heading">#</a></h2>
+<section id="modulenotfounderror-no-module-named-pip">
+<h3><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'pip'</span></code><a class="headerlink" href="#modulenotfounderror-no-module-named-pip" title="Link to this heading">#</a></h3>
+<p>Your venv was created without pip. The install system auto-detects and uses
+<code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code> when pip is absent, so this error should no longer occur with the
+latest Isaac Lab.</p>
+</section>
+<section id="modulenotfounderror-no-module-named-isaacsim">
+<h3><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaacsim'</span></code><a class="headerlink" href="#modulenotfounderror-no-module-named-isaacsim" title="Link to this heading">#</a></h3>
+<p>You are running a script that requires Isaac Sim, but it is not installed.
+Either:</p>
+<ul class="simple">
+<li><p>Install Isaac Sim: <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span> <span class="pre">isaacsim</span></code>, or</p></li>
+<li><p>Use a Newton-based task with <code class="docutils literal notranslate"><span class="pre">presets=newton</span> <span class="pre">--visualizer</span> <span class="pre">newton</span></code> (Kit-less path)</p></li>
+</ul>
+</section>
+<section id="modulenotfounderror-no-module-named-isaaclab-physx-or-isaaclab-ov">
+<h3><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaaclab_physx'</span></code> or <code class="docutils literal notranslate"><span class="pre">'isaaclab_ov'</span></code><a class="headerlink" href="#modulenotfounderror-no-module-named-isaaclab-physx-or-isaaclab-ov" title="Link to this heading">#</a></h3>
+<p>These config packages are auto-installed by <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span></code>. If using a
+selective install, re-run with the default <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span></code> to get all
+packages.</p>
+</section>
+<section id="modulenotfounderror-no-module-named-isaaclab-assets">
+<h3><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaaclab_assets'</span></code><a class="headerlink" href="#modulenotfounderror-no-module-named-isaaclab-assets" title="Link to this heading">#</a></h3>
+<p>Include <code class="docutils literal notranslate"><span class="pre">assets</span></code> in your install command, or use <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span></code> to install
+everything.</p>
+</section>
+<section id="modulenotfounderror-no-module-named-rsl-rl">
+<h3><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'rsl_rl'</span></code><a class="headerlink" href="#modulenotfounderror-no-module-named-rsl-rl" title="Link to this heading">#</a></h3>
+<p>Include the RL framework: <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span> <span class="pre">rsl_rl</span></code>, or use
+<code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-i</span></code> to install all frameworks.</p>
+</section>
+<section id="crash-in-libusd-tf-usd-symbol-collision-with-ovrtx">
+<h3>Crash in <code class="docutils literal notranslate"><span class="pre">libusd_tf</span></code> / USD Symbol Collision with OVRTX<a class="headerlink" href="#crash-in-libusd-tf-usd-symbol-collision-with-ovrtx" title="Link to this heading">#</a></h3>
+<p>If you see a crash involving <code class="docutils literal notranslate"><span class="pre">libusd_tf-*.so</span></code> and conflicting USD versions
+(e.g. <code class="docutils literal notranslate"><span class="pre">pxrInternal_v0_25_5</span></code> vs <code class="docutils literal notranslate"><span class="pre">pxrInternal_v0_25_11</span></code>):</p>
+<ol class="arabic simple">
+<li><p>Ensure <code class="docutils literal notranslate"><span class="pre">LD_PRELOAD</span></code> is set to ovrtx’s <code class="docutils literal notranslate"><span class="pre">libcarb.so</span></code> (see the
+<a class="reference internal" href="../setup/installation/index.html#installation-ovrtx"><span class="std std-ref">OVRTX section</span></a> of the installation guide)</p></li>
+<li><p>Ensure <code class="docutils literal notranslate"><span class="pre">isaacsim</span></code> / <code class="docutils literal notranslate"><span class="pre">omniverse-kit</span></code> is <strong>not</strong> installed in the same
+environment — their bundled USD libraries conflict with ovrtx’s</p></li>
+</ol>
+</section>
+<section id="visualizer-not-appearing">
+<h3>Visualizer Not Appearing<a class="headerlink" href="#visualizer-not-appearing" title="Link to this heading">#</a></h3>
+<p>If <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">newton</span></code> shows no window, you may be missing <code class="docutils literal notranslate"><span class="pre">imgui-bundle</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>imgui-bundle
+</pre></div>
+</div>
+<p>For <code class="docutils literal notranslate"><span class="pre">viser</span></code>, check the terminal for a URL (e.g. <code class="docutils literal notranslate"><span class="pre">http://localhost:8012</span></code>).</p>
+</section>
+<section id="glibc-version-too-old">
+<h3><code class="docutils literal notranslate"><span class="pre">GLIBC</span> <span class="pre">Version</span> <span class="pre">Too</span> <span class="pre">Old</span></code><a class="headerlink" href="#glibc-version-too-old" title="Link to this heading">#</a></h3>
+<p>Isaac Sim pip packages require GLIBC 2.35+. Check with <code class="docutils literal notranslate"><span class="pre">ldd</span> <span class="pre">--version</span></code>.
+Ubuntu 22.04+ satisfies this. For older distributions, use the
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html">binary installation</a>
+method for Isaac Sim.</p>
+</section>
+</section>
 <section id="debugging-physics-simulation-stability-issues">
 <h2>Debugging physics simulation stability issues<a class="headerlink" href="#debugging-physics-simulation-stability-issues" title="Link to this heading">#</a></h2>
 <p>When importing new robots into Isaac Lab or setting up a new environment, simulation instability
@@ -987,6 +1059,17 @@ TypeError:<span class="w"> </span>expected<span class="w"> </span>Tensor<span cl
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation-troubleshooting">Installation Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-pip"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'pip'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-isaacsim"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaacsim'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-isaaclab-physx-or-isaaclab-ov"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaaclab_physx'</span></code> or <code class="docutils literal notranslate"><span class="pre">'isaaclab_ov'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-isaaclab-assets"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaaclab_assets'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modulenotfounderror-no-module-named-rsl-rl"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'rsl_rl'</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#crash-in-libusd-tf-usd-symbol-collision-with-ovrtx">Crash in <code class="docutils literal notranslate"><span class="pre">libusd_tf</span></code> / USD Symbol Collision with OVRTX</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-not-appearing">Visualizer Not Appearing</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#glibc-version-too-old"><code class="docutils literal notranslate"><span class="pre">GLIBC</span> <span class="pre">Version</span> <span class="pre">Too</span> <span class="pre">Old</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#debugging-physics-simulation-stability-issues">Debugging physics simulation stability issues</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>

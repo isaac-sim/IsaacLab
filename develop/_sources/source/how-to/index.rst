@@ -24,6 +24,7 @@ how to import a new asset into Isaac Lab.
 
     import_new_asset
     write_articulation_cfg
+    robots
 
 Creating a Fixed Asset
 ----------------------
