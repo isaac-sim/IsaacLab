@@ -7,12 +7,24 @@
 
 from __future__ import annotations
 
+import ctypes
 import inspect
 import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+
+# Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
+# cudaStreamCaptureModeRelaxed (2) allows the RTX compositor's background
+# CUDA stream to keep running during capture without invalidating it.
+try:
+    _cudart = ctypes.CDLL("libcudart.so.12")
+except OSError:
+    try:
+        _cudart = ctypes.CDLL("libcudart.so")
+    except OSError:
+        _cudart = None
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
@@ -83,12 +95,18 @@ class NewtonManager(PhysicsManager):
 
     # CUDA graphing
     _graph = None
+    _graph_capture_pending: bool = False
 
     # USD/Fabric sync
     _newton_stage_path = None
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _clone_physics_only = False
+    _transforms_dirty: bool = False
+
+    # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
+    _cubric = None
+    _cubric_adapter: int | None = None
 
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
@@ -140,48 +158,113 @@ class NewtonManager(PhysicsManager):
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
 
     @classmethod
+    def pre_render(cls) -> None:
+        """Flush deferred Fabric writes before cameras/visualizers read the scene."""
+        cls.sync_transforms_to_usd()
+
+    @classmethod
     def sync_transforms_to_usd(cls) -> None:
         """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
 
-        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active).
-        Called by :class:`~isaaclab.sim.scene_data_providers.NewtonSceneDataProvider` at render
-        cadence (Kit), and after each physics step when using Newton+RTX so the renderer sees
-        updated poses.
+        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active)
+        or when transforms have not changed since the last sync.
+
+        Called at render cadence by :meth:`pre_render` (via
+        :meth:`~isaaclab.sim.SimulationContext.render`).
+        Physics stepping marks transforms dirty via :meth:`_mark_transforms_dirty`
+        so that the expensive Fabric hierarchy update only runs once per render
+        frame rather than after every physics step.
 
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
         The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
         corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
+
+        When cubric is available the method mirrors PhysX's ``DirectGpuHelper``
+        pattern: pause Fabric change tracking, write transforms, resume tracking,
+        then call ``IAdapter::compute`` on the GPU to propagate the hierarchy and
+        notify the Fabric Scene Delegate.  Otherwise it falls back to the CPU
+        ``update_world_xforms()`` path.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
+            return
+        if not cls._transforms_dirty:
             return
         try:
             import usdrt
 
-            selection = cls._usdrt_stage.SelectPrims(
-                require_attrs=[
-                    (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
-                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
-                ],
-                device=str(PhysicsManager._device),
-            )
-            if selection.GetCount() == 0:
-                return
-            fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
-            newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
-            wp.launch(
-                _set_fabric_transforms,
-                dim=newton_indices.shape[0],
-                inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
-                device=PhysicsManager._device,
-            )
-            wp.synchronize_device(PhysicsManager._device)
+            # Lazy adapter creation: deferred from initialize_solver() to avoid
+            # startup-ordering issues with the cubric plugin.
+            if cls._cubric is not None and cls._cubric.available and cls._cubric_adapter is None:
+                cls._cubric_adapter = cls._cubric.create_adapter()
+                if cls._cubric_adapter is not None:
+                    logger.info("cubric GPU transform hierarchy enabled")
+                else:
+                    logger.warning("cubric adapter creation failed; falling back to update_world_xforms()")
+                    cls._cubric = None
+
+            use_cubric = cls._cubric is not None and cls._cubric_adapter is not None
+
+            fabric_hierarchy = None
             if hasattr(usdrt, "hierarchy"):
                 fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                     cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
                 )
-                fabric_hierarchy.update_world_xforms()
-        except Exception as exc:
-            logger.debug("[NewtonManager] sync_transforms_to_usd: %s", exc)
+
+            # Pause hierarchy change tracking BEFORE SelectPrims.
+            # SelectPrims with ReadWrite access calls getAttributeArrayGpu
+            # internally, which marks Fabric buffers dirty.  If tracking is
+            # still active at that point the hierarchy records the change and
+            # Kit's updateWorldXforms will do an expensive connectivity
+            # rebuild every frame.  PhysX avoids this via ScopedUSDRT which
+            # pauses tracking before any Fabric writes.
+            if use_cubric and fabric_hierarchy is not None:
+                fabric_hierarchy.track_world_xform_changes(False)
+                fabric_hierarchy.track_local_xform_changes(False)
+
+            try:
+                selection = cls._usdrt_stage.SelectPrims(
+                    require_attrs=[
+                        (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+                        (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
+                    ],
+                    device=str(PhysicsManager._device),
+                )
+                if selection.GetCount() == 0:
+                    return
+
+                fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
+                newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
+                wp.launch(
+                    _set_fabric_transforms,
+                    dim=newton_indices.shape[0],
+                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
+                    device=PhysicsManager._device,
+                )
+                wp.synchronize_device(PhysicsManager._device)
+
+                cls._transforms_dirty = False
+
+                if use_cubric and fabric_hierarchy is not None:
+                    fabric_id = cls._usdrt_stage.GetFabricId().id
+                    cls._cubric.bind_to_stage(cls._cubric_adapter, fabric_id)
+                    cls._cubric.compute(cls._cubric_adapter)
+                elif fabric_hierarchy is not None:
+                    fabric_hierarchy.update_world_xforms()
+            finally:
+                if use_cubric and fabric_hierarchy is not None:
+                    fabric_hierarchy.track_world_xform_changes(True)
+                    fabric_hierarchy.track_local_xform_changes(True)
+        except Exception:
+            logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
+
+    @classmethod
+    def _mark_transforms_dirty(cls) -> None:
+        """Flag that physics state has changed and Fabric needs re-sync.
+
+        Called by :meth:`_simulate` after stepping. The actual sync is deferred
+        to :meth:`sync_transforms_to_usd`, which runs at render cadence.
+        """
+        cls._transforms_dirty = True
 
     @classmethod
     def step(cls) -> None:
@@ -197,12 +280,26 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 cls._model_changes = set()
 
-        # Step simulation (graphed or not; _graph is None when RTX/Fabric sync is active or on CPU)
+        # Lazy CUDA graph capture: deferred from initialize_solver() when RTX was active.
+        # By the time step() is first called, RTX has fully initialized (all cudaImportExternalMemory
+        # calls are done) and is idle between render frames — giving us a clean capture window.
         cfg = PhysicsManager._cfg
-        if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in PhysicsManager._device:  # type: ignore[union-attr]
+        device = PhysicsManager._device
+        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device:  # type: ignore[union-attr]
+            cls._graph_capture_pending = False
+            cls._graph = cls._capture_relaxed_graph(device)
+            if cls._graph is not None:
+                logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
+            else:
+                logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
+
+        # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
+        if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
             wp.capture_launch(cls._graph)
+            if cls._usdrt_stage is not None:
+                cls._mark_transforms_dirty()
         else:
-            with wp.ScopedDevice(PhysicsManager._device):
+            with wp.ScopedDevice(device):
                 cls._simulate()
 
         # Debug convergence info
@@ -239,6 +336,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
+        if cls._cubric is not None and cls._cubric_adapter is not None:
+            cls._cubric.release_adapter(cls._cubric_adapter)
+        cls._cubric = None
+        cls._cubric_adapter = None
         cls._builder = None
         cls._model = None
         cls._solver = None
@@ -252,8 +353,10 @@ class NewtonManager(PhysicsManager):
         cls._newton_contact_sensors = {}
         cls._report_contacts = False
         cls._graph = None
+        cls._graph_capture_pending = False
         cls._newton_stage_path = None
         cls._usdrt_stage = None
+        cls._transforms_dirty = False
         cls._up_axis = "Z"
         cls._model_changes = set()
         cls._views = []
@@ -314,10 +417,15 @@ class NewtonManager(PhysicsManager):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
+                # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
+                # applies Inverse propagation (preserves Newton's world
+                # transforms and derives local) instead of Forward.
+                prim.AddAppliedSchema("PhysicsRigidBodyAPI")
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 if not xformable_prim.HasWorldXform():
                     xformable_prim.SetWorldXformFromUsd()
 
+            cls._mark_transforms_dirty()
             cls.sync_transforms_to_usd()
 
     @classmethod
@@ -477,25 +585,169 @@ class NewtonManager(PhysicsManager):
             # Initialize contacts and collision pipeline
             cls._initialize_contacts()
 
+        # Prepare cubric ctypes bindings (acquires IAdapter from carb framework).
+        # Adapter creation is deferred to the first sync_transforms_to_usd() call
+        # at render time to avoid any startup-ordering issues with the cubric
+        # plugin initialisation.
+        if cls._usdrt_stage is not None:
+            from isaaclab_newton.physics._cubric import CubricBindings
+
+            cls._cubric = CubricBindings()
+            if cls._cubric.initialize():
+                logger.info("cubric bindings ready (adapter deferred to first render)")
+            else:
+                logger.warning("cubric bindings init failed; falling back to update_world_xforms()")
+                cls._cubric = None
+
         device = PhysicsManager._device
 
-        # Skip CUDA graph when syncing to USD/Fabric for RTX: capture conflicts with RTX/Replicator
-        # using the legacy stream (cudaErrorStreamCaptureImplicit).
-        use_cuda_graph = cfg.use_cuda_graph and (cls._usdrt_stage is None)  # type: ignore[union-attr]
+        use_cuda_graph = cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
 
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-            if use_cuda_graph and "cuda" in device:
-                with wp.ScopedCapture() as capture:
-                    cls._simulate()
-                cls._graph = capture.graph
+            if use_cuda_graph:
+                if cls._usdrt_stage is None:
+                    # No RTX active — use standard Warp capture (cudaStreamCaptureModeGlobal).
+                    with wp.ScopedCapture() as capture:
+                        cls._simulate()
+                    cls._graph = capture.graph
+                    logger.info("Newton CUDA graph captured (standard Warp mode)")
+                else:
+                    # RTX is active during initialization — cudaImportExternalMemory and other
+                    # non-capturable RTX ops run on background CUDA streams right now.
+                    # Defer capture to the first step() call, after RTX is fully initialized
+                    # and idle between render frames (clean capture window).
+                    cls._graph = None
+                    cls._graph_capture_pending = True
+                    logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
             else:
                 cls._graph = None
 
     @classmethod
-    def _simulate(cls) -> None:
-        """Run one simulation step with substeps."""
+    def _capture_relaxed_graph(cls, device: str):
+        """Capture Newton physics (only) as a CUDA graph, RTX-compatible.
 
-        # MJWarp can use its internal collision pipeline.
+        Uses a hybrid approach to work around two conflicting requirements:
+
+        1. RTX background threads use CUDA's legacy stream (stream 0) for async operations
+           like ``cudaImportExternalMemory``.  A standard ``wp.ScopedCapture()`` uses
+           ``cudaStreamCaptureModeThreadLocal`` on Warp's default stream (a blocking stream).
+           A blocking stream synchronises implicitly with legacy stream 0, so RTX ops inside
+           the capture window fail with error 906.
+
+        2. ``mujoco_warp`` calls ``wp.capture_while`` inside ``solver.solve()``.
+           ``wp.capture_while`` checks ``device.captures`` (populated by ``wp.capture_begin``)
+           to decide whether to insert a conditional graph node (graph-capture path) or to run
+           eagerly with ``wp.synchronize_stream`` (non-capture path).  Without an entry in
+           ``device.captures``, it synchronises the capturing stream — which raises "Cannot
+           synchronize stream while graph capture is active".
+
+        Solution:
+
+        - Create a **non-blocking** stream (``cudaStreamNonBlocking = 0x01``): no implicit sync
+          with legacy stream 0, so RTX background threads are unaffected (avoids error 906).
+        - Start the capture externally via ``cudaStreamBeginCapture`` with
+          ``cudaStreamCaptureModeRelaxed`` so no other CUDA activity is disrupted.
+        - Call ``wp.capture_begin(external=True, stream=fresh_stream)``:
+          this registers the capture in Warp's ``device.captures`` *without* calling
+          ``cudaStreamBeginCapture`` (already done) and *without* changing device-wide memory
+          pool attributes (avoids error 900 in RTX's ``cudaMallocAsync``).
+        - Run ``_simulate_physics_only()`` inside ``ScopedStream(fresh_stream)``:
+          kernels dispatch to ``fresh_stream`` and are captured; ``wp.capture_while`` finds the
+          active capture and inserts a conditional graph node instead of synchronising.
+        - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
+        - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
+
+        Warmup run pre-allocates all MuJoCo-Warp scratch buffers so no ``cudaMalloc`` occurs during
+        capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
+        excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
+
+        Returns a ``wp.Graph`` on success, or ``None`` on failure.
+        """
+        if _cudart is None:
+            logger.warning("libcudart not available; cannot use relaxed graph capture")
+            return None
+
+        # Warmup: pre-allocate all MuJoCo-Warp scratch buffers so the capture window has
+        # no new cudaMalloc calls (which are forbidden inside graph capture).
+        with wp.ScopedDevice(device):
+            cls._simulate_physics_only()
+        wp.synchronize_stream(wp.get_stream(device))
+
+        # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
+        raw_handle = ctypes.c_void_p()
+        ret = _cudart.cudaStreamCreateWithFlags(ctypes.byref(raw_handle), ctypes.c_uint(0x01))
+        if ret != 0:
+            logger.warning("cudaStreamCreateWithFlags(NonBlocking) failed (code %d)", ret)
+            return None
+        fresh_handle = raw_handle.value
+        fresh_stream = wp.Stream(device, cuda_stream=fresh_handle, owner=False)
+
+        # Start capture in relaxed mode BEFORE entering ScopedStream.
+        ret = _cudart.cudaStreamBeginCapture(ctypes.c_void_p(fresh_handle), ctypes.c_int(2))
+        if ret != 0:
+            _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
+            logger.warning("cudaStreamBeginCapture(relaxed) failed (code %d)", ret)
+            return None
+
+        try:
+            wp.capture_begin(stream=fresh_stream, external=True)
+        except Exception as exc:
+            raw_graph = ctypes.c_void_p()
+            _cudart.cudaStreamEndCapture(ctypes.c_void_p(fresh_handle), ctypes.byref(raw_graph))
+            if raw_graph.value:
+                _cudart.cudaGraphDestroy(raw_graph)
+            _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
+            logger.warning("wp.capture_begin(external=True) failed: %s", exc)
+            return None
+
+        err_during_capture = None
+        with wp.ScopedStream(fresh_stream, sync_enter=False):
+            try:
+                cls._simulate_physics_only()
+            except Exception as exc:
+                err_during_capture = exc
+
+        if err_during_capture is None:
+            try:
+                graph = wp.capture_end(stream=fresh_stream)
+            except Exception as exc:
+                err_during_capture = exc
+                graph = None
+        else:
+            try:
+                wp.capture_end(stream=fresh_stream)
+            except Exception:
+                pass
+            graph = None
+
+        raw_graph = ctypes.c_void_p()
+        end_ret = _cudart.cudaStreamEndCapture(ctypes.c_void_p(fresh_handle), ctypes.byref(raw_graph))
+        _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
+
+        if err_during_capture is not None:
+            if raw_graph.value:
+                _cudart.cudaGraphDestroy(raw_graph)
+            logger.warning("Newton graph capture aborted during simulate: %s", err_during_capture)
+            return None
+
+        if end_ret != 0 or not raw_graph.value:
+            logger.warning("cudaStreamEndCapture failed (code %d)", end_ret)
+            return None
+
+        graph.graph = raw_graph
+        graph.graph_exec = None
+        return graph
+
+    @classmethod
+    def _simulate_physics_only(cls) -> None:
+        """Run one physics step without Fabric/USD sync — safe for CUDA graph capture.
+
+        Used by :meth:`_capture_relaxed_graph` to capture only the pure physics kernels.
+        ``sync_transforms_to_usd`` is excluded because it calls ``wp.synchronize_device``
+        (forbidden inside graph capture) and ``wp.fabricarray`` (device-wide allocation).
+        The caller (``step()``) is responsible for calling ``sync_transforms_to_usd()``
+        eagerly after ``wp.capture_launch``.
+        """
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls._state_0, cls._contacts)
             contacts = cls._contacts
@@ -512,7 +764,6 @@ class NewtonManager(PhysicsManager):
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last_substep = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
-
             for i in range(cls._num_substeps):
                 step_fn(cls._state_0, cls._state_1)
                 if need_copy_on_last_substep and i == cls._num_substeps - 1:
@@ -521,18 +772,23 @@ class NewtonManager(PhysicsManager):
                     cls._state_0, cls._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
 
-        # Populate contacts for contact sensors
         if cls._report_contacts:
-            # For newton_contacts (unified pipeline): use locally computed contacts
-            # For mujoco_contacts: use class-level _contacts, solver populates it from MuJoCo data
             eval_contacts = contacts if contacts is not None else cls._contacts
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls._state_0, eval_contacts)
 
-        # Sync Newton state to USD/Fabric for RTX rendering (e.g., Newton Physics + RTX Renderer preset)
+    @classmethod
+    def _simulate(cls) -> None:
+        """Run one simulation step with substeps and USD sync.
+
+        Delegates physics work to :meth:`_simulate_physics_only` and then
+        marks transforms dirty for the next render-cadence sync.
+        """
+        cls._simulate_physics_only()
+
         if cls._usdrt_stage is not None:
-            cls.sync_transforms_to_usd()
+            cls._mark_transforms_dirty()
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
