@@ -3,5 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.envs.mdp import *
-from isaaclab_contrib.mdp import *
+"""Configurations for drone NTNU navigation environments."""
