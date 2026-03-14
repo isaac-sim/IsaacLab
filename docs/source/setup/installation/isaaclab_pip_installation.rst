@@ -101,13 +101,17 @@ Installing dependencies
             On aarch64, you may encounter the following error when importing ``omni.client`` or ``torch``:
 
             .. code-block:: none
+
                ImportError: .../libcarb.so: cannot allocate memory in static TLS block
+
             This happens because ``libcarb.so`` uses the *initial-exec* TLS model, and
             the dynamic linker's fixed-size TLS surplus is exhausted by the time it is loaded.
             To fix this, preload ``libcarb.so`` before launching Python:
 
             .. code-block:: bash
+
                export LD_PRELOAD=$(python -c "import sys,os;[print(os.path.join(p,'omni','client','libcarb.so')) for p in sys.path if os.path.isfile(os.path.join(p,'omni','client','libcarb.so'))]" 2>/dev/null | head -1)${LD_PRELOAD:+:$LD_PRELOAD}
+
             When using ``./isaaclab.sh -p``, this is handled automatically.
             When using a conda environment,
             the preload is set up via the conda activation hook.
