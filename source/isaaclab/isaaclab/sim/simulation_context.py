@@ -179,6 +179,7 @@ class SimulationContext:
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
+        self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
 
         # Simulation state
@@ -338,12 +339,13 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI, RTX sensors, or visualizers requested)."""
+        """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
         return (
             self._has_gui
             or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.resolve_visualizer_types())
+            or self._xr_enabled
         )
 
     def get_physics_dt(self) -> float:
@@ -472,27 +474,47 @@ class SimulationContext:
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
         if cli_disable_all:
-            return []
-
-        if not cli_explicit:
+            resolved = []
+        elif not cli_explicit:
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
-            return visualizer_cfgs
+            resolved = visualizer_cfgs
+        elif not visualizer_cfgs:
+            resolved = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            self._apply_visualizer_cli_overrides(resolved)
+        else:
+            # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
+            cli_requested_set = set(cli_requested)
+            resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            for viz_type in cli_requested:
+                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                    resolved.extend(self._create_default_visualizer_configs([viz_type]))
+                    existing_types.add(viz_type)
+            self._apply_visualizer_cli_overrides(resolved)
 
-        if not visualizer_cfgs:
-            resolved_cfgs = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
-            self._apply_visualizer_cli_overrides(resolved_cfgs)
-            return resolved_cfgs
+        # XR auto-start: auto-inject a KitVisualizer when XR is active and no
+        # Kit visualizer is already present.  The KitVisualizer pumps
+        # app.update() and triggers forward() (via requires_forward_before_step)
+        # to sync Fabric data so the XR runtime receives up-to-date hand/joint
+        # transforms each frame.
+        if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
+            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
+            if not has_kit:
+                try:
+                    import importlib
 
-        # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
-        cli_requested_set = set(cli_requested)
-        selected_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
-        existing_types = {getattr(cfg, "visualizer_type", None) for cfg in selected_cfgs}
-        for viz_type in cli_requested:
-            if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
-                existing_types.add(viz_type)
-        self._apply_visualizer_cli_overrides(selected_cfgs)
-        return selected_cfgs
+                    mod = importlib.import_module("isaaclab_visualizers.kit")
+                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
+                    resolved.append(kit_cfg_cls())
+                    logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
+                except (ImportError, ModuleNotFoundError, AttributeError) as exc:
+                    logger.warning(
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
+                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        exc,
+                    )
+
+        return resolved
 
     def initialize_visualizers(self) -> None:
         """Initialize visualizers from SimulationCfg.visualizer_cfgs."""

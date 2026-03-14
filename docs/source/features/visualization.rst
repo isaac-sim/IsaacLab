@@ -438,6 +438,23 @@ The visualizer will still function correctly but may experience reduced performa
 CPU copy operations instead of direct GPU memory sharing.
 
 
+**Newton Visualizer on Spark with Conda**
+
+When running the Newton visualizer on Spark inside a conda environment, conda-installed X11 libraries
+may conflict with the system libraries required by pyglet, causing the following error:
+
+.. code-block:: text
+
+    pyglet.window.xlib.XlibException: Could not create UTF8 text property
+
+To resolve this, remove the conflicting conda packages so that the system-provided libraries are used
+instead:
+
+.. code-block:: bash
+
+    conda remove --force xorg-libx11 libxcb
+
+
 See Also
 --------
 
