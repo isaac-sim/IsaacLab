@@ -20,52 +20,11 @@ To learn about how to set up your own project on top of Isaac Lab, please see :r
 Installing Isaac Lab
 ~~~~~~~~~~~~~~~~~~~~
 
-The ``isaaclab`` package provides optional extras to install Isaac Sim and individual
-Isaac Lab sub-packages:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 15 55
-
-   * - Extra
-     - What it installs
-   * - ``isaacsim``
-     - Isaac Sim (``isaacsim[all,extscache]==X.X.X``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
-   * - ``assets``
-     - ``isaaclab_assets``
-   * - ``physx``
-     - ``isaaclab_physx``
-   * - ``contrib``
-     - ``isaaclab_contrib``
-   * - ``mimic``
-     - ``isaaclab_mimic``
-   * - ``newton``
-     - ``isaaclab_newton``
-   * - ``rl``
-     - ``isaaclab_rl``
-   * - ``tasks``
-     - ``isaaclab_tasks``
-   * - ``teleop``
-     - ``isaaclab_teleop``
-   * - ``all``
-     - All of the above sub-packages (does **not** include ``isaacsim``)
-
 .. tab-set::
 
    .. tab-item:: uv
 
       .. code-block:: bash
-
-         # Isaac Lab only
-         uv pip install isaaclab # latest version
-         uv pip install isaaclab==3.0.0 # specific version
-
-         # Isaac Lab + Isaac Sim
-         uv pip install "isaaclab[isaacsim]"
-
-         # Isaac Lab + specific sub-package(s)
-         uv pip install "isaaclab[assets]"
-         uv pip install "isaaclab[rl,tasks]"
 
          # Isaac Lab + Isaac Sim + all sub-packages
          uv pip install "isaaclab[isaacsim,all]"
@@ -73,17 +32,6 @@ Isaac Lab sub-packages:
    .. tab-item:: pip
 
       .. code-block:: bash
-
-         # Isaac Lab only
-         pip install isaaclab # latest version
-         pip install isaaclab==3.0.0 # specific version
-
-         # Isaac Lab + Isaac Sim
-         pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
-
-         # Isaac Lab + specific sub-package(s)
-         pip install "isaaclab[assets]"
-         pip install "isaaclab[rl,tasks]"
 
          # Isaac Lab + Isaac Sim + all Isaac Lab sub-packages
          pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com
@@ -119,13 +67,13 @@ Installing dependencies
 
          .. note::
 
-            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` and ``quadprog`` must be compiled from source because no
-            pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
+            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` must be compiled from source because no
+            pre-built wheel is available. Install the required OpenGL and X11 development packages
             **before** installing Isaac Lab:
 
             .. code-block:: bash
 
-               sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+               sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
          .. note::
 
@@ -147,26 +95,6 @@ Installing dependencies
 
             This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
             removing the preload warnings during runtime.
-
-         .. note::
-
-            On aarch64, you may encounter the following error when importing ``omni.client`` or ``torch``:
-
-            .. code-block:: none
-
-               ImportError: .../libcarb.so: cannot allocate memory in static TLS block
-
-            This happens because ``libcarb.so`` uses the *initial-exec* TLS model, and
-            the dynamic linker's fixed-size TLS surplus is exhausted by the time it is loaded.
-            To fix this, preload ``libcarb.so`` before launching Python:
-
-            .. code-block:: bash
-
-               export LD_PRELOAD=$(python -c "import sys,os;[print(os.path.join(p,'omni','client','libcarb.so')) for p in sys.path if os.path.isfile(os.path.join(p,'omni','client','libcarb.so'))]" 2>/dev/null | head -1)${LD_PRELOAD:+:$LD_PRELOAD}
-
-            When using ``./isaaclab.sh -p``, this is handled automatically.
-            When using a conda environment,
-            the preload is set up via the conda activation hook.
 
 -  If you want to use ``rl_games`` for training and inferencing, install
    its Python 3.11+ enabled fork:
