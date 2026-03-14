@@ -37,26 +37,32 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 )
 
 
+OBJECT_PHYSICS = {
+    "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
+    "collision_props": sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
+}
+
+
 @configclass
 class ObjectCfg(PresetCfg):
     shapes = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
-            MeshCuboidCfg(size=(0.05, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshSphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshSphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCapsuleCfg(radius=0.04, height=0.01, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCapsuleCfg(radius=0.04, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCapsuleCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCapsuleCfg(radius=0.025, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshCapsuleCfg(radius=0.01, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshConeCfg(radius=0.05, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            MeshConeCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            MeshCuboidCfg(size=(0.05, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.05, 0.05, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.05, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.025, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.01, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshSphereCfg(radius=0.05, **OBJECT_PHYSICS),
+            MeshSphereCfg(radius=0.025, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.025, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.01, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.1, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.025, height=0.2, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.01, height=0.2, **OBJECT_PHYSICS),
+            MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
+            MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
         ],
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,
@@ -232,7 +238,7 @@ class StartupEventCfg:
         },
     )
 
-    object_physics_material = EventTerm(
+    OBJECT_PHYSICS_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
         params={
@@ -427,14 +433,6 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
 
     def validate_config(self):
         """Check for invalid preset combinations after resolution."""
-        is_newton = not isinstance(self.sim.physics, PhysxCfg)
-        is_multi_asset = isinstance(self.scene.object.spawn, sim_utils.MultiAssetSpawnerCfg)
-
-        # if is_newton and is_multi_asset:
-        #     raise ValueError(
-        #         "Newton physics does not support multi-asset spawning."
-        #         " Use a single-geometry object preset (e.g. presets=cube) instead of 'shapes'."
-        #     )
 
         warp_supported = {"rgb", "depth", "distance_to_image_plane"}
         for cam_attr in ("base_camera", "wrist_camera"):
