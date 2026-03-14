@@ -716,7 +716,8 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-configuration-validation">Custom Configuration Validation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preset-system">Preset System</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#override-order">Override Order</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-presets">Defining Presets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-presets-with-presetcfg">Defining Presets with PresetCfg</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inline-presets-with-preset">Inline Presets with preset()</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-presets">Using Presets</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#global-preset-conflict-detection">Global Preset Conflict Detection</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#real-world-example">Real-World Example</a></li>
@@ -964,96 +965,47 @@ combinations early with clear error messages.</p>
 </section>
 <section id="preset-system">
 <h2>Preset System<a class="headerlink" href="#preset-system" title="Link to this heading">#</a></h2>
-<p>The preset system lets you swap out entire config sections with a single command line argument.
-Instead of overriding individual fields, you select a named preset that <strong>completely replaces</strong> the
-config section (no field merging).</p>
-<p>Presets are defined directly on config classes using a <code class="docutils literal notranslate"><span class="pre">presets</span></code> attribute. The system recursively
-discovers all presets from nested configs automatically.</p>
+<p>The preset system lets you swap out entire config sections – or individual scalar
+values – with a single command line argument. Instead of overriding individual
+fields, you select a named preset that <strong>completely replaces</strong> the config section
+(no field merging).</p>
+<p>Presets are declared by subclassing <code class="xref py py-class docutils literal notranslate"><span class="pre">PresetCfg</span></code>
+or by using the <code class="xref py py-func docutils literal notranslate"><span class="pre">preset()</span></code> convenience factory. The
+system recursively discovers all presets from nested configs automatically,
+including presets inside dict-valued fields (e.g. <code class="docutils literal notranslate"><span class="pre">actuators</span></code>).</p>
 <section id="override-order">
 <h3>Override Order<a class="headerlink" href="#override-order" title="Link to this heading">#</a></h3>
 <p>Overrides are applied in sequence:</p>
 <ol class="arabic simple">
-<li><p><strong>Auto-default</strong>: Configs with a <code class="docutils literal notranslate"><span class="pre">&quot;default&quot;</span></code> preset auto-apply without CLI args</p></li>
-<li><p><strong>Global presets</strong>: <code class="docutils literal notranslate"><span class="pre">presets=inference,newton</span></code> applies to ALL matching configs</p></li>
-<li><p><strong>Path presets</strong>: <code class="docutils literal notranslate"><span class="pre">env.actions.arm_action=relative_joint_position</span></code> replaces specific section</p></li>
+<li><p><strong>Auto-default</strong>: Configs with a <code class="docutils literal notranslate"><span class="pre">&quot;default&quot;</span></code> field auto-apply without CLI args</p></li>
+<li><p><strong>Global presets</strong>: <code class="docutils literal notranslate"><span class="pre">presets=newton,inference</span></code> applies to ALL matching configs</p></li>
+<li><p><strong>Path presets</strong>: <code class="docutils literal notranslate"><span class="pre">env.backend=newton</span></code> replaces a specific section</p></li>
 <li><p><strong>Scalar overrides</strong>: <code class="docutils literal notranslate"><span class="pre">env.sim.dt=0.001</span></code> modifies individual fields</p></li>
 </ol>
 </section>
-<section id="defining-presets">
-<h3>Defining Presets<a class="headerlink" href="#defining-presets" title="Link to this heading">#</a></h3>
-<p>There are four styles for defining presets:</p>
-<p><strong>Style 1: Inheritance</strong> - Default values from base class, presets for alternatives:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">FrankaArmActionCfg</span><span class="p">(</span><span class="n">mdp</span><span class="o">.</span><span class="n">JointPositionActionCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Franka arm action config with presets for different action types.&quot;&quot;&quot;</span>
-
-    <span class="n">presets</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;joint_position_to_limit&quot;</span><span class="p">:</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointPositionToLimitsActionCfg</span><span class="p">(</span>
-            <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;panda_joint.*&quot;</span><span class="p">]</span>
-        <span class="p">),</span>
-        <span class="s2">&quot;relative_joint_position&quot;</span><span class="p">:</span> <span class="n">mdp</span><span class="o">.</span><span class="n">RelativeJointPositionActionCfg</span><span class="p">(</span>
-            <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;panda_joint.*&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.2</span>
-        <span class="p">),</span>
-    <span class="p">}</span>
-</pre></div>
-</div>
-<p><strong>Style 2: Inner class</strong> - Self-contained with nested preset definitions:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SimCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Simulation config with physics backend presets.&quot;&quot;&quot;</span>
-
-    <span class="n">backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;physx&quot;</span>
-    <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.005</span>
-    <span class="n">substeps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>
-
-    <span class="nd">@configclass</span>
-    <span class="k">class</span><span class="w"> </span><span class="nc">Newton</span><span class="p">:</span>
-        <span class="n">backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;newton&quot;</span>
-        <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.002</span>
-        <span class="n">substeps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
-        <span class="n">solver_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
-
-    <span class="n">presets</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;newton&quot;</span><span class="p">:</span> <span class="n">Newton</span><span class="p">()}</span>
-</pre></div>
-</div>
-<p><strong>Style 3: Preset-only with auto-default</strong> - Pure composition, no default fields:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications with presets.&quot;&quot;&quot;</span>
-
-    <span class="n">presets</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="n">DefaultObservationsCfg</span><span class="p">(),</span>
-        <span class="s2">&quot;noise_less&quot;</span><span class="p">:</span> <span class="n">NoiselessObservationsCfg</span><span class="p">(),</span>
-    <span class="p">}</span>
-</pre></div>
-</div>
-<p>With Style 3, the <code class="docutils literal notranslate"><span class="pre">&quot;default&quot;</span></code> preset is automatically applied when no preset is selected.</p>
-<p><strong>Style 4: PresetCfg class</strong> - Declarative, class-based preset definitions:</p>
+<section id="defining-presets-with-presetcfg">
+<h3>Defining Presets with PresetCfg<a class="headerlink" href="#defining-presets-with-presetcfg" title="Link to this heading">#</a></h3>
+<p>Create a <code class="xref py py-class docutils literal notranslate"><span class="pre">PresetCfg</span></code> subclass where each field
+is a named alternative. The <code class="docutils literal notranslate"><span class="pre">default</span></code> field is the config used when no CLI
+override is given:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">PresetCfg</span>
 
 <span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PhysicsCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Physics backend presets using class-based pattern.&quot;&quot;&quot;</span>
-
     <span class="n">default</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">()</span>
     <span class="n">newton</span><span class="p">:</span> <span class="n">NewtonCfg</span> <span class="o">=</span> <span class="n">NewtonCfg</span><span class="p">()</span>
 
 <span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SimCfg</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyEnvCfg</span><span class="p">:</span>
     <span class="n">physics</span><span class="p">:</span> <span class="n">PhysicsCfg</span> <span class="o">=</span> <span class="n">PhysicsCfg</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>With Style 4, each field on the <code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> subclass is a named preset. The <code class="docutils literal notranslate"><span class="pre">default</span></code> field
-holds the config instance used when no CLI override is given. <code class="docutils literal notranslate"><span class="pre">collect_presets</span></code> automatically
-discovers <code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> subclasses and converts their fields into a presets dict, so no
-<code class="docutils literal notranslate"><span class="pre">presets</span></code> attribute is needed. CLI usage is the same as other styles:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use Newton physics backend</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.sim.physics<span class="o">=</span>newton
+python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span>env.physics<span class="o">=</span>newton
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">default</span></code> field can be set to <code class="docutils literal notranslate"><span class="pre">None</span></code> to make an optional feature that is disabled unless
-explicitly selected on the command line:</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">default</span></code> field can be set to <code class="docutils literal notranslate"><span class="pre">None</span></code> to make an optional feature that is
+disabled unless explicitly selected:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">CameraPresetCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
     <span class="n">default</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1065,113 +1017,121 @@ explicitly selected on the command line:</p>
     <span class="n">camera</span><span class="p">:</span> <span class="n">CameraPresetCfg</span> <span class="o">=</span> <span class="n">CameraPresetCfg</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>When no CLI argument is given, <code class="docutils literal notranslate"><span class="pre">camera</span></code> resolves to <code class="docutils literal notranslate"><span class="pre">None</span></code> (no camera):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># camera is None — no camera overhead</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># camera is None -- no camera overhead</span>
 python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0
 
 <span class="c1"># activate camera with the &quot;large&quot; preset</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.scene.camera<span class="o">=</span>large
+python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span>env.scene.camera<span class="o">=</span>large
+</pre></div>
+</div>
+</section>
+<section id="inline-presets-with-preset">
+<h3>Inline Presets with preset()<a class="headerlink" href="#inline-presets-with-preset" title="Link to this heading">#</a></h3>
+<p>For simple values (scalars, lists) that don’t warrant a full subclass, use the
+<code class="xref py py-func docutils literal notranslate"><span class="pre">preset()</span></code> factory. It dynamically creates a
+<code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> instance from keyword arguments:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils.hydra</span><span class="w"> </span><span class="kn">import</span> <span class="n">preset</span>
+
+<span class="c1"># Scalar preset -- one line, no boilerplate class</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">robot</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="s2">&quot;legs&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">armature</span> <span class="o">=</span> <span class="n">preset</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">newton</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">physx</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is equivalent to defining a <code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> subclass with three <code class="docutils literal notranslate"><span class="pre">float</span></code>
+fields, but without the ceremony. The <code class="docutils literal notranslate"><span class="pre">default</span></code> keyword is required.</p>
+<p><code class="docutils literal notranslate"><span class="pre">preset()</span></code> works for any value type – scalars, lists, or even config
+instances:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Resolution preset on a camera config field</span>
+<span class="n">width</span> <span class="o">=</span> <span class="n">preset</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">res128</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">res256</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>
+
+<span class="c1"># List preset for camera data types</span>
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DataTypeCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
+    <span class="n">default</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span>
+    <span class="n">depth</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">]</span>
+    <span class="n">albedo</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;albedo&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">preset()</span></code> when the definition fits on a single line.  Use a
+<code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> subclass when the options are verbose enough to benefit from
+type annotations and multiline formatting.</p>
+<p>The preset system discovers <code class="docutils literal notranslate"><span class="pre">preset()</span></code> values anywhere in the config tree,
+including inside dict-valued fields such as <code class="docutils literal notranslate"><span class="pre">actuators</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Select newton preset globally -- sets armature to 0.01</span>
+python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span><span class="nv">presets</span><span class="o">=</span>newton
 </pre></div>
 </div>
 </section>
 <section id="using-presets">
 <h3>Using Presets<a class="headerlink" href="#using-presets" title="Link to this heading">#</a></h3>
-<p><strong>Path presets</strong> - Select a specific preset for one config path:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use relative joint position action</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action<span class="o">=</span>relative_joint_position
-
-<span class="c1"># Use noiseless observations</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.observations<span class="o">=</span>noise_less
+<p><strong>Path presets</strong> – select a specific preset for one config path:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>env.events<span class="o">=</span>newton
 </pre></div>
 </div>
-<p><strong>Path preset + scalar override</strong> - Select preset then modify a field:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action<span class="o">=</span>relative_joint_position<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action.scale<span class="o">=</span><span class="m">0</span>.5
+<p><strong>Global presets</strong> – apply the same preset name everywhere it exists:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Apply &quot;newton&quot; preset to all configs that define it</span>
+python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">presets</span><span class="o">=</span>newton
 </pre></div>
 </div>
-<p><strong>Global presets</strong> - Apply the same preset name everywhere it exists:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Apply &quot;inference&quot; preset to all configs that define it</span>
-<span class="c1"># (e.g., observations, policy, etc.)</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">presets</span><span class="o">=</span>inference
-</pre></div>
-</div>
-<p><strong>Multiple global presets</strong> - Apply several non-conflicting presets:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Newton physics backend + inference mode</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
+<p><strong>Multiple global presets</strong> – apply several non-conflicting presets:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="nv">presets</span><span class="o">=</span>newton,inference
 </pre></div>
 </div>
-<p><strong>Combined</strong> - Global presets + path presets + scalar overrides:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">presets</span><span class="o">=</span>inference<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action<span class="o">=</span>relative_joint_position<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action.scale<span class="o">=</span><span class="m">0</span>.5<span class="w"> </span><span class="se">\</span>
+<p><strong>Combined</strong> – global presets + scalar overrides:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">presets</span><span class="o">=</span>newton<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>env.sim.dt<span class="o">=</span><span class="m">0</span>.002
 </pre></div>
 </div>
 </section>
 <section id="global-preset-conflict-detection">
 <h3>Global Preset Conflict Detection<a class="headerlink" href="#global-preset-conflict-detection" title="Link to this heading">#</a></h3>
-<p>If multiple global presets define the same path, an error is raised:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># ERROR: both &quot;fast&quot; and &quot;noise_less&quot; define env.observations</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">presets</span><span class="o">=</span>fast,noise_less
-
-<span class="c1"># ValueError: Conflicting global presets: &#39;fast&#39; and &#39;noise_less&#39;</span>
-<span class="c1">#             both define preset for &#39;env.observations&#39;</span>
+<p>If two global presets both match the same config path, an error is raised
+so the ambiguity is caught early:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: Conflicting global presets: &#39;foo&#39; and &#39;bar&#39;
+            both define preset for &#39;env.events&#39;
 </pre></div>
 </div>
 </section>
 <section id="real-world-example">
 <h3>Real-World Example<a class="headerlink" href="#real-world-example" title="Link to this heading">#</a></h3>
-<p>The Franka Reach environment demonstrates presets in practice:</p>
+<p>The ANYmal-C locomotion environment shows both <code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code> and <code class="docutils literal notranslate"><span class="pre">preset()</span></code>
+working together:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">FrankaReachEnvCfg</span><span class="p">(</span><span class="n">ReachEnvCfg</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># post init of parent</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
-
-        <span class="c1"># switch robot to franka</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">FRANKA_PANDA_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot&quot;</span><span class="p">)</span>
-        <span class="c1"># override rewards</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">rewards</span><span class="o">.</span><span class="n">end_effector_position_tracking</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;panda_hand&quot;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">rewards</span><span class="o">.</span><span class="n">end_effector_position_tracking_fine_grained</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;panda_hand&quot;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">rewards</span><span class="o">.</span><span class="n">end_effector_orientation_tracking</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;panda_hand&quot;</span><span class="p">]</span>
-
-        <span class="c1"># override actions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">arm_action</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointPositionActionCfg</span><span class="p">(</span>
-            <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;panda_joint.*&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">use_default_offset</span><span class="o">=</span><span class="kc">True</span>
-        <span class="p">)</span>
-        <span class="c1"># override command generator body</span>
-        <span class="c1"># end-effector is along z-direction</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">ee_pose</span><span class="o">.</span><span class="n">body_name</span> <span class="o">=</span> <span class="s2">&quot;panda_hand&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">ee_pose</span><span class="o">.</span><span class="n">ranges</span><span class="o">.</span><span class="n">pitch</span> <span class="o">=</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
-
-
-<span class="c1">##</span>
-<span class="c1"># Play configuration</span>
-<span class="c1">##</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnymalCPhysxEventsCfg</span><span class="p">(</span><span class="n">EventsCfg</span><span class="p">,</span> <span class="n">StartupEventsCfg</span><span class="p">):</span>
+    <span class="k">pass</span>
 
 
 <span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnymalCEventsCfg</span><span class="p">(</span><span class="n">PresetCfg</span><span class="p">):</span>
+    <span class="n">default</span> <span class="o">=</span> <span class="n">AnymalCPhysxEventsCfg</span><span class="p">()</span>
+    <span class="n">newton</span> <span class="o">=</span> <span class="n">EventsCfg</span><span class="p">()</span>
+    <span class="n">physx</span> <span class="o">=</span> <span class="n">default</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnymalCRoughEnvCfg</span><span class="p">(</span><span class="n">LocomotionVelocityRoughEnvCfg</span><span class="p">):</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">AnymalCEventsCfg</span> <span class="o">=</span> <span class="n">AnymalCEventsCfg</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># post init of parent</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+        <span class="c1"># switch robot to anymal-c</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">ANYMAL_C_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">robot</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="s2">&quot;legs&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">armature</span> <span class="o">=</span> <span class="n">preset</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">newton</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">physx</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This allows users to switch action types:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default: JointPositionActionCfg (from inheritance)</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0
+<p>A single <code class="docutils literal notranslate"><span class="pre">presets=newton</span></code> on the command line resolves every <code class="docutils literal notranslate"><span class="pre">PresetCfg</span></code>
+and <code class="docutils literal notranslate"><span class="pre">preset()</span></code> that defines a <code class="docutils literal notranslate"><span class="pre">newton</span></code> field: the physics engine is swapped
+to Newton, <code class="docutils literal notranslate"><span class="pre">AnymalCEventsCfg</span></code> selects Newton-compatible events, and the
+actuator armature is set to <code class="docutils literal notranslate"><span class="pre">0.01</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default (PhysX events, armature=0.0)</span>
+python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0
 
-<span class="c1"># Switch to relative joint position</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action<span class="o">=</span>relative_joint_position
-
-<span class="c1"># Switch to joint position with limits</span>
-python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Reach-Franka-v0<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>env.actions.arm_action<span class="o">=</span>joint_position_to_limit
+<span class="c1"># Newton (Newton events, armature=0.01)</span>
+python<span class="w"> </span>train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span><span class="nv">presets</span><span class="o">=</span>newton
 </pre></div>
 </div>
 </section>
@@ -1195,11 +1155,11 @@ python<span class="w"> </span>train.py<span class="w"> </span>--task<span class=
 <td><p>Modify single field</p></td>
 </tr>
 <tr class="row-odd"><td><p>Path preset</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">env.actions.arm_action=relative</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">env.events=newton</span></code></p></td>
 <td><p>Replace entire section</p></td>
 </tr>
 <tr class="row-even"><td><p>Global preset</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">presets=inference</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">presets=newton</span></code></p></td>
 <td><p>Apply everywhere matching</p></td>
 </tr>
 <tr class="row-odd"><td><p>Combined</p></td>
@@ -1270,7 +1230,8 @@ python<span class="w"> </span>train.py<span class="w"> </span>--task<span class=
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-configuration-validation">Custom Configuration Validation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preset-system">Preset System</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#override-order">Override Order</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-presets">Defining Presets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-presets-with-presetcfg">Defining Presets with PresetCfg</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inline-presets-with-preset">Inline Presets with preset()</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-presets">Using Presets</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#global-preset-conflict-detection">Global Preset Conflict Detection</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#real-world-example">Real-World Example</a></li>
