@@ -32,7 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
@@ -48,7 +48,7 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -60,7 +60,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 13, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 14, 2026"/>
   </head>
   
   
@@ -234,7 +234,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Cloud Deployment</a></li>
@@ -1248,9 +1247,11 @@
         <span class="c1"># Handle core settings</span>
         <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_livestream_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_visualizer_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
+        <span class="c1"># XR must be resolved before headless so that XR can prevent</span>
+        <span class="c1"># visualizer-intent-based headless forcing.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_xr_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_headless_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">,</span> <span class="n">livestream_arg</span><span class="p">,</span> <span class="n">livestream_env</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_camera_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_xr_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_viewport_settings</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
 
         <span class="c1"># Handle device and distributed settings</span>
@@ -1481,6 +1482,17 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">xr_env</span><span class="p">)</span>
 
+        <span class="c1"># Determine whether XR should auto-inject a KitVisualizer.</span>
+        <span class="c1"># When XR is enabled but no Kit visualizer was explicitly requested via</span>
+        <span class="c1"># CLI, we auto-inject one so that app.update() and forward() are pumped</span>
+        <span class="c1"># each frame -- the XR runtime needs both to receive updated hand/joint</span>
+        <span class="c1"># transforms.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span><span class="p">:</span>
+            <span class="n">has_explicit_kit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_explicit</span> <span class="ow">and</span> <span class="s2">&quot;kit&quot;</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cli_visualizer_types</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_auto_start</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">has_explicit_kit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_auto_start</span> <span class="o">=</span> <span class="kc">False</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_viewport_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve viewport related settings.&quot;&quot;&quot;</span>
         <span class="c1"># Check if we can disable the viewport to improve performance</span>
@@ -1576,7 +1588,7 @@
                 <span class="k">else</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.rendering.kit&quot;</span><span class="p">)</span>
             <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span><span class="p">:</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
                         <span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.xr.openxr.headless.kit&quot;</span>
                     <span class="p">)</span>
@@ -1703,6 +1715,13 @@
 
         <span class="c1"># set setting to indicate Isaac Lab&#39;s render_viewport pipeline should be enabled</span>
         <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/active_viewport&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span><span class="p">)</span>
+
+        <span class="c1"># set setting to indicate XR mode is enabled</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/xr/enabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span><span class="p">)</span>
+        <span class="c1"># set setting to indicate XR auto-start mode -- when running headless</span>
+        <span class="c1"># (no Kit GUI) the AR profile must be enabled programmatically so that</span>
+        <span class="c1"># the OpenXR session starts without user interaction</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/xr/auto_start&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span><span class="p">)</span>
 
         <span class="c1"># set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)</span>
         <span class="n">settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/rtx_sensors&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
@@ -1889,7 +1908,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 13, 2026.
+  Last updated on Mar 14, 2026.
   <br/>
 </p>
   </div>

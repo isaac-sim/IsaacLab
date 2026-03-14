@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5774970f" />
@@ -49,7 +49,7 @@
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 13, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 14, 2026"/>
   </head>
   
   
@@ -235,7 +235,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
@@ -1153,6 +1152,17 @@ OpenGL buffer.
 </div>
 <p>The visualizer will still function correctly but may experience reduced performance due to falling back to
 CPU copy operations instead of direct GPU memory sharing.</p>
+<p><strong>Newton Visualizer on Spark with Conda</strong></p>
+<p>When running the Newton visualizer on Spark inside a conda environment, conda-installed X11 libraries
+may conflict with the system libraries required by pyglet, causing the following error:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>pyglet.window.xlib.XlibException: Could not create UTF8 text property
+</pre></div>
+</div>
+<p>To resolve this, remove the conflicting conda packages so that the system-provided libraries are used
+instead:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>remove<span class="w"> </span>--force<span class="w"> </span>xorg-libx11<span class="w"> </span>libxcb
+</pre></div>
+</div>
 </section>
 <section id="see-also">
 <h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
@@ -1261,7 +1271,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 13, 2026.
+  Last updated on Mar 14, 2026.
   <br/>
 </p>
   </div>

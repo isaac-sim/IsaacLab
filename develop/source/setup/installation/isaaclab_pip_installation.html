@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
@@ -49,7 +49,7 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 13, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 14, 2026"/>
   </head>
   
   
@@ -235,7 +235,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Cloud Deployment</a></li>
@@ -975,6 +974,22 @@ Isaac Sim expects the <strong>system</strong> OpenMP runtime, while PyTorch some
 <p>This ensures the correct <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> library is preloaded for both Isaac Sim and Isaac Lab,
 removing the preload warnings during runtime.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>On aarch64, you may encounter the following error when importing <code class="docutils literal notranslate"><span class="pre">omni.client</span></code> or <code class="docutils literal notranslate"><span class="pre">torch</span></code>:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ImportError: .../libcarb.so: cannot allocate memory in static TLS block
+</pre></div>
+</div>
+<p>This happens because <code class="docutils literal notranslate"><span class="pre">libcarb.so</span></code> uses the <em>initial-exec</em> TLS model, and
+the dynamic linker’s fixed-size TLS surplus is exhausted by the time it is loaded.
+To fix this, preload <code class="docutils literal notranslate"><span class="pre">libcarb.so</span></code> before launching Python:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">LD_PRELOAD</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import sys,os;[print(os.path.join(p,&#39;omni&#39;,&#39;client&#39;,&#39;libcarb.so&#39;)) for p in sys.path if os.path.isfile(os.path.join(p,&#39;omni&#39;,&#39;client&#39;,&#39;libcarb.so&#39;))]&quot;</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span><span class="si">${</span><span class="nv">LD_PRELOAD</span><span class="p">:+:</span><span class="nv">$LD_PRELOAD</span><span class="si">}</span>
+</pre></div>
+</div>
+<p>When using <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span></code>, this is handled automatically.
+When using a conda environment,
+the preload is set up via the conda activation hook.</p>
+</div>
 </div>
 </div>
 </li>
@@ -1138,7 +1153,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 13, 2026.
+  Last updated on Mar 14, 2026.
   <br/>
 </p>
   </div>

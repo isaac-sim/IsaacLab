@@ -32,7 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=5774970f" />
@@ -48,7 +48,7 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -60,7 +60,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 13, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 14, 2026"/>
   </head>
   
   
@@ -234,7 +234,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Cloud Deployment</a></li>
@@ -835,6 +834,7 @@
         <span class="c1"># Cache commonly-used settings (these don&#39;t change during runtime)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_setting</span><span class="p">(</span><span class="s2">&quot;/isaaclab/has_gui&quot;</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_has_offscreen_render</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_setting</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/offscreen&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_xr_enabled</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_setting</span><span class="p">(</span><span class="s2">&quot;/isaaclab/xr/enabled&quot;</span><span class="p">))</span>
         <span class="c1"># Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created</span>
 
         <span class="c1"># Simulation state</span>
@@ -995,12 +995,13 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">is_rendering</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns whether rendering is active (GUI, RTX sensors, or visualizers requested).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR).&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span>
             <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_offscreen_render</span>
             <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_setting</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/rtx_sensors&quot;</span><span class="p">)</span>
             <span class="ow">or</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resolve_visualizer_types</span><span class="p">())</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_enabled</span>
         <span class="p">)</span>
 
 <div class="viewcode-block" id="SimulationContext.get_physics_dt">
@@ -1135,27 +1136,47 @@
         <span class="n">cli_disable_all</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_cli_visualizer_disable_all</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="n">cli_disable_all</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">[]</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">cli_explicit</span><span class="p">:</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">cli_explicit</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_apply_visualizer_cli_overrides</span><span class="p">(</span><span class="n">visualizer_cfgs</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">visualizer_cfgs</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="n">visualizer_cfgs</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">visualizer_cfgs</span><span class="p">:</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_default_visualizer_configs</span><span class="p">(</span><span class="n">cli_requested</span><span class="p">)</span> <span class="k">if</span> <span class="n">cli_requested</span> <span class="k">else</span> <span class="p">[]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_visualizer_cli_overrides</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># CLI selection is explicit: keep only requested cfg types, then add defaults for missing.</span>
+            <span class="n">cli_requested_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">cli_requested</span><span class="p">)</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">visualizer_cfgs</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cli_requested_set</span><span class="p">]</span>
+            <span class="n">existing_types</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">resolved</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">viz_type</span> <span class="ow">in</span> <span class="n">cli_requested</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">viz_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing_types</span> <span class="ow">and</span> <span class="n">viz_type</span> <span class="ow">in</span> <span class="n">_VISUALIZER_TYPES</span><span class="p">:</span>
+                    <span class="n">resolved</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_default_visualizer_configs</span><span class="p">([</span><span class="n">viz_type</span><span class="p">]))</span>
+                    <span class="n">existing_types</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">viz_type</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_visualizer_cli_overrides</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">visualizer_cfgs</span><span class="p">:</span>
-            <span class="n">resolved_cfgs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_default_visualizer_configs</span><span class="p">(</span><span class="n">cli_requested</span><span class="p">)</span> <span class="k">if</span> <span class="n">cli_requested</span> <span class="k">else</span> <span class="p">[]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_visualizer_cli_overrides</span><span class="p">(</span><span class="n">resolved_cfgs</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">resolved_cfgs</span>
+        <span class="c1"># XR auto-start: auto-inject a KitVisualizer when XR is active and no</span>
+        <span class="c1"># Kit visualizer is already present.  The KitVisualizer pumps</span>
+        <span class="c1"># app.update() and triggers forward() (via requires_forward_before_step)</span>
+        <span class="c1"># to sync Fabric data so the XR runtime receives up-to-date hand/joint</span>
+        <span class="c1"># transforms each frame.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_enabled</span> <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_setting</span><span class="p">(</span><span class="s2">&quot;/isaaclab/xr/auto_start&quot;</span><span class="p">)):</span>
+            <span class="n">has_kit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;kit&quot;</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">resolved</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_kit</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
 
-        <span class="c1"># CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.</span>
-        <span class="n">cli_requested_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">cli_requested</span><span class="p">)</span>
-        <span class="n">selected_cfgs</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">visualizer_cfgs</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cli_requested_set</span><span class="p">]</span>
-        <span class="n">existing_types</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;visualizer_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">selected_cfgs</span><span class="p">}</span>
-        <span class="k">for</span> <span class="n">viz_type</span> <span class="ow">in</span> <span class="n">cli_requested</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">viz_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing_types</span> <span class="ow">and</span> <span class="n">viz_type</span> <span class="ow">in</span> <span class="n">_VISUALIZER_TYPES</span><span class="p">:</span>
-                <span class="n">selected_cfgs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_default_visualizer_configs</span><span class="p">([</span><span class="n">viz_type</span><span class="p">]))</span>
-                <span class="n">existing_types</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">viz_type</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_visualizer_cli_overrides</span><span class="p">(</span><span class="n">selected_cfgs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">selected_cfgs</span>
+                    <span class="n">mod</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="s2">&quot;isaaclab_visualizers.kit&quot;</span><span class="p">)</span>
+                    <span class="n">kit_cfg_cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="s2">&quot;KitVisualizerCfg&quot;</span><span class="p">)</span>
+                    <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">kit_cfg_cls</span><span class="p">())</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.&quot;</span><span class="p">)</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ModuleNotFoundError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">&quot;[SimulationContext] XR mode could not auto-inject a KitVisualizer: </span><span class="si">%s</span><span class="s2">. &quot;</span>
+                        <span class="s2">&quot;Install isaaclab_visualizers[kit] or pass --visualizer kit.&quot;</span><span class="p">,</span>
+                        <span class="n">exc</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">resolved</span>
 
 <div class="viewcode-block" id="SimulationContext.initialize_visualizers">
 <a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.initialize_visualizers">[docs]</a>
@@ -1610,7 +1631,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 13, 2026.
+  Last updated on Mar 14, 2026.
   <br/>
 </p>
   </div>

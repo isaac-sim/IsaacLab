@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
     <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css?v=53359634" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5774970f" />
@@ -49,7 +49,7 @@
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
+    <script src="/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js?v=ec35c6c9"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="3.0.0" />
-    <meta name="docbuild:last-update" content="Mar 13, 2026"/>
+    <meta name="docbuild:last-update" content="Mar 14, 2026"/>
   </head>
   
   
@@ -235,7 +235,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
@@ -713,7 +712,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-isaac-lab-with-cloudxr">Run Isaac Lab with CloudXR</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-an-xr-device">Connect an XR Device</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-gloves">Manus Gloves</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#kubernetes-deployment">Kubernetes Deployment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-with-docker">Run with Docker</a></li>
 </ul>
             </nav>
         </div>
@@ -731,7 +730,9 @@
 teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
 pipeline, and bundled <a class="reference external" href="https://developer.nvidia.com/cloudxr-sdk">NVIDIA CloudXR</a> streaming for immersive XR-based teleoperation.</p>
 <p>This guide walks you through installing Isaac Teleop, starting the CloudXR runtime, connecting an
-XR device, and running your first teleoperation session.</p>
+XR device, and running your first teleoperation session. For the canonical step-by-step flow (install
+package, run CloudXR server, connect headset, run teleop example), refer to the <a class="reference external" href="https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html">Isaac Teleop Quick
+Start</a>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>For architecture details, retargeting pipelines, control scheme recommendations, and how to
@@ -1132,9 +1133,35 @@ work with both input sources.</p>
 <li><p>Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.</p></li>
 </ol>
 </section>
-<section id="kubernetes-deployment">
-<h2>Kubernetes Deployment<a class="headerlink" href="#kubernetes-deployment" title="Link to this heading">#</a></h2>
-<p>For deploying XR teleoperation on a Kubernetes cluster, see <a class="reference internal" href="../deployment/cloudxr_teleoperation_cluster.html#cloudxr-teleoperation-cluster"><span class="std std-ref">Deploying CloudXR Teleoperation on Kubernetes</span></a>.</p>
+<section id="run-with-docker">
+<h2>Run with Docker<a class="headerlink" href="#run-with-docker" title="Link to this heading">#</a></h2>
+<p>Teleoperation runs in a <strong>single container</strong>. Build the image yourself and run a single container.
+Do <strong>not</strong> use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
+components run inside one container with Isaac Lab in this release.</p>
+<p>Inside the container, install Isaac Teleop (once per container or image), then start the CloudXR
+runtime and the teleop script. You must accept the NVIDIA CloudXR EULA; pass <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>
+when starting the runtime so there is no interactive prompt.</p>
+<ol class="arabic">
+<li><p>Install Isaac Teleop with CloudXR and retargeters support:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;isaacteleop[retargeters,cloudxr]~=1.0.0&#39;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
+</pre></div>
+</div>
+</li>
+<li><p>Start the CloudXR runtime in the background, load the environment, and run the teleop script
+(e.g. <code class="docutils literal notranslate"><span class="pre">record_demos.py</span></code> to record demonstrations):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span><span class="p">&amp;</span>
+<span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--task<span class="w"> </span>Isaac-PickPlace-Locomanipulation-G1-Abs-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--num_demos<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dataset_file<span class="w"> </span>./datasets/dataset.hdf5<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--xr<span class="w"> </span>--visualizer<span class="w"> </span>kit
+</pre></div>
+</div>
+</li>
+</ol>
+<p>Then in the Isaac Sim UI, set the AR panel to <strong>System OpenXR Runtime</strong> and click <strong>Start XR</strong>.</p>
+<p>For a fully headless experience, replace <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">kit</span></code> with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> when running docker and XR teleop session will run automatically.</p>
 <div class="admonition-next-steps admonition">
 <p class="admonition-title">Next Steps</p>
 <ul class="simple">
@@ -1199,7 +1226,7 @@ work with both input sources.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-isaac-lab-with-cloudxr">Run Isaac Lab with CloudXR</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-an-xr-device">Connect an XR Device</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-gloves">Manus Gloves</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#kubernetes-deployment">Kubernetes Deployment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-with-docker">Run with Docker</a></li>
 </ul>
   </nav></div>
 
@@ -1233,7 +1260,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Mar 13, 2026.
+  Last updated on Mar 14, 2026.
   <br/>
 </p>
   </div>
