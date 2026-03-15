@@ -3,26 +3,103 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Observation manager for computing observation signals for a given world."""
+"""Observation manager for computing observation signals for a given world.
+
+Observations are organized into groups based on their intended usage. This allows having different observation
+groups for different types of learning such as asymmetric actor-critic and student-teacher training. Each
+group contains observation terms which contain information about the observation function to call, the noise
+corruption model to use, and the sensor to retrieve data from.
+
+Each observation group should inherit from the :class:`ObservationGroupCfg` class. Within each group, each
+observation term should instantiate the :class:`ObservationTermCfg` class. Based on the configuration, the
+observations in a group can be concatenated into a single tensor or returned as a dictionary with keys
+corresponding to the term's name.
+
+If the observations in a group are concatenated, the shape of the concatenated tensor is computed based on the
+shapes of the individual observation terms. This information is stored in the :attr:`group_obs_dim` dictionary
+with keys as the group names and values as the shape of the observation tensor. When the terms in a group are not
+concatenated, the attribute stores a list of shapes for each term in the group.
+
+.. note::
+    When the observation terms in a group do not have the same shape, the observation terms cannot be
+    concatenated. In this case, please set the :attr:`ObservationGroupCfg.concatenate_terms` attribute in the
+    group configuration to False.
+
+Observations can also have history. This means a running history is updated per sim step. History can be controlled
+per :class:`ObservationTermCfg` (See the :attr:`ObservationTermCfg.history_length` and
+:attr:`ObservationTermCfg.flatten_history_dim`). History can also be controlled via :class:`ObservationGroupCfg`
+where group configuration overwrites per term configuration if set. History follows an oldest to newest ordering.
+
+The observation manager can be used to compute observations for all the groups or for a specific group. The
+observations are computed by calling the registered functions for each term in the group. The functions are
+called in the order of the terms in the group. The functions are expected to return a tensor with shape
+(num_envs, ...).
+
+If a noise model or custom modifier is registered for a term, the function is called to corrupt
+the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+The observations are clipped and scaled as per the configuration settings.
+
+Experimental (Warp-first) note:
+    Observation term functions follow a Warp-first signature and **write** into pre-allocated Warp buffers:
+    ``func(env, out, **params) -> None``. Post-processing may be implemented via Warp kernels where possible.
+"""
 
 from __future__ import annotations
 
 import inspect
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
+import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import class_to_dict, modifiers, noise
-from isaaclab.utils.buffers import CircularBuffer
+from isaaclab.utils import class_to_dict
+
+from isaaclab_experimental.utils import modifiers, noise
+from isaaclab_experimental.utils.buffers import CircularBuffer
+from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+
+@wp.kernel
+def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, clip_hi: wp.float32):
+    env_id = wp.tid()
+    for j in range(out.shape[1]):
+        out[env_id, j] = wp.clamp(out[env_id, j], clip_lo, clip_hi)
+
+
+@wp.kernel
+def _apply_scale(out: wp.array(dtype=wp.float32, ndim=2), scale: wp.array(dtype=wp.float32)):
+    env_id = wp.tid()
+    for j in range(out.shape[1]):
+        out[env_id, j] = out[env_id, j] * scale[j]
+
+
+def _resolve_scale_vector(value: Any, dim: int, device: str) -> torch.Tensor:
+    """Resolve scale into a (dim,) float32 tensor (defaults to ones)."""
+    if value is None:
+        return torch.ones((dim,), device=device, dtype=torch.float32)
+    if isinstance(value, torch.Tensor):
+        t = value.to(device=device, dtype=torch.float32)
+        if t.numel() == 1:
+            return t.reshape(1).repeat(dim)
+        if t.numel() == dim:
+            return t.reshape(dim)
+        raise ValueError(f"Expected scale tensor with numel=1 or numel={dim}, got {t.numel()}.")
+    if isinstance(value, (float, int)):
+        return torch.full((dim,), float(value), device=device, dtype=torch.float32)
+    if isinstance(value, (tuple, list)):
+        if len(value) != dim:
+            raise ValueError(f"Expected scale length {dim}, got {len(value)}.")
+        return torch.tensor(value, device=device, dtype=torch.float32)
+    raise TypeError(f"Unsupported scale type: {type(value)}")
 
 
 class ObservationManager(ManagerBase):
@@ -61,6 +138,10 @@ class ObservationManager(ManagerBase):
     If a noise model or custom modifier is registered for a term, the function is called to corrupt
     the observation. The corruption function is expected to return a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
+
+    Experimental (Warp-first) note:
+        Observation term functions follow a Warp-first signature and **write** into pre-allocated Warp buffers:
+        ``func(env, out, **params) -> None``.
     """
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
@@ -75,14 +156,13 @@ class ObservationManager(ManagerBase):
             RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
                 and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
-        # check that cfg is not None
         if cfg is None:
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
 
-        # compute combined vector for obs group
+        # compute combined vector for obs group (matches stable semantics)
         self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
             # if terms are concatenated, compute the combined shape into a single tuple
@@ -113,6 +193,8 @@ class ObservationManager(ManagerBase):
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
+        # Note: Persistent Warp output buffers (`_group_out_wp` / `_group_out_torch`) and per-term post-processing
+        # buffers are allocated during `_prepare_terms()` since they are per-term/per-group setup.
 
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
@@ -168,20 +250,16 @@ class ObservationManager(ManagerBase):
                 continue
 
             idx = 0
-            concat_dim = self._group_obs_concatenate_dim[group_name]
-            # handle cases where concat dim is positive, account for the batch dimension
-            if concat_dim > 0:
-                concat_dim -= 1
             # add info for each term
             data = obs_buffer[group_name]
             for name, shape in zip(
                 self._group_obs_term_names[group_name],
                 self._group_obs_term_dim[group_name],
             ):
-                # extract the term from the buffer based on the shape
-                term = data[env_idx].narrow(dim=concat_dim, start=idx, length=shape[concat_dim])
+                data_length = np.prod(shape)
+                term = data[env_idx, idx : idx + data_length]
                 terms.append((group_name + "-" + name, term.cpu().tolist()))
-                idx += shape[concat_dim]
+                idx += data_length
 
         return terms
 
@@ -237,9 +315,9 @@ class ObservationManager(ManagerBase):
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        group_data: dict[str, list[dict[str, Any]]] = {}
 
-        group_data = {}
-
+        # Collect raw descriptor dicts (plus overloads).
         for group_name in self._group_obs_term_names:
             group_data[group_name] = []
             # check if group name is valid
@@ -248,40 +326,41 @@ class ObservationManager(ManagerBase):
                     f"Unable to find the group '{group_name}' in the observation manager."
                     f" Available groups are: {list(self._group_obs_term_names.keys())}"
                 )
-            # iterate over all the terms in each group
-            group_term_names = self._group_obs_term_names[group_name]
-            # read attributes for each term
-            obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
-
-            for term_name, term_cfg in obs_terms:
-                # Call to the observation function to get the IO descriptor with the inspect flag set to True
+            for term_name, term_cfg in zip(
+                self._group_obs_term_names[group_name], self._group_obs_term_cfgs[group_name]
+            ):
+                func = term_cfg.func
+                if not getattr(func, "_has_descriptor", False):
+                    continue
                 try:
-                    term_cfg.func(self._env, **term_cfg.params, inspect=True)
-                    # Copy the descriptor and update with the term's own extra parameters
-                    desc = term_cfg.func._descriptor.__dict__.copy()
-                    # Create a dictionary to store the overloads
+                    # Both stable-style and Warp-first decorated terms support
+                    # the ``inspect=True`` keyword.  Warp-first terms (decorated
+                    # with ``generic_io_descriptor_warp``) will NOT execute the
+                    # underlying function; their hooks derive metadata from
+                    # env/config objects instead.
+                    func(self._env, **term_cfg.params, inspect=True)
+                    desc = func._descriptor.__dict__.copy()
                     overloads = {}
-                    # Iterate over the term's own parameters and add them to the overloads dictionary
-                    for k, v in term_cfg.__dict__.items():
-                        # For now we do not add the noise modifier
-                        if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
-                            overloads[k] = v
+                    for k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
+                        if hasattr(term_cfg, k):
+                            overloads[k] = getattr(term_cfg, k)
                     desc.update(overloads)
                     group_data[group_name].append(desc)
                 except Exception as e:
                     print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
-        # Format the data for YAML export
-        formatted_data = {}
+
+        formatted_data: dict[str, list[dict[str, Any]]] = {}
         for group_name, data in group_data.items():
+            if group_name not in group_names_to_export:
+                continue
             formatted_data[group_name] = []
             for item in data:
                 name = item.pop("name")
-                formatted_item = {"name": name, "overloads": {}, "extras": item.pop("extras")}
+                extras = item.pop("extras", {})
+                formatted_item = {"name": name, "overloads": {}, "extras": extras}
                 for k, v in item.items():
-                    # Check if v is a tuple and convert to list
                     if isinstance(v, tuple):
                         v = list(v)
-                    # Check if v is a tensor and convert to list
                     if isinstance(v, torch.Tensor):
                         v = v.detach().cpu().numpy().tolist()
                     if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
@@ -291,30 +370,46 @@ class ObservationManager(ManagerBase):
                     else:
                         formatted_item[k] = v
                 formatted_data[group_name].append(formatted_item)
-        formatted_data = {k: v for k, v in formatted_data.items() if k in group_names_to_export}
         return formatted_data
 
     """
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | None = None,
+        *,
+        env_mask: wp.array | None = None,
+    ) -> dict[str, float]:
+        # Mask-first path: captured callers must provide env_mask.
+        if env_mask is None or not isinstance(env_mask, wp.array):
+            # Keep all id->mask resolution strictly outside capture.
+            if wp.get_device().is_capturing:
+                raise RuntimeError(
+                    "ObservationManager.reset requires env_mask(wp.array[bool]) during capture. "
+                    "Do not pass env_ids on captured paths."
+                )
+            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+
         # call all terms that are classes
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
-                term_cfg.func.reset(env_ids=env_ids)
+                term_cfg.func.reset(env_mask=env_mask)
             # reset terms with history
             for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_history_buffer[group_name]:
-                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
-        # call all modifiers that are classes
+                    self._group_obs_term_history_buffer[group_name][term_name].reset(env_mask=env_mask)
+        # call all modifiers/noise models that are classes
         for mod in self._group_obs_class_instances:
-            mod.reset(env_ids=env_ids)
+            mod.reset(env_mask=env_mask)
 
         # nothing to log here
         return {}
 
-    def compute(self, update_history: bool = False) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+    def compute(
+        self, update_history: bool = False, return_cloned_output: bool = True
+    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
 
         The method computes the observations for all the groups handled by the observation manager.
@@ -324,22 +419,30 @@ class ObservationManager(ManagerBase):
             update_history: The boolean indicator without return obs should be appended to observation history.
                 Default to False, in which case calling compute_group does not modify history. This input is no-ops
                 if the group's history_length == 0.
+            return_cloned_output: Whether to return a cloned snapshot of the observation buffer.
+                Set to False to return the persistent internal buffer by reference.
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
             The observations are either concatenated into a single tensor or returned as a dictionary
             with keys corresponding to the term's name.
         """
-        # create a buffer for storing obs from all the groups
-        obs_buffer = dict()
-        # iterate over all the terms in each group
+        # Launch kernels for every group (writes into persistent buffers in-place).
         for group_name in self._group_obs_term_names:
-            obs_buffer[group_name] = self.compute_group(group_name, update_history=update_history)
-        # otherwise return a dict with observations of all groups
-
-        # Cache the observations.
-        self._obs_buffer = obs_buffer
-        return obs_buffer
+            self.compute_group(group_name, update_history=update_history)
+        # Build the obs buffer once (persistent refs to in-place-updated tensors/dicts).
+        if self._obs_buffer is None:
+            self._obs_buffer = {
+                group_name: (
+                    self._group_out_torch[group_name]
+                    if self._group_use_warp_concat[group_name]
+                    else self._group_obs_dict[group_name]
+                )
+                for group_name in self._group_obs_term_names
+            }
+        if return_cloned_output:
+            return clone_obs_buffer(self._obs_buffer)
+        return self._obs_buffer
 
     def compute_group(self, group_name: str, update_history: bool = False) -> torch.Tensor | dict[str, torch.Tensor]:
         """Computes the observations for a given group.
@@ -376,7 +479,7 @@ class ObservationManager(ManagerBase):
         Raises:
             ValueError: If input ``group_name`` is not a valid group handled by the manager.
         """
-        # check ig group name is valid
+        # check if group name is valid
         if group_name not in self._group_obs_term_names:
             raise ValueError(
                 f"Unable to find the group '{group_name}' in the observation manager."
@@ -384,32 +487,48 @@ class ObservationManager(ManagerBase):
             )
         # iterate over all the terms in each group
         group_term_names = self._group_obs_term_names[group_name]
-        # buffer to store obs per group
-        group_obs = dict.fromkeys(group_term_names, None)
-        # read attributes for each term
-        obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+
+        # Persistent per-term obs dict (pre-allocated in _prepare_terms).
+        group_obs = self._group_obs_dict[group_name]
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
-        for term_name, term_cfg in obs_terms:
-            # compute term's value
-            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
-            # apply post-processing
+        for term_name, term_cfg in zip(group_term_names, self._group_obs_term_cfgs[group_name]):
+            # compute term's value into pre-allocated Warp output
+            term_cfg.func(self._env, term_cfg.out_wp, **term_cfg.params)
+
+            # apply custom modifiers (in-place on out_wp)
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
-                    obs = modifier.func(obs, **modifier.params)
+                    modifier.func(term_cfg.out_wp, **modifier.params)
+
+            # apply noise (Warp in-place on out_wp)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                obs = term_cfg.noise.func(obs, term_cfg.noise)
+                term_cfg.noise.func(term_cfg.out_wp, term_cfg.noise)
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                obs = term_cfg.noise.func(obs)
-            if term_cfg.clip:
-                obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                term_cfg.noise.func(term_cfg.out_wp)
+
+            # clip then scale (stable semantics); implementation may use Warp kernels
+            if term_cfg.clip is not None:
+                wp.launch(
+                    kernel=_apply_clip,
+                    dim=self.num_envs,
+                    inputs=[term_cfg.out_wp, float(term_cfg.clip[0]), float(term_cfg.clip[1])],
+                    device=self.device,
+                )
             if term_cfg.scale is not None:
-                obs = obs.mul_(term_cfg.scale)
+                wp.launch(
+                    kernel=_apply_scale,
+                    dim=self.num_envs,
+                    inputs=[term_cfg.out_wp, term_cfg.scale_wp],
+                    device=self.device,
+                )
+
+            # TODO(jichuanh): This is not migrated yet. Need revisit.
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
                 if update_history:
-                    circular_buffer.append(obs)
+                    circular_buffer.append(wp.to_torch(term_cfg.out_wp))
                 elif circular_buffer._buffer is None:
                     # because circular buffer only exits after the simulation steps,
                     # this guards history buffer from corruption by external calls before simulation start
@@ -418,21 +537,18 @@ class ObservationManager(ManagerBase):
                         batch_size=circular_buffer.batch_size,
                         device=circular_buffer.device,
                     )
-                    circular_buffer.append(obs)
+                    self._group_obs_term_history_buffer[group_name][term_name] = circular_buffer
+                    circular_buffer.append(wp.to_torch(term_cfg.out_wp))
 
                 if term_cfg.flatten_history_dim:
                     group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
                 else:
                     group_obs[term_name] = circular_buffer.buffer
-            else:
-                group_obs[term_name] = obs
 
-        # concatenate all observations in the group together
-        if self._group_obs_concatenate[group_name]:
-            # set the concatenate dimension, account for the batch dimension if positive dimension is given
-            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
-        else:
-            return group_obs
+        # return persistent output (updated in-place by kernels above)
+        if self._group_use_warp_concat[group_name]:
+            return self._group_out_torch[group_name]
+        return group_obs
 
     def serialize(self) -> dict:
         """Serialize the observation term configurations for all active groups.
@@ -461,7 +577,7 @@ class ObservationManager(ManagerBase):
     Helper functions.
     """
 
-    def _prepare_terms(self):
+    def _prepare_terms(self):  # noqa: C901
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
@@ -476,6 +592,13 @@ class ObservationManager(ManagerBase):
         # create a list to store classes instances, e.g., for modifiers and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
         self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = list()
+
+        # Persistent Warp output buffers for concatenated 2D groups (optional fast-path).
+        # For other cases (non-concat groups, history outputs, non-2D concat dims), we allocate per-term outputs.
+        self._group_out_wp: dict[str, wp.array] = {}
+        self._group_out_torch: dict[str, torch.Tensor] = {}
+        self._group_use_warp_concat: dict[str, bool] = {}
+        self._group_obs_dict: dict[str, dict[str, torch.Tensor]] = {}
 
         # make sure the simulation is playing since we compute obs dims which needs asset quantities
         if not self._env.sim.is_playing():
@@ -502,27 +625,28 @@ class ObservationManager(ManagerBase):
                     f" Received: '{type(group_cfg)}'."
                 )
             # initialize list for the group settings
+            # group name to list of group term names
             self._group_obs_term_names[group_name] = list()
+
             self._group_obs_term_dim[group_name] = list()
             self._group_obs_term_cfgs[group_name] = list()
             self._group_obs_class_term_cfgs[group_name] = list()
-
-            # history buffers
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
-
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
             # to account for the batch dimension
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
-
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 term_cfg_items = group_cfg.items()
             else:
                 term_cfg_items = group_cfg.__dict__.items()
             # iterate over all the terms in each group
+            # (we also track raw term dims for Warp output allocation)
+            group_term_cfgs: list[ObservationTermCfg] = []
+            group_term_raw_dims: list[int] = []
             for term_name, term_cfg in term_cfg_items:
                 # skip non-obs settings
                 if term_name in [
@@ -542,7 +666,8 @@ class ObservationManager(ManagerBase):
                         f" Received: '{type(term_cfg)}'."
                     )
                 # resolve common terms in the config
-                self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
+                # Warp-first signature is (env, out, **params)
+                self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=2)
 
                 # check noise settings
                 if not group_cfg.enable_corruption:
@@ -555,8 +680,14 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
 
-                # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                # infer dimensions (Warp-first: terms write to out; we infer dim from resolved scene info)
+                term_dim = self._infer_term_dim_scalar(term_cfg)
+                # Cache the "raw" term output dimension (before history reshaping) for Warp buffer allocation.
+                # This matches the tensor shape produced directly by the term into `out`: (num_envs, term_dim).
+                term_cfg._term_dim = int(term_dim)
+                group_term_cfgs.append(term_cfg)
+                group_term_raw_dims.append(int(term_dim))
+                obs_dims = (self._env.num_envs, term_dim)
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -574,6 +705,7 @@ class ObservationManager(ManagerBase):
 
                     # cast the scale into torch tensor
                     term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
+                    term_cfg.scale_wp = wp.from_torch(term_cfg.scale, dtype=wp.float32)
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
@@ -605,17 +737,13 @@ class ObservationManager(ManagerBase):
                                 f" Received: {mod_cfg.func}"
                             )
 
-                        # TODO(jichuanh): improvement can be made in two ways:
-                        #                 1. modifier specific check can be done in the modifier class
-                        #                 2. general param vs function matching check can be a common utility
                         # check if term's arguments are matched by params
                         term_params = list(mod_cfg.params.keys())
                         args = inspect.signature(mod_cfg.func).parameters
                         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
                         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
                         args = args_without_defaults + args_with_defaults
-                        # ignore first two arguments for env and env_ids
-                        # Think: Check for cases when kwargs are set inside the function?
+                        # ignore first argument for data
                         if len(args) > 1:
                             if set(args[1:]) != set(term_params + args_with_defaults):
                                 raise ValueError(
@@ -626,6 +754,8 @@ class ObservationManager(ManagerBase):
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
+                    # plumb the shared per-env RNG state so Warp noise kernels can consume it
+                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
                     noise_model_cls = term_cfg.noise.class_type
                     if not issubclass(noise_model_cls, noise.NoiseModel):
                         raise TypeError(
@@ -648,13 +778,85 @@ class ObservationManager(ManagerBase):
                     obs_dims = tuple(old_dims)
                     if term_cfg.flatten_history_dim:
                         obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+                    raise NotImplementedError("History reshaping is not implemented yet for warp.")
 
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
-                    # call reset (in-case above call to get obs dims changed the state)
+                    # call reset (in-case internal state should be reset at init)
                     term_cfg.func.reset()
+
+            # Allocate persistent outputs for this group.
+            # - If group is concatenated into a flat 2D vector (N, D) with no history terms, allocate a single group
+            #   buffer and map term outputs to contiguous slices (fast-path).
+            # - Otherwise allocate per-term outputs.
+            can_use_group_buffer = (
+                self._group_obs_concatenate[group_name]
+                and self._group_obs_concatenate_dim[group_name] in (1, -1)
+                and all(cfg.history_length == 0 for cfg in group_term_cfgs)
+            )
+
+            if can_use_group_buffer:
+                total = int(sum(group_term_raw_dims))
+                out_wp = wp.zeros((self.num_envs, total), dtype=wp.float32, device=self.device)
+                self._group_out_wp[group_name] = out_wp
+                self._group_out_torch[group_name] = wp.to_torch(out_wp)
+
+                base_ptr = out_wp.ptr
+                row_stride = out_wp.strides[0]
+                col_stride = out_wp.strides[1]
+                start = 0
+                for term_cfg, d in zip(group_term_cfgs, group_term_raw_dims):
+                    out_view = wp.array(
+                        ptr=base_ptr + start * col_stride,
+                        dtype=wp.float32,
+                        shape=(self.num_envs, int(d)),
+                        strides=(row_stride, col_stride),
+                        device=self.device,
+                    )
+                    term_cfg.out_wp = out_view
+                    term_cfg.out_torch = wp.to_torch(term_cfg.out_wp)
+                    start += int(d)
+            else:
+                for term_cfg, d in zip(group_term_cfgs, group_term_raw_dims):
+                    term_cfg.out_wp = wp.zeros((self.num_envs, int(d)), dtype=wp.float32, device=self.device)
+                    term_cfg.out_torch = wp.to_torch(term_cfg.out_wp)
+
+            # Guard: concat groups must use the Warp fast-path (standard concat dim, no history).
+            if self._group_obs_concatenate[group_name] and not can_use_group_buffer:
+                raise ValueError(
+                    f"Observation group '{group_name}' is concatenated but cannot use the Warp"
+                    " fast-path (requires concatenate_dim 0 or -1, and all terms history_length == 0)."
+                )
+
+            # Precompute fast-path flag and persistent per-term obs dict.
+            self._group_use_warp_concat[group_name] = can_use_group_buffer
+            self._group_obs_dict[group_name] = {
+                term_name: cfg.out_torch
+                for term_name, cfg in zip(self._group_obs_term_names[group_name], group_term_cfgs)
+            }
+
             # add history buffers for each group
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
+
+    def _infer_term_dim_scalar(self, term_cfg: ObservationTermCfg) -> int:
+        """Infer (D,) using scalar scene info (no term execution)."""
+        # allow explicit override
+        for k in ("term_dim", "out_dim", "obs_dim"):
+            if k in term_cfg.params:
+                return int(term_cfg.params[k])
+        # try explicit param first
+        asset_cfg = term_cfg.params.get("asset_cfg")
+        if asset_cfg is None:
+            raise ValueError(f"Observation term '{term_cfg.params}' has no asset_cfg parameter.")
+        # resolve selection
+        asset = self._env.scene[asset_cfg.name]
+        joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+        if joint_ids_wp is not None:
+            return int(joint_ids_wp.shape[0])
+        joint_ids = getattr(asset_cfg, "joint_ids", slice(None))
+        if isinstance(joint_ids, slice):
+            return int(getattr(asset, "num_joints", wp.to_torch(asset.data.joint_pos).shape[1]))
+        return int(len(joint_ids))
