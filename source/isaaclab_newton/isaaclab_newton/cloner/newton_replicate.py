@@ -9,7 +9,6 @@ from collections.abc import Callable
 
 import torch
 import warp as wp
-from newton import ModelBuilder, solvers
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
@@ -17,6 +16,7 @@ from pxr import Usd, UsdGeom
 from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 
 from isaaclab_newton.physics import NewtonManager
+from newton import ModelBuilder, solvers
 
 
 def _build_newton_builder_from_mapping(
@@ -53,6 +53,7 @@ def _build_newton_builder_from_mapping(
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
     builder = ModelBuilder(up_axis=up_axis)
+    builder.default_body_armature = 0.001
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs"] + sources,
@@ -65,6 +66,7 @@ def _build_newton_builder_from_mapping(
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
+        p.default_body_armature = 0.001
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
             stage,

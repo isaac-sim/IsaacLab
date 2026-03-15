@@ -45,14 +45,14 @@ class KukaAllegroPhysicsCfg(PresetCfg):
             solver="newton",
             integrator="implicitfast",
             njmax=300,
-            nconmax=70,
+            nconmax=200,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
             iterations=100,
             ls_iterations=15,
             ls_parallel=False,
-            use_mujoco_contacts=True,
+            use_mujoco_contacts=False,
             ccd_iterations=5000,
         ),
         num_substeps=2,
@@ -85,7 +85,7 @@ class KukaAllegroSceneCfg(PresetCfg):
                     ),
                 )
 
-    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=2.0, replicate_physics=True)
     single_camera = default.replace(base_camera=BaseTiledCameraCfg())
     duo_camera = default.replace(base_camera=BaseTiledCameraCfg(), wrist_camera=WristTiledCameraCfg())
 
