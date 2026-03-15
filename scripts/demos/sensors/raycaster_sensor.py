@@ -127,13 +127,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # print information from the sensors
         print("-------------------------------")
         print(scene["ray_caster"])
-        print("Ray cast hit results: ", scene["ray_caster"].data.ray_hits_w)
+        print("Ray cast hit results: ", wp.to_torch(scene["ray_caster"].data.ray_hits_w))
 
         if not triggered:
             if countdown > 0:
                 countdown -= 1
                 continue
-            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()
+            data = wp.to_torch(scene["ray_caster"].data.ray_hits_w).cpu().numpy()
             np.save("cast_data.npy", data)
             triggered = True
         else:
