@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import sys
 
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
@@ -143,9 +144,10 @@ def cli() -> None:
 
     elif args.python is not None:
         if args.python:
-            run_python_command(args.python[0], args.python[1:])
+            result = run_python_command(args.python[0], args.python[1:])
         else:
-            run_python_command("-i", [])
+            result = run_python_command("-i", [])
+        sys.exit(result.returncode)
 
     elif args.sim is not None:
         command_run_isaacsim(args.sim)

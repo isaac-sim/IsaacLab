@@ -377,7 +377,7 @@ class DirectRLEnvWarp(gym.Env):
         self._get_observations()
         return {"policy": self.torch_obs_buf.clone()}, self.extras
 
-    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS)
+    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMERS, time_unit="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 
@@ -409,7 +409,7 @@ class DirectRLEnvWarp(gym.Env):
             action = self._action_noise_model(action)
 
         # process actions, #TODO pass the torch tensor directly.
-        with Timer(name="pre_physics", msg="Pre-physics step took:", enable=DEBUG_TIMERS):
+        with Timer(name="pre_physics", msg="Pre-physics step took:", enable=DEBUG_TIMER_STEP):
             self._pre_physics_step(
                 wp.from_torch(action)
             )  # Creates a tensor and discards it. Not graphable unless training loop reuses the same pointer.
@@ -420,20 +420,22 @@ class DirectRLEnvWarp(gym.Env):
         is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or _has_rtx
 
         # perform physics stepping
-        with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):
+        with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMER_STEP):
             for _ in range(self.cfg.decimation):
                 self._sim_step_counter += 1
                 # set actions into buffers
                 # simulate
-                with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
+                with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMER_STEP):
                     self._graph_cache.capture_or_replay("action", self.step_warp_action)
 
                 # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
                 # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
-                with Timer(name="write_data_to_sim_loop", msg="Write data to sim (loop) took:", enable=DEBUG_TIMERS):
+                with Timer(
+                    name="write_data_to_sim_loop", msg="Write data to sim (loop) took:", enable=DEBUG_TIMER_STEP
+                ):
                     self.scene.write_data_to_sim()
 
-                with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMERS):
+                with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMER_STEP):
                     self.sim.step(render=False)
                 # render between steps only if the GUI or an RTX sensor needs it
                 # note: we assume the render interval to be the shortest accepted rendering interval.
@@ -441,21 +443,21 @@ class DirectRLEnvWarp(gym.Env):
                 if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                     self.sim.render()
                 # update buffers at sim dt
-                with Timer(name="scene_update", msg="Scene update took:", enable=DEBUG_TIMERS):
+                with Timer(name="scene_update", msg="Scene update took:", enable=DEBUG_TIMER_STEP):
                     self.scene.update(dt=self.physics_dt)
 
         self.common_step_counter += 1  # total step (common for all envs)
-        with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
+        with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMER_STEP):
             self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
         # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
-        with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
+        with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMER_STEP):
             self.scene.write_data_to_sim()
-        with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
+        with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMER_STEP):
             self._graph_cache.capture_or_replay("end_post", self._step_warp_end_post)
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.
-        with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMERS):
+        with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMER_STEP):
             self._post_step_visualize()
 
         # return observations, rewards, resets and extras
