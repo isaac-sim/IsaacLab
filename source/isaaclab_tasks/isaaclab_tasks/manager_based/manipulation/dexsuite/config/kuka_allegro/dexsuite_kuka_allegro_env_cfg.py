@@ -37,8 +37,6 @@ class KukaAllegroPhysicsCfg(PresetCfg):
         bounce_threshold_velocity=0.01,
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
-        gpu_found_lost_aggregate_pairs_capacity=2**29,
-        gpu_total_aggregate_pairs_capacity=2**25,
     )
     newton = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
