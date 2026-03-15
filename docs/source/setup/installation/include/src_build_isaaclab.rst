@@ -37,48 +37,4 @@ Installation
             isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
-   By default, the above will install **all** the learning framework and all Isaac Lab submodules (under ``source/isaaclab``). Available RL frameworks are:
-   ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
-
-   If you want to install only a specific framework, you can pass the name of the framework
-   as an argument. For example, to install only the ``rl_games`` framework, you can run:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            ./isaaclab.sh --install rl_games  # or "./isaaclab.sh -i rl_games"
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
-
-   To install only specific Isaac Lab submodules, pass a comma-separated list of submodule names. The available
-   Isaac Lab submodules are: ``assets``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``physx``, ``rl``, ``tasks``,
-   ``teleop``, ``visualizers``. For example, to install only the ``mimic`` and ``assets`` submodules:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            ./isaaclab.sh --install physx,assets,rl,tasks  # or "./isaaclab.sh -i physx,assets,rl,tasks"
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            isaaclab.bat --install physx,assets,rl,tasks :: or "isaaclab.bat -i physx,assets,rl,tasks"
-
-   Pass ``none`` to install only the core ``isaaclab`` package without any Isaac Lab submodules or RL frameworks.
+   This will install **all** the learning frameworks and all Isaac Lab sub-packages.
