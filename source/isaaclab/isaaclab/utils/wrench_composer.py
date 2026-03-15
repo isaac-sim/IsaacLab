@@ -45,9 +45,18 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
 
-        # Avoid isinstance here due to potential circular import issues; check by attribute presence instead.
-        if hasattr(self._asset.data, "body_link_pose_w"):
-            self._get_link_pose_fn = lambda a=self._asset: a.data.body_link_pose_w
+        # Store references to Tier 1 (sim-bind) buffers for COM pose computation.
+        # We intentionally avoid caching body_com_pose_w (a Tier 2 derived property) because
+        # it is lazily computed via a Python timestamp guard.  Saving the .data pointer at init
+        # time would freeze it at the initial value — subsequent steps would read stale COM
+        # world poses since nothing triggers the lazy recomputation.  Instead, we keep the two
+        # Tier 1 inputs (body_link_pose_w and body_com_pos_b) and let the wrench kernels
+        # compute the COM pose inline.  This is both correct in eager mode and CUDA-graph-
+        # capture safe (Tier 1 buffers are stable sim-bind pointers updated by the solver).
+        data = self._asset.data
+        if hasattr(data, "body_link_pose_w") and hasattr(data, "body_com_pos_b"):
+            self._body_link_pose_w = data.body_link_pose_w
+            self._body_com_pos_b = data.body_com_pos_b
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
@@ -67,9 +76,6 @@ class WrenchComposer:
         self._temp_positions_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._temp_forces_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._temp_torques_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
-
-        # Flag to check if the link poses have been updated.
-        self._link_poses_updated = False
 
     @property
     def active(self) -> bool:
@@ -148,11 +154,6 @@ class WrenchComposer:
                 stacklevel=2,
             )
             return
-        # Get the link poses
-        if not self._link_poses_updated:
-            self._link_poses = self._get_link_pose_fn()
-            self._link_poses_updated = True
-
         # Set the active flag to true
         self._active = True
 
@@ -165,7 +166,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._link_poses,
+                self._body_link_pose_w,
+                self._body_com_pos_b,
                 is_global,
             ],
             outputs=[
@@ -219,11 +221,6 @@ class WrenchComposer:
                 stacklevel=2,
             )
             return
-        # Get the link poses
-        if not self._link_poses_updated:
-            self._link_poses = self._get_link_pose_fn()
-            self._link_poses_updated = True
-
         # Set the active flag to true
         self._active = True
 
@@ -236,7 +233,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._link_poses,
+                self._body_link_pose_w,
+                self._body_com_pos_b,
                 is_global,
             ],
             outputs=[
@@ -290,10 +288,6 @@ class WrenchComposer:
                 stacklevel=2,
             )
             return
-        # Get the link poses
-        if not self._link_poses_updated:
-            self._link_poses = self._get_link_pose_fn()
-            self._link_poses_updated = True
 
         # Set the active flag to true
         self._active = True
@@ -307,7 +301,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._link_poses,
+                self._body_link_pose_w,
+                self._body_com_pos_b,
                 is_global,
             ],
             outputs=[
@@ -357,10 +352,6 @@ class WrenchComposer:
                 stacklevel=2,
             )
             return
-        # Get the link poses
-        if not self._link_poses_updated:
-            self._link_poses = self._get_link_pose_fn()
-            self._link_poses_updated = True
 
         # Set the active flag to true
         self._active = True
@@ -374,7 +365,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._link_poses,
+                self._body_link_pose_w,
+                self._body_com_pos_b,
                 is_global,
             ],
             outputs=[
@@ -388,8 +380,6 @@ class WrenchComposer:
         """Reset the composed force and torque.
 
         This function will reset the composed force and torque to zero.
-        It will also make sure the link positions and quaternions are updated in the next call of the
-        `add_forces_and_torques` or `set_forces_and_torques` functions.
 
         .. note:: This function should be called after every simulation step / reset to ensure no force is carried
         over to the next step.
@@ -401,11 +391,7 @@ class WrenchComposer:
             env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Environment mask. Defaults to None (all environments).
         """
-        if env_ids is None and env_mask is None:
-            self._composed_force_b.zero_()
-            self._composed_torque_b.zero_()
-            self._active = False
-        elif env_mask is not None:
+        if env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,
                 dim=(self.num_envs, self.num_bodies),
@@ -418,8 +404,8 @@ class WrenchComposer:
                 ],
                 device=self.device,
             )
-        else:
-            if env_ids is None or env_ids == slice(None):
+        elif env_ids is not None:
+            if env_ids == slice(None):
                 env_ids = self._ALL_ENV_INDICES
             elif isinstance(env_ids, list):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
@@ -437,7 +423,10 @@ class WrenchComposer:
                 ],
                 device=self.device,
             )
-        self._link_poses_updated = False
+        else:
+            self._composed_force_b.zero_()
+            self._composed_torque_b.zero_()
+            self._active = False
 
     """
     Deprecated functions.
