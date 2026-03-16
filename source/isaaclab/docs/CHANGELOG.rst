@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+4.5.23 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flaky tests in ``test_mock_data_properties`` caused by use-after-free in
+  mock asset data properties. Warp view properties (e.g. :attr:`root_com_lin_vel_w`)
+  created pointer aliases into locally-scoped temporary arrays; when those temporaries
+  were freed by CPython's reference counter before the view was consumed, subsequent
+  reads produced garbage. Fixed by caching default arrays in the backing attribute
+  (``self._root_link_vel_w``, ``self._root_com_vel_w``, ``self._body_com_vel_w``,
+  etc.) so the backing memory remains alive for the lifetime of the mock object.
+
+
 4.5.22 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
 
