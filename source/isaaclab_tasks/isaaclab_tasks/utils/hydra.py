@@ -147,11 +147,19 @@ def collect_presets(cfg, path: str = "") -> dict:
             else:
                 result.update(collect_presets(value, child_path))
         elif isinstance(value, dict):
-            for dict_key, dict_val in value.items():
-                if hasattr(dict_val, "__dataclass_fields__"):
-                    result.update(collect_presets(dict_val, f"{child_path}.{dict_key}"))
+            _collect_from_dict(value, child_path, result)
 
     return result
+
+
+def _collect_from_dict(d: dict, path: str, result: dict) -> None:
+    """Recursively collect presets from dict values, including nested dicts."""
+    for dict_key, dict_val in d.items():
+        child_path = f"{path}.{dict_key}"
+        if hasattr(dict_val, "__dataclass_fields__"):
+            result.update(collect_presets(dict_val, child_path))
+        elif isinstance(dict_val, dict):
+            _collect_from_dict(dict_val, child_path, result)
 
 
 def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
