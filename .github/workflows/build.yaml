@@ -290,6 +290,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-newton:
+    name: Newton Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: build
@@ -349,6 +350,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-physx:
+    name: PhysX Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: build
