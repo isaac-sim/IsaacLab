@@ -117,11 +117,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # multi-gpu training configuration
         if args_cli.distributed:
             local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            global_rank = int(os.getenv("RANK", "0"))
             env_cfg.sim.device = f"cuda:{local_rank}"
             agent_cfg.device = f"cuda:{local_rank}"
 
-            # set seed to have diversity in different threads
-            seed = agent_cfg.seed + local_rank
+            # use global rank for seed diversity across all nodes
+            seed = agent_cfg.seed + global_rank
             env_cfg.seed = seed
             agent_cfg.seed = seed
 
