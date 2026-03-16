@@ -809,12 +809,8 @@ def test_deep_nested_dict_global_preset():
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["task_b"], [], [], presets)
     inner = env_cfg.events.params["terms"]["step_one"]
-    assert inner.params["offset"] == (0.02, 0.0, 0.005), (
-        f"offset should be task_b value, got {inner.params['offset']}"
-    )
-    assert inner.params["fraction"] == (0.3, 1.0), (
-        f"fraction should be task_b value, got {inner.params['fraction']}"
-    )
+    assert inner.params["offset"] == (0.02, 0.0, 0.005), f"offset should be task_b value, got {inner.params['offset']}"
+    assert inner.params["fraction"] == (0.3, 1.0), f"fraction should be task_b value, got {inner.params['fraction']}"
 
 
 def test_deep_nested_dict_path_selection():
@@ -1057,9 +1053,13 @@ def test_scalar_override_within_preset_path(class_presets):
     agent_cfg = resolve_preset_defaults(agent_cfg)
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
     apply_overrides(
-        env_cfg, agent_cfg, hydra_cfg,
-        [], [("env", "backend", "newton")],
-        [("env.backend.dt", "0.001")], presets,
+        env_cfg,
+        agent_cfg,
+        hydra_cfg,
+        [],
+        [("env", "backend", "newton")],
+        [("env.backend.dt", "0.001")],
+        presets,
     )
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001  # overridden from 0.002
