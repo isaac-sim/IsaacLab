@@ -37,9 +37,9 @@ env:
   ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  # Set to 'true' to run quarantined tests in a dedicated non-blocking job.
-  # When 'false', the test-quarantined job is skipped entirely.
-  RUN_QUARANTINED_TESTS: 'false'
+  # To run quarantined tests, create a GitHub repo variable named
+  # RUN_QUARANTINED_TESTS and set it to 'true'. The test-quarantined
+  # job is skipped when the variable is absent or not 'true'.
 
 jobs:
   build:
@@ -471,7 +471,7 @@ jobs:
 
   test-quarantined:
     name: "Quarantined Tests"
-    if: ${{ env.RUN_QUARANTINED_TESTS == 'true' }}
+    if: ${{ vars.RUN_QUARANTINED_TESTS == 'true' }}
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
