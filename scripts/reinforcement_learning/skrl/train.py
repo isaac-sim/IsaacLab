@@ -128,6 +128,7 @@ def main():
         # multi-gpu training config
         if args_cli.distributed:
             local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            global_rank = int(os.getenv("RANK", "0"))
             env_cfg.sim.device = f"cuda:{local_rank}"
         # max iterations for training
         if args_cli.max_iterations:
@@ -143,6 +144,9 @@ def main():
 
         # set the agent and environment seed from command line
         agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+        # use global rank for seed diversity across all nodes
+        if args_cli.distributed:
+            agent_cfg["seed"] = agent_cfg["seed"] + global_rank
         env_cfg.seed = agent_cfg["seed"]
 
         # specify directory for logging experiments

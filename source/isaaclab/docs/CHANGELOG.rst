@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.22 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed multi-GPU distributed training segfault in
+  :func:`~isaaclab.sim.spawners.from_files.spawn_from_usd` caused by concurrent
+  USD asset downloads and ``Sdf_CrateFile::_MmapStream::Read`` mmap races. When
+  ``LOCAL_WORLD_SIZE > 1``, the download and stage composition are now serialized
+  with an ``fcntl`` file lock.
+
+
 4.5.21 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 
