@@ -48,7 +48,7 @@ class NewtonViewerGL(ViewerGL):
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
-        self._color_edit3_accepts_sequence: bool | None = None
+        self._color_edit3_prefers_sequence: bool | None = None
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -124,23 +124,23 @@ class NewtonViewerGL(ViewerGL):
     def _color_edit3_compat(self, imgui, label: str, color):
         """
         # Handle imgui.color_edit3 API differences between bindings.
-        # Some require a Sequence[float], others accept vector-like objects.
+        # Some require vector-like objects, others require a Sequence[float].
         # This method tries both approaches, caching the one that works to avoid repeated exceptions.
         # NOTE: This is a compatibility workaround, perhaps we can address the issue more directly.
         """
         color_tuple = self._coerce_color3(color)
         sequence_color = [color_tuple[0], color_tuple[1], color_tuple[2]]
-        if self._color_edit3_accepts_sequence is not False:
+        if self._color_edit3_prefers_sequence is not True:
             try:
-                changed, edited = imgui.color_edit3(label, sequence_color)
-                self._color_edit3_accepts_sequence = True
+                imvec4 = imgui.ImVec4(sequence_color[0], sequence_color[1], sequence_color[2], 1.0)
+                changed, edited = imgui.color_edit3(label, imvec4)
+                self._color_edit3_prefers_sequence = False
                 return changed, self._coerce_color3(edited)
-            except TypeError:
-                self._color_edit3_accepts_sequence = False
+            except Exception:
+                self._color_edit3_prefers_sequence = True
 
         try:
-            imvec4 = imgui.ImVec4(sequence_color[0], sequence_color[1], sequence_color[2], 1.0)
-            changed, edited = imgui.color_edit3(label, imvec4)
+            changed, edited = imgui.color_edit3(label, sequence_color)
             return changed, self._coerce_color3(edited)
         except Exception as exc:
             logger.debug("[NewtonVisualizer] color_edit3 failed for '%s': %s", label, exc)
@@ -323,9 +323,10 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
             self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
 
-            self._viewer.renderer.sky_upper = self.cfg.sky_upper_color
-            self._viewer.renderer.sky_lower = self.cfg.sky_lower_color
-            self._viewer.renderer._light_color = self.cfg.light_color
+            # Accept list/tuple/array-like config colors and provide a stable tuple for nanobind conversion.
+            self._viewer.renderer.sky_upper = self._viewer._coerce_color3(self.cfg.sky_upper_color)
+            self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
+            self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
         self._log_initialization_table(
