@@ -75,6 +75,15 @@ These tests are skipped in the base image CI jobs and run separately in the
 dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
 """
 
+FLAKY_TESTS: list[str] = []
+"""A list of tests that are known to be flaky.
+
+These tests are skipped in normal CI runs and executed in the dedicated
+``test-flaky`` CI job (gated by the ``RUN_FLAKY_TESTS`` env var) where
+failures do not block PR merges. Add test filenames here to quarantine
+them from regular CI.
+"""
+
 TESTS_TO_SKIP = [
     # lab
     "test_argparser_launch.py",  # app.close issue
@@ -87,6 +96,8 @@ TESTS_TO_SKIP = [
     "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
     *CUROBO_TESTS,
+    # flaky tests - run in dedicated CI job that does not block PR merges
+    *FLAKY_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
 ]
 """A list of tests to skip by run_tests.py"""
