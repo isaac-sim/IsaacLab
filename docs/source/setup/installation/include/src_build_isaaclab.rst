@@ -65,21 +65,21 @@ Installation
    or ``all`` to install all available options: ``newton``, ``rerun``, ``viser``, ``kit``.
 
    .. tab-set::
-   :sync-group: os
+      :sync-group: os
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
 
-      .. code:: bash
+         .. code:: bash
 
-         ./isaaclab.sh --install visualizers[rerun]  # or "./isaaclab.sh -i visualizers[rerun]"
+            ./isaaclab.sh --install visualizers[rerun]  # or "./isaaclab.sh -i visualizers[rerun]"
 
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
 
-      .. code:: batch
+         .. code:: batch
 
-         isaaclab.bat --install visualizers[rerun] :: or "isaaclab.bat -i visualizers[rerun]"
+            isaaclab.bat --install visualizers[rerun] :: or "isaaclab.bat -i visualizers[rerun]"
 
 
    Pass ``none`` to install only the core ``isaaclab`` package without any Isaac Lab submodules or RL frameworks.
