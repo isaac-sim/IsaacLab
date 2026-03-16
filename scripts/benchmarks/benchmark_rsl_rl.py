@@ -169,11 +169,11 @@ def main(
         env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         agent_cfg.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
 
-        # set seed to have diversity in different threads
-        seed = agent_cfg.seed + int(os.getenv("LOCAL_RANK", "0"))
+        # use global rank for seed diversity across all nodes
+        world_rank = int(os.getenv("RANK", "0"))
+        seed = agent_cfg.seed + world_rank
         env_cfg.seed = seed
         agent_cfg.seed = seed
-        world_rank = int(os.getenv("RANK", "0"))
         world_size = int(os.getenv("WORLD_SIZE", 1))
 
     # specify directory for logging experiments
