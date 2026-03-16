@@ -72,6 +72,10 @@ dependency versions for Isaac Sim.
 | `v2.1.X`                      | Isaac Sim 4.5             |
 | `v2.0.X`                      | Isaac Sim 4.5             |
 
+## Limitations
+
+The `develop` branch of Isaac Lab 3.0-Beta is currently available on Ubuntu. Windows
+support and Isaac Lab pip wheels will be available soon.
 
 ## Contributing to Isaac Lab
 
