@@ -62,8 +62,8 @@ Installation
             isaaclab.bat --install physx,newton,assets,rl[rsl_rl],tasks,ov :: or "isaaclab.bat -i physx,newton,assets,rl[rsl_rl],tasks,ov"
 
    To install specific visualizer, pass a comma-separated list of supported visualizers,
-   or ``all`` to install all available options: ``newton``, ``rerun``, ``viser``, ``kit``. Note when following the 
-   default installation, all visualizers are installed by default.
+   or ``all`` to install all available options: ``newton``, ``rerun``, ``viser``, ``kit``. Note when following the
+   default installation, all visualizers are installed.
 
    .. tab-set::
       :sync-group: os
