@@ -5,7 +5,7 @@
 
 # pyright: reportPrivateUsage=none
 
-"""Tests for the target-frame rebase logic and _to_numpy_4x4 helper.
+"""Tests for the target-frame rebase logic, _to_numpy_4x4 helper, and config-driven auto-selection.
 
 These tests exercise pure math (no Omniverse/Isaac Sim stack required).
 """
@@ -15,9 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-
 from isaaclab_teleop.session_lifecycle import _to_numpy_4x4
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -176,3 +174,91 @@ class TestRebaseMultiplication:
 
         result = _to_numpy_4x4(target_T_world) @ world_T_anchor
         np.testing.assert_array_almost_equal(result, np.eye(4, dtype=np.float32), decimal=5)
+
+
+# ---------------------------------------------------------------------------
+# Config-driven auto-selection tests
+# ---------------------------------------------------------------------------
+
+
+def _simulate_advance_selection(
+    target_T_world: np.ndarray | None,
+    target_frame_prim_path: str | None,
+    auto_read_result: np.ndarray | None = None,
+) -> tuple[np.ndarray | None, bool]:
+    """Replicate the auto-selection logic from IsaacTeleopDevice.advance().
+
+    Returns the target_T_world that would be passed to step(), and whether
+    _get_target_frame_T_world would have been called.
+    """
+    auto_read_called = False
+
+    def fake_get_target_frame_T_world():
+        nonlocal auto_read_called
+        auto_read_called = True
+        return auto_read_result
+
+    if target_T_world is None and target_frame_prim_path is not None:
+        target_T_world = fake_get_target_frame_T_world()
+
+    return target_T_world, auto_read_called
+
+
+class TestConfigDrivenAutoSelection:
+    """Tests for the advance() auto-selection logic between explicit target_T_world
+    and config-driven target_frame_prim_path.
+
+    These tests replicate the branching logic from advance() without importing
+    the full IsaacTeleopDevice (which requires Isaac Sim runtime dependencies).
+    """
+
+    def test_no_config_no_explicit_passes_none(self):
+        """When neither config nor explicit target_T_world is set, step() receives None."""
+        result, called = _simulate_advance_selection(target_T_world=None, target_frame_prim_path=None)
+        assert result is None
+        assert not called
+
+    def test_explicit_target_is_passed_through(self):
+        """An explicit target_T_world should be passed directly to step()."""
+        explicit = np.eye(4, dtype=np.float32)
+        explicit[:3, 3] = [1.0, 2.0, 3.0]
+
+        result, called = _simulate_advance_selection(target_T_world=explicit, target_frame_prim_path=None)
+        np.testing.assert_array_equal(result, explicit)
+        assert not called
+
+    def test_config_prim_triggers_auto_read(self):
+        """When target_frame_prim_path is set, _get_target_frame_T_world is called."""
+        auto_matrix = np.eye(4, dtype=np.float32)
+        auto_matrix[:3, 3] = [9.0, 8.0, 7.0]
+
+        result, called = _simulate_advance_selection(
+            target_T_world=None,
+            target_frame_prim_path="/World/Robot/base_link",
+            auto_read_result=auto_matrix,
+        )
+        assert called
+        np.testing.assert_array_equal(result, auto_matrix)
+
+    def test_explicit_overrides_config(self):
+        """An explicit target_T_world takes precedence over config prim path."""
+        explicit = np.eye(4, dtype=np.float32)
+        explicit[:3, 3] = [42.0, 0.0, 0.0]
+
+        result, called = _simulate_advance_selection(
+            target_T_world=explicit,
+            target_frame_prim_path="/World/Robot/base_link",
+            auto_read_result=np.eye(4, dtype=np.float32),
+        )
+        assert not called
+        np.testing.assert_array_equal(result, explicit)
+
+    def test_config_prim_returns_none_passes_none(self):
+        """If the prim read fails (returns None), step() receives None."""
+        result, called = _simulate_advance_selection(
+            target_T_world=None,
+            target_frame_prim_path="/World/Robot/base_link",
+            auto_read_result=None,
+        )
+        assert called
+        assert result is None

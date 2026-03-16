@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.3.5 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.target_frame_prim_path` for
+  config-driven frame rebasing.  When set to a USD prim path, the device
+  automatically reads the prim's world transform each frame and uses its
+  inverse as the ``target_T_world`` rebase matrix, so all output poses are
+  expressed in the target frame (e.g. robot base link for IK).
+
+
 0.3.4 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.23 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.envs.mdp.actions.PinkInverseKinematicsActionCfg.expect_base_link_frame`
+  flag.  When ``True``, incoming action poses are assumed to already be in the
+  robot base link frame and the internal world-to-base-link transform in
+  :meth:`~isaaclab.envs.mdp.actions.PinkInverseKinematicsAction.process_actions`
+  is skipped.
+
+
 4.5.22 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
 

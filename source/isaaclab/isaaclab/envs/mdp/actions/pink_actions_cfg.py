@@ -43,3 +43,14 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
     This dictionary should map the task names (e.g., 'left_wrist', 'right_wrist') to the
     corresponding link names in the URDF that will be controlled by the IK solver.
     """
+
+    expect_base_link_frame: bool = False
+    """When ``True``, incoming action poses are assumed to already be in the
+    robot base link frame and the internal world-to-base-link transform is
+    skipped.
+
+    Set this to ``True`` when the teleop device applies the rebase transform
+    itself (e.g. via :attr:`~isaaclab_teleop.IsaacTeleopCfg.target_frame_prim_path`
+    or an explicit ``target_T_world`` argument to
+    :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`).
+    """

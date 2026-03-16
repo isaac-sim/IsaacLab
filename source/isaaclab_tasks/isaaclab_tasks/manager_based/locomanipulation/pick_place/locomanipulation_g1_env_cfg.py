@@ -429,6 +429,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
         self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
+        # IsaacTeleop rebases poses into the pelvis frame via target_frame_prim_path,
+        # so the IK action term can skip its internal world-to-base-link transform.
+        self.actions.upper_body_ik.expect_base_link_frame = True
+
         self.xr = XrCfg(
             anchor_pos=(0.0, 0.0, -0.95),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
@@ -441,4 +445,5 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=_build_g1_locomanipulation_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            target_frame_prim_path="/World/envs/env_0/Robot/pelvis",
         )

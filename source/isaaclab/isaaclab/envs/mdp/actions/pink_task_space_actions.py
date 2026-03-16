@@ -192,7 +192,11 @@ class PinkInverseKinematicsAction(ActionTerm):
         """Process the input actions and set targets for each task.
 
         Args:
-            actions: The input actions tensor.
+            actions: The input actions tensor.  Poses are expected in the
+                simulation world frame by default.  When
+                :attr:`~PinkInverseKinematicsActionCfg.expect_base_link_frame`
+                is ``True``, poses must already be in the robot base link
+                frame (the internal world-to-base-link transform is skipped).
         """
         # Store raw actions
         self._raw_actions[:] = actions
@@ -200,12 +204,15 @@ class PinkInverseKinematicsAction(ActionTerm):
         # Extract hand joint positions directly (no cloning needed)
         self._target_hand_joint_positions = actions[:, -self.hand_joint_dim :]
 
-        # Get base link frame transformation
-        self.base_link_frame_in_world_rf = self._get_base_link_frame_transform()
-
         # Process controlled frame poses (pass original actions, no clone needed)
         controlled_frame_poses = self._extract_controlled_frame_poses(actions)
-        transformed_poses = self._transform_poses_to_base_link_frame(controlled_frame_poses)
+
+        if self.cfg.expect_base_link_frame:
+            positions, rotation_matrices = math_utils.unmake_pose(controlled_frame_poses)
+            transformed_poses = (positions, rotation_matrices)
+        else:
+            self.base_link_frame_in_world_rf = self._get_base_link_frame_transform()
+            transformed_poses = self._transform_poses_to_base_link_frame(controlled_frame_poses)
 
         # Set targets for all tasks
         self._set_task_targets(transformed_poses)
