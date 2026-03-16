@@ -282,10 +282,23 @@ def resolve_preset_defaults(cfg):
         elif hasattr(value, "__dataclass_fields__"):
             resolve_preset_defaults(value)
         elif isinstance(value, dict):
-            for dict_val in value.values():
-                if hasattr(dict_val, "__dataclass_fields__"):
-                    resolve_preset_defaults(dict_val)
+            _resolve_from_dict(value)
     return cfg
+
+
+def _resolve_from_dict(d: dict) -> None:
+    """Recursively resolve preset defaults in dict values, including nested dicts."""
+    for dict_key, dict_val in d.items():
+        if isinstance(dict_val, PresetCfg) and hasattr(dict_val, "__dataclass_fields__"):
+            default = getattr(dict_val, "default", None)
+            if default is not None:
+                d[dict_key] = default
+                if hasattr(default, "__dataclass_fields__"):
+                    resolve_preset_defaults(default)
+        elif hasattr(dict_val, "__dataclass_fields__"):
+            resolve_preset_defaults(dict_val)
+        elif isinstance(dict_val, dict):
+            _resolve_from_dict(dict_val)
 
 
 def register_task(task_name: str, agent_entry: str) -> tuple:
