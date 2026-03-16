@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+1.5.11 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified the Hydra preset system by removing the dict-style ``presets = {...}``
+  attribute in favor of :class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclasses
+  and the new :func:`~isaaclab_tasks.utils.hydra.preset` factory for inline scalar
+  overrides.
+
+
 1.5.10 (2026-03-12)
 ~~~~~~~~~~~~~~~~~~~
 
