@@ -42,7 +42,7 @@ Installation
    Isaac Lab submodules are: ``assets``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``physx``, ``rl``, ``tasks``,
    ``teleop``, ``visualizers``. Available RL frameworks are: ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
 
-   For example, to install only the minimally required submodules:
+   For example, to install a small subset of submodules:
 
    .. tab-set::
       :sync-group: os
