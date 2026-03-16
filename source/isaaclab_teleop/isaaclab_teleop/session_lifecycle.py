@@ -24,6 +24,27 @@ from .isaac_teleop_cfg import IsaacTeleopCfg
 logger = logging.getLogger(__name__)
 
 
+def _to_numpy_4x4(mat: np.ndarray | torch.Tensor) -> np.ndarray:
+    """Convert a 4x4 transform to a float32 numpy array.
+
+    Accepts :class:`numpy.ndarray`, :class:`torch.Tensor`, ``wp.array``,
+    or any object implementing a ``.numpy()`` method.
+
+    Args:
+        mat: A (4, 4) transform matrix in any supported array type.
+
+    Returns:
+        A (4, 4) float32 :class:`numpy.ndarray`.
+    """
+    if isinstance(mat, np.ndarray):
+        return np.asarray(mat, dtype=np.float32)
+    if isinstance(mat, torch.Tensor):
+        return mat.detach().cpu().numpy().astype(np.float32)
+    if hasattr(mat, "numpy"):
+        return np.asarray(mat.numpy(), dtype=np.float32)
+    return np.asarray(mat, dtype=np.float32)
+
+
 class TeleopSessionLifecycle:
     """Manages the IsaacTeleop session lifecycle.
 
@@ -306,7 +327,11 @@ class TeleopSessionLifecycle:
     # Stepping
     # ------------------------------------------------------------------
 
-    def step(self, anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None) -> torch.Tensor | None:
+    def step(
+        self,
+        anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None,
+        target_T_world: np.ndarray | torch.Tensor | None = None,
+    ) -> torch.Tensor | None:
         """Execute one step of the teleop session and return the action tensor.
 
         If the session has not been started yet (because OpenXR handles were
@@ -323,6 +348,13 @@ class TeleopSessionLifecycle:
             anchor_world_matrix_fn: Optional callable returning the (4, 4)
                 world-to-anchor transform.  Used to build external inputs
                 for ``ValueInput`` leaf nodes in the pipeline.
+            target_T_world: Optional (4, 4) transform matrix that rebases
+                pipeline poses into a target coordinate frame.  When provided,
+                the anchor matrix is left-multiplied by this transform
+                (``target_T_world @ world_T_anchor``) so all output poses
+                are expressed in the target frame.  Accepts
+                :class:`numpy.ndarray`, :class:`torch.Tensor`, or any object
+                with a ``.numpy()`` method (e.g. ``wp.array``).
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -342,7 +374,7 @@ class TeleopSessionLifecycle:
 
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.
-        external_inputs = self._build_external_inputs(anchor_world_matrix_fn)
+        external_inputs = self._build_external_inputs(anchor_world_matrix_fn, target_T_world)
 
         # Execute one step of the teleop session.
         # If the underlying OpenXR session was destroyed externally (e.g.
@@ -395,16 +427,27 @@ class TeleopSessionLifecycle:
     # External input building
     # ------------------------------------------------------------------
 
-    def _build_external_inputs(self, anchor_world_matrix_fn: Callable[[], np.ndarray] | None) -> dict | None:
+    def _build_external_inputs(
+        self,
+        anchor_world_matrix_fn: Callable[[], np.ndarray] | None,
+        target_T_world: np.ndarray | torch.Tensor | None = None,
+    ) -> dict | None:
         """Build external inputs for non-DeviceIO leaf nodes in the pipeline.
 
         Checks whether the active ``TeleopSession`` has external (non-DeviceIO)
         leaf nodes and, for each recognized leaf, constructs the corresponding
         ``TensorGroup`` data.
 
+        When *target_T_world* is provided, the anchor matrix is left-multiplied
+        by the rebase transform so that all pipeline poses are expressed in
+        the target coordinate frame:
+        ``target_T_world @ world_T_anchor = target_T_anchor``.
+
         Args:
             anchor_world_matrix_fn: Callable returning the (4, 4)
                 world-to-anchor transform matrix.
+            target_T_world: Optional (4, 4) rebase transform.  See
+                :meth:`step` for details.
 
         Returns:
             A dict suitable for ``TeleopSession.step(external_inputs=...)``,
@@ -425,6 +468,8 @@ class TeleopSessionLifecycle:
                     anchor_matrix = anchor_world_matrix_fn()
                 else:
                     anchor_matrix = np.eye(4, dtype=np.float32)
+                if target_T_world is not None:
+                    anchor_matrix = _to_numpy_4x4(target_T_world) @ anchor_matrix
                 xform_tg = TensorGroup(TransformMatrix())
                 xform_tg[0] = anchor_matrix
                 external_inputs[leaf_name] = {ValueInput.VALUE: xform_tg}
