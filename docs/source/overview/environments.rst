@@ -159,9 +159,13 @@ for the lift-cube environment:
     |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |
     |                         |                              | controlled via Inverse Kinematics).                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
-    | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position       |
+    | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position.      |
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
-    | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose         |
+    | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose.        |
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |
     |                         |                              | a Galbot humanoid robot                                                     |
@@ -1023,10 +1027,29 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
     * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
+
+        Camera variants (requires ``--enable_cameras``):
+
+        - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
+        - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
+
+        The same ``presets=`` flags must be passed to both the training and
+        play scripts.  There is no separately registered
+        ``Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0`` environment;
+        all observation-mode variants share the base task name and are
+        selected via the preset system.
       - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
     * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
+
+        Camera variants (requires ``--enable_cameras``):
+
+        - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
+        - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
+
+        The same ``presets=`` flags must be passed to both the training and
+        play scripts.
       - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
