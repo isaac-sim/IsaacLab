@@ -313,7 +313,7 @@ def _spawn_from_usd_file(
 
     if _world_size > 1:
         lock_path = os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock")
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
     try:
         if file_status == 2:
