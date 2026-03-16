@@ -262,7 +262,7 @@ def _collect_test_files(
     filter_pattern,
     exclude_pattern,
     include_files,
-    flaky_only,
+    quarantined_only,
     curobo_only,
     cuda_issue_only,
 ):
@@ -279,8 +279,8 @@ def _collect_test_files(
                     continue
 
                 # Mode-exclusive filters (each bypasses TESTS_TO_SKIP)
-                if flaky_only:
-                    if file not in test_settings.FLAKY_TESTS:
+                if quarantined_only:
+                    if file not in test_settings.QUARANTINED_TESTS:
                         continue
                 elif curobo_only:
                     if file not in test_settings.CUROBO_TESTS:
@@ -325,7 +325,7 @@ def pytest_sessionstart(session):
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
     include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
-    flaky_only = os.environ.get("TEST_FLAKY_ONLY", "false") == "true"
+    quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
     cuda_issue_only = os.environ.get("TEST_CUDA_ISSUE_ONLY", "false") == "true"
 
@@ -351,13 +351,13 @@ def pytest_sessionstart(session):
     print(f"Filter pattern: '{filter_pattern}'")
     print(f"Exclude pattern: '{exclude_pattern}'")
     print(f"Include files: {include_files if include_files else 'none'}")
-    print(f"Flaky-only mode: {flaky_only}")
+    print(f"Quarantined-only mode: {quarantined_only}")
     print(f"Curobo-only mode: {curobo_only}")
     print(f"CUDA-issue-only mode: {cuda_issue_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
-    print(f"TEST_FLAKY_ONLY env var: '{os.environ.get('TEST_FLAKY_ONLY', 'NOT_SET')}'")
+    print(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUDA_ISSUE_ONLY env var: '{os.environ.get('TEST_CUDA_ISSUE_ONLY', 'NOT_SET')}'")
     print("=" * 50)
@@ -368,7 +368,7 @@ def pytest_sessionstart(session):
         filter_pattern,
         exclude_pattern,
         include_files,
-        flaky_only,
+        quarantined_only,
         curobo_only,
         cuda_issue_only,
     )
