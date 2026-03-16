@@ -679,9 +679,7 @@ class NewtonManager(PhysicsManager):
 
             # Inject registered sites into the proto before replication
             global_sites, proto_sites = cls._cl_inject_sites(builder, {proto_path: proto})
-            global_site_map: dict[str, tuple[int, None]] = {
-                label: (idx, None) for label, idx in global_sites.items()
-            }
+            global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
             num_worlds = len(env_paths)
             local_site_map: dict[str, list[list[int]]] = {}
             site_entries = proto_sites.get(id(proto), {})

@@ -25,6 +25,24 @@ Fixed
   by name to be robust across backends.
 
 
+0.5.10 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer` sensor
+  wrapping Newton's ``SensorFrameTransform``. Supports per-env source/target site
+  registration, wildcard body matching, and zero-copy transform views.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation` to inject
+  pending frame-transformer sites via :meth:`_cl_inject_sites_fallback` in the
+  non-replication path.
+
+
 0.5.9 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~
 
