@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.3.4 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``target_T_world`` parameter to
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance` for rebasing all output
+  poses into an arbitrary target coordinate frame (e.g. robot base link for
+  IK).  Accepts :class:`numpy.ndarray`, :class:`torch.Tensor`, or
+  ``wp.array``.
+
+
 0.3.3 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 

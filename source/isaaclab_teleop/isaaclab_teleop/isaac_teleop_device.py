@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
+import numpy as np
 import torch
 
 from .command_handler import CommandHandler
@@ -42,6 +43,15 @@ class IsaacTeleopDevice:
     The device uses IsaacTeleop's TensorReorderer to flatten pipeline outputs
     into a single action tensor matching the environment's action space.
 
+    Frame rebasing:
+        By default, all output poses are expressed in the simulation world
+        frame.  When an application needs poses in a different frame (e.g.
+        robot base link for IK), pass a ``target_T_world`` transform to
+        :meth:`advance`.  The device composes
+        ``target_T_world @ world_T_anchor`` before feeding the matrix into
+        the retargeting pipeline, so all resulting poses are expressed in the
+        target frame.
+
     Teleop commands:
         The device supports callbacks for START, STOP, and RESET commands
         that can be triggered via XR controller buttons or the message bus.
@@ -54,9 +64,17 @@ class IsaacTeleopDevice:
                 sim_device="cuda:0",
             )
 
+            # Poses in world frame (default)
             with IsaacTeleopDevice(cfg) as device:
                 while running:
                     action = device.advance()
+                    env.step(action.repeat(num_envs, 1))
+
+            # Poses rebased into the robot base frame for IK
+            with IsaacTeleopDevice(cfg) as device:
+                while running:
+                    robot_T_world = get_robot_base_transform()
+                    action = device.advance(target_T_world=robot_T_world)
                     env.step(action.repeat(num_envs, 1))
     """
 
@@ -147,13 +165,28 @@ class IsaacTeleopDevice:
         """
         self._command_handler.add_callback(key, func)
 
-    def advance(self) -> torch.Tensor | None:
+    def advance(self, target_T_world: np.ndarray | torch.Tensor | None = None) -> torch.Tensor | None:
         """Process current device state and return control commands.
 
         If the IsaacTeleop session has not been started yet (because the OpenXR
         handles were not available at ``__enter__`` time), this method will
         attempt to start it on each call.  Once the user clicks "Start AR" and
         the handles become available, the session is created transparently.
+
+        Args:
+            target_T_world: Optional 4x4 transform matrix that rebases all
+                output poses into an arbitrary target coordinate frame.  When
+                provided, the matrix sent to the retargeting pipeline becomes
+                ``target_T_world @ world_T_anchor`` instead of just
+                ``world_T_anchor``, so all resulting poses are expressed in
+                the target frame rather than the simulation world frame.
+
+                Typical use case: pass ``robot_base_T_world`` so that an IK
+                controller receives end-effector poses in the robot's base
+                link frame.
+
+                Accepts :class:`numpy.ndarray`, :class:`torch.Tensor`, or any
+                object with a ``.numpy()`` method (e.g. ``wp.array``).
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -166,6 +199,7 @@ class IsaacTeleopDevice:
         # Step the session (handles lazy start and action extraction)
         action = self._session_lifecycle.step(
             anchor_world_matrix_fn=self._anchor_manager.get_world_matrix,
+            target_T_world=target_T_world,
         )
 
         if action is not None:
