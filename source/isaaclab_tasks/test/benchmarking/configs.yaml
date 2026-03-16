@@ -76,7 +76,7 @@ fast:
     upper_thresholds:
       duration: 2000
   rsl_rl:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
-    max_iterations: 200
+    max_iterations: 300
     lower_thresholds:
       reward: 0.7
       episode_length: 150

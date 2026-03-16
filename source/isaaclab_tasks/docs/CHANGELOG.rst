@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increased ``max_iterations`` from 200 to 300 for ``Isaac-Dexsuite-Kuka-Allegro-Lift-v0``
+  in the benchmarking configuration to allow sufficient training time for convergence.
+
+
 1.5.11 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 
