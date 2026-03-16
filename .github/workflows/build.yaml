@@ -115,7 +115,16 @@ jobs:
     - name: Select tests
       id: select
       run: |
+        set -euo pipefail
         base_ref="${{ github.event.pull_request.base.ref }}"
+        if [ -z "$base_ref" ]; then
+          echo "No base branch (not a PR event). Running all tests."
+          echo "run-all=true" >> $GITHUB_OUTPUT
+          for job in physx newton general isaaclab-tasks isaaclab-tasks-2 environments-training flaky slightly-flaky curobo; do
+            echo "test-list-$job=" >> $GITHUB_OUTPUT
+          done
+          exit 0
+        fi
         output=$(python tools/select_tests.py --base-branch "origin/$base_ref" --dry-run 2>> $GITHUB_STEP_SUMMARY)
 
         run_all=$(echo "$output" | python -c "import sys,json; print(str(json.load(sys.stdin)['run_all']).lower())")

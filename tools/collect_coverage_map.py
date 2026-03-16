@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -51,8 +52,8 @@ def run_test_with_coverage(test_file: str, coverage_dir: str, timeout: int) -> s
     Returns:
         Path to the coverage data file, or None if the test failed/timed out.
     """
-    # Use a unique coverage data file per test
-    test_hash = str(abs(hash(test_file)))
+    # Use a deterministic hash so filenames are stable across runs
+    test_hash = hashlib.md5(test_file.encode()).hexdigest()[:16]  # noqa: S324
     data_file = os.path.join(coverage_dir, f".coverage.{test_hash}")
 
     cmd = [

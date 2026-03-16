@@ -31,7 +31,7 @@ Fallback Behavior
 The system falls back to running **all** tests when any of the following are true:
 
 * A changed file is not present in the mapping (e.g. a newly added file).
-* The mapping is stale (older than 7 days or 50+ commits behind).
+* The mapping is stale (older than 7 days).
 * Non-Python files are changed (YAML, RST, Dockerfiles, etc.).
 * CI infrastructure files are changed (``.github/``, ``docker/``, ``tools/conftest.py``).
 * The mapping file is empty or missing.
@@ -49,7 +49,7 @@ The selection logic has its own test suite that runs without GPU or simulation:
 
 .. code-block:: bash
 
-   python -m pytest tools/test_select_tests.py -v \
+   ./isaaclab.sh -p -m pytest tools/test_select_tests.py -v \
        --override-ini="confcutdir=tools" --noconftest
 
 Dry-run against your branch

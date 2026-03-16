@@ -29,7 +29,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_settings  # noqa: E402
 
 # Directories whose changes are ignored (no tests needed)
-_IGNORE_PREFIXES = ("docs/", ".github/", "docker/")
+_IGNORE_PREFIXES = ("docs/",)
+
+# Directory prefixes that trigger full fallback (affect build/test infrastructure)
+_INFRA_PREFIXES = (".github/", "docker/")
 
 # Infrastructure files that trigger full fallback
 _INFRASTRUCTURE_FILES = {
@@ -59,7 +62,8 @@ _ALL_JOBS = [
 # Classifications that trigger full fallback
 _FALLBACK_CLASSIFICATIONS = {"unmapped", "non_python_source", "infrastructure", "apps", "deleted_source", "renamed"}
 
-# Tasks 1/2 file list (mirrors build.yaml test-isaaclab-tasks include-files)
+# Tasks 1/2 file list (mirrors build.yaml test-isaaclab-tasks include-files).
+# Keep in sync with the include-files lists in .github/workflows/build.yaml.
 _TASKS_1_FILES = {
     "test_multi_agent_environments.py",
     "test_pickplace_stack_environments.py",
@@ -69,7 +73,8 @@ _TASKS_1_FILES = {
     "test_teleop_environments.py",
 }
 
-# Tasks 2/2 file list (mirrors build.yaml test-isaaclab-tasks-2 include-files)
+# Tasks 2/2 file list (mirrors build.yaml test-isaaclab-tasks-2 include-files).
+# Keep in sync with the include-files lists in .github/workflows/build.yaml.
 _TASKS_2_FILES = {
     "test_teleop_environments_with_stage_in_memory.py",
     "test_lift_teddy_bear.py",
@@ -157,6 +162,10 @@ def classify_file(
     # Ignored directories
     if any(path.startswith(p) for p in _IGNORE_PREFIXES):
         return "ignore"
+
+    # CI/build infrastructure directories
+    if any(path.startswith(p) for p in _INFRA_PREFIXES):
+        return "infrastructure"
 
     # Renamed files
     if status == "R":

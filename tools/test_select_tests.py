@@ -5,12 +5,34 @@
 
 """Tests for the test selection script."""
 
+import ast
 import json
+import textwrap
 from datetime import datetime, timedelta, timezone
-
-import pytest
+from pathlib import Path
 
 import select_tests
+
+
+def _load_matches_include_files():
+    """Extract _matches_include_files from conftest.py without importing the module.
+
+    conftest.py has top-level imports (junitparser) that are unavailable in
+    lightweight test environments, so we parse the function source with AST
+    and compile it in isolation.
+    """
+    source = Path(__file__).parent.joinpath("conftest.py").read_text()
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_matches_include_files":
+            func_source = textwrap.dedent(ast.get_source_segment(source, node))
+            namespace: dict = {}
+            exec(compile(func_source, "conftest.py", "exec"), namespace)  # noqa: S102
+            return namespace["_matches_include_files"]
+    raise RuntimeError("_matches_include_files not found in conftest.py")
+
+
+_matches_include_files = _load_matches_include_files()
 
 
 class TestLoadMapping:
@@ -71,9 +93,7 @@ class TestClassifyFile:
 
     def test_test_file_directly_in_test_dir(self):
         """A test file directly in test/ (no subdirectory) should be classified as 'test'."""
-        result = select_tests.classify_file(
-            "source/isaaclab_tasks/test/test_environments.py", "M", mapping_keys=set()
-        )
+        result = select_tests.classify_file("source/isaaclab_tasks/test/test_environments.py", "M", mapping_keys=set())
         assert result == "test"
 
     def test_test_file_under_scripts(self):
@@ -142,15 +162,15 @@ class TestClassifyFile:
         result = select_tests.classify_file("docs/README.md", "M", mapping_keys=set())
         assert result == "ignore"
 
-    def test_github_file_ignored(self):
-        """A .github/ file should be classified as 'ignore'."""
+    def test_github_file_is_infrastructure(self):
+        """A .github/ file should be classified as 'infrastructure'."""
         result = select_tests.classify_file(".github/workflows/build.yaml", "M", mapping_keys=set())
-        assert result == "ignore"
+        assert result == "infrastructure"
 
-    def test_docker_file_ignored(self):
-        """A docker/ file should be classified as 'ignore'."""
+    def test_docker_file_is_infrastructure(self):
+        """A docker/ file should be classified as 'infrastructure'."""
         result = select_tests.classify_file("docker/Dockerfile.base", "M", mapping_keys=set())
-        assert result == "ignore"
+        assert result == "infrastructure"
 
     def test_deleted_source_file(self):
         """A deleted Python source file should be classified as 'deleted_source'."""
@@ -193,9 +213,7 @@ class TestAssignTestToJob:
 
     def test_physx_test(self):
         """A test under isaaclab_physx should go to test-physx."""
-        assert (
-            select_tests.assign_test_to_job("source/isaaclab_physx/test/assets/test_articulation.py") == "test-physx"
-        )
+        assert select_tests.assign_test_to_job("source/isaaclab_physx/test/assets/test_articulation.py") == "test-physx"
 
     def test_newton_test(self):
         """A test under isaaclab_newton should go to test-newton."""
@@ -210,8 +228,7 @@ class TestAssignTestToJob:
     def test_tasks_1_test(self):
         """A tasks test in the first split should go to test-isaaclab-tasks."""
         assert (
-            select_tests.assign_test_to_job("source/isaaclab_tasks/test/test_environments.py")
-            == "test-isaaclab-tasks"
+            select_tests.assign_test_to_job("source/isaaclab_tasks/test/test_environments.py") == "test-isaaclab-tasks"
         )
 
     def test_tasks_2_test(self):
@@ -435,6 +452,61 @@ class TestSelectTests:
         assert "source/isaaclab/test/utils/test_math.py" in result["jobs"]["test-general"]
         assert "source/isaaclab_physx/test/assets/test_rigid_object.py" in result["jobs"]["test-physx"]
         assert "source/isaaclab_newton/test/assets/test_rigid_object.py" in result["jobs"]["test-newton"]
+
+    def test_github_change_triggers_fallback(self, tmp_path):
+        """Changing a .github/ file should trigger run_all."""
+        mapping_path = self._make_mapping(tmp_path, {})
+        changed = [("M", ".github/workflows/build.yaml")]
+
+        result = select_tests.select_tests(mapping_path, changed, max_age_days=7)
+
+        assert result["run_all"] is True
+
+    def test_docker_change_triggers_fallback(self, tmp_path):
+        """Changing a docker/ file should trigger run_all."""
+        mapping_path = self._make_mapping(tmp_path, {})
+        changed = [("M", "docker/Dockerfile.base")]
+
+        result = select_tests.select_tests(mapping_path, changed, max_age_days=7)
+
+        assert result["run_all"] is True
+
+
+class TestMatchesIncludeFiles:
+    """Tests for _matches_include_files in conftest.py."""
+
+    def test_full_path_match(self):
+        """A full-path entry should match only that exact path suffix."""
+        include = {"source/isaaclab_physx/test/assets/test_articulation.py"}
+        assert _matches_include_files(
+            "source/isaaclab_physx/test/assets/test_articulation.py", "test_articulation.py", include
+        )
+
+    def test_full_path_no_cross_package_match(self):
+        """A full-path entry for physx should NOT match newton."""
+        include = {"source/isaaclab_physx/test/assets/test_articulation.py"}
+        assert not _matches_include_files(
+            "source/isaaclab_newton/test/assets/test_articulation.py", "test_articulation.py", include
+        )
+
+    def test_basename_match(self):
+        """A basename-only entry should match any file with that basename."""
+        include = {"test_articulation.py"}
+        assert _matches_include_files(
+            "source/isaaclab_physx/test/assets/test_articulation.py", "test_articulation.py", include
+        )
+        assert _matches_include_files(
+            "source/isaaclab_newton/test/assets/test_articulation.py", "test_articulation.py", include
+        )
+
+    def test_no_match(self):
+        """A file not in the include set should not match."""
+        include = {"source/isaaclab_physx/test/assets/test_articulation.py"}
+        assert not _matches_include_files("source/isaaclab/test/utils/test_math.py", "test_math.py", include)
+
+    def test_empty_include_files(self):
+        """An empty include set should match nothing."""
+        assert not _matches_include_files("source/isaaclab/test/utils/test_math.py", "test_math.py", set())
 
 
 class TestParseGitDiff:
