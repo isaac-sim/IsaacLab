@@ -37,12 +37,12 @@ Installation
             isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
-   By default, the above will install **all** the learning framework and all Isaac Lab submodules (under ``source/isaaclab``). Available RL frameworks are:
-   ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
-
+   By default, the above will install **all** Isaac Lab submodules (under ``source/isaaclab``).
    To install only specific Isaac Lab submodules, pass a comma-separated list of submodule names. The available
    Isaac Lab submodules are: ``assets``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``physx``, ``rl``, ``tasks``,
-   ``teleop``, ``visualizers``. For example, to install only the ``mimic`` and ``assets`` submodules:
+   ``teleop``, ``visualizers``. Available RL frameworks are: ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
+
+   For example, to install only the minimally required submodules:
 
    .. tab-set::
       :sync-group: os
