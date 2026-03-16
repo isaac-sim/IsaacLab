@@ -262,8 +262,6 @@ def _collect_test_files(
     filter_pattern,
     exclude_pattern,
     include_files,
-    flaky_only,
-    slightly_flaky_only,
     curobo_only,
     cuda_issue_only,
 ):
@@ -280,13 +278,7 @@ def _collect_test_files(
                     continue
 
                 # Mode-exclusive filters (each bypasses TESTS_TO_SKIP)
-                if flaky_only:
-                    if file not in test_settings.FLAKY_TESTS:
-                        continue
-                elif slightly_flaky_only:
-                    if file not in test_settings.SLIGHTLY_FLAKY_TESTS:
-                        continue
-                elif curobo_only:
+                if curobo_only:
                     if file not in test_settings.CUROBO_TESTS:
                         continue
                 elif cuda_issue_only:
@@ -331,8 +323,6 @@ def pytest_sessionstart(session):
     include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
     cuda_issue_only = os.environ.get("TEST_CUDA_ISSUE_ONLY", "false") == "true"
-    flaky_only = os.environ.get("TEST_FLAKY_ONLY", "false") == "true"
-    slightly_flaky_only = os.environ.get("TEST_SLIGHTLY_FLAKY_ONLY", "false") == "true"
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
@@ -358,15 +348,11 @@ def pytest_sessionstart(session):
     print(f"Include files: {include_files if include_files else 'none'}")
     print(f"Curobo-only mode: {curobo_only}")
     print(f"CUDA-issue-only mode: {cuda_issue_only}")
-    print(f"Flaky-only mode: {flaky_only}")
-    print(f"Slightly-flaky-only mode: {slightly_flaky_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUDA_ISSUE_ONLY env var: '{os.environ.get('TEST_CUDA_ISSUE_ONLY', 'NOT_SET')}'")
-    print(f"TEST_FLAKY_ONLY env var: '{os.environ.get('TEST_FLAKY_ONLY', 'NOT_SET')}'")
-    print(f"TEST_SLIGHTLY_FLAKY_ONLY env var: '{os.environ.get('TEST_SLIGHTLY_FLAKY_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -375,8 +361,6 @@ def pytest_sessionstart(session):
         filter_pattern,
         exclude_pattern,
         include_files,
-        flaky_only,
-        slightly_flaky_only,
         curobo_only,
         cuda_issue_only,
     )
