@@ -87,13 +87,57 @@ jobs:
       if: always()
       run: docker image prune -f --filter "until=24h" || true
 
+  select-tests:
+    name: Select Tests
+    runs-on: ubuntu-latest
+    outputs:
+      run-all: ${{ steps.select.outputs.run-all }}
+      test-list-physx: ${{ steps.select.outputs.test-list-physx }}
+      test-list-newton: ${{ steps.select.outputs.test-list-newton }}
+      test-list-general: ${{ steps.select.outputs.test-list-general }}
+      test-list-isaaclab-tasks: ${{ steps.select.outputs.test-list-isaaclab-tasks }}
+      test-list-isaaclab-tasks-2: ${{ steps.select.outputs.test-list-isaaclab-tasks-2 }}
+      test-list-environments-training: ${{ steps.select.outputs.test-list-environments-training }}
+      test-list-flaky: ${{ steps.select.outputs.test-list-flaky }}
+      test-list-slightly-flaky: ${{ steps.select.outputs.test-list-slightly-flaky }}
+      test-list-curobo: ${{ steps.select.outputs.test-list-curobo }}
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Fetch coverage mapping
+      run: |
+        git fetch origin ci/coverage-map 2>/dev/null || true
+        git checkout origin/ci/coverage-map -- tools/test-dependency-map.json 2>/dev/null || echo '{}' > tools/test-dependency-map.json
+
+    - name: Select tests
+      id: select
+      run: |
+        base_ref="${{ github.event.pull_request.base.ref }}"
+        output=$(python tools/select_tests.py --base-branch "origin/$base_ref" --dry-run 2>> $GITHUB_STEP_SUMMARY)
+
+        run_all=$(echo "$output" | python -c "import sys,json; print(str(json.load(sys.stdin)['run_all']).lower())")
+        echo "run-all=$run_all" >> $GITHUB_OUTPUT
+
+        for job in physx newton general isaaclab-tasks isaaclab-tasks-2 environments-training flaky slightly-flaky curobo; do
+          list=$(echo "$output" | python -c "import sys,json; d=json.load(sys.stdin); print(d['jobs'].get('test-'+'$job',''))")
+          echo "test-list-$job=$list" >> $GITHUB_OUTPUT
+        done
+
+        # Log summary
+        echo "$output" | python -c "import sys,json; print(json.load(sys.stdin)['summary'])"
 
   test-isaaclab-tasks:
     name: IsaacLab Tasks Tests 1/2
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-isaaclab-tasks != ''
 
     steps:
     - name: Checkout Code
@@ -121,12 +165,9 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: >-
-            test_multi_agent_environments.py,
-            test_pickplace_stack_environments.py,
-            test_environments.py,
-            test_factory_environments.py,
-            test_cartpole_showcase_environments.py,
-            test_teleop_environments.py
+          ${{ needs.select-tests.outputs.run-all != 'true'
+          && needs.select-tests.outputs.test-list-isaaclab-tasks
+          || 'test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_factory_environments.py,test_cartpole_showcase_environments.py,test_teleop_environments.py' }}
 
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4
@@ -161,7 +202,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-isaaclab-tasks-2 != ''
 
     steps:
     - name: Checkout Code
@@ -189,13 +233,9 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: >-
-          test_teleop_environments_with_stage_in_memory.py,
-          test_lift_teddy_bear.py,
-          test_environment_determinism.py,
-          test_hydra.py,
-          test_rl_device_separation.py,
-          test_cartpole_showcase_environments_with_stage_in_memory.py,
-          test_environments_with_stage_in_memory.py
+          ${{ needs.select-tests.outputs.run-all != 'true'
+          && needs.select-tests.outputs.test-list-isaaclab-tasks-2
+          || 'test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py' }}
 
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4
@@ -229,7 +269,10 @@ jobs:
     name: General Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-general != ''
 
     steps:
     - name: Checkout Code
@@ -257,6 +300,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks,isaaclab_newton,isaaclab_physx"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-general || '' }}
 
     - name: Upload General Test Results
       uses: actions/upload-artifact@v4
@@ -289,7 +333,10 @@ jobs:
   test-newton:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-newton != ''
 
     steps:
     - name: Checkout Code
@@ -316,6 +363,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_newton"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-newton || '' }}
 
     - name: Upload Newton Test Results
       uses: actions/upload-artifact@v4
@@ -348,7 +396,10 @@ jobs:
   test-physx:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-physx != ''
 
     steps:
     - name: Checkout Code
@@ -375,6 +426,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_physx"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-physx || '' }}
 
     - name: Upload PhysX Test Results
       uses: actions/upload-artifact@v4
@@ -409,7 +461,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: build-curobo
+    needs: [build-curobo, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-curobo != ''
 
     steps:
     - name: Checkout Code
@@ -437,6 +492,7 @@ jobs:
         pytest-options: ""
         filter-pattern: ""
         curobo-only: "true"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-curobo || '' }}
 
     - name: Upload cuRobo Test Results
       uses: actions/upload-artifact@v4
@@ -471,7 +527,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-flaky != ''
 
     steps:
     - name: Checkout Code
@@ -499,6 +558,7 @@ jobs:
         pytest-options: ""
         filter-pattern: ""
         flaky-only: "true"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-flaky || '' }}
 
     - name: Upload Flaky Test Results
       uses: actions/upload-artifact@v4
@@ -532,7 +592,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 60
     continue-on-error: true
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-slightly-flaky != ''
 
     steps:
     - name: Checkout Code
@@ -560,6 +623,7 @@ jobs:
         pytest-options: ""
         filter-pattern: ""
         slightly-flaky-only: "true"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-slightly-flaky || '' }}
 
     - name: Upload Slightly Flaky Test Results
       uses: actions/upload-artifact@v4
@@ -593,7 +657,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 300
     continue-on-error: true
-    needs: build
+    needs: [build, select-tests]
+    if: >-
+      needs.select-tests.outputs.run-all == 'true' ||
+      needs.select-tests.outputs.test-list-environments-training != ''
 
     steps:
     - name: Checkout Code
@@ -620,7 +687,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_environments_training.py"
+        include-files: ${{ needs.select-tests.outputs.run-all != 'true' && needs.select-tests.outputs.test-list-environments-training || 'test_environments_training.py' }}
 
     - name: Upload Environments Training Test Results
       uses: actions/upload-artifact@v4
@@ -650,7 +717,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   combine-results:
-    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-flaky, test-slightly-flaky, test-environments-training]
+    needs: [build, build-curobo, select-tests, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-flaky, test-slightly-flaky, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
     name: Combine Results

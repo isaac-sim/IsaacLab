@@ -257,11 +257,29 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     return failed_tests, test_status
 
 
+def _matches_include_files(full_path: str, basename: str, include_files: set[str]) -> bool:
+    """Check if a test file matches any entry in the include files set.
+
+    Entries with '/' are matched as path suffixes. Entries without '/' are
+    matched as basenames. This allows precise full-path matching while
+    preserving backward compatibility with basename-only entries.
+    """
+    for entry in include_files:
+        if "/" in entry:
+            if full_path.endswith(entry):
+                return True
+        else:
+            if basename == entry:
+                return True
+    return False
+
+
 def _collect_test_files(
     source_dirs,
     filter_pattern,
     exclude_pattern,
     include_files,
+    include_basenames,
     flaky_only,
     slightly_flaky_only,
     curobo_only,
@@ -296,7 +314,7 @@ def _collect_test_files(
                     # An explicit include_files entry overrides TESTS_TO_SKIP, allowing
                     # dedicated jobs (e.g. test-environments-training) to run tests that
                     # are otherwise excluded from general CI runs.
-                    if file in test_settings.TESTS_TO_SKIP and file not in include_files:
+                    if file in test_settings.TESTS_TO_SKIP and file not in include_basenames:
                         print(f"Skipping {file} as it's in the skip list")
                         continue
 
@@ -308,7 +326,7 @@ def _collect_test_files(
                 if exclude_pattern and exclude_pattern in full_path:
                     print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
-                if include_files and file not in include_files:
+                if include_files and not _matches_include_files(full_path, file, include_files):
                     print(f"Skipping {full_path} (not in include files list)")
                     continue
 
@@ -336,13 +354,18 @@ def pytest_sessionstart(session):
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
-    # Parse include files list (comma-separated paths)
+    # Parse include files list (comma-separated).
+    # Entries with '/' are treated as path suffixes for precise matching.
+    # Entries without '/' are basenames (backward compatibility).
     include_files = set()
     if include_files_str:
         for f in include_files_str.split(","):
             f = f.strip()
             if f:
-                include_files.add(os.path.basename(f))
+                include_files.add(f)
+
+    # For TESTS_TO_SKIP override checking, extract basenames from all entries
+    include_basenames = {os.path.basename(f) for f in include_files}
 
     # Also try to get from pytest config
     if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
@@ -356,6 +379,7 @@ def pytest_sessionstart(session):
     print(f"Filter pattern: '{filter_pattern}'")
     print(f"Exclude pattern: '{exclude_pattern}'")
     print(f"Include files: {include_files if include_files else 'none'}")
+    print(f"Include basenames: {include_basenames if include_basenames else 'none'}")
     print(f"Curobo-only mode: {curobo_only}")
     print(f"CUDA-issue-only mode: {cuda_issue_only}")
     print(f"Flaky-only mode: {flaky_only}")
@@ -375,6 +399,7 @@ def pytest_sessionstart(session):
         filter_pattern,
         exclude_pattern,
         include_files,
+        include_basenames,
         flaky_only,
         slightly_flaky_only,
         curobo_only,

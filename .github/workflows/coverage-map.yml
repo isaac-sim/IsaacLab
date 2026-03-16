@@ -1,0 +1,97 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Coverage Map
+
+on:
+  schedule:
+    # Run nightly at 4 AM UTC (8 PM PST)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim'
+  ISAACSIM_BASE_VERSION: 'latest-develop'
+  DOCKER_IMAGE_TAG: isaac-lab-coverage:${{ github.sha }}
+
+jobs:
+  collect-coverage:
+    name: Collect Test Coverage Map
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 720  # 12 hours max
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build Docker image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Collect coverage
+      run: |
+        docker run --name coverage-collector \
+          --entrypoint bash --gpus all --network=host \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e ISAAC_SIM_HEADLESS=1 \
+          ${{ env.DOCKER_IMAGE_TAG }} \
+          -c "
+            cd /workspace/isaaclab
+            pip install coverage
+            python tools/collect_coverage_map.py --workers 4 --timeout 2000
+          "
+
+        docker cp coverage-collector:/workspace/isaaclab/tools/test-dependency-map.json tools/test-dependency-map.json
+        docker rm coverage-collector
+
+    - name: Commit mapping to ci/coverage-map branch
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Create or switch to the ci/coverage-map branch
+        git fetch origin ci/coverage-map || true
+        git checkout ci/coverage-map 2>/dev/null || git checkout -b ci/coverage-map
+
+        # Copy the mapping file and commit
+        git add tools/test-dependency-map.json
+        git diff --cached --quiet || git commit -m "Update test dependency mapping $(date -u +%Y-%m-%d)"
+        git push origin ci/coverage-map
+
+    - name: Check for consecutive failures
+      if: failure()
+      run: |
+        # Count recent failures using gh CLI
+        recent_failures=$(gh run list --workflow=coverage-map.yml --limit=3 --json conclusion \
+          --jq '[.[] | select(.conclusion == "failure")] | length')
+
+        if [ "$recent_failures" -ge 3 ]; then
+          gh issue create \
+            --title "Coverage map nightly job failing" \
+            --body "The coverage-map workflow has failed 3+ consecutive times. PRs will fall back to running all tests until this is fixed." \
+            --label "ci"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Clean up
+      if: always()
+      run: |
+        docker rm -f coverage-collector 2>/dev/null || true
+        docker image prune -f --filter "until=24h" || true
