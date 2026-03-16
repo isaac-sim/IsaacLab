@@ -25,6 +25,7 @@ import torch
 import warp as wp
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
+from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 
@@ -72,7 +73,7 @@ def add_to_env(
     data[env_index] += value
 
 
-class DirectRLEnvWarp(gym.Env):
+class DirectRLEnvWarp(DirectRLEnv):
     """The superclass for the direct workflow to design environments.
 
     This class implements the core functionality for reinforcement learning (RL)
