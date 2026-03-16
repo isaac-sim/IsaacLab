@@ -139,7 +139,6 @@ class XformPrimView:
         # Determine if Fabric is supported on the device
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
-        logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination
         if self._use_fabric and self._device == "cpu":

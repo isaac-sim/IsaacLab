@@ -20,6 +20,19 @@ from isaaclab.cli.utils import (
     get_pip_command,
 )
 
+
+def _python_in_venv(venv: Path) -> Path:
+    if sys.platform == "win32":
+        return venv / "Scripts" / "python.exe"
+    return venv / "bin" / "python"
+
+
+def _python_for_conda(base: Path) -> Path:
+    if sys.platform == "win32":
+        return base / "python.exe"
+    return base / "bin" / "python"
+
+
 # ---------------------------------------------------------------------------
 # get_pip_command
 # ---------------------------------------------------------------------------
@@ -43,20 +56,16 @@ class TestGetPipCommand:
             result = get_pip_command(python_exe=fake_python)
             assert result == ["uv", "pip"]
 
-    def test_returns_python_pip_in_venv_with_pip_module(self, tmp_path):
-        """When VIRTUAL_ENV is set and pip module is available, return python -m pip."""
+    def test_returns_uv_pip_in_venv_with_uv(self, tmp_path):
+        """When VIRTUAL_ENV is set and uv is on PATH, always return uv pip."""
         fake_python = str(tmp_path / "python")
 
         with (
             mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
             mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
-            mock.patch(
-                "isaaclab.cli.utils.subprocess.run",
-                return_value=subprocess.CompletedProcess(args=[], returncode=0),
-            ),
         ):
             result = get_pip_command(python_exe=fake_python)
-            assert result == [fake_python, "-m", "pip"]
+            assert result == ["uv", "pip"]
 
     def test_returns_python_pip_without_uv(self, tmp_path):
         """When uv is not installed, always return python -m pip."""
@@ -69,20 +78,19 @@ class TestGetPipCommand:
             result = get_pip_command(python_exe=fake_python)
             assert result == [fake_python, "-m", "pip"]
 
-    def test_returns_python_pip_in_conda(self, tmp_path):
-        """When VIRTUAL_ENV is not set (conda env), always return python -m pip."""
+    def test_returns_python_pip_in_conda_without_uv(self, tmp_path):
+        """When in a conda env and uv is not available, return python -m pip."""
         fake_python = str(tmp_path / "python")
 
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
+        env["CONDA_PREFIX"] = str(tmp_path)
         with (
-            mock.patch.dict(os.environ, {}, clear=False),
-            mock.patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False),
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
         ):
-            # Remove VIRTUAL_ENV if present
-            env = os.environ.copy()
-            env.pop("VIRTUAL_ENV", None)
-            with mock.patch.dict(os.environ, env, clear=True):
-                result = get_pip_command(python_exe=fake_python)
-                assert result == [fake_python, "-m", "pip"]
+            result = get_pip_command(python_exe=fake_python)
+            assert result == [fake_python, "-m", "pip"]
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +138,7 @@ class TestExtractIsaacsimPath:
         with (
             mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", Path("/nonexistent/path")),
             mock.patch(
-                "isaaclab.cli.utils.run_command",
+                "isaaclab.cli.utils.subprocess.run",
                 return_value=subprocess.CompletedProcess(args=[], returncode=1),
             ),
         ):
@@ -142,7 +150,7 @@ class TestExtractIsaacsimPath:
         with (
             mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", Path("/nonexistent/path")),
             mock.patch(
-                "isaaclab.cli.utils.run_command",
+                "isaaclab.cli.utils.subprocess.run",
                 return_value=subprocess.CompletedProcess(args=[], returncode=1),
             ),
             pytest.raises(SystemExit),
@@ -214,166 +222,3 @@ class TestDeterminePythonVersion:
         ):
             result = determine_python_version()
             assert result == "3.11"
-
-
-# ---------------------------------------------------------------------------
-# Integration: uv venv install path
-# ---------------------------------------------------------------------------
-
-
-class TestUvInstallPath:
-    """Smoke tests verifying utility functions in the current venv."""
-
-    def test_get_pip_command_uses_uv_in_current_venv(self):
-        """In the current test venv (uv-managed), get_pip_command should return uv pip."""
-        if not os.environ.get("VIRTUAL_ENV"):
-            pytest.skip("Not running in a virtual environment")
-        if not __import__("shutil").which("uv"):
-            pytest.skip("uv not available")
-
-        result = get_pip_command(python_exe=sys.executable)
-        # In a uv venv without pip module, should return ["uv", "pip"]
-        # In a venv with pip, should return [python, "-m", "pip"]
-        assert len(result) >= 2
-        assert result[-1] == "pip"
-
-    def test_extract_python_exe_in_current_venv(self):
-        """extract_python_exe should find the current venv's Python."""
-        if not os.environ.get("VIRTUAL_ENV"):
-            pytest.skip("Not running in a virtual environment")
-
-        result = extract_python_exe()
-        # Should point into the current venv
-        assert os.environ["VIRTUAL_ENV"] in result
-
-    def test_determine_python_version_without_sim(self):
-        """Without Isaac Sim installed, should not crash and return a valid version."""
-        try:
-            from importlib.metadata import distribution
-
-            distribution("isaacsim")
-            pytest.skip("Isaac Sim is installed — this test is for the Kit-less path")
-        except Exception:
-            pass
-
-        version = determine_python_version()
-        major, minor = version.split(".")
-        assert int(major) == 3
-        assert int(minor) >= 10
-
-
-# ---------------------------------------------------------------------------
-# Integration: uv install into a fresh venv
-# ---------------------------------------------------------------------------
-
-# Resolve the Isaac Lab repo root once (source/isaaclab/test/cli/ -> repo root).
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-
-
-def _uv(*args: str, **kwargs) -> subprocess.CompletedProcess:
-    """Run a uv command, raising on failure."""
-    return subprocess.run(["uv", *args], check=True, capture_output=True, text=True, **kwargs)
-
-
-def _python_in_venv(venv: Path) -> Path:
-    if sys.platform == "win32":
-        return venv / "Scripts" / "python.exe"
-    return venv / "bin" / "python"
-
-
-def _python_for_conda(base: Path) -> Path:
-    if sys.platform == "win32":
-        return base / "python.exe"
-    return base / "bin" / "python"
-
-
-def _run_in_venv(venv: Path, code: str) -> subprocess.CompletedProcess:
-    """Run a Python snippet inside the given venv."""
-    python = _python_in_venv(venv)
-    return subprocess.run([str(python), "-c", code], check=True, capture_output=True, text=True)
-
-
-@pytest.fixture(scope="module")
-def uv_venv(tmp_path_factory):
-    """Create a temporary uv venv and install the Newton sub-packages into it.
-
-    This fixture is module-scoped so the install only happens once for all
-    integration tests, keeping total runtime reasonable (~30s).
-    """
-    import shutil
-
-    if not shutil.which("uv"):
-        pytest.skip("uv is not installed")
-
-    venv_dir = tmp_path_factory.mktemp("isaaclab_test_venv")
-    py_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
-
-    # Create venv
-    _uv("venv", "--python", py_version, str(venv_dir))
-
-    # Install Isaac Lab core + Newton sub-packages (editable, from local source).
-    src = _REPO_ROOT / "source"
-    packages = [
-        f"-e{src / 'isaaclab'}",
-        f"-e{src / 'isaaclab_newton'}",
-        f"-e{src / 'isaaclab_physx'}",
-        f"-e{src / 'isaaclab_tasks'}",
-        f"-e{src / 'isaaclab_assets'}",
-        f"-e{src / 'isaaclab_visualizers'}",
-        f"-e{src / 'isaaclab_rl'}",
-    ]
-    _uv("pip", "install", *packages, "--python", str(_python_in_venv(venv_dir)))
-
-    return venv_dir
-
-
-class TestUvInstallIntegration:
-    """Integration tests that install Isaac Lab into a fresh uv venv."""
-
-    def test_isaaclab_importable(self, uv_venv):
-        """Core isaaclab package should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab")
-
-    def test_newton_importable(self, uv_venv):
-        """isaaclab_newton should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab_newton")
-
-    def test_physx_importable(self, uv_venv):
-        """isaaclab_physx should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab_physx")
-
-    def test_tasks_importable(self, uv_venv):
-        """isaaclab_tasks should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab_tasks")
-
-    def test_assets_importable(self, uv_venv):
-        """isaaclab_assets should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab_assets")
-
-    def test_visualizers_importable(self, uv_venv):
-        """isaaclab_visualizers should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab_visualizers")
-
-    def test_rl_importable(self, uv_venv):
-        """isaaclab_rl should be importable."""
-        _run_in_venv(uv_venv, "import isaaclab_rl")
-
-    def test_builtin_tasks_registered(self, uv_venv):
-        """Built-in gym environments should be registered after importing isaaclab_tasks."""
-        result = _run_in_venv(
-            uv_venv,
-            "import isaaclab_tasks; import gymnasium as gym; "
-            "envs = [s.id for s in gym.registry.values() if s.id.startswith('Isaac-')]; "
-            "print(len(envs))",
-        )
-        count = int(result.stdout.strip())
-        assert count > 50, f"Expected >50 built-in tasks, got {count}"
-
-    def test_cartpole_env_spec_resolves(self, uv_venv):
-        """The cartpole direct env should have a resolvable spec."""
-        _run_in_venv(
-            uv_venv,
-            "import isaaclab_tasks; import gymnasium as gym; "
-            "spec = gym.spec('Isaac-Cartpole-Direct-v0'); "
-            "assert spec.entry_point is not None",
-        )

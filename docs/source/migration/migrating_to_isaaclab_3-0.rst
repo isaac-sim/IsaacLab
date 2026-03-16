@@ -20,7 +20,7 @@ In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--vi
 to determine whether viewer apps are launched with an Isaac Lab command.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/experimental-features/newton-physics-integration/visualization`).
+(see :doc:`/source/features/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
@@ -61,6 +61,8 @@ imports the matching class from ``isaaclab_{backend}.assets.articulation``. This
    actively developed. When backend selection is fully configurable, you will be able to
    switch backends without changing any asset import paths.
 
+For a comprehensive overview of the factory pattern, backend selection, and how to add a new
+backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
 
 New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -13,6 +13,7 @@ when the "setup_python_env.sh" is run as part of the vs-code launch configuratio
 """
 
 import re
+import subprocess
 import sys
 import os
 import pathlib
@@ -21,17 +22,19 @@ import pathlib
 ISAACLAB_DIR = pathlib.Path(__file__).parents[2]
 """Path to the Isaac Lab directory."""
 
-try:
-    import isaacsim  # noqa: F401
-
-    isaacsim_dir = os.environ.get("ISAAC_PATH", "")
-except ModuleNotFoundError or ImportError:
+# Try to find IsaacSim dir
+_isaacsim_probe = subprocess.run(
+    [sys.executable, "-c", "import isaacsim; import os; print(os.environ.get('ISAAC_PATH', ''))"],
+    capture_output=True,
+    text=True,
+    check=False,
+    # avoid EULA prompt
+    stdin=subprocess.DEVNULL,
+)
+if _isaacsim_probe.returncode == 0 and _isaacsim_probe.stdout.strip():
+    isaacsim_dir = _isaacsim_probe.stdout.strip()
+else:
     isaacsim_dir = os.path.join(ISAACLAB_DIR, "_isaac_sim")
-except EOFError:
-    print("Unable to trigger EULA acceptance. This is likely due to the script being run in a non-interactive shell.")
-    print("Please run the script in an interactive shell to accept the EULA.")
-    print("Skipping the setup of the VSCode settings...")
-    sys.exit(0)
 
 # check if the isaac-sim directory exists
 if not os.path.exists(isaacsim_dir):

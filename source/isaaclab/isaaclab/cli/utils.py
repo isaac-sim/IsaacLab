@@ -258,6 +258,18 @@ def extract_python_exe() -> str:
         else:
             print_debug("extract_python_exe(): No CONDA_PREFIX found.")
 
+    # Try the default Isaac Lab uv venv (env_isaaclab/) in the repo root.
+    if not python_exe or not Path(python_exe).exists():
+        default_venv = ISAACLAB_ROOT / "env_isaaclab"
+        if default_venv.is_dir():
+            if is_windows():
+                candidate = default_venv / "Scripts" / "python.exe"
+            else:
+                candidate = default_venv / "bin" / "python"
+            if candidate.exists():
+                print_debug(f"extract_python_exe(): Found default venv python: {candidate}")
+                python_exe = candidate
+
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
         print_debug("extract_python_exe(): Checking for Kit python...")
@@ -317,11 +329,20 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
                 capture_output=True,
                 text=True,
                 check=False,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
             )
             if result.returncode == 0:
                 # Helper to print env var.
                 cmd = [sys.executable, "-c", "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"]
-                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                res = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    # avoid EULA prompt
+                    stdin=subprocess.DEVNULL,
+                )
                 if res.returncode == 0:
                     output = res.stdout.strip()
                     if output:
@@ -365,7 +386,14 @@ def extract_isaacsim_exe() -> list[str]:
         # python environment, so we can directly use 'python' here.
         python_exe = sys.executable
         try:
-            result = run_command([python_exe, "-c", "import isaacsim"], capture_output=True, text=True, check=False)
+            result = run_command(
+                [python_exe, "-c", "import isaacsim"],
+                capture_output=True,
+                text=True,
+                check=False,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
+            )
             if result.returncode == 0:
                 # Isaac Sim - Python packages entry point.
                 return ["isaacsim", "isaacsim.exp.full"]

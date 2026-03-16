@@ -10,7 +10,9 @@ teleoperation in Isaac Lab. It provides standardized device interfaces, a flexib
 pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
 
 This guide walks you through installing Isaac Teleop, starting the CloudXR runtime, connecting an
-XR device, and running your first teleoperation session.
+XR device, and running your first teleoperation session. For the canonical step-by-step flow (install
+package, run CloudXR server, connect headset, run teleop example), refer to the `Isaac Teleop Quick
+Start <https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
 
 .. tip::
 
@@ -489,11 +491,39 @@ The recommended workflow:
 #. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
 
 
-Kubernetes Deployment
----------------------
+Run with Docker
+---------------
 
-For deploying XR teleoperation on a Kubernetes cluster, see :ref:`cloudxr-teleoperation-cluster`.
+Teleoperation runs in a **single container**. Build the image yourself and run a single container.
+Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
+components run inside one container with Isaac Lab in this release.
 
+Inside the container, install Isaac Teleop (once per container or image), then start the CloudXR
+runtime and the teleop script. You must accept the NVIDIA CloudXR EULA; pass ``--accept-eula``
+when starting the runtime so there is no interactive prompt.
+
+#. Install Isaac Teleop with CloudXR and retargeters support:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com
+
+#. Start the CloudXR runtime in the background, load the environment, and run the teleop script
+   (e.g. ``record_demos.py`` to record demonstrations):
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
+      source ~/.cloudxr/run/cloudxr.env
+      ./isaaclab.sh -p scripts/tools/record_demos.py \
+        --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+        --num_demos 5 \
+        --dataset_file ./datasets/dataset.hdf5 \
+        --xr --visualizer kit
+
+Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
+
+For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` when running docker and XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 

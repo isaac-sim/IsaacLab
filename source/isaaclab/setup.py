@@ -75,6 +75,16 @@ INSTALL_REQUIRES += [
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 
+# Pin hf-xet to avoid broken tarball (hf_xet-1.1.8.dev2) cached on NVIDIA Artifactory.
+# (https://urm.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi) that gets installed with --pre
+# and --extra-index-url flags. The broken hf-xet-1.1.8.dev2 package is present as of Mar 12 2026.
+# TODO: Can be removed once the broken hf-xet-1.1.8.dev2 package is removed from NVIDIA Artifactory.
+# Issue: https://nvbugs/5974917 includes verification steps.
+INSTALL_REQUIRES += [
+    # 1.4.1 is latest as of Mar 12 2026
+    f"hf-xet>=1.4.1,<2.0.0 ; ({SUPPORTED_ARCHS_ARM})",
+]
+
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Isaac Lab subpackages + Isaac Sim

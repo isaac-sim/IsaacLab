@@ -2,6 +2,31 @@ Changelog
 ---------
 
 
+0.5.8 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix ``test_filter_enables_force_matrix`` failing with ``TypeError`` due to
+  ``pytest.mark.flaky(reruns=3)`` being incompatible with the installed
+  ``flaky`` plugin. Replace with ``@flaky(max_runs=4, min_passes=1)`` decorator.
+
+
+0.5.7 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed verbose ``logger.info`` calls from
+  :class:`~isaaclab_newton.assets.RigidObject`,
+  :class:`~isaaclab_newton.assets.RigidObjectCollection`, and
+  :class:`~isaaclab_newton.assets.Articulation` initialization that logged body
+  names, joint names, and instance counts. Articulation joint parameter tables and
+  actuator group summaries are retained.
+
+
 0.5.6 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
