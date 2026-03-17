@@ -33,7 +33,7 @@ installation methods.
       ./isaaclab.sh --install   # or ./isaaclab.sh -i
 
    This installs the core Isaac Lab packages and the Newton physics backend. Isaac Sim is **not**
-   required for this mode. See `Kit-less Installation`_ below for which features are available
+   required for this mode. See :doc:`kitless_installation` for which features are available
    without Isaac Sim.
 
    When you need full simulation features — including PhysX, ROS, URDF/MJCF
@@ -130,132 +130,6 @@ to resolve installation issues in Linux.
 You can use `Isaac Sim Compatibility Checker <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`_
 to automatically check if the above requirements are met for running Isaac Sim on your system.
 
-.. _kitless-installation:
-
-Kit-less Installation
----------------------
-
-Isaac Lab can be installed and used **without Isaac Sim** using the kit-less mode. This is the
-fastest way to get started and is ideal for users who only need the Newton physics backend.
-
-.. code-block:: bash
-
-   # Clone Isaac Lab
-   git clone https://github.com/isaac-sim/IsaacLab.git
-   cd IsaacLab
-
-   # Install Isaac Lab (Newton backend, no Isaac Sim required)
-   ./isaaclab.sh --install   # or ./isaaclab.sh -i
-
-   # Kickoff training with Newton physics and Newton visualizer
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-   --task=Isaac-Cartpole-Direct-v0 \
-   --num_envs=16 --max_iterations=10 \
-   presets=newton --visualizer newton
-
-
-**Features available in kit-less mode (Newton backend, no Isaac Sim):**
-
-- Newton physics simulation (GPU-accelerated, including MuJoCo-Warp solver)
-- All manager-based and direct RL environments that support Newton
-- RL training with SKRL, RSL-RL, and other frameworks
-- Robot assets compatible with Newton
-
-**Features that require Isaac Sim:**
-
-- PhysX physics backend
-- Isaac Sim RTX rendering (not ovrtx)
-- Kit visualizer
-- Photorealistic rendering workflows
-- ROS / ROS2 integration
-- URDF and MJCF importers (GUI-based)
-- Deformable objects and surface gripper (PhysX-only)
-- Teleoperation and imitation learning workflows
-
-To install Isaac Sim, use the pip method described in :doc:`pip_installation`.
-
-
-.. _installation-selective-install:
-
-Selective Install
------------------
-
-If you want a minimal environment, ``./isaaclab.sh -i`` accepts comma-separated
-sub-package names:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Option
-     - What it does
-   * - ``isaacsim``
-     - Install Isaac Sim pip package
-   * - ``newton``
-     - Install Newton physics + Newton visualizer
-   * - ``physx``
-     - Install PhysX physics runtime
-   * - ``ovrtx``
-     - Install OVRTX renderer runtime
-   * - ``tasks``
-     - Install built-in task environments
-   * - ``assets``
-     - Install robot/object configurations
-   * - ``visualizers``
-     - Install all visualizer backends
-   * - ``rsl_rl``
-     - Install RSL-RL framework
-   * - ``skrl``
-     - Install skrl framework
-   * - ``sb3``
-     - Install Stable Baselines3 framework
-   * - ``rl_games``
-     - Install rl_games framework
-   * - ``robomimic``
-     - Install robomimic framework
-   * - ``none``
-     - Install only core ``isaaclab`` package
-
-Examples:
-
-.. code-block:: bash
-
-   # Minimal Newton setup
-   ./isaaclab.sh -i newton,tasks,assets
-
-   # Newton with OVRTX and RSL-RL only
-   ./isaaclab.sh -i newton,tasks,assets,ovrtx,rsl_rl
-
-   # Full Kit install with skrl
-   ./isaaclab.sh -i isaacsim,skrl
-
-
-.. _installation-ovrtx:
-
-OVRTX Rendering
----------------
-
-OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
-
-.. code-block:: bash
-
-   ./isaaclab.sh -i ov[ovrtx]
-
-   export LD_PRELOAD=$(python -c "import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / 'bin/plugins/libcarb.so')")
-
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
-     --headless --enable_cameras --num_envs 16 --max_iterations 10 \
-     presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
-
-
-Running Installation Tests
---------------------------
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p -m pytest source/isaaclab/test/cli/test_cli_utils.py -v
-
-
 Isaac Sim Installation
 ----------------------
 
@@ -276,7 +150,7 @@ Use this table to decide:
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Method              | Isaac Sim                    | Isaac Lab                    | Best For                      | Difficulty |
 +=====================+==============================+==============================+===============================+============+
-| **Kit-less**        | |:x:| not required           | |:floppy_disk:| source (git) | Newton-only, fastest start    | Easiest    |
+| **Kit-less (beta)** | |:x:| not required           | |:floppy_disk:| source (git) | Newton-only, fastest start    | Easiest    |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | **Pip (uv)**        | |:package:| pip install      | |:floppy_disk:| source (git) | Most users, full features     | Easy       |
 | **(Recommended)**   |                              |                              |                               |            |
@@ -297,7 +171,7 @@ Next Steps
 
 Once you've reviewed the installation methods, continue with the guide that matches your workflow:
 
-- |:rocket:| `Kit-less Installation`_ (above)
+- |:rocket:| :doc:`kitless_installation`
 
   - Install Isaac Lab without Isaac Sim.
   - Uses the Newton physics backend.
@@ -351,6 +225,7 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
    :maxdepth: 1
    :hidden:
 
+   kitless_installation
    pip_installation
    binaries_installation
    source_installation
