@@ -382,6 +382,9 @@ def pytest_sessionstart(session):
         test_files = new_test_files
 
     if not test_files:
+        if quarantined_only:
+            print("No quarantined tests configured — nothing to run.")
+            pytest.exit("No quarantined tests configured", returncode=0)
         print("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 

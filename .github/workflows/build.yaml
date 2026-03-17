@@ -524,7 +524,7 @@ jobs:
             exit 1
           fi
         else
-          echo "No test results file found. This might indicate test execution failed."
+          echo "No test results file found. This might indicate test execution failed or QUARANTINED_TESTS may be empty."
           exit 1
         fi
 
