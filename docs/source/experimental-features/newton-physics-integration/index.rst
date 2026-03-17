@@ -17,7 +17,7 @@ features for other reinforcement learning and imitation learning workflows in th
 a good lens through which to understand how Newton integration works in Isaac Lab.
 
 We have validated Newton simulation against PhysX by transferring learned policies from Newton to PhysX and vice versa
-Furthermore, we have also successfully deployed a Newton-trained locomotion policy to a G1 robot. Please see :ref:`here <sim2real>` for more information.
+Furthermore, we have also successfully deployed a Newton-trained locomotion policy to a G1 robot.
 
 Newton can support `multiple solvers <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for handling different types of physics simulation, but for the moment, the Isaac
 Lab integration focuses primarily on the MuJoCo-Warp solver.
@@ -40,5 +40,3 @@ For an overview of how the multi-backend architecture works, including how to ad
   installation
   limitations-and-known-bugs
   solver-transitioning
-  sim-to-sim
-  sim-to-real

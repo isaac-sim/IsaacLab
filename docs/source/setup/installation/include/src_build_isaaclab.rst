@@ -37,32 +37,12 @@ Installation
             isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
-   By default, the above will install **all** the learning framework and all Isaac Lab submodules (under ``source/isaaclab``). Available RL frameworks are:
-   ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
-
-   If you want to install only a specific framework, you can pass the name of the framework
-   as an argument. For example, to install only the ``rl_games`` framework, you can run:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            ./isaaclab.sh --install rl_games  # or "./isaaclab.sh -i rl_games"
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
-
+   By default, the above will install **all** Isaac Lab submodules (under ``source/isaaclab``).
    To install only specific Isaac Lab submodules, pass a comma-separated list of submodule names. The available
    Isaac Lab submodules are: ``assets``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``physx``, ``rl``, ``tasks``,
-   ``teleop``, ``visualizers``. For example, to install only the ``mimic`` and ``assets`` submodules:
+   ``teleop``, ``visualizers``. Available RL frameworks are: ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
+
+   For example, to install a small subset of submodules:
 
    .. tab-set::
       :sync-group: os
@@ -72,13 +52,35 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh --install physx,assets,rl,tasks  # or "./isaaclab.sh -i physx,assets,rl,tasks"
+            ./isaaclab.sh --install physx,newton,assets,rl[rsl_rl],tasks,ov  # or "./isaaclab.sh -i physx,newton,assets,rl[rsl_rl],tasks,ov"
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat --install physx,assets,rl,tasks :: or "isaaclab.bat -i physx,assets,rl,tasks"
+            isaaclab.bat --install physx,newton,assets,rl[rsl_rl],tasks,ov :: or "isaaclab.bat -i physx,newton,assets,rl[rsl_rl],tasks,ov"
+
+   To install specific visualizer, pass a comma-separated list of supported visualizers,
+   or ``all`` to install all available options: ``newton``, ``rerun``, ``viser``, ``kit``. Note when following the
+   default installation, all visualizers are installed.
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh --install visualizers[rerun]  # or "./isaaclab.sh -i visualizers[rerun]"
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat --install visualizers[rerun] :: or "isaaclab.bat -i visualizers[rerun]"
+
 
    Pass ``none`` to install only the core ``isaaclab`` package without any Isaac Lab submodules or RL frameworks.
