@@ -35,6 +35,7 @@ _DEFAULT_CFG = dict(
 def _create_recorder(**kw):
     """Return a VideoRecorder with __init__ bypassed and all deps mocked out."""
     backend = kw.pop("_backend", None)
+    tiled = kw.pop("_tiled_capture", None)
     recorder = object.__new__(VideoRecorder)
     recorder.cfg = SimpleNamespace(**{**_DEFAULT_CFG, **kw})
     recorder._scene = MagicMock()
@@ -44,6 +45,7 @@ def _create_recorder(**kw):
     cap = MagicMock()
     cap.render_rgb_array = MagicMock(return_value=_BLANK_720p)
     recorder._capture = cap if backend else None
+    recorder._tiled_capture = tiled
     return recorder
 
 
@@ -62,6 +64,7 @@ def test_init_perspective_mode_creates_kit_capture():
             vr = VideoRecorder(cfg, scene)
     mock_create.assert_called_once()
     assert vr._capture is fake_capture
+    assert vr._tiled_capture is None
 
 
 def test_init_newton_backend_creates_newton_capture():
@@ -78,10 +81,58 @@ def test_init_newton_backend_creates_newton_capture():
                 vr = VideoRecorder(cfg, scene)
     mock_create.assert_called_once()
     assert vr._capture is fake_capture
+    assert vr._tiled_capture is None
+
+
+def test_init_tiled_kit_creates_physx_tiled_capture():
+    """Tiled mode + kit backend uses isaacsim_tiled_camera_video factory."""
+    scene = MagicMock()
+    scene.sensors = {}
+    scene.num_envs = 2
+    cfg = SimpleNamespace(**{**_DEFAULT_CFG, "video_mode": "tiled", "fallback_camera_cfg": MagicMock()})
+    fake_tiled = MagicMock()
+    fake_tiled.render_rgb_array = MagicMock(return_value=np.zeros((64, 64, 3), dtype=np.uint8))
+    with patch.object(_video_recorder_module, "_resolve_video_backend", return_value="kit"):
+        with patch(
+            "isaaclab_physx.video_recording.isaacsim_tiled_camera_video.create_isaacsim_tiled_camera_video",
+            return_value=fake_tiled,
+        ) as mock_create:
+            vr = VideoRecorder(cfg, scene)
+    mock_create.assert_called_once()
+    assert vr._tiled_capture is fake_tiled
+    assert vr._capture is None
+
+
+def test_init_tiled_newton_creates_newton_tiled_capture():
+    """Tiled mode + newton_gl backend uses newton_tiled_camera_video factory."""
+    scene = MagicMock()
+    scene.sensors = {}
+    scene.num_envs = 1
+    cfg = SimpleNamespace(**{**_DEFAULT_CFG, "video_mode": "tiled"})
+    fake_tiled = MagicMock()
+    with patch.dict(sys.modules, {"pyglet": MagicMock()}):
+        with patch.object(_video_recorder_module, "_resolve_video_backend", return_value="newton_gl"):
+            with patch(
+                "isaaclab_newton.video_recording.newton_tiled_camera_video.create_newton_tiled_camera_video",
+                return_value=fake_tiled,
+            ) as mock_create:
+                vr = VideoRecorder(cfg, scene)
+    mock_create.assert_called_once()
+    assert vr._tiled_capture is fake_tiled
+
+
+def test_render_rgb_array_tiled_delegates():
+    """Tiled mode render_rgb_array calls _tiled_capture.render_rgb_array."""
+    tiled = MagicMock()
+    tiled.render_rgb_array = MagicMock(return_value=np.zeros((10, 10, 3), dtype=np.uint8))
+    recorder = _create_recorder(video_mode="tiled", _tiled_capture=tiled)
+    out = recorder.render_rgb_array()
+    tiled.render_rgb_array.assert_called_once()
+    assert out.shape == (10, 10, 3)
 
 
 def test_render_rgb_array_delegates_to_capture():
-    """render_rgb_array returns capture.render_rgb_array()."""
+    """Perspective render_rgb_array returns capture.render_rgb_array()."""
     recorder = _create_recorder(_backend="kit")
     result = recorder.render_rgb_array()
     recorder._capture.render_rgb_array.assert_called_once()
@@ -89,7 +140,7 @@ def test_render_rgb_array_delegates_to_capture():
 
 
 def test_render_rgb_array_none_when_no_backend():
-    """Without rgb_array render_mode, _capture is None and render returns None."""
+    """Without rgb_array render_mode, render returns None."""
     recorder = _create_recorder(render_mode=None)
     recorder._backend = None
     recorder._capture = None
@@ -105,7 +156,7 @@ def test_capture_exception_propagates():
 
 
 def test_render_rgb_array_calls_capture_each_step():
-    """Each render_rgb_array call hits the backend capture."""
+    """Each perspective render_rgb_array call hits the backend capture."""
     recorder = _create_recorder(_backend="kit")
     for _ in range(3):
         recorder.render_rgb_array()

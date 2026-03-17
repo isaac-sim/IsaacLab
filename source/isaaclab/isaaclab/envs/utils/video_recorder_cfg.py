@@ -5,16 +5,42 @@
 
 """Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`.
 
-Captures a single wide-angle perspective view of the scene. Newton backends use the
-Newton GL viewer; Kit backends use the ``/OmniverseKit_Persp`` camera via
-``omni.replicator.core``.
+* **Perspective** (``video_mode="perspective"``) — Kit backends use
+  :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`; Newton backends use
+  :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
+* **Tiled** (``video_mode="tiled"``) — Kit backends use
+  :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video`; Newton backends use
+  :mod:`isaaclab_newton.video_recording.newton_tiled_camera_video`.
 """
 
 from __future__ import annotations
 
+import isaaclab.sim as sim_utils
+from isaaclab.sensors.camera import TiledCameraCfg
 from isaaclab.utils import configclass
 
 from .video_recorder import VideoRecorder
+
+
+DEFAULT_TILED_RECORDING_CAMERA_CFG = TiledCameraCfg(
+    prim_path="/World/envs/env_0/VideoCamera",
+    update_period=0.0,
+    height=480,
+    width=640,
+    data_types=["rgb"],
+    spawn=sim_utils.PinholeCameraCfg(
+        focal_length=24.0,
+        focus_distance=400.0,
+        horizontal_aperture=20.955,
+        clipping_range=(0.1, 1.0e5),
+    ),
+    offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.0, 0.1045, 0.0, 0.9945), convention="world"),
+)
+"""Default :class:`~isaaclab.sensors.camera.TiledCameraCfg` for tiled state-based video recording.
+
+Places a pinhole camera at ``(-7, 0, 3)`` m relative to env_0's origin, angled ~12° downward.
+Only spawned when ``--video=tiled`` is active and no observation TiledCamera exists in the scene.
+"""
 
 
 @configclass
@@ -28,6 +54,18 @@ class VideoRecorderCfg:
     """Gym render mode forwarded from the environment constructor (``"rgb_array"`` when ``--video`` is active).
 
     Set automatically by the environment base classes; do not set manually.
+    """
+
+    video_mode: str = "perspective"
+    """``"perspective"`` or ``"tiled"``. Set via CLI: ``--video=perspective`` / ``--video=tiled``."""
+
+    video_num_tiles: int = -1
+    """Max environments per tiled frame (``-1`` = all). CLI: ``env.video_recorder.video_num_tiles=9``."""
+
+    fallback_camera_cfg: object | None = DEFAULT_TILED_RECORDING_CAMERA_CFG
+    """Fallback :class:`~isaaclab.sensors.camera.TiledCameraCfg` for tiled mode without observation camera.
+
+    Set to ``None`` to disable spawning. Ignored when ``video_mode="perspective"``.
     """
 
     camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)

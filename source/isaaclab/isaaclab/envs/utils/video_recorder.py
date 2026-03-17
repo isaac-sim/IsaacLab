@@ -3,17 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Video recorder implementation.
+"""Video recorder: perspective or tiled grid.
 
-Captures a single wide-angle perspective view of the scene:
-
-* **Kit backends** (PhysX physics or Isaac RTX renderer) — uses
-  :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`.
-* **Newton backends** (Newton physics or Newton Warp renderer only) — uses
-  :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
-
-If neither a Kit nor a Newton backend is detected, construction raises so users do not
-use ``--video`` on unsupported setups.
+* **Perspective** — Kit: :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`;
+  Newton: :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
+* **Tiled** — Kit: :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video`;
+  Newton: :mod:`isaaclab_newton.video_recording.newton_tiled_camera_video`.
 
 See :mod:`video_recorder_cfg` for configuration.
 """
@@ -36,11 +31,7 @@ _VideoBackend = Literal["kit", "newton_gl"]
 
 
 def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
-    """Resolve which video backend to use from physics and renderer configs.
-
-    Priority: PhysX or Isaac RTX -> Kit camera; else Newton or Newton Warp -> GL viewer.
-    When both are present (e.g. PhysX + Newton Warp), Kit wins.
-    """
+    """Resolve video backend: PhysX or Isaac RTX -> Kit; else Newton or Newton Warp -> GL / tiled Newton path."""
     sim = scene.sim
     physics_name = sim.physics_manager.__name__.lower()
     renderer_types: list[str] = scene._sensor_renderer_types()
@@ -60,20 +51,21 @@ def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
 
 
 class VideoRecorder:
-    """Records perspective video frames from the scene's active renderer.
-
-    Args:
-        cfg: Recorder configuration.
-        scene: The interactive scene that owns the sensors.
-    """
+    """Records perspective or tiled video for the active backend."""
 
     def __init__(self, cfg: VideoRecorderCfg, scene: InteractiveScene):
         self.cfg = cfg
         self._scene = scene
         self._backend: _VideoBackend | None = None
         self._capture = None
+        self._tiled_capture = None
 
-        if cfg.env_render_mode == "rgb_array":
+        if cfg.env_render_mode != "rgb_array":
+            return
+
+        video_mode = cfg.video_mode or "perspective"
+
+        if video_mode == "tiled":
             self._backend = _resolve_video_backend(scene)
             if self._backend == "newton_gl":
                 try:
@@ -85,36 +77,75 @@ class VideoRecorder:
                     raise ImportError(
                         "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
                     ) from e
-                from isaaclab_newton.video_recording.newton_gl_perspective_video import (
-                    create_newton_gl_perspective_video,
+                from isaaclab_newton.video_recording.newton_tiled_camera_video import (
+                    create_newton_tiled_camera_video,
                 )
-                from isaaclab_newton.video_recording.newton_gl_perspective_video_cfg import NewtonGlPerspectiveVideoCfg
+                from isaaclab_newton.video_recording.newton_tiled_camera_video_cfg import NewtonTiledCameraVideoCfg
 
-                ncfg = NewtonGlPerspectiveVideoCfg(
-                    window_width=cfg.window_width,
-                    window_height=cfg.window_height,
-                    camera_position=cfg.camera_position,
-                    camera_target=cfg.camera_target,
+                ncfg = NewtonTiledCameraVideoCfg(
+                    video_num_tiles=cfg.video_num_tiles,
+                    fallback_camera_cfg=cfg.fallback_camera_cfg,
                 )
-                self._capture = create_newton_gl_perspective_video(ncfg)
+                self._tiled_capture = create_newton_tiled_camera_video(ncfg, scene)
             else:
-                from isaaclab_physx.video_recording.isaacsim_kit_perspective_video import (
-                    create_isaacsim_kit_perspective_video,
+                from isaaclab_physx.video_recording.isaacsim_tiled_camera_video import (
+                    create_isaacsim_tiled_camera_video,
                 )
-                from isaaclab_physx.video_recording.isaacsim_kit_perspective_video_cfg import (
-                    IsaacsimKitPerspectiveVideoCfg,
+                from isaaclab_physx.video_recording.isaacsim_tiled_camera_video_cfg import (
+                    IsaacsimTiledCameraVideoCfg,
                 )
 
-                kcfg = IsaacsimKitPerspectiveVideoCfg(
-                    camera_position=cfg.camera_position,
-                    camera_target=cfg.camera_target,
-                    window_width=cfg.window_width,
-                    window_height=cfg.window_height,
+                kcfg = IsaacsimTiledCameraVideoCfg(
+                    video_num_tiles=cfg.video_num_tiles,
+                    fallback_camera_cfg=cfg.fallback_camera_cfg,
                 )
-                self._capture = create_isaacsim_kit_perspective_video(kcfg)
+                self._tiled_capture = create_isaacsim_tiled_camera_video(kcfg, scene)
+            return
+
+        self._backend = _resolve_video_backend(scene)
+        if self._backend == "newton_gl":
+            try:
+                import pyglet
+
+                if not pyglet.options.get("headless", False):
+                    pyglet.options["headless"] = True
+            except ImportError as e:
+                raise ImportError(
+                    "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
+                ) from e
+            from isaaclab_newton.video_recording.newton_gl_perspective_video import (
+                create_newton_gl_perspective_video,
+            )
+            from isaaclab_newton.video_recording.newton_gl_perspective_video_cfg import NewtonGlPerspectiveVideoCfg
+
+            ncfg = NewtonGlPerspectiveVideoCfg(
+                window_width=cfg.window_width,
+                window_height=cfg.window_height,
+                camera_position=cfg.camera_position,
+                camera_target=cfg.camera_target,
+            )
+            self._capture = create_newton_gl_perspective_video(ncfg)
+        else:
+            from isaaclab_physx.video_recording.isaacsim_kit_perspective_video import (
+                create_isaacsim_kit_perspective_video,
+            )
+            from isaaclab_physx.video_recording.isaacsim_kit_perspective_video_cfg import (
+                IsaacsimKitPerspectiveVideoCfg,
+            )
+
+            kcfg = IsaacsimKitPerspectiveVideoCfg(
+                camera_position=cfg.camera_position,
+                camera_target=cfg.camera_target,
+                window_width=cfg.window_width,
+                window_height=cfg.window_height,
+            )
+            self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for the resolved backend. Fails if backend is unavailable."""
+        if self.cfg.env_render_mode != "rgb_array":
+            return None
+        if self._tiled_capture is not None:
+            return self._tiled_capture.render_rgb_array()
         if self._backend is None or self._capture is None:
             return None
         return self._capture.render_rgb_array()

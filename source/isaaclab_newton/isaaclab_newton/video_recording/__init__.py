@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton GL perspective video recording."""
+"""Newton video recording helpers (GL perspective and tiled camera)."""

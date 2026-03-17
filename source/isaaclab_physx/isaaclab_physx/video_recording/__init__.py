@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Isaac Sim Kit perspective video recording."""
+"""Isaac Sim video recording helpers (Kit perspective and tiled camera)."""
