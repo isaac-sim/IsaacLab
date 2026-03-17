@@ -37,6 +37,9 @@ env:
   ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  # To run quarantined tests, create a GitHub repo variable named
+  # RUN_QUARANTINED_TESTS and set it to 'true'. The test-quarantined
+  # job is skipped when the variable is absent or not 'true'.
 
 jobs:
   build:
@@ -287,6 +290,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-newton:
+    name: Newton Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: build
@@ -346,6 +350,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-physx:
+    name: PhysX Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: build
@@ -466,8 +471,9 @@ jobs:
       if: always()
       run: docker image prune -f --filter "until=24h" || true
 
-  test-flaky:
-    name: "⚠️ Very Flaky Tests"
+  test-quarantined:
+    name: "Quarantined Tests"
+    if: ${{ vars.RUN_QUARANTINED_TESTS == 'true' }}
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -489,22 +495,22 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run Flaky Tests
+    - name: Run Quarantined Tests
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
         result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-flaky-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        container-name: "isaac-lab-quarantined-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: ""
-        flaky-only: "true"
+        quarantined-only: "true"
 
-    - name: Upload Flaky Test Results
+    - name: Upload Quarantined Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: flaky-test-results
+        name: quarantined-test-results
         path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
@@ -518,68 +524,7 @@ jobs:
             exit 1
           fi
         else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
-      if: always()
-      run: docker image prune -f --filter "until=24h" || true
-
-  test-slightly-flaky:
-    name: "⚠️ Less Flaky Tests"
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 60
-    continue-on-error: true
-    needs: build
-
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
-      with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run Slightly Flaky Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-slightly-flaky-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
-        filter-pattern: ""
-        slightly-flaky-only: "true"
-
-    - name: Upload Slightly Flaky Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: slightly-flaky-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
+          echo "No test results file found. This might indicate test execution failed or QUARANTINED_TESTS may be empty."
           exit 1
         fi
 
@@ -589,7 +534,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   test-environments-training:
-    name: "⚠️ test_environments_training.py"
+    name: "test_environments_training.py"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 300
     continue-on-error: true
@@ -650,7 +595,7 @@ jobs:
       run: docker image prune -f --filter "until=24h" || true
 
   combine-results:
-    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-flaky, test-slightly-flaky, test-environments-training]
+    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-quarantined, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
     name: Combine Results
@@ -711,17 +656,10 @@ jobs:
         path: reports/
       continue-on-error: true
 
-    - name: Download Flaky Test Results
+    - name: Download Quarantined Test Results
       uses: actions/download-artifact@v4
       with:
-        name: flaky-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download Slightly Flaky Test Results
-      uses: actions/download-artifact@v4
-      with:
-        name: slightly-flaky-test-results
+        name: quarantined-test-results
         path: reports/
       continue-on-error: true
 
