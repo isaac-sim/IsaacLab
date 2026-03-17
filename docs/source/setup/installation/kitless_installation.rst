@@ -62,8 +62,8 @@ sub-package names:
      - Install Newton physics + Newton visualizer
    * - ``physx``
      - Install PhysX physics runtime
-   * - ``ovrtx``
-     - Install OVRTX renderer runtime
+   * - ``ov``
+     - Install Omniverse renderer runtime
    * - ``tasks``
      - Install built-in task environments
    * - ``assets``
@@ -88,13 +88,10 @@ Examples:
 .. code-block:: bash
 
    # Minimal Newton setup
-   ./isaaclab.sh -i newton,tasks,assets
+   ./isaaclab.sh -i newton,tasks,assets,ov,rl[rsl_rl]
 
-   # Newton with OVRTX and RSL-RL only
-   ./isaaclab.sh -i newton,tasks,assets,ovrtx,rsl_rl
-
-   # Full Kit install with skrl
-   ./isaaclab.sh -i isaacsim,skrl
+   # Newton with OVRTX, RSL-RL, and Newton visualizer
+   ./isaaclab.sh -i newton,tasks,assets,ov[ovrtx],rl[rsl_rl],visualizers[newton]
 
 
 .. _installation-ovrtx:

@@ -40,5 +40,3 @@ For an overview of how the multi-backend architecture works, including how to ad
   installation
   limitations-and-known-bugs
   solver-transitioning
-  sim-to-sim
-  sim-to-real
