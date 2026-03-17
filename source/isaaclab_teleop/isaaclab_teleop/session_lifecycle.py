@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import torch
@@ -21,17 +21,32 @@ if TYPE_CHECKING:
 
 from .isaac_teleop_cfg import IsaacTeleopCfg
 
+
+class SupportsDLPack(Protocol):
+    """Duck type for objects supporting the DLPack buffer protocol.
+
+    Satisfied by :class:`torch.Tensor`, :class:`numpy.ndarray` (>= 1.22),
+    ``wp.array``, CuPy arrays, JAX arrays, and other frameworks.
+    """
+
+    def __dlpack__(self, *, stream: Any = ...) -> Any: ...
+
+    def __dlpack_device__(self) -> tuple[int, int]: ...
+
+
 logger = logging.getLogger(__name__)
 
+_DLDEVICE_CPU = 1
 
-def _to_numpy_4x4(mat: np.ndarray | torch.Tensor) -> np.ndarray:
-    """Convert a 4x4 transform to a float32 numpy array.
 
-    Accepts :class:`numpy.ndarray`, :class:`torch.Tensor`, ``wp.array``,
-    or any object implementing a ``.numpy()`` method.
+def _to_numpy_4x4(mat: np.ndarray | torch.Tensor | SupportsDLPack) -> np.ndarray:
+    """Convert a (4, 4) transform to a float32 numpy array.
+
+    Prefers the DLPack buffer protocol (``__dlpack__``) for zero-copy
+    interop with torch, warp, cupy, jax, and other frameworks.
 
     Args:
-        mat: A (4, 4) transform matrix in any supported array type.
+        mat: A (4, 4) transform matrix.
 
     Returns:
         A (4, 4) float32 :class:`numpy.ndarray`.
@@ -39,9 +54,18 @@ def _to_numpy_4x4(mat: np.ndarray | torch.Tensor) -> np.ndarray:
     if isinstance(mat, np.ndarray):
         return np.asarray(mat, dtype=np.float32)
     if isinstance(mat, torch.Tensor):
-        return mat.detach().cpu().numpy().astype(np.float32)
+        return np.asarray(np.from_dlpack(mat.detach().cpu()), dtype=np.float32)
+    if hasattr(mat, "__dlpack_device__"):
+        device_type, _ = mat.__dlpack_device__()
+        if device_type == _DLDEVICE_CPU:
+            return np.asarray(np.from_dlpack(mat), dtype=np.float32)
+        # Non-CPU DLPack source (e.g. CUDA wp.array): .numpy() typically
+        # handles the device-to-host transfer internally.
+        if hasattr(mat, "numpy"):
+            return np.asarray(mat.numpy(), dtype=np.float32)  # type: ignore[union-attr]
+        raise TypeError(f"Cannot convert non-CPU DLPack array of type {type(mat).__name__} to numpy")
     if hasattr(mat, "numpy"):
-        return np.asarray(mat.numpy(), dtype=np.float32)
+        return np.asarray(mat.numpy(), dtype=np.float32)  # type: ignore[union-attr]
     return np.asarray(mat, dtype=np.float32)
 
 
@@ -330,7 +354,7 @@ class TeleopSessionLifecycle:
     def step(
         self,
         anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None,
-        target_T_world: np.ndarray | torch.Tensor | None = None,
+        target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None,
     ) -> torch.Tensor | None:
         """Execute one step of the teleop session and return the action tensor.
 
@@ -352,9 +376,10 @@ class TeleopSessionLifecycle:
                 pipeline poses into a target coordinate frame.  When provided,
                 the anchor matrix is left-multiplied by this transform
                 (``target_T_world @ world_T_anchor``) so all output poses
-                are expressed in the target frame.  Accepts
-                :class:`numpy.ndarray`, :class:`torch.Tensor`, or any object
-                with a ``.numpy()`` method (e.g. ``wp.array``).
+                are expressed in the target frame.  Accepts any object
+                supporting the DLPack buffer protocol (``__dlpack__``),
+                including :class:`numpy.ndarray`, :class:`torch.Tensor`,
+                and ``wp.array``.
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -392,11 +417,12 @@ class TeleopSessionLifecycle:
         # Store the right controller TensorGroup for button polling
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
 
-        # Extract the flattened action array from TensorReorderer output
-        action_np = result["action"][0]
-
-        # Convert to torch tensor and move to device
-        action = torch.from_numpy(np.asarray(action_np, dtype=np.float32)).to(self._device)
+        # Extract the flattened action array (DLPack-compatible) from
+        # TensorReorderer and move to the simulation device.
+        action_array = result["action"][0]
+        action = torch.from_dlpack(action_array).to(  # type: ignore[attr-defined]
+            dtype=torch.float32, device=self._device
+        )
 
         return action
 
@@ -430,7 +456,7 @@ class TeleopSessionLifecycle:
     def _build_external_inputs(
         self,
         anchor_world_matrix_fn: Callable[[], np.ndarray] | None,
-        target_T_world: np.ndarray | torch.Tensor | None = None,
+        target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None,
     ) -> dict | None:
         """Build external inputs for non-DeviceIO leaf nodes in the pipeline.
 

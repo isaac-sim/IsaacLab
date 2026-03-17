@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -17,6 +18,9 @@ from .command_handler import CommandHandler
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .session_lifecycle import TeleopSessionLifecycle
 from .xr_anchor_manager import XrAnchorManager
+
+if TYPE_CHECKING:
+    from .session_lifecycle import SupportsDLPack
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +50,17 @@ class IsaacTeleopDevice:
     Frame rebasing:
         By default, all output poses are expressed in the simulation world
         frame.  When an application needs poses in a different frame (e.g.
-        robot base link for IK), pass a ``target_T_world`` transform to
-        :meth:`advance`.  The device composes
+        robot base link for IK), there are two options:
+
+        * **Config-driven** (recommended): set
+          :attr:`~IsaacTeleopCfg.target_frame_prim_path` to the USD prim
+          whose frame the output should be expressed in.  The device reads
+          the prim's world transform each frame and applies the rebase
+          automatically.
+        * **Explicit**: pass a ``target_T_world`` matrix directly to
+          :meth:`advance`.
+
+        In both cases the device composes
         ``target_T_world @ world_T_anchor`` before feeding the matrix into
         the retargeting pipeline, so all resulting poses are expressed in the
         target frame.
@@ -70,7 +83,14 @@ class IsaacTeleopDevice:
                     action = device.advance()
                     env.step(action.repeat(num_envs, 1))
 
-            # Poses rebased into the robot base frame for IK
+            # Config-driven rebase into robot base frame
+            cfg.target_frame_prim_path = "/World/Robot/base_link"
+            with IsaacTeleopDevice(cfg) as device:
+                while running:
+                    action = device.advance()
+                    env.step(action.repeat(num_envs, 1))
+
+            # Explicit rebase into robot base frame
             with IsaacTeleopDevice(cfg) as device:
                 while running:
                     robot_T_world = get_robot_base_transform()
@@ -165,7 +185,7 @@ class IsaacTeleopDevice:
         """
         self._command_handler.add_callback(key, func)
 
-    def advance(self, target_T_world: np.ndarray | torch.Tensor | None = None) -> torch.Tensor | None:
+    def advance(self, target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None) -> torch.Tensor | None:
         """Process current device state and return control commands.
 
         If the IsaacTeleop session has not been started yet (because the OpenXR
@@ -185,8 +205,14 @@ class IsaacTeleopDevice:
                 controller receives end-effector poses in the robot's base
                 link frame.
 
-                Accepts :class:`numpy.ndarray`, :class:`torch.Tensor`, or any
-                object with a ``.numpy()`` method (e.g. ``wp.array``).
+                Accepts any object supporting the DLPack buffer protocol
+                (``__dlpack__``), including :class:`numpy.ndarray`,
+                :class:`torch.Tensor`, and ``wp.array``.
+
+                When ``None`` and
+                :attr:`~IsaacTeleopCfg.target_frame_prim_path` is set, the
+                transform is computed automatically by reading the prim's
+                world matrix from Fabric and inverting it.
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -196,6 +222,10 @@ class IsaacTeleopDevice:
         Raises:
             RuntimeError: If called outside of a context manager.
         """
+        # Auto-compute target_T_world from config if not explicitly provided
+        if target_T_world is None and self._cfg.target_frame_prim_path is not None:
+            target_T_world = self._get_target_frame_T_world()
+
         # Step the session (handles lazy start and action extraction)
         action = self._session_lifecycle.step(
             anchor_world_matrix_fn=self._anchor_manager.get_world_matrix,
@@ -207,6 +237,75 @@ class IsaacTeleopDevice:
             self._poll_buttons()
 
         return action
+
+    # ------------------------------------------------------------------
+    # Target frame transform (config-driven rebase)
+    # ------------------------------------------------------------------
+
+    def _get_target_frame_T_world(self) -> np.ndarray | None:
+        """Read the target-frame prim's world matrix from Fabric and return its inverse.
+
+        Uses USDRT to read the prim's hierarchical world matrix, matching the
+        pattern used by :class:`XrAnchorSynchronizer` for anchor prim reads.
+
+        Returns:
+            A (4, 4) float32 :class:`numpy.ndarray` representing the inverse
+            of the prim's world transform (i.e. ``target_T_world``), or
+            ``None`` if the prim cannot be read.
+        """
+        try:
+            import omni.usd
+            import usdrt
+            from pxr import UsdUtils
+            from usdrt import Rt
+
+            stage = omni.usd.get_context().get_stage()
+            stage_cache = UsdUtils.StageCache.Get()
+            stage_id = stage_cache.GetId(stage).ToLongInt()
+            if stage_id < 0:
+                stage_id = stage_cache.Insert(stage).ToLongInt()
+            rt_stage = usdrt.Usd.Stage.Attach(stage_id)
+            if rt_stage is None:
+                return None
+
+            rt_prim = rt_stage.GetPrimAtPath(self._cfg.target_frame_prim_path)
+            if not rt_prim.IsValid():
+                return None
+
+            rt_xformable = Rt.Xformable(rt_prim)
+            if not rt_xformable.GetPrim().IsValid():
+                return None
+
+            world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
+            if world_matrix_attr is None:
+                return None
+
+            rt_matrix = world_matrix_attr.Get()
+            if rt_matrix is None:
+                return None
+
+            pos = rt_matrix.ExtractTranslation()
+            rt_quat = rt_matrix.ExtractRotationQuat()
+
+            from scipy.spatial.transform import Rotation
+
+            quat_xyzw = [
+                float(rt_quat.GetImaginary()[0]),
+                float(rt_quat.GetImaginary()[1]),
+                float(rt_quat.GetImaginary()[2]),
+                float(rt_quat.GetReal()),
+            ]
+
+            R = Rotation.from_quat(quat_xyzw).as_matrix().astype(np.float32)
+            t = np.array([float(pos[0]), float(pos[1]), float(pos[2])], dtype=np.float32)
+
+            inv_mat = np.eye(4, dtype=np.float32)
+            inv_mat[:3, :3] = R.T
+            inv_mat[:3, 3] = -(R.T @ t)
+            return inv_mat
+        except Exception as e:
+            logger.warning(f"Failed to read target frame prim '{self._cfg.target_frame_prim_path}': {e}")
+            return None
 
     # ------------------------------------------------------------------
     # Controller button polling (glue between session and anchor manager)
