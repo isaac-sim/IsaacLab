@@ -31,17 +31,15 @@ class VideoRecorderCfg:
     """
 
     camera_eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
-    """Newton GL perspective camera position in world space (metres).
+    """Perspective camera position in world space (metres).
 
-    Matches :attr:`~isaaclab.envs.common.ViewerCfg.eye` so the Newton GL video aligns with
-    the Kit ``/OmniverseKit_Persp`` viewport. Only used by Newton backends.
+    Direct RL / MARL and manager-based RL environments overwrite this from
+    :attr:`~isaaclab.envs.common.ViewerCfg.eye` before recording so ``--video`` matches the
+    task viewport for both Kit (PhysX / Isaac RTX) and Newton GL (Newton / OVRTX / etc.).
     """
 
     camera_lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Newton GL perspective camera look-at point in world space (metres).
-
-    Matches :attr:`~isaaclab.envs.common.ViewerCfg.lookat`. Only used by Newton backends.
-    """
+    """Perspective camera look-at in world space (metres). Set from ``ViewerCfg.lookat`` at env init."""
 
     gl_viewer_width: int = 1280
     """Width in pixels of the Newton GL perspective frame."""
