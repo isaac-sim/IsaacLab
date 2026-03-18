@@ -160,6 +160,9 @@ runs:
 
           echo "Docker environment variables: '$docker_env_vars'"
 
+          # Kill the container on cancellation signals so the job stops quickly
+          trap "echo '⚠️ Signal received, stopping container...'; docker kill $container_name 2>/dev/null; exit 130" INT TERM
+
           # Run tests in container with error handling
           echo "🚀 Starting Docker container for tests..."
           if docker run --name $container_name \
@@ -225,3 +228,11 @@ runs:
 
         # Call the function with provided parameters
         run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.cuda-issue-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}"
+
+    - name: Clean up container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        echo "🧹 Workflow cancelled, force-removing container..."
+        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
+        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
