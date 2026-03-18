@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.13 (2026-03-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added consistency validation to the camera outputs in ``test_rendering_correctness.py``.
+
+
 1.5.12 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -30,6 +39,7 @@ Added
 ^^^^^
 
 * Added ``test_rendering_correctness.py`` to validate rendering correctness of the environments.
+
 
 1.5.9 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
