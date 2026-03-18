@@ -144,7 +144,7 @@ jobs:
 
 
   test-isaaclab-tasks:
-    name: IsaacLab Tasks Tests 1/2
+    name: isaaclab_tasks (1/2)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -209,7 +209,7 @@ jobs:
 
 
   test-isaaclab-tasks-2:
-    name: IsaacLab Tasks Tests 2/2
+    name: isaaclab_tasks (2/2)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -283,7 +283,7 @@ jobs:
 
 
   test-isaaclab-core:
-    name: IsaacLab Core Tests (1/2)
+    name: isaaclab (core) (1/2)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -345,7 +345,7 @@ jobs:
 
 
   test-isaaclab-core-2:
-    name: IsaacLab Core Tests (2/2)
+    name: isaaclab (core) (2/2)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -407,7 +407,7 @@ jobs:
 
 
   test-isaaclab-rl:
-    name: IsaacLab RL Tests
+    name: isaaclab_rl
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -468,7 +468,7 @@ jobs:
 
 
   test-isaaclab-mimic:
-    name: IsaacLab Mimic Tests
+    name: isaaclab_mimic
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -529,7 +529,7 @@ jobs:
 
 
   test-isaaclab-contrib:
-    name: IsaacLab Contrib Tests
+    name: isaaclab_contrib
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -590,7 +590,7 @@ jobs:
 
 
   test-isaaclab-teleop:
-    name: IsaacLab Teleop Tests
+    name: isaaclab_teleop
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -651,7 +651,7 @@ jobs:
 
 
   test-isaaclab-visualizers:
-    name: IsaacLab Visualizers Tests
+    name: isaaclab_visualizers
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -712,7 +712,7 @@ jobs:
 
 
   test-isaaclab-assets:
-    name: IsaacLab Assets Tests
+    name: isaaclab_assets
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -772,8 +772,8 @@ jobs:
         fi
 
 
-  test-newton:
-    name: Newton Tests
+  test-isaaclab-newton:
+    name: isaaclab_newton
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -800,7 +800,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run Newton Tests
+    - name: Run IsaacLab Newton Tests
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -810,11 +810,11 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_newton"
 
-    - name: Upload Newton Test Results
+    - name: Upload IsaacLab Newton Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: newton-test-results
+        name: isaaclab-newton-test-results
         path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
@@ -834,8 +834,8 @@ jobs:
         fi
 
 
-  test-physx:
-    name: PhysX Tests
+  test-isaaclab-physx:
+    name: isaaclab_physx
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
@@ -862,7 +862,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run PhysX Tests
+    - name: Run IsaacLab PhysX Tests
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -872,11 +872,11 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_physx"
 
-    - name: Upload PhysX Test Results
+    - name: Upload IsaacLab PhysX Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: physx-test-results
+        name: isaaclab-physx-test-results
         path: reports/${{ github.job }}-report.xml
         retention-days: 1
         compression-level: 9
@@ -1086,7 +1086,7 @@ jobs:
 
 
   combine-results:
-    needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-isaaclab-core, test-isaaclab-core-2, test-isaaclab-rl, test-isaaclab-mimic, test-isaaclab-contrib, test-isaaclab-teleop, test-isaaclab-visualizers, test-isaaclab-assets, test-newton, test-physx, test-curobo, test-quarantined, test-environments-training]
+    needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-isaaclab-core, test-isaaclab-core-2, test-isaaclab-rl, test-isaaclab-mimic, test-isaaclab-contrib, test-isaaclab-teleop, test-isaaclab-visualizers, test-isaaclab-assets, test-isaaclab-newton, test-isaaclab-physx, test-curobo, test-quarantined, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
     name: Combine Results
@@ -1174,17 +1174,17 @@ jobs:
         path: reports/
       continue-on-error: true
 
-    - name: Download Newton Test Results
+    - name: Download IsaacLab Newton Test Results
       uses: actions/download-artifact@v4
       with:
-        name: newton-test-results
+        name: isaaclab-newton-test-results
         path: reports/
       continue-on-error: true
 
-    - name: Download PhysX Test Results
+    - name: Download IsaacLab PhysX Test Results
       uses: actions/download-artifact@v4
       with:
-        name: physx-test-results
+        name: isaaclab-physx-test-results
         path: reports/
       continue-on-error: true
 
