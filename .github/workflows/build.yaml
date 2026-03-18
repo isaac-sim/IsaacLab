@@ -177,13 +177,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: >-
-            test_multi_agent_environments.py,
-            test_pickplace_stack_environments.py,
-            test_environments.py,
-            test_factory_environments.py,
-            test_cartpole_showcase_environments.py,
-            test_teleop_environments.py
+        shard-index: "0"
+        shard-count: "2"
 
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4
@@ -256,6 +251,8 @@ jobs:
           test_cartpole_showcase_environments_with_stage_in_memory.py,
           test_environments_with_stage_in_memory.py,
           test_rendering_correctness.py
+        shard-index: "1"
+        shard-count: "2"
 
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4
