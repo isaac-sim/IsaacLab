@@ -184,6 +184,7 @@ Guidelines for modifications:
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* YuTeh Shen
 * Zehao Wang
 * Zijian Li
 * Ziqi Fan
