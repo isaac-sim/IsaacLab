@@ -143,6 +143,11 @@ EOF
 gh issue comment <NUMBER> --repo isaac-sim/IsaacLab --body "A fix has been submitted in PR #<PR_NUMBER>. The root cause was <brief explanation>."
 ```
 
+## Important Notes
+
+- **Isaac Sim source access.** When the bug involves Isaac Sim internals (e.g., errors originating in `isaacsim.*` or `omni.*` modules), use the `_isaac_sim` symlink at the repo root. It points to the Isaac Sim installation and contains the source files. Search and read files under `_isaac_sim/` to understand simulator APIs, verify correct usage, or trace the root cause of issues that cross the IsaacLab–IsaacSim boundary.
+- **Prefer runtime verification over pure code analysis.** After implementing a fix, actually run the affected training scripts, rendering pipelines, or other relevant entry points with minimal step/iteration counts (e.g., `num_steps=10`, `max_iterations=2`) to confirm the fix works end-to-end. Runtime execution catches issues that static analysis misses — wrong tensor shapes, missing assets, device mismatches, simulator state ordering, etc. A short live run provides far stronger confidence that the fix is correct than code inspection alone.
+
 ## References
 
 - Coding standards and changelog rules: read `AGENTS.md`

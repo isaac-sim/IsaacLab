@@ -175,5 +175,6 @@ rm -rf "$AGENT_TMPDIR"  # remove temp copy of workflow files
 - **Preserve workflow files across checkouts.** `AGENTS.md`, `CLAUDE.md`, and `.agent/` may not exist on older commits. Always copy them to a temp dir before checkout and restore them after. Never stage or commit these restored files.
 - Always use `./isaaclab.sh -p` instead of raw `python3` for running scripts
 - Capture ALL output (stdout + stderr) for evidence
-- If reproduction requires a simulator (Isaac Sim) and it's not available, note this limitation in the comment
+- **Isaac Sim source access.** When debugging requires reading Isaac Sim internals (e.g., tracing errors into `isaacsim.*` or `omni.*` modules), use the `_isaac_sim` symlink at the repo root. It points to the Isaac Sim installation and contains the source files. Search and read files under `_isaac_sim/` to understand simulator behavior, verify API usage, or trace stack frames that originate in Isaac Sim code.
+- **Prefer runtime verification over pure code analysis.** Whenever possible, actually run training scripts, rendering pipelines, or other relevant entry points with minimal step/iteration counts (e.g., `num_steps=10`, `max_iterations=2`) rather than relying solely on reading code. Runtime execution catches issues that static analysis misses — wrong tensor shapes, missing assets, device mismatches, simulator state ordering, etc. A short live run provides far stronger evidence for whether a bug reproduces than code inspection alone.
 - Be precise about which commit was tested — always include the full hash
