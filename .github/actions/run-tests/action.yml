@@ -239,15 +239,16 @@ runs:
           exit 0
         fi
 
-        # Parse JUnit XML and produce a markdown summary
-        python3 - "$report" >> "$GITHUB_STEP_SUMMARY" <<'        PYEOF'
+        # Parse JUnit XML and produce a markdown summary.
+        # The heredoc delimiter includes leading spaces so the YAML block scalar
+        # stays valid; sed strips 8 leading spaces before writing the script.
+        sed 's/^        //' > /tmp/junit_summary.py <<'        PYEOF'
         import sys, xml.etree.ElementTree as ET
         tree = ET.parse(sys.argv[1])
         root = tree.getroot()
-        cases = root.iter("testcase")
         passed, failed, errored, skipped = [], [], [], []
         total_time = 0.0
-        for tc in cases:
+        for tc in root.iter("testcase"):
             name = tc.get("classname", tc.get("name", "unknown"))
             t = float(tc.get("time", 0))
             total_time += t
@@ -259,7 +260,6 @@ runs:
                 skipped.append((name, t))
             else:
                 passed.append((name, t))
-        total = len(passed) + len(failed) + len(errored) + len(skipped)
         mins, secs = divmod(total_time, 60)
         if failed or errored:
             print(f"### ❌ {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
@@ -285,6 +285,7 @@ runs:
                 print(f"- `{name}`")
             print("\n</details>")
         PYEOF
+        python3 /tmp/junit_summary.py "$report" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Clean up container on cancellation
       if: cancelled()
