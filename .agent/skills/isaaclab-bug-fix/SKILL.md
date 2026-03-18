@@ -82,8 +82,11 @@ Repeat until all checks pass.
 
 ### Step 6: Commit
 
+Stage only project files — never include skill/agent files in the fix commit:
+
 ```bash
 git add -A
+git reset HEAD -- .agent/
 git commit -m "$(cat <<'EOF'
 Fix #<NUMBER>: <short imperative description>
 
@@ -105,10 +108,12 @@ Rules:
 git push -u origin HEAD
 ```
 
+Determine the base branch: use the branch that was checked out in Step 1 (e.g. `develop`, `main`). The PR must target the same upstream branch the fix branch was created from.
+
 Create PR using the project template:
 
 ```bash
-gh pr create --repo isaac-sim/IsaacLab --base develop --title "Fix #<NUMBER>: <short description>" --body "$(cat <<'EOF'
+gh pr create --repo isaac-sim/IsaacLab --base <BASE_BRANCH> --title "Fix #<NUMBER>: <short description>" --body "$(cat <<'EOF'
 # Description
 
 <Summary of what the bug was and how it's fixed.>
