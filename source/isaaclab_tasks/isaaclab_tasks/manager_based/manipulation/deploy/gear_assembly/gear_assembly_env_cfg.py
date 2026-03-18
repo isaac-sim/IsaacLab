@@ -265,11 +265,11 @@ class RewardsCfg:
 
     ee_gear_keypoint_tracking = RewTerm(
         func=mdp.keypoint_ee_gear_error,
-        weight=-0.1,
+        weight=-0.5,
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
             "keypoint_scale": 0.15,
-            "ee_gear_threshold": 0.05,
+            "ee_gear_threshold": 0.00,
             "weight_ramp_start": 1.0,  # Set to 0.0 to enable ramp-up
             "weight_ramp_steps": 250_000,
         },
@@ -277,13 +277,13 @@ class RewardsCfg:
 
     ee_gear_keypoint_tracking_exp = RewTerm(
         func=mdp.keypoint_ee_gear_error_exp,
-        weight=0.1,
+        weight=0.5,
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
             "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
             "kp_use_sum_of_exps": False,
             "keypoint_scale": 0.15,
-            "ee_gear_threshold": 0.05,
+            "ee_gear_threshold": 0.00,
             "weight_ramp_start": 1.0,  # Set to 0.0 to enable ramp-up
             "weight_ramp_steps": 250_000,
         },
