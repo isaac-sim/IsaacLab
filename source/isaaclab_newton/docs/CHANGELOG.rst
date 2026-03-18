@@ -1,6 +1,56 @@
 Changelog
 ---------
 
+0.5.9 (2026-03-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``test_body_incoming_joint_wrench_b_single_joint`` computing the expected
+  wrench in the parent body's frame instead of the child body's frame. The expected
+  wrench is now expressed in the child body's own frame and body indices are resolved
+  by name to be robust across backends.
+
+
+0.5.9 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed overly tight numerical tolerances in
+  ``test_object_state_properties`` for
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` that caused
+  spurious failures on CPU. Aligned tolerances with the equivalent
+  rigid object test (``test_rigid_object.py``, ``atol=2e-3, rtol=2e-3``).
+
+
+0.5.8 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix ``test_filter_enables_force_matrix`` failing with ``TypeError`` due to
+  ``pytest.mark.flaky(reruns=3)`` being incompatible with the installed
+  ``flaky`` plugin. Replace with ``@flaky(max_runs=4, min_passes=1)`` decorator.
+
+
+0.5.7 (2026-03-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed verbose ``logger.info`` calls from
+  :class:`~isaaclab_newton.assets.RigidObject`,
+  :class:`~isaaclab_newton.assets.RigidObjectCollection`, and
+  :class:`~isaaclab_newton.assets.Articulation` initialization that logged body
+  names, joint names, and instance counts. Articulation joint parameter tables and
+  actuator group summaries are retained.
+
+
 0.5.6 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
@@ -11,6 +61,15 @@ Fixed
   where ``write_body_com_pose_to_sim_index`` and ``write_body_link_velocity_to_sim_index``
   passed ``body_com_pose_b`` (``wp.transformf``) instead of ``body_com_pos_b``
   (``wp.vec3f``) to the underlying warp kernels.
+
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.body_inertia`,
+  :attr:`~isaaclab_newton.assets.RigidObjectData.body_inertia`, and
+  :attr:`~isaaclab_newton.assets.RigidObjectCollectionData.body_inertia`
+  returning raw ``mat33f`` arrays instead of ``(N, B, 9)`` float32. The
+  previous ptr-based reshape assumed ``float32`` with ``ndim == 4``, but
+  Newton returns ``mat33f`` dtype with ``ndim == 2``. Fixed the pointer
+  aliasing to correctly reinterpret each 36-byte ``mat33f`` element as 9
+  contiguous ``float32`` values.
 
 
 0.5.5 (2026-03-10)

@@ -719,18 +719,19 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        _inertia_mat33 = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
-        if _inertia_mat33.ptr is not None and _inertia_mat33.ndim == 4:
-            self._sim_bind_body_inertia = wp.array(
-                ptr=_inertia_mat33.ptr,
-                dtype=wp.float32,
-                shape=(_inertia_mat33.shape[0], _inertia_mat33.shape[1], 9),
-                strides=(_inertia_mat33.strides[0], _inertia_mat33.strides[1], _inertia_mat33.strides[3]),
-                device=_inertia_mat33.device,
-                copy=False,
-            )
-        else:
-            self._sim_bind_body_inertia = _inertia_mat33
+        # Newton stores body_inertia as (N, 1, 1) mat33f — the [:, 0] removes the padding dim
+        # giving (N, 1) mat33f. Reinterpret as (N, 1, 9) float32 via pointer aliasing.
+        # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
+        # The slice may be non-contiguous in the outer dims, so we preserve those strides.
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        self._sim_bind_body_inertia = wp.array(
+            ptr=_body_inertia_raw.ptr,
+            dtype=wp.float32,
+            shape=(self._num_instances, 1, 9),
+            strides=(_body_inertia_raw.strides[0], _body_inertia_raw.strides[1], 4),
+            device=_body_inertia_raw.device,
+            copy=False,
+        )
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]

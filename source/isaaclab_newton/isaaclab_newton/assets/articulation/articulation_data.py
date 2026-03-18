@@ -1231,23 +1231,19 @@ class ArticulationData(BaseArticulationData):
         if self._sim_bind_body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        # Newton stores body_inertia as (N, B, 3, 3) float32 (row-major 3x3 matrix per body).
-        # Reinterpret as (N, B, 9) float32 so the public interface matches the documented shape and
-        # so that the write_body_inertia_to_buffer_* kernels (which expect wp.array3d) receive a 3D array.
-        # The 9 elements of each 3x3 row-major matrix are contiguous in memory, so we keep the same
-        # pointer and outer strides but collapse the two trailing dimensions into one.
+        # Newton stores body_inertia as (N, 1, B) mat33f — the [:, 0] removes the padding dim
+        # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
+        # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
+        # The slice may be non-contiguous in the outer dims, so we preserve those strides.
         _body_inertia_raw = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
-        if _body_inertia_raw.ptr is not None and _body_inertia_raw.ndim == 4:
-            self._sim_bind_body_inertia = wp.array(
-                ptr=_body_inertia_raw.ptr,
-                dtype=wp.float32,
-                shape=(_body_inertia_raw.shape[0], _body_inertia_raw.shape[1], 9),
-                strides=(_body_inertia_raw.strides[0], _body_inertia_raw.strides[1], _body_inertia_raw.strides[3]),
-                device=_body_inertia_raw.device,
-                copy=False,
-            )
-        else:
-            self._sim_bind_body_inertia = _body_inertia_raw
+        self._sim_bind_body_inertia = wp.array(
+            ptr=_body_inertia_raw.ptr,
+            dtype=wp.float32,
+            shape=(self._num_instances, self._num_bodies, 9),
+            strides=(_body_inertia_raw.strides[0], _body_inertia_raw.strides[1], 4),
+            device=_body_inertia_raw.device,
+            copy=False,
+        )
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]

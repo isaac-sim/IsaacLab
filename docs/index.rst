@@ -100,6 +100,7 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
+   source/setup/quick_installation
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
@@ -133,6 +134,7 @@ Table of Contents
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
+   source/features/visualization
 
 
 .. toctree::
@@ -147,7 +149,6 @@ Table of Contents
    :caption: Resources
    :titlesonly:
 
-   source/setup/installation/cloud_installation
    source/policy_deployment/index
 
 .. toctree::

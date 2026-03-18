@@ -179,6 +179,7 @@ class SimulationContext:
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
+        self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
 
         # Simulation state
@@ -338,12 +339,13 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI, RTX sensors, or visualizers requested)."""
+        """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
         return (
             self._has_gui
             or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.get_setting("/isaaclab/visualizer/types"))
+            or bool(self.resolve_visualizer_types())
+            or self._xr_enabled
         )
 
     def get_physics_dt(self) -> float:
@@ -437,13 +439,35 @@ class SimulationContext:
             if hasattr(cfg, "max_worlds"):
                 cfg.max_worlds = max_worlds_override
 
+    def _is_cli_visualizer_explicit(self) -> bool:
+        """Return ``True`` when visualizers were explicitly provided via CLI."""
+        return bool(self.get_setting("/isaaclab/visualizer/explicit"))
+
+    def _is_cli_visualizer_disable_all(self) -> bool:
+        """Return ``True`` when CLI requested ``--viz none`` semantics."""
+        return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
+
     def resolve_visualizer_types(self) -> list[str]:
-        """Resolve effective visualizer types with CLI overrides applied."""
-        visualizer_cfgs = self._resolve_visualizer_cfgs()
+        """Resolve visualizer types from config or CLI settings."""
+        if self._is_cli_visualizer_disable_all():
+            return []
+        if self._is_cli_visualizer_explicit():
+            return self._get_cli_visualizer_types()
+
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            return []
+        if not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
-        """Resolve final visualizer configs from cfg and optional CLI override."""
+        """Resolve final visualizer configs from cfg and optional CLI override.
+
+        When visualizers are explicitly requested via ``--visualizer`` CLI flag,
+        a :class:`RuntimeError` is raised if any requested type cannot be
+        resolved (unknown type or missing package).
+        """
         visualizer_cfgs: list[Any] = []
         if self.cfg.visualizer_cfgs is not None:
             visualizer_cfgs = (
@@ -451,25 +475,66 @@ class SimulationContext:
             )
 
         cli_requested = self._get_cli_visualizer_types()
-        if not visualizer_cfgs:
-            resolved_cfgs = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
-            self._apply_visualizer_cli_overrides(resolved_cfgs)
-            return resolved_cfgs
+        cli_explicit = self._is_cli_visualizer_explicit()
+        cli_disable_all = self._is_cli_visualizer_disable_all()
 
-        if not cli_requested:
+        if cli_disable_all:
+            resolved = []
+        elif not cli_explicit:
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
-            return visualizer_cfgs
+            resolved = visualizer_cfgs
+        elif not visualizer_cfgs:
+            resolved = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            self._apply_visualizer_cli_overrides(resolved)
+        else:
+            # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
+            cli_requested_set = set(cli_requested)
+            resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            for viz_type in cli_requested:
+                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                    resolved.extend(self._create_default_visualizer_configs([viz_type]))
+                    existing_types.add(viz_type)
+            self._apply_visualizer_cli_overrides(resolved)
 
-        # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
-        cli_requested_set = set(cli_requested)
-        selected_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
-        existing_types = {getattr(cfg, "visualizer_type", None) for cfg in selected_cfgs}
-        for viz_type in cli_requested:
-            if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
-                existing_types.add(viz_type)
-        self._apply_visualizer_cli_overrides(selected_cfgs)
-        return selected_cfgs
+        # When visualizers were explicitly requested via CLI, verify all
+        # requested types were resolved.  This catches unknown types and
+        # missing packages that _create_default_visualizer_configs silently
+        # skips.
+        if cli_explicit and cli_requested:
+            resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            missing = [t for t in cli_requested if t not in resolved_types]
+            if missing:
+                raise RuntimeError(
+                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
+                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
+                    "Ensure the required package is installed "
+                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                )
+
+        # XR auto-start: auto-inject a KitVisualizer when XR is active and no
+        # Kit visualizer is already present.  The KitVisualizer pumps
+        # app.update() and triggers forward() (via requires_forward_before_step)
+        # to sync Fabric data so the XR runtime receives up-to-date hand/joint
+        # transforms each frame.
+        if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
+            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
+            if not has_kit:
+                try:
+                    import importlib
+
+                    mod = importlib.import_module("isaaclab_visualizers.kit")
+                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
+                    resolved.append(kit_cfg_cls())
+                    logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
+                except (ImportError, ModuleNotFoundError, AttributeError) as exc:
+                    logger.warning(
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
+                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        exc,
+                    )
+
+        return resolved
 
     def initialize_visualizers(self) -> None:
         """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
@@ -482,6 +547,8 @@ class SimulationContext:
         visualizer_cfgs = self._resolve_visualizer_cfgs()
         if not visualizer_cfgs:
             return
+
+        cli_explicit = self._is_cli_visualizer_explicit()
 
         # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
         visualizer_types = [
@@ -498,6 +565,11 @@ class SimulationContext:
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
             except Exception as exc:
+                if cli_explicit:
+                    raise RuntimeError(
+                        f"Visualizer '{cfg.visualizer_type}' was explicitly requested "
+                        f"but failed to create or initialize: {exc}"
+                    ) from exc
                 logger.exception(
                     "Failed to initialize visualizer '%s' (%s): %s",
                     cfg.visualizer_type,
@@ -704,9 +776,6 @@ class SimulationContext:
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
             cls._instance.physics_manager.close()
 
-            # Now safe to clear stage contents (PhysX is detached)
-            cls.clear_stage()
-
             # Close all visualizers
             for viz in cls._instance._visualizers:
                 viz.close()
@@ -717,7 +786,8 @@ class SimulationContext:
                     close_provider()
                 cls._instance._scene_data_provider = None
 
-            # Close the stage (clears cache, thread-local context, and Kit USD context)
+            # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
+            # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
 
             # Clear instance

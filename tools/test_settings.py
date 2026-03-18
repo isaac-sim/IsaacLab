@@ -75,6 +75,15 @@ These tests are skipped in the base image CI jobs and run separately in the
 dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
 """
 
+QUARANTINED_TESTS: list[str] = []
+"""A list of tests that are quarantined due to known instability.
+
+These tests are skipped in normal CI runs and executed in the dedicated
+``test-quarantined`` CI job (gated by the ``RUN_QUARANTINED_TESTS`` env
+var) where failures do not block PR merges. Add test filenames here to
+quarantine them from regular CI.
+"""
+
 TESTS_TO_SKIP = [
     # lab
     "test_argparser_launch.py",  # app.close issue
@@ -87,6 +96,9 @@ TESTS_TO_SKIP = [
     "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
     *CUROBO_TESTS,
+    # quarantined tests - run in dedicated CI job that does not block PR merges
+    *QUARANTINED_TESTS,
+    "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
 ]
 """A list of tests to skip by run_tests.py"""
 

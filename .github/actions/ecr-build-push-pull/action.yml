@@ -191,7 +191,6 @@ runs:
           "${{ inputs.dockerfile-path }}"
           isaaclab.sh
           environment.yml
-          tools
           source/isaaclab/isaaclab/cli
         )
         # Manifest files matched repo-wide via git ls-files.

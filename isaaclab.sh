@@ -16,6 +16,8 @@ if [ -n "$VIRTUAL_ENV" ]; then
     python_exe="$VIRTUAL_ENV/bin/python"
 elif [ -n "$CONDA_PREFIX" ]; then
     python_exe="$CONDA_PREFIX/bin/python"
+elif [ -f "$ISAACLAB_PATH/env_isaaclab/bin/python" ]; then
+    python_exe="$ISAACLAB_PATH/env_isaaclab/bin/python"
 elif [ -f "$ISAACLAB_PATH/_isaac_sim/python.sh" ]; then
     python_exe="$ISAACLAB_PATH/_isaac_sim/python.sh"
 else

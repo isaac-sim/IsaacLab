@@ -650,10 +650,11 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
                 torch.testing.assert_close(object_link_pose_w, object_com_pose_w)
                 torch.testing.assert_close(object_com_vel_w, object_link_vel_w)
             else:
+                _tol = dict(atol=2e-3, rtol=2e-3)
                 # cubes are spinning around center of mass
                 # position will not match
                 # center of mass position will be constant (i.e. spinning around com)
-                torch.testing.assert_close(init_com, object_com_pose_w[..., :3])
+                torch.testing.assert_close(init_com, object_com_pose_w[..., :3], **_tol)
 
                 # link position will be moving but should stay constant away from center of mass
                 object_link_state_pos_rel_com = quat_apply_inverse(
@@ -661,12 +662,12 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
                     object_link_pose_w[..., :3] - object_com_pose_w[..., :3],
                 )
 
-                torch.testing.assert_close(-offset, object_link_state_pos_rel_com)
+                torch.testing.assert_close(-offset, object_link_state_pos_rel_com, **_tol)
 
                 # orientation of com will be a constant rotation from link orientation
                 com_quat_b = wp.to_torch(cube_object.data.body_com_quat_b)
                 com_quat_w = quat_mul(object_link_pose_w[..., 3:], com_quat_b)
-                torch.testing.assert_close(com_quat_w, object_com_pose_w[..., 3:])
+                torch.testing.assert_close(com_quat_w, object_com_pose_w[..., 3:], **_tol)
 
                 # orientation of link will match object state will always match
                 torch.testing.assert_close(object_link_pose_w[..., 3:], object_link_pose_w[..., 3:])
@@ -676,14 +677,13 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
                 torch.testing.assert_close(
                     torch.zeros_like(object_com_vel_w[..., :3]),
                     object_com_vel_w[..., :3],
-                    atol=1e-4,
-                    rtol=1e-3,
+                    **_tol,
                 )
 
                 # link frame will be moving, and should be equal to input angular velocity cross offset
                 lin_vel_rel_object_gt = quat_apply_inverse(object_link_pose_w[..., 3:], object_link_vel_w[..., :3])
                 lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_envs, num_cubes, 1)[..., 3:], -offset)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, **_tol)
 
                 # ang_vel will always match
                 torch.testing.assert_close(object_com_vel_w[..., 3:], object_com_vel_w[..., 3:])

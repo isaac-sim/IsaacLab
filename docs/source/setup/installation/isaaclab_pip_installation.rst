@@ -119,13 +119,13 @@ Installing dependencies
 
          .. note::
 
-            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` must be compiled from source because no
-            pre-built wheel is available. Install the required OpenGL and X11 development packages
+            On aarch64 (e.g., DGX Spark), ``imgui-bundle`` and ``quadprog`` must be compiled from source because no
+            pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
             **before** installing Isaac Lab:
 
             .. code-block:: bash
 
-               sudo apt install libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+               sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
          .. note::
 
@@ -147,6 +147,26 @@ Installing dependencies
 
             This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
             removing the preload warnings during runtime.
+
+         .. note::
+
+            On aarch64, you may encounter the following error when importing ``omni.client`` or ``torch``:
+
+            .. code-block:: none
+
+               ImportError: .../libcarb.so: cannot allocate memory in static TLS block
+
+            This happens because ``libcarb.so`` uses the *initial-exec* TLS model, and
+            the dynamic linker's fixed-size TLS surplus is exhausted by the time it is loaded.
+            To fix this, preload ``libcarb.so`` before launching Python:
+
+            .. code-block:: bash
+
+               export LD_PRELOAD=$(python -c "import sys,os;[print(os.path.join(p,'omni','client','libcarb.so')) for p in sys.path if os.path.isfile(os.path.join(p,'omni','client','libcarb.so'))]" 2>/dev/null | head -1)${LD_PRELOAD:+:$LD_PRELOAD}
+
+            When using ``./isaaclab.sh -p``, this is handled automatically.
+            When using a conda environment,
+            the preload is set up via the conda activation hook.
 
 -  If you want to use ``rl_games`` for training and inferencing, install
    its Python 3.11+ enabled fork:

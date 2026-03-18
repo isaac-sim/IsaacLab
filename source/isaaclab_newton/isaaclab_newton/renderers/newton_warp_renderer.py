@@ -97,11 +97,14 @@ class RenderData:
             orientations, origin="world", target="opengl"
         )
 
-        self.camera_transforms = wp.empty((1, self.render_context.world_count), dtype=wp.transformf)
+        self.camera_transforms = wp.empty(
+            (1, self.render_context.world_count), dtype=wp.transformf, device=self.render_context.device
+        )
         wp.launch(
             RenderData._update_transforms,
             self.render_context.world_count,
             [positions, converted_orientations, self.camera_transforms],
+            device=self.render_context.device,
         )
 
         if self.render_context is not None:
@@ -146,6 +149,18 @@ class NewtonWarpRenderer(BaseRenderer):
     RenderData = RenderData
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
+        from isaaclab.physics.scene_data_requirements import (
+            aggregate_requirements,
+            requirement_for_renderer_type,
+        )
+
+        sim = SimulationContext.instance()
+        current_req = sim.get_scene_data_requirements()
+        renderer_req = requirement_for_renderer_type("newton_warp")
+        merged = aggregate_requirements([current_req, renderer_req])
+        if merged != current_req:
+            sim.update_scene_data_requirements(merged)
+
         newton_model = self.get_scene_data_provider().get_newton_model()
         if newton_model is None:
             raise RuntimeError(

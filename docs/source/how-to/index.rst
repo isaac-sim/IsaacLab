@@ -24,6 +24,7 @@ how to import a new asset into Isaac Lab.
 
     import_new_asset
     write_articulation_cfg
+    robots
 
 Creating a Fixed Asset
 ----------------------
@@ -46,6 +47,17 @@ useful when you want to create diverse environments with different objects.
     :maxdepth: 1
 
     multi_asset_spawning
+
+Cloning Environments
+--------------------
+
+This guide explains how Isaac Lab's template-based cloning system works, including
+cloning strategies, heterogeneous environments, and collision filtering.
+
+.. toctree::
+    :maxdepth: 1
+
+    cloning
 
 Saving Camera Output
 --------------------

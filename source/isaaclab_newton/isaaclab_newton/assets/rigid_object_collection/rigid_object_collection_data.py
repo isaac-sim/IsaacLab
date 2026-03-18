@@ -596,9 +596,18 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", state_0)[:, :, 0]
         # -- Body mass: (num_envs, num_bodies, 1) float32 → squeeze to (num_envs, num_bodies)
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", model)[:, :, 0]
-        # -- Body inertia: (num_envs, num_bodies, 1) mat33f → squeeze, clone to contiguous, convert to float32
-        inertia_mat33 = self._root_view.get_attribute("body_inertia", model)[:, :, 0]
-        self._body_inertia = wp.clone(inertia_mat33).view(wp.float32).reshape((self.num_instances, self.num_bodies, 9))
+        # -- Body inertia: (num_envs, num_bodies, 1) mat33f → squeeze, reinterpret as (N, B, 9) float32.
+        # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
+        # The slice may be non-contiguous in the outer dims, so we preserve those strides.
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", model)[:, :, 0]
+        self._body_inertia = wp.array(
+            ptr=_body_inertia_raw.ptr,
+            dtype=wp.float32,
+            shape=(self.num_instances, self.num_bodies, 9),
+            strides=(_body_inertia_raw.strides[0], _body_inertia_raw.strides[1], 4),
+            device=_body_inertia_raw.device,
+            copy=False,
+        )
 
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""

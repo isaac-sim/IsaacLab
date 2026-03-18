@@ -37,10 +37,13 @@ env:
   ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  # To run quarantined tests, create a GitHub repo variable named
+  # RUN_QUARANTINED_TESTS and set it to 'true'. The test-quarantined
+  # job is skipped when the variable is absent or not 'true'.
 
 jobs:
   build:
-    name: Build base Docker image
+    name: Build Base Docker image
     runs-on: [self-hosted, gpu]
     steps:
     - name: Checkout Code
@@ -58,10 +61,6 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
-      if: always()
-      run: docker image prune -f --filter "until=24h" || true
 
   build-curobo:
     name: Build cuRobo Docker image
@@ -82,13 +81,10 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
 
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
-      if: always()
-      run: docker image prune -f --filter "until=24h" || true
 
 
   test-isaaclab-tasks:
+    name: IsaacLab Tasks Tests 1/2
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -110,7 +106,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run IsaacLab Tasks Tests
+    - name: Run IsaacLab Tasks Tests 1/2
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -119,7 +115,13 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_multi_agent_environments.py,test_pickplace_stack_environments.py,test_environments.py,test_environments_newton.py,test_factory_environments.py,test_environments_training.py,test_cartpole_showcase_environments.py,test_teleop_environments.py"
+        include-files: >-
+            test_multi_agent_environments.py,
+            test_pickplace_stack_environments.py,
+            test_environments.py,
+            test_factory_environments.py,
+            test_cartpole_showcase_environments.py,
+            test_teleop_environments.py
 
     - name: Upload IsaacLab Tasks Test Results
       uses: actions/upload-artifact@v4
@@ -144,12 +146,9 @@ jobs:
           exit 1
         fi
 
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
-      if: always()
-      run: docker image prune -f --filter "until=24h" || true
 
   test-isaaclab-tasks-2:
+    name: IsaacLab Tasks Tests 2/2
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -171,7 +170,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Run IsaacLab Tasks Tests 2
+    - name: Run IsaacLab Tasks Tests 2/2
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -180,7 +179,14 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_teleop_environments_with_stage_in_memory.py,test_lift_teddy_bear.py,test_environment_determinism.py,test_hydra.py,test_env_cfg_no_forbidden_imports.py,test_rl_device_separation.py,test_cartpole_showcase_environments_with_stage_in_memory.py,test_environments_with_stage_in_memory.py,test_shadow_hand_vision_presets.py"
+        include-files: >-
+          test_teleop_environments_with_stage_in_memory.py,
+          test_lift_teddy_bear.py,
+          test_environment_determinism.py,
+          test_hydra.py,
+          test_rl_device_separation.py,
+          test_cartpole_showcase_environments_with_stage_in_memory.py,
+          test_environments_with_stage_in_memory.py
 
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4
@@ -205,12 +211,9 @@ jobs:
           exit 1
         fi
 
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
-      if: always()
-      run: docker image prune -f --filter "until=24h" || true
 
   test-general:
+    name: General Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: build
@@ -240,7 +243,7 @@ jobs:
         container-name: "isaac-lab-general-test-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
-        filter-pattern: "not isaaclab_tasks"
+        filter-pattern: "not isaaclab_tasks,isaaclab_newton,isaaclab_physx"
 
     - name: Upload General Test Results
       uses: actions/upload-artifact@v4
@@ -265,12 +268,121 @@ jobs:
           exit 1
         fi
 
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
+
+  test-newton:
+    name: Newton Tests
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: build
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Run Newton Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "isaac-lab-newton-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_newton"
+
+    - name: Upload Newton Test Results
+      uses: actions/upload-artifact@v4
       if: always()
-      run: docker image prune -f --filter "until=24h" || true
+      with:
+        name: newton-test-results
+        path: reports/${{ github.job }}-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
+
+  test-physx:
+    name: PhysX Tests
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: build
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Run PhysX Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "isaac-lab-physx-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_physx"
+
+    - name: Upload PhysX Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: physx-test-results
+        path: reports/${{ github.job }}-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
 
   test-curobo:
+    name: cuRobo and SkillGen Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -326,15 +438,127 @@ jobs:
           exit 1
         fi
 
-    # ECR images must be pruned with a lifecycle policy.
-    - name: Clean up stale Docker images
+
+  test-quarantined:
+    name: "Quarantined Tests"
+    if: ${{ vars.RUN_QUARANTINED_TESTS == 'true' }}
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: build
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Run Quarantined Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "isaac-lab-quarantined-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: ""
+        quarantined-only: "true"
+
+    - name: Upload Quarantined Test Results
+      uses: actions/upload-artifact@v4
       if: always()
-      run: docker image prune -f --filter "until=24h" || true
+      with:
+        name: quarantined-test-results
+        path: reports/${{ github.job }}-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed or QUARANTINED_TESTS may be empty."
+          exit 1
+        fi
+
+
+  test-environments-training:
+    name: "test_environments_training.py"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 300
+    continue-on-error: true
+    needs: build
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Run Environments Training Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "isaac-lab-environments-training-test-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_environments_training.py"
+
+    - name: Upload Environments Training Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: environments-training-test-results
+        path: reports/${{ github.job }}-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
 
   combine-results:
-    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-curobo]
+    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-quarantined, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
+    name: Combine Results
 
     steps:
     - name: Checkout Code
@@ -371,10 +595,38 @@ jobs:
         path: reports/
       continue-on-error: true
 
+    - name: Download Newton Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: newton-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download PhysX Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: physx-test-results
+        path: reports/
+      continue-on-error: true
+
     - name: Download cuRobo Test Results
       uses: actions/download-artifact@v4
       with:
         name: curobo-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download Quarantined Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: quarantined-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download Environments Training Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: environments-training-test-results
         path: reports/
       continue-on-error: true
 

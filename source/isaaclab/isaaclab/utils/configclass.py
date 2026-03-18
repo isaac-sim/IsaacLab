@@ -322,7 +322,16 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
-    entries.
+    entries. Additionally, if the top-level object defines a ``_validate_config`` method, it is called to perform
+    domain-specific validation.
+
+    Subclasses can define ``validate_config(self)`` to add custom checks::
+
+        @configclass
+        class MyEnvCfg(ManagerBasedEnvCfg):
+            def validate_config(self):
+                if self.some_field == "bad":
+                    raise ValueError("some_field cannot be 'bad'.")
 
     Args:
         obj: The object to check.
@@ -372,6 +381,11 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
             f"Missing values detected in object {obj.__class__.__name__} for the following"
             f" fields:\n{formatted_message}\n"
         )
+    # invoke custom validation hook if defined on the object
+    if prefix == "":
+        custom_validate = getattr(obj, "validate_config", None)
+        if callable(custom_validate):
+            custom_validate()
     return missing_fields
 
 

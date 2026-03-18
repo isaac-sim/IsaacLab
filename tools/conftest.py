@@ -257,6 +257,61 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     return failed_tests, test_status
 
 
+def _collect_test_files(
+    source_dirs,
+    filter_pattern,
+    exclude_pattern,
+    include_files,
+    quarantined_only,
+    curobo_only,
+    cuda_issue_only,
+):
+    """Collect test files from source directories, applying all active filters."""
+    test_files = []
+    for source_dir in source_dirs:
+        if not os.path.exists(source_dir):
+            print(f"Error: source directory not found at {source_dir}")
+            pytest.exit("Source directory not found", returncode=1)
+
+        for root, _, files in os.walk(source_dir):
+            for file in files:
+                if not (file.startswith("test_") and file.endswith(".py")):
+                    continue
+
+                # Mode-exclusive filters (each bypasses TESTS_TO_SKIP)
+                if quarantined_only:
+                    if file not in test_settings.QUARANTINED_TESTS:
+                        continue
+                elif curobo_only:
+                    if file not in test_settings.CUROBO_TESTS:
+                        continue
+                elif cuda_issue_only:
+                    if file not in test_settings.CUDA_ISSUE_TESTS:
+                        continue
+                else:
+                    # An explicit include_files entry overrides TESTS_TO_SKIP, allowing
+                    # dedicated jobs (e.g. test-environments-training) to run tests that
+                    # are otherwise excluded from general CI runs.
+                    if file in test_settings.TESTS_TO_SKIP and file not in include_files:
+                        print(f"Skipping {file} as it's in the skip list")
+                        continue
+
+                full_path = os.path.join(root, file)
+
+                if filter_pattern and filter_pattern not in full_path:
+                    print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
+                    continue
+                if exclude_pattern and exclude_pattern in full_path:
+                    print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
+                    continue
+                if include_files and file not in include_files:
+                    print(f"Skipping {full_path} (not in include files list)")
+                    continue
+
+                test_files.append(full_path)
+    return test_files
+
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -270,6 +325,7 @@ def pytest_sessionstart(session):
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
     include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
+    quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
     cuda_issue_only = os.environ.get("TEST_CUDA_ISSUE_ONLY", "false") == "true"
 
@@ -295,62 +351,27 @@ def pytest_sessionstart(session):
     print(f"Filter pattern: '{filter_pattern}'")
     print(f"Exclude pattern: '{exclude_pattern}'")
     print(f"Include files: {include_files if include_files else 'none'}")
+    print(f"Quarantined-only mode: {quarantined_only}")
     print(f"Curobo-only mode: {curobo_only}")
     print(f"CUDA-issue-only mode: {cuda_issue_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
+    print(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUDA_ISSUE_ONLY env var: '{os.environ.get('TEST_CUDA_ISSUE_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
-    test_files = []
-
-    for source_dir in source_dirs:
-        if not os.path.exists(source_dir):
-            print(f"Error: source directory not found at {source_dir}")
-            pytest.exit("Source directory not found", returncode=1)
-
-        for root, _, files in os.walk(source_dir):
-            for file in files:
-                if file.startswith("test_") and file.endswith(".py"):
-                    if curobo_only:
-                        # In curobo-only mode, run exclusively the cuRobo and SkillGen tests.
-                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
-                        # these tests (which are skipped in base-image jobs) can execute.
-                        if file not in test_settings.CUROBO_TESTS:
-                            continue
-                    elif cuda_issue_only:
-                        # In cuda-issue-only mode, run exclusively the CUDA issue tests.
-                        # The normal TESTS_TO_SKIP list is intentionally bypassed here so that
-                        # these tests (which are skipped in base-image jobs) can execute.
-                        if file not in test_settings.CUDA_ISSUE_TESTS:
-                            continue
-                    else:
-                        # Skip if the file is in TESTS_TO_SKIP
-                        if file in test_settings.TESTS_TO_SKIP:
-                            print(f"Skipping {file} as it's in the skip list")
-                            continue
-
-                    full_path = os.path.join(root, file)
-
-                    # Apply include filter
-                    if filter_pattern and filter_pattern not in full_path:
-                        print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
-                        continue
-
-                    # Apply exclude filter
-                    if exclude_pattern and exclude_pattern in full_path:
-                        print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
-                        continue
-
-                    # Apply include files filter
-                    if include_files and file not in include_files:
-                        print(f"Skipping {full_path} (not in include files list)")
-                        continue
-
-                    test_files.append(full_path)
+    test_files = _collect_test_files(
+        source_dirs,
+        filter_pattern,
+        exclude_pattern,
+        include_files,
+        quarantined_only,
+        curobo_only,
+        cuda_issue_only,
+    )
 
     if isaacsim_ci:
         new_test_files = []
@@ -361,6 +382,9 @@ def pytest_sessionstart(session):
         test_files = new_test_files
 
     if not test_files:
+        if quarantined_only:
+            print("No quarantined tests configured — nothing to run.")
+            pytest.exit("No quarantined tests configured", returncode=0)
         print("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 

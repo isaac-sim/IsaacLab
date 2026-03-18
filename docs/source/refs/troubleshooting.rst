@@ -9,6 +9,75 @@ Tricks and Troubleshooting
     assistance.
 
 
+Installation Troubleshooting
+----------------------------
+
+``ModuleNotFoundError: No module named 'pip'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Your venv was created without pip. The install system auto-detects and uses
+``uv pip`` when pip is absent, so this error should no longer occur with the
+latest Isaac Lab.
+
+``ModuleNotFoundError: No module named 'isaacsim'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You are running a script that requires Isaac Sim, but it is not installed.
+Either:
+
+- Install Isaac Sim: ``./isaaclab.sh -i isaacsim``, or
+- Use a Newton-based task with ``presets=newton --visualizer newton`` (Kit-less path)
+
+``ModuleNotFoundError: No module named 'isaaclab_physx'`` or ``'isaaclab_ov'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These config packages are auto-installed by ``./isaaclab.sh -i``. If using a
+selective install, re-run with the default ``./isaaclab.sh -i`` to get all
+packages.
+
+``ModuleNotFoundError: No module named 'isaaclab_assets'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Include ``assets`` in your install command, or use ``./isaaclab.sh -i`` to install
+everything.
+
+``ModuleNotFoundError: No module named 'rsl_rl'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Include the RL framework: ``./isaaclab.sh -i rsl_rl``, or use
+``./isaaclab.sh -i`` to install all frameworks.
+
+Crash in ``libusd_tf`` / USD Symbol Collision with OVRTX
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
+(e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
+
+1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` (see the
+   :ref:`OVRTX section <installation-ovrtx>` of the installation guide)
+2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
+   environment — their bundled USD libraries conflict with ovrtx's
+
+Visualizer Not Appearing
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+If ``--visualizer newton`` shows no window, you may be missing ``imgui-bundle``:
+
+.. code-block:: bash
+
+   uv pip install imgui-bundle
+
+For ``viser``, check the terminal for a URL (e.g. ``http://localhost:8012``).
+
+``GLIBC Version Too Old``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Sim pip packages require GLIBC 2.35+. Check with ``ldd --version``.
+Ubuntu 22.04+ satisfies this. For older distributions, use the
+`binary installation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`_
+method for Isaac Sim.
+
+
 Debugging physics simulation stability issues
 ---------------------------------------------
 

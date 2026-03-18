@@ -540,7 +540,7 @@ class ManagerBasedEnv:
             import omni.replicator.core as rep
 
             rep.set_global_seed(seed)
-        except ModuleNotFoundError:
+        except (ModuleNotFoundError, AttributeError):
             pass
         # set seed for torch and other libraries
         return configure_seed(seed)
