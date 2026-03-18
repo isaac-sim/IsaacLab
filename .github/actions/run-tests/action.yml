@@ -240,17 +240,13 @@ runs:
         fi
 
         # Parse JUnit XML and produce a markdown summary
-        python3 - "$report" >> "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+        python3 - "$report" >> "$GITHUB_STEP_SUMMARY" <<'        PYEOF'
         import sys, xml.etree.ElementTree as ET
-
         tree = ET.parse(sys.argv[1])
         root = tree.getroot()
-
-        # Collect all test cases from any nesting of testsuites/testsuite
         cases = root.iter("testcase")
         passed, failed, errored, skipped = [], [], [], []
         total_time = 0.0
-
         for tc in cases:
             name = tc.get("classname", tc.get("name", "unknown"))
             t = float(tc.get("time", 0))
@@ -263,17 +259,12 @@ runs:
                 skipped.append((name, t))
             else:
                 passed.append((name, t))
-
         total = len(passed) + len(failed) + len(errored) + len(skipped)
         mins, secs = divmod(total_time, 60)
-
-        # Header
         if failed or errored:
             print(f"### ❌ {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
         else:
             print(f"### ✅ {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
-
-        # Failed/errored tests
         if failed or errored:
             print("\n| Status | Test | Time | Message |")
             print("|--------|------|------|---------|")
@@ -281,8 +272,6 @@ runs:
                 print(f"| ❌ FAIL | `{name}` | {t:.1f}s | {msg[:80]} |")
             for name, t, msg in errored:
                 print(f"| 💥 ERROR | `{name}` | {t:.1f}s | {msg[:80]} |")
-
-        # Passed tests (collapsed)
         if passed:
             print(f"\n<details><summary>✅ {len(passed)} passed tests</summary>\n")
             print("| Test | Time |")
@@ -290,7 +279,6 @@ runs:
             for name, t in passed:
                 print(f"| `{name}` | {t:.1f}s |")
             print("\n</details>")
-
         if skipped:
             print(f"\n<details><summary>⏭️ {len(skipped)} skipped</summary>\n")
             for name, t in skipped:
