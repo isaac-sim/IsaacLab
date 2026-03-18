@@ -96,6 +96,9 @@ jobs:
         echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
         echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
 
+        echo "Changed files:"
+        echo "$changed"
+        echo ""
         echo "Changed packages:"
         cat "$GITHUB_OUTPUT"
 
