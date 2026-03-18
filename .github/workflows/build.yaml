@@ -61,7 +61,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 1
 
     - name: Detect changed source packages
       id: check
@@ -78,8 +78,9 @@ jobs:
           exit 0
         fi
 
-        base_ref="origin/${{ github.event.pull_request.base.ref }}"
-        changed=$(git diff --name-only "$base_ref"...HEAD)
+        # Fetch the PR base branch tip to diff against
+        git fetch --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+        changed=$(git diff --name-only FETCH_HEAD...HEAD)
 
         has() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
 
