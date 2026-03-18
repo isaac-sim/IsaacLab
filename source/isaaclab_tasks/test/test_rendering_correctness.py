@@ -19,7 +19,8 @@ app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 import os  # noqa: E402
-from typing import Any, Optional  # noqa: E402
+from datetime import datetime  # noqa: E402
+from typing import Any  # noqa: E402
 
 import gymnasium as gym  # noqa: E402
 import numpy as np  # noqa: E402
@@ -220,7 +221,7 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
     """
     normalized = tensor.float()
 
-    if data_type == "depth":
+    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
@@ -253,7 +254,7 @@ def _compare_images(
     golden_image: Image.Image,
     pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
     max_different_pixels_percentage: float = _MAX_DIFFERENT_PIXELS_PERCENTAGE,
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Compare result and golden images; return (True, \"\") if deemed equal.
 
     Args:
@@ -283,16 +284,19 @@ def _compare_images(
         return (
             False,
             f"The percentage of different pixels ({different_pixels_percentage:.2f}%, {num_different_pixels} / "
-            f"{num_total_pixels} pixels) exceeds the threshold of {max_different_pixels_percentage:.2f}%."
+            f"{num_total_pixels} pixels) exceeds the threshold of {max_different_pixels_percentage:.2f}%.",
         )
 
     return True, None
 
 
-def _check_camera_outputs(
-    test_name: str, physics_backend: str, renderer: str, camera_outputs: dict[str, torch.Tensor]
+def _validate_camera_outputs(
+    test_name: str,
+    physics_backend: str,
+    renderer: str,
+    camera_outputs: dict[str, torch.Tensor],
 ) -> None:
-    """Check validity and consistency of camera outputs.
+    """Validate correctness and consistency of camera outputs.
 
     Args:
         test_name: Test name.
@@ -302,40 +306,53 @@ def _check_camera_outputs(
     """
     assert len(camera_outputs) > 0, f"[{test_name}] No camera outputs produced by {physics_backend} + {renderer}."
 
+    golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
+    os.makedirs(golden_image_dir, exist_ok=True)
+
     for data_type, tensor in camera_outputs.items():
-        invalid = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
-        corrected = torch.where(invalid, torch.zeros_like(tensor), tensor)
-        assert corrected.max() > 0, (
+        # Replace inf/nan with zero so they do not break comparison; ensure the tensor has at least one non-zero value.
+        condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+        corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+        max_val = corrected.max()
+        assert max_val > 0, (
             f"[{test_name}] Camera output '{data_type}' has no non-zero pixels. "
             f"Shape: {corrected.shape}, dtype: {corrected.dtype}."
         )
 
+        # convert tensors to a tiled image.
         normalized = _normalize_tensor(corrected, data_type)
         grid = _make_grid(normalized)
+
+        # permute(1, 2, 0) is there to change the tensor layout from channel-first to channel-last so it matches what
+        # PIL expects.
         ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
         result_image = Image.fromarray(ndarr)
 
-        golden_image_path = os.path.join(
-            _GOLDEN_IMAGES_DIRECTORY,
-            test_name,
-            f"{physics_backend}-{renderer}-{data_type}.png")
+        # first run creates baseline and fails; second run validates.
+        golden_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}.png")
+        if not os.path.exists(golden_path):
+            result_image.save(golden_path)
+            pytest.fail(
+                f"[{test_name}] Golden image not found at {golden_path}. Saved result image to {golden_path}. "
+                "Please run the test again to validate the consistency of rendering outputs."
+            )
 
         try:
-            golden_image = Image.open(golden_image_path)
-        except Exception:
-            golden_image = None
+            golden_image = Image.open(golden_path)
+        except Exception as e:
+            pytest.fail(f"Error opening golden image: {e}")
 
-        if golden_image is not None:
-            succeeded, error_message = _compare_images(result_image, golden_image)
-        else:
-            succeeded = False
-            error_message = f"Golden image not found at {golden_image_path}"
-
+        # validate the consistency of rendering outputs.
+        succeeded, error_message = _compare_images(result_image, golden_image)
         if not succeeded:
-            os.makedirs(os.path.dirname(golden_image_path), exist_ok=True)
-            result_image.save(golden_image_path)
-
-        assert succeeded, f"[{test_name}] Camera output '{data_type}' mismatch detected: {error_message}"
+            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")
+            result_image.save(result_path)
+            pytest.fail(
+                f"[{test_name}] Inconsistency detected for camera output '{data_type}': {error_message}. "
+                f"Saved result image to {result_path} for further investigation. "
+                f"If result image is correct, please replace the golden image at {golden_path} with the result image."
+            )
 
 
 def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
@@ -408,7 +425,7 @@ def shadow_hand_env(request):
 def test_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
     physics_backend, renderer, _, env = shadow_hand_env
-    _check_camera_outputs("shadow_hand", physics_backend, renderer, env._tiled_camera.data.output)
+    _validate_camera_outputs("shadow_hand", physics_backend, renderer, env._tiled_camera.data.output)
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +464,7 @@ def cartpole_env(request):
 def test_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
     physics_backend, renderer, _, env = cartpole_env
-    _check_camera_outputs("cartpole", physics_backend, renderer, env._tiled_camera.data.output)
+    _validate_camera_outputs("cartpole", physics_backend, renderer, env._tiled_camera.data.output)
 
 
 # ---------------------------------------------------------------------------
@@ -490,7 +507,7 @@ def dexsuite_kuka_allegro_lift_env(request):
 def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
     physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
-    _check_camera_outputs("dexsuite_kuka", physics_backend, renderer, env.scene.sensors["base_camera"].data.output)
+    _validate_camera_outputs("dexsuite_kuka", physics_backend, renderer, env.scene.sensors["base_camera"].data.output)
 
 
 # ---------------------------------------------------------------------------
@@ -562,15 +579,12 @@ def test_registered_tasks(task_id):
 
         env.step(actions)
 
-        camera_outputs = _collect_camera_outputs(env)
-        assert len(camera_outputs) == 1, f"[{task_id}] Expected 1 camera output, got {len(camera_outputs)}."
-        assert "tiled_camera" in camera_outputs, (
-            f"[{task_id}] Expected 'tiled_camera' output, got {camera_outputs.keys()}."
-        )
+        camera_outputs_nested_dict = _collect_camera_outputs(env)
+        num_camera_outputs = len(camera_outputs_nested_dict)
+        assert num_camera_outputs == 1, f"[{task_id}] Expected 1 camera output, got {num_camera_outputs}."
 
-        _check_camera_outputs(
-            f"registered_tasks/{task_id}", "default_physics", "default_renderer", camera_outputs["tiled_camera"]
-        )
+        camera_outputs = next(iter(camera_outputs_nested_dict.values()))
+        _validate_camera_outputs(f"registered_tasks/{task_id}", "default_physics", "default_renderer", camera_outputs)
     finally:
         if env is not None:
             env.close()
