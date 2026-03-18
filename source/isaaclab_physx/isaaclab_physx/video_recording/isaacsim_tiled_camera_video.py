@@ -23,6 +23,7 @@ def create_isaacsim_tiled_camera_video(cfg: IsaacsimTiledCameraVideoCfg, scene: 
             scene,
             video_num_tiles=cfg.video_num_tiles,
             fallback_camera_cfg=cfg.fallback_camera_cfg,
+            preferred_renderer_types=cfg.preferred_renderer_types,
         )
     from isaaclab.utils.string import string_to_callable
 
@@ -31,4 +32,5 @@ def create_isaacsim_tiled_camera_video(cfg: IsaacsimTiledCameraVideoCfg, scene: 
         scene,
         video_num_tiles=cfg.video_num_tiles,
         fallback_camera_cfg=cfg.fallback_camera_cfg,
+        preferred_renderer_types=cfg.preferred_renderer_types,
     )

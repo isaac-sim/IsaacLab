@@ -44,6 +44,13 @@ with contextlib.suppress(ImportError):
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument(
+    "--video_mode",
+    type=str,
+    default="perspective",
+    choices=["perspective", "tiled"],
+    help="When --video is set: perspective (Kit/GL viewport) or tiled (TiledCamera grid).",
+)
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -93,6 +100,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.seed = agent_cfg.seed
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
+        if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
+            env_cfg.video_recorder.video_mode = args_cli.video_mode
+
         # specify directory for logging experiments
         log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
         log_root_path = os.path.abspath(log_root_path)
@@ -124,12 +134,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # wrap for video recording
         if args_cli.video:
             video_kwargs = {
-                "video_folder": os.path.join(log_dir, "videos", "play"),
+                "video_folder": os.path.join(log_dir, "videos", args_cli.video_mode, "play"),
                 "step_trigger": lambda step: step == 0,
                 "video_length": args_cli.video_length,
                 "disable_logger": True,
             }
-            print("[INFO] Recording videos during training.")
+            print(f"[INFO] Recording videos (mode={args_cli.video_mode}).")
             print_dict(video_kwargs, nesting=4)
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
 

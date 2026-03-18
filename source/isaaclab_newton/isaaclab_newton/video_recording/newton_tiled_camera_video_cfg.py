@@ -29,3 +29,6 @@ class NewtonTiledCameraVideoCfg:
 
     fallback_camera_cfg: object | None = None
     """Spawned when no observation TiledCamera exists; ``None`` disables fallback spawn."""
+
+    preferred_renderer_types: tuple[str, ...] = ("newton_warp",)
+    """Tiled video uses only TiledCameras with Newton Warp renderer (matches Newton GL backend)."""

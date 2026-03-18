@@ -29,3 +29,8 @@ class IsaacsimTiledCameraVideoCfg:
 
     fallback_camera_cfg: object | None = None
     """Spawned when no observation TiledCamera exists; ``None`` disables fallback spawn."""
+
+    preferred_renderer_types: tuple[str, ...] = ("isaac_rtx", "ovrtx")
+    """Tiled video uses only :class:`~isaaclab.sensors.camera.TiledCamera` sensors whose
+    ``renderer_cfg.renderer_type`` is in this set (Isaac Sim / OV RTX path). Observation cameras
+    using Newton Warp are skipped so Kit tiled recording uses RTX prims (including fallback)."""

@@ -15,7 +15,6 @@ See :mod:`video_recorder_cfg` for configuration.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -24,8 +23,6 @@ if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
 
     from .video_recorder_cfg import VideoRecorderCfg
-
-logger = logging.getLogger(__name__)
 
 _VideoBackend = Literal["kit", "newton_gl"]
 
@@ -82,9 +79,14 @@ class VideoRecorder:
                 )
                 from isaaclab_newton.video_recording.newton_tiled_camera_video_cfg import NewtonTiledCameraVideoCfg
 
+                from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+                newton_fb = cfg.fallback_camera_cfg
+                if newton_fb is not None:
+                    newton_fb = newton_fb.replace(renderer_cfg=NewtonWarpRendererCfg())
                 ncfg = NewtonTiledCameraVideoCfg(
                     video_num_tiles=cfg.video_num_tiles,
-                    fallback_camera_cfg=cfg.fallback_camera_cfg,
+                    fallback_camera_cfg=newton_fb,
                 )
                 self._tiled_capture = create_newton_tiled_camera_video(ncfg, scene)
             else:

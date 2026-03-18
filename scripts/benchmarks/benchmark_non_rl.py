@@ -17,6 +17,13 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument(
+    "--video_mode",
+    type=str,
+    default="perspective",
+    choices=["perspective", "tiled"],
+    help="When --video is set: perspective (Kit/GL viewport) or tiled (TiledCamera grid).",
+)
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
@@ -122,6 +129,9 @@ def main(
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
     env_cfg.seed = args_cli.seed
+
+    if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
+        env_cfg.video_recorder.video_mode = args_cli.video_mode
 
     # check for invalid combination of CPU device with distributed training
     if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:

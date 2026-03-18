@@ -63,9 +63,14 @@ class VideoRecorderCfg:
     """Max environments per tiled frame (``-1`` = all). CLI: ``env.video_recorder.video_num_tiles=9``."""
 
     fallback_camera_cfg: object | None = DEFAULT_TILED_RECORDING_CAMERA_CFG
-    """Fallback :class:`~isaaclab.sensors.camera.TiledCameraCfg` for tiled mode without observation camera.
+    """Fallback :class:`~isaaclab.sensors.camera.TiledCameraCfg` for tiled mode.
 
-    Set to ``None`` to disable spawning. Ignored when ``video_mode="perspective"``.
+    Spawned at ``VideoRecorder`` init (Kit: Isaac RTX on ``VideoCamera`` prims; Newton tiled: same pose
+    with :class:`~isaaclab_newton.renderers.newton_warp_renderer_cfg.NewtonWarpRendererCfg`).
+    Kit tiled recording prefers sensors whose renderer is Isaac RTX or OV RTX; if the only scene
+    TiledCamera uses Newton Warp (e.g. PhysX + ``newton_renderer`` preset), this fallback supplies
+    RTX tiles. Set to ``None`` to disable (then an RTX TiledCamera must exist for Kit tiled video).
+    Ignored when ``video_mode="perspective"``.
     """
 
     camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)

@@ -21,11 +21,30 @@ if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
 
 
+def _tiled_camera_renderer_type(sensor) -> str:
+    cfg = getattr(sensor, "cfg", None)
+    rc = getattr(cfg, "renderer_cfg", None) if cfg is not None else None
+    return getattr(rc, "renderer_type", "default") if rc is not None else "default"
+
+
+def _tiled_camera_has_rgb_cfg(sensor) -> bool:
+    cfg = getattr(sensor, "cfg", None)
+    if cfg is None:
+        return False
+    dt = getattr(cfg, "data_types", None) or []
+    return "rgb" in dt or "rgba" in dt
+
+
 class TiledCameraGridVideoCapture:
     """Capture a square grid of per-environment RGB frames from a TiledCamera sensor.
 
-    Priority: (1) first scene :class:`~isaaclab.sensors.camera.TiledCamera` with rgb/rgba
-    output; (2) optional fallback camera spawned at construction time.
+    When ``preferred_renderer_types`` is set (Kit vs Newton tiled video), only cameras whose
+    ``renderer_cfg.renderer_type`` matches are considered—then optional fallback spawns (e.g. RTX
+    ``VideoCamera`` prims) are used instead of an observation :class:`~isaaclab.sensors.camera.TiledCamera`
+    that uses a different backend (e.g. Newton Warp under PhysX).
+
+    When ``preferred_renderer_types`` is ``None``, priority is: (1) first scene TiledCamera with
+    rgb/rgba in ``data_types``; (2) optional fallback camera spawned at construction time.
     """
 
     def __init__(
@@ -34,9 +53,11 @@ class TiledCameraGridVideoCapture:
         *,
         video_num_tiles: int,
         fallback_camera_cfg: object | None,
+        preferred_renderer_types: tuple[str, ...] | None = None,
     ):
         self._scene = scene
         self._video_num_tiles = video_num_tiles
+        self._preferred_renderer_types = preferred_renderer_types
         self._fallback_tiled_camera = None
         if fallback_camera_cfg is not None:
             self._fallback_tiled_camera = self._spawn_fallback_cameras(fallback_camera_cfg, scene)
@@ -79,22 +100,53 @@ class TiledCameraGridVideoCapture:
 
         from isaaclab.sensors.camera import TiledCamera
 
+        pref = self._preferred_renderer_types
         camera = None
-        for sensor in self._scene.sensors.values():
-            if isinstance(sensor, TiledCamera):
-                output = sensor.data.output
-                if "rgb" in output or "rgba" in output:
-                    camera = sensor
-                    break
 
-        if camera is None and self._fallback_tiled_camera is not None:
-            if self._fallback_tiled_camera.is_initialized:
-                output = self._fallback_tiled_camera.data.output
-                if "rgb" in output or "rgba" in output:
-                    camera = self._fallback_tiled_camera
+        if pref is None:
+            for sensor in self._scene.sensors.values():
+                if isinstance(sensor, TiledCamera):
+                    output = sensor.data.output
+                    if "rgb" in output or "rgba" in output:
+                        camera = sensor
+                        break
+            if camera is None and self._fallback_tiled_camera is not None:
+                if self._fallback_tiled_camera.is_initialized:
+                    output = self._fallback_tiled_camera.data.output
+                    if "rgb" in output or "rgba" in output:
+                        camera = self._fallback_tiled_camera
+            if camera is None:
+                return None
+        else:
+            candidates: list = []
+            for sensor in self._scene.sensors.values():
+                if isinstance(sensor, TiledCamera) and _tiled_camera_has_rgb_cfg(sensor):
+                    candidates.append(sensor)
+            if self._fallback_tiled_camera is not None and _tiled_camera_has_rgb_cfg(self._fallback_tiled_camera):
+                candidates.append(self._fallback_tiled_camera)
 
-        if camera is None:
-            return None
+            allowed = frozenset(pref)
+            candidates = [c for c in candidates if _tiled_camera_renderer_type(c) in allowed]
+
+            for sensor in candidates:
+                if sensor.is_initialized and sensor.data.output:
+                    if "rgb" in sensor.data.output or "rgba" in sensor.data.output:
+                        camera = sensor
+                        break
+            if camera is None and candidates:
+                camera = candidates[0]
+
+            if camera is None:
+                raise RuntimeError(
+                    "Cannot record video in tiled mode: no TiledCamera with RGB whose renderer matches "
+                    f"{sorted(pref)} (Isaac Sim / OV RTX vs Newton Warp). "
+                    "Enable a fallback recording camera (default VideoCamera prims) or add a TiledCamera "
+                    "with the matching renderer_cfg for this video backend."
+                )
+            if camera is self._fallback_tiled_camera:
+                out = camera.data.output if camera.is_initialized else {}
+                if "rgb" not in out and "rgba" not in out:
+                    self._fallback_tiled_camera.update(dt=0.0, force_recompute=True)
 
         self._video_camera = camera
         output = camera.data.output

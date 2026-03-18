@@ -20,6 +20,13 @@ import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument(
+    "--video_mode",
+    type=str,
+    default="perspective",
+    choices=["perspective", "tiled"],
+    help="When --video is set: perspective (Kit/GL viewport) or tiled (TiledCamera grid).",
+)
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments to simulate.")
@@ -176,6 +183,9 @@ def main(
         agent_cfg.seed = seed
         world_size = int(os.getenv("WORLD_SIZE", 1))
 
+    if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
+        env_cfg.video_recorder.video_mode = args_cli.video_mode
+
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
@@ -197,12 +207,12 @@ def main(
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
-            "video_folder": os.path.join(log_dir, "videos"),
+            "video_folder": os.path.join(log_dir, "videos", args_cli.video_mode),
             "step_trigger": lambda step: step % args_cli.video_interval == 0,
             "video_length": args_cli.video_length,
             "disable_logger": True,
         }
-        print("[INFO] Recording videos during training.")
+        print(f"[INFO] Recording videos (mode={args_cli.video_mode}).")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for rsl-rl

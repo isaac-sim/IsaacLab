@@ -51,6 +51,13 @@ parser.add_argument(
     "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides config if set)."
 )
 parser.add_argument("--video", action="store_true", default=False, help="Enable video recording.")
+parser.add_argument(
+    "--video_mode",
+    type=str,
+    default="perspective",
+    choices=["perspective", "tiled"],
+    help="When --video is set: save under logs/.../videos/<mode>/ (RLinf eval).",
+)
 cli_args.add_rlinf_args(parser)
 args_cli = parser.parse_args()
 
@@ -119,7 +126,7 @@ def main():
         # Enable video saving if requested
         if args_cli.video:
             cfg.env.eval.video_cfg.save_video = True
-            cfg.env.eval.video_cfg.video_base_dir = str(log_dir / "videos")
+            cfg.env.eval.video_cfg.video_base_dir = str(log_dir / "videos" / args_cli.video_mode)
 
         # Override task if provided via CLI
         if args_cli.task:
