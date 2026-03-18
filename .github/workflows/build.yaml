@@ -80,7 +80,7 @@ jobs:
 
         # Fetch the PR base branch tip to diff against
         git fetch --depth=1 origin "${{ github.event.pull_request.base.ref }}"
-        changed=$(git diff --name-only FETCH_HEAD...HEAD)
+        changed=$(git diff --name-only FETCH_HEAD HEAD)
 
         has() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
 
