@@ -358,25 +358,25 @@ def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[
         articulation_joint_data[articulation_name] = {}
         articulation_joint_data[articulation_name]["joint_names"] = articulation.joint_names
         articulation_joint_data[articulation_name]["default_joint_pos"] = (
-            articulation.data.default_joint_pos[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.default_joint_pos)[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_vel"] = (
-            articulation.data.default_joint_vel[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.default_joint_vel)[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_pos_limits"] = (
-            articulation.data.default_joint_pos_limits[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.default_joint_pos_limits)[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_damping"] = (
-            articulation.data.joint_damping[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.joint_damping)[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_stiffness"] = (
-            articulation.data.joint_stiffness[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.joint_stiffness)[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_friction"] = (
-            articulation.data.joint_friction_coeff[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.joint_friction_coeff)[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_armature"] = (
-            articulation.data.joint_armature[0].detach().cpu().numpy().tolist()
+            wp.to_torch(articulation.data.joint_armature)[0].detach().cpu().numpy().tolist()
         )
     return articulation_joint_data
 
