@@ -149,6 +149,12 @@ class DirectRLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
+        # InteractiveScene.__init__() resolves renderer requirements from sensors
+        # declared in the scene config, but sensors added programmatically in
+        # _setup_scene() (the standard DirectRLEnv pattern) are missed. Re-scan
+        # all scene sensors and merge their requirements so that the scene data
+        # provider (constructed later) knows it needs a Newton model.
+        self._update_scene_data_requirements_from_sensors()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -656,6 +662,31 @@ class DirectRLEnv(gym.Env):
         any explicit scene setup, the function can be left empty.
         """
         pass
+
+    def _update_scene_data_requirements_from_sensors(self):
+        """Re-scan scene sensors and update simulation context requirements.
+
+        ``InteractiveScene.__init__()`` resolves renderer requirements from
+        sensors declared in the scene *config*, but sensors added
+        programmatically in :meth:`_setup_scene` (the standard ``DirectRLEnv``
+        pattern) are missed.  This method re-scans all scene sensors after
+        ``_setup_scene()`` returns and merges their renderer requirements into
+        the simulation context so that ``PhysxSceneDataProvider`` (constructed
+        later) knows whether it needs to build a Newton model.
+        """
+        from isaaclab.physics.scene_data_requirements import (
+            aggregate_requirements,
+            resolve_scene_data_requirements,
+        )
+
+        renderer_types = self.scene._sensor_renderer_types()
+        if not renderer_types:
+            return
+        sensor_req = resolve_scene_data_requirements(visualizer_types=[], renderer_types=renderer_types)
+        current_req = self.sim.get_scene_data_requirements()
+        merged = aggregate_requirements([current_req, sensor_req])
+        if merged != current_req:
+            self.sim.update_scene_data_requirements(merged)
 
     @abstractmethod
     def _pre_physics_step(self, actions: torch.Tensor):
