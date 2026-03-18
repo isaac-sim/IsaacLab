@@ -47,6 +47,14 @@ inputs:
     description: 'Comma-separated list of specific test file paths to include (e.g., source/pkg/test/test_a.py,source/pkg/test/test_b.py)'
     default: ''
     required: false
+  shard-index:
+    description: 'Zero-based index of this shard (used with shard-count to split tests across parallel jobs)'
+    default: ''
+    required: false
+  shard-count:
+    description: 'Total number of shards (used with shard-index to split tests across parallel jobs)'
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -67,6 +75,8 @@ runs:
           local cuda_issue_only="$9"
           local include_files="${10}"
           local quarantined_only="${11}"
+          local shard_index="${12}"
+          local shard_count="${13}"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -83,6 +93,9 @@ runs:
           fi
           if [ -n "$include_files" ]; then
             echo "Include files: $include_files"
+          fi
+          if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
+            echo "Shard: $shard_index of $shard_count"
           fi
 
           # Create reports directory
@@ -123,6 +136,11 @@ runs:
             include_files_compact="${include_files// /}"
             docker_env_vars="$docker_env_vars -e TEST_INCLUDE_FILES=$include_files_compact"
             echo "Setting TEST_INCLUDE_FILES=$include_files_compact"
+          fi
+
+          if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_SHARD_INDEX=$shard_index -e TEST_SHARD_COUNT=$shard_count"
+            echo "Setting TEST_SHARD_INDEX=$shard_index TEST_SHARD_COUNT=$shard_count"
           fi
 
           if [ -n "$filter_pattern" ]; then
@@ -206,4 +224,4 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.cuda-issue-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.cuda-issue-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}"

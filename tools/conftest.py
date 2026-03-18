@@ -301,7 +301,7 @@ def _collect_test_files(
                 if filter_pattern and filter_pattern not in full_path:
                     print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
                     continue
-                if exclude_pattern and exclude_pattern in full_path:
+                if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
                     print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
                 if include_files and file not in include_files:
@@ -309,6 +309,17 @@ def _collect_test_files(
                     continue
 
                 test_files.append(full_path)
+
+    # Apply sharding: sort deterministically, then select every Nth file
+    shard_index = os.environ.get("TEST_SHARD_INDEX", "")
+    shard_count = os.environ.get("TEST_SHARD_COUNT", "")
+    if shard_index and shard_count:
+        shard_index = int(shard_index)
+        shard_count = int(shard_count)
+        test_files.sort()
+        test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
+        print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
+
     return test_files
 
 
