@@ -42,6 +42,62 @@ env:
   # job is skipped when the variable is absent or not 'true'.
 
 jobs:
+  detect-changes:
+    name: Detect Changed Packages
+    runs-on: ubuntu-latest
+    outputs:
+      isaaclab: ${{ steps.check.outputs.isaaclab }}
+      isaaclab-physx: ${{ steps.check.outputs.isaaclab-physx }}
+      isaaclab-newton: ${{ steps.check.outputs.isaaclab-newton }}
+      isaaclab-tasks: ${{ steps.check.outputs.isaaclab-tasks }}
+      isaaclab-rl: ${{ steps.check.outputs.isaaclab-rl }}
+      isaaclab-mimic: ${{ steps.check.outputs.isaaclab-mimic }}
+      isaaclab-contrib: ${{ steps.check.outputs.isaaclab-contrib }}
+      isaaclab-teleop: ${{ steps.check.outputs.isaaclab-teleop }}
+      isaaclab-visualizers: ${{ steps.check.outputs.isaaclab-visualizers }}
+      isaaclab-assets: ${{ steps.check.outputs.isaaclab-assets }}
+      infra: ${{ steps.check.outputs.infra }}
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Detect changed source packages
+      id: check
+      run: |
+        set -euo pipefail
+
+        # For non-PR events, run all tests
+        if [ "${{ github.event_name }}" != "pull_request" ]; then
+          for pkg in isaaclab isaaclab-physx isaaclab-newton isaaclab-tasks \
+                     isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
+                     isaaclab-visualizers isaaclab-assets infra; do
+            echo "$pkg=true" >> "$GITHUB_OUTPUT"
+          done
+          exit 0
+        fi
+
+        base_ref="origin/${{ github.event.pull_request.base.ref }}"
+        changed=$(git diff --name-only "$base_ref"...HEAD)
+
+        has() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
+
+        echo "isaaclab=$(has '^source/isaaclab/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-physx=$(has '^source/isaaclab_physx/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-newton=$(has '^source/isaaclab_newton/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-tasks=$(has '^source/isaaclab_tasks/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-rl=$(has '^source/isaaclab_rl/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-mimic=$(has '^source/isaaclab_mimic/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-contrib=$(has '^source/isaaclab_contrib/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-teleop=$(has '^source/isaaclab_teleop/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-visualizers=$(has '^source/isaaclab_visualizers/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
+        echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
+
+        echo "Changed packages:"
+        cat "$GITHUB_OUTPUT"
+
   build:
     name: Build Base Docker image
     runs-on: [self-hosted, gpu]
@@ -88,7 +144,13 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -152,7 +214,13 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -217,7 +285,12 @@ jobs:
     name: General Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -274,7 +347,13 @@ jobs:
     name: Newton Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-newton == 'true' ||
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -330,7 +409,13 @@ jobs:
     name: PhysX Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-physx == 'true' ||
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -387,7 +472,14 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: build-curobo
+    needs: [build-curobo, detect-changes]
+    if: >-
+      always() && needs.build-curobo.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -442,11 +534,13 @@ jobs:
 
   test-quarantined:
     name: "Quarantined Tests"
-    if: ${{ vars.RUN_QUARANTINED_TESTS == 'true' }}
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' &&
+      vars.RUN_QUARANTINED_TESTS == 'true'
 
     steps:
     - name: Checkout Code
@@ -503,7 +597,14 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 300
     continue-on-error: true
-    needs: build
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab == 'true' ||
+        needs.detect-changes.outputs.isaaclab-rl == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
 
     steps:
     - name: Checkout Code
@@ -556,7 +657,7 @@ jobs:
 
 
   combine-results:
-    needs: [build, build-curobo, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-quarantined, test-environments-training]
+    needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-general, test-newton, test-physx, test-curobo, test-quarantined, test-environments-training]
     runs-on: ubuntu-latest
     if: always()
     name: Combine Results
