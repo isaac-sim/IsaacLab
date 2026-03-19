@@ -146,6 +146,36 @@ jobs:
         echo "CHANGED PACKAGES:"
         cat "$GITHUB_OUTPUT"
 
+        # Write job summary visible on the GH Actions UI
+        {
+          echo "### Changed Files"
+          echo ""
+          echo "| File | Package |"
+          echo "|------|---------|"
+          echo "$changed" | while IFS= read -r f; do
+            case "$f" in
+              source/isaaclab/*)             echo "| \`$f\` | isaaclab-core |" ;;
+              source/isaaclab_physx/*)       echo "| \`$f\` | isaaclab-physx |" ;;
+              source/isaaclab_newton/*)      echo "| \`$f\` | isaaclab-newton |" ;;
+              source/isaaclab_tasks/*)       echo "| \`$f\` | isaaclab-tasks |" ;;
+              source/isaaclab_rl/*)          echo "| \`$f\` | isaaclab-rl |" ;;
+              source/isaaclab_mimic/*)       echo "| \`$f\` | isaaclab-mimic |" ;;
+              source/isaaclab_contrib/*)     echo "| \`$f\` | isaaclab-contrib |" ;;
+              source/isaaclab_teleop/*)      echo "| \`$f\` | isaaclab-teleop |" ;;
+              source/isaaclab_visualizers/*) echo "| \`$f\` | isaaclab-visualizers |" ;;
+              source/isaaclab_assets/*)      echo "| \`$f\` | isaaclab-assets |" ;;
+              .github/*|docker/*|tools/*|scripts/*) echo "| \`$f\` | infra |" ;;
+              *)                             echo "| \`$f\` | - |" ;;
+            esac
+          done
+          echo ""
+          echo "### Triggered Packages"
+          echo ""
+          while IFS='=' read -r pkg val; do
+            [ "$val" = "true" ] && echo "- $pkg"
+          done < "$GITHUB_OUTPUT"
+        } >> "$GITHUB_STEP_SUMMARY"
+
   build:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
