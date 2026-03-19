@@ -27,8 +27,8 @@ for tc in root.iter("testcase"):
         failed.append((name, t, tc.find("failure").get("message", "")))
     elif tc.find("error") is not None:
         errored.append((name, t, tc.find("error").get("message", "")))
-    elif tc.find("skipped") is not None:
-        skipped.append((name, t))
+    elif (skip_el := tc.find("skipped")) is not None:
+        skipped.append((name, t, skip_el.get("message", "")))
     else:
         passed.append((name, t))
 
@@ -63,6 +63,8 @@ if passed:
 
 if skipped:
     print(f"\n<details><summary>🟠 {len(skipped)} skipped</summary>\n")
-    for name, t in skipped:
-        print(f"- `{name}`")
+    print("| Test | Reason |")
+    print("|------|--------|")
+    for name, t, msg in skipped:
+        print(f"| `{name}` | {sanitize_msg(msg)} |")
     print("\n</details>")
