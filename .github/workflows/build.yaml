@@ -158,7 +158,12 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -181,7 +186,12 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -213,7 +223,12 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -235,7 +250,11 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -257,7 +276,11 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -279,7 +302,11 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -301,7 +328,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-rl == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -321,7 +353,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -341,7 +378,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-contrib == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -386,7 +428,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-visualizers == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -406,7 +453,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-assets == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -426,7 +478,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-newton == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -446,7 +503,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-physx == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -524,7 +586,9 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' &&
+      vars.RUN_QUARANTINED_TESTS == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -545,7 +609,12 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
