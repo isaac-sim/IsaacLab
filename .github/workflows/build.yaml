@@ -89,7 +89,7 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Detect changed source packages
+    - name: Detect changed files and packages
       id: check
       run: |
         set -euo pipefail
@@ -122,8 +122,24 @@ jobs:
         echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
         echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
 
+        echo ""
         echo "Changed files:"
-        echo "$changed"
+        echo "$changed" | while IFS= read -r f; do
+          case "$f" in
+            source/isaaclab/*)           echo "  $f (isaaclab-core)" ;;
+            source/isaaclab_physx/*)     echo "  $f (isaaclab-physx)" ;;
+            source/isaaclab_newton/*)    echo "  $f (isaaclab-newton)" ;;
+            source/isaaclab_tasks/*)     echo "  $f (isaaclab-tasks)" ;;
+            source/isaaclab_rl/*)        echo "  $f (isaaclab-rl)" ;;
+            source/isaaclab_mimic/*)     echo "  $f (isaaclab-mimic)" ;;
+            source/isaaclab_contrib/*)   echo "  $f (isaaclab-contrib)" ;;
+            source/isaaclab_teleop/*)    echo "  $f (isaaclab-teleop)" ;;
+            source/isaaclab_visualizers/*) echo "  $f (isaaclab-visualizers)" ;;
+            source/isaaclab_assets/*)    echo "  $f (isaaclab-assets)" ;;
+            .github/*|docker/*|tools/*|scripts/*) echo "  $f (infra)" ;;
+            *)                           echo "  $f" ;;
+          esac
+        done
         echo ""
         echo "Changed packages:"
         cat "$GITHUB_OUTPUT"
