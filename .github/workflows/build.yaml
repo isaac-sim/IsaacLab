@@ -125,6 +125,12 @@ jobs:
   build-curobo:
     name: Build cuRobo Docker image
     runs-on: [self-hosted, gpu]
+    needs: [detect-changes]
+    if: >-
+      needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+      needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+      needs.detect-changes.outputs.isaaclab-core == 'true' ||
+      needs.detect-changes.outputs.infra == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
