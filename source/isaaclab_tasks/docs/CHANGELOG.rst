@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+0.11.15 (2026-03-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0``, ``Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0``,
+  ``Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0``, and ``Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0`` environments.
+
+
+0.11.14 (2026-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refactored automation scripts (``run_w_id.py`` and ``run_disassembly_w_id.py``) to use list-based command execution
+  via ``subprocess.run``. This avoids potential command injection risks by disabling shell execution and
+  properly handling environment variables.
+
+
+0.11.13 (2026-02-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect hardcoded joint index for ``drawer_top_joint`` in
+  :class:`~isaaclab_tasks.direct.franka_cabinet.FrankaCabinetEnv`. The drawer joint
+  index is now dynamically resolved using ``find_joints()`` at start, instead of assuming
+  index 3, which caused incorrect rewards and termination conditions.
+
+
 0.11.12 (2025-12-16)
 ~~~~~~~~~~~~~~~~~~~~
 

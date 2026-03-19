@@ -20,7 +20,7 @@ class RslRlRndCfg:
         """Configuration for the weight schedule."""
 
         mode: str = "constant"
-        """The type of weight schedule. Default is "constant"."""
+        """The type of weight schedule. Defaults to "constant"."""
 
     @configclass
     class LinearWeightScheduleCfg(WeightScheduleCfg):
@@ -31,6 +31,7 @@ class RslRlRndCfg:
         """
 
         mode: str = "linear"
+        """The type of weight schedule. Defaults to "linear"."""
 
         final_value: float = MISSING
         """The final value of the weight parameter."""
@@ -55,6 +56,7 @@ class RslRlRndCfg:
         """
 
         mode: str = "step"
+        """The type of weight schedule. Defaults to "step"."""
 
         final_step: int = MISSING
         """The final step of the weight schedule.
@@ -66,34 +68,34 @@ class RslRlRndCfg:
         """The final value of the weight parameter."""
 
     weight: float = 0.0
-    """The weight for the RND reward (also known as intrinsic reward). Default is 0.0.
+    """The weight for the RND reward (also known as intrinsic reward). Defaults to 0.0.
 
     Similar to other reward terms, the RND reward is scaled by this weight.
     """
 
     weight_schedule: WeightScheduleCfg | None = None
-    """The weight schedule for the RND reward. Default is None, which means the weight is constant."""
+    """The weight schedule for the RND reward. Defaults to None, which means the weight is constant."""
 
     reward_normalization: bool = False
-    """Whether to normalize the RND reward. Default is False."""
+    """Whether to normalize the RND reward. Defaults to False."""
 
     state_normalization: bool = False
-    """Whether to normalize the RND state. Default is False."""
+    """Whether to normalize the RND state. Defaults to False."""
 
     learning_rate: float = 1e-3
-    """The learning rate for the RND module. Default is 1e-3."""
+    """The learning rate for the RND module. Defaults to 1e-3."""
 
     num_outputs: int = 1
-    """The number of outputs for the RND module. Default is 1."""
+    """The number of outputs for the RND module. Defaults to 1."""
 
     predictor_hidden_dims: list[int] = [-1]
-    """The hidden dimensions for the RND predictor network. Default is [-1].
+    """The hidden dimensions for the RND predictor network. Defaults to [-1].
 
     If the list contains -1, then the hidden dimensions are the same as the input dimensions.
     """
 
     target_hidden_dims: list[int] = [-1]
-    """The hidden dimensions for the RND target network. Default is [-1].
+    """The hidden dimensions for the RND target network. Defaults to [-1].
 
     If the list contains -1, then the hidden dimensions are the same as the input dimensions.
     """
