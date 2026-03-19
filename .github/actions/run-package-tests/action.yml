@@ -5,9 +5,9 @@
 
 name: 'Run Package Tests'
 description: >
-  End-to-end composite action: checks out code, pulls the Docker image from
-  ECR, runs pytest inside the container, uploads results as an artifact, and
-  fails fork PRs on test failures.
+  Pulls the Docker image from ECR, runs pytest inside the container, uploads
+  results as an artifact, and fails fork PRs on test failures.
+  NOTE: The calling job must check out the code before using this action.
 
 inputs:
   image-tag:
@@ -65,12 +65,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
     - name: Pull image from ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
