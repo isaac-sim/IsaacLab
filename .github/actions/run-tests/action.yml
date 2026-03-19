@@ -239,53 +239,8 @@ runs:
           exit 0
         fi
 
-        # Parse JUnit XML and produce a markdown summary.
-        # The heredoc delimiter includes leading spaces so the YAML block scalar
-        # stays valid; sed strips 8 leading spaces before writing the script.
-        sed 's/^        //' > /tmp/junit_summary.py <<'        PYEOF'
-        import sys, xml.etree.ElementTree as ET
-        tree = ET.parse(sys.argv[1])
-        root = tree.getroot()
-        passed, failed, errored, skipped = [], [], [], []
-        total_time = 0.0
-        for tc in root.iter("testcase"):
-            name = tc.get("classname", tc.get("name", "unknown"))
-            t = float(tc.get("time", 0))
-            total_time += t
-            if tc.find("failure") is not None:
-                failed.append((name, t, tc.find("failure").get("message", "")))
-            elif tc.find("error") is not None:
-                errored.append((name, t, tc.find("error").get("message", "")))
-            elif tc.find("skipped") is not None:
-                skipped.append((name, t))
-            else:
-                passed.append((name, t))
-        mins, secs = divmod(total_time, 60)
-        if failed or errored:
-            print(f"### ❌ {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
-        else:
-            print(f"### ✅ {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
-        if failed or errored:
-            print("\n| Status | Test | Time | Message |")
-            print("|--------|------|------|---------|")
-            for name, t, msg in failed:
-                print(f"| ❌ FAIL | `{name}` | {t:.1f}s | {msg[:80]} |")
-            for name, t, msg in errored:
-                print(f"| 💥 ERROR | `{name}` | {t:.1f}s | {msg[:80]} |")
-        if passed:
-            print(f"\n<details><summary>✅ {len(passed)} passed tests</summary>\n")
-            print("| Test | Time |")
-            print("|------|------|")
-            for name, t in passed:
-                print(f"| `{name}` | {t:.1f}s |")
-            print("\n</details>")
-        if skipped:
-            print(f"\n<details><summary>⏭️ {len(skipped)} skipped</summary>\n")
-            for name, t in skipped:
-                print(f"- `{name}`")
-            print("\n</details>")
-        PYEOF
-        python3 /tmp/junit_summary.py "$report" >> "$GITHUB_STEP_SUMMARY"
+        # Parse JUnit XML and produce a markdown summary
+        python3 .github/actions/run-tests/junit_summary.py "$report" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Clean up container on cancellation
       if: cancelled()

@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Parse a JUnit XML report and print a markdown summary (for $GITHUB_STEP_SUMMARY)."""
+
+import sys
+import xml.etree.ElementTree as ET
+
+if len(sys.argv) < 2:
+    print("Usage: junit_summary.py <report.xml>", file=sys.stderr)
+    sys.exit(1)
+
+tree = ET.parse(sys.argv[1])
+root = tree.getroot()
+
+passed, failed, errored, skipped = [], [], [], []
+total_time = 0.0
+
+for tc in root.iter("testcase"):
+    name = tc.get("classname", tc.get("name", "unknown"))
+    t = float(tc.get("time", 0))
+    total_time += t
+    if tc.find("failure") is not None:
+        failed.append((name, t, tc.find("failure").get("message", "")))
+    elif tc.find("error") is not None:
+        errored.append((name, t, tc.find("error").get("message", "")))
+    elif tc.find("skipped") is not None:
+        skipped.append((name, t))
+    else:
+        passed.append((name, t))
+
+mins, secs = divmod(total_time, 60)
+
+if failed or errored:
+    print(f"### ❌ {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
+else:
+    print(f"### ✅ {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
+
+if failed or errored:
+    print("\n| Status | Test | Time | Message |")
+    print("|--------|------|------|---------|")
+    for name, t, msg in failed:
+        print(f"| ❌ FAIL | `{name}` | {t:.1f}s | {msg[:80]} |")
+    for name, t, msg in errored:
+        print(f"| 💥 ERROR | `{name}` | {t:.1f}s | {msg[:80]} |")
+
+if passed:
+    print(f"\n<details><summary>✅ {len(passed)} passed tests</summary>\n")
+    print("| Test | Time |")
+    print("|------|------|")
+    for name, t in passed:
+        print(f"| `{name}` | {t:.1f}s |")
+    print("\n</details>")
+
+if skipped:
+    print(f"\n<details><summary>⏭️ {len(skipped)} skipped</summary>\n")
+    for name, t in skipped:
+        print(f"- `{name}`")
+    print("\n</details>")
