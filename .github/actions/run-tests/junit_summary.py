@@ -47,7 +47,7 @@ if failed or errored:
     print("\n| Status | Test | Time | Message |")
     print("|--------|------|------|---------|")
     for name, t, msg in failed:
-        print(f"| 🔴 FAIL | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
+        print(f"| 🔴 ASSERTION | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
     for name, t, msg in errored:
         print(f"| 🔴 ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
