@@ -27,7 +27,10 @@ A GitHub issue is filed
            ├─ Fixed on latest develop → comment, close & stop
            └─ Still broken on latest
               └─► isaaclab-bug-fix
-                  └─ Branch → fix → test → changelog → pre-commit → PR → comment on issue
+                  ├─ Search open/merged PRs for existing fix
+                  │  ├─ Open PR found   → comment pointing to it & stop
+                  │  ├─ Merged PR found → comment "already fixed on develop" & stop
+                  │  └─ No prior PR     → Branch → fix → test → changelog → pre-commit → PR → comment on issue
 
 
 A PR is open and has reviewer comments
@@ -79,12 +82,13 @@ A PR has merge conflicts with its target branch
 ### `isaaclab-bug-fix`
 **When:** A bug is confirmed to still reproduce on `develop`; or when directly asked to fix an issue and open a PR.
 **What it does:**
-1. Creates a branch `isaaclab-bot/fix-issue-<N>` from `develop`.
-2. Implements the fix following `AGENTS.md` coding standards.
-3. Writes a regression test (verified to fail without the fix).
-4. Updates the changelog and bumps the version in `extension.toml`.
-5. Runs pre-commit (`./isaaclab.sh -f`) until clean.
-6. Commits, pushes, opens a PR, and comments on the original issue.
+1. Searches open and recently merged PRs for an existing fix (by issue number and keywords); comments and stops if one is found.
+2. Creates a branch `isaaclab-bot/fix-issue-<N>` from `develop`.
+3. Implements the fix following `AGENTS.md` coding standards.
+4. Writes a regression test (verified to fail without the fix).
+5. Updates the changelog and bumps the version in `extension.toml`.
+6. Runs pre-commit (`./isaaclab.sh -f`) until clean.
+7. Commits, pushes, opens a PR, and comments on the original issue.
 
 ### `isaaclab-pr-respond`
 **When:** A PR has reviewer comments that need to be addressed.

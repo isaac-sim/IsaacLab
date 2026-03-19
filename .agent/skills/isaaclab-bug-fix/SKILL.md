@@ -16,6 +16,52 @@ Implement a fix for a reproduced bug, following all IsaacLab contribution guidel
 
 ## Workflow
 
+### Step 0: Check for an existing PR or branch that already addresses the issue
+
+Before creating anything, search for open and recently merged PRs that may already fix this issue:
+
+```bash
+# Search open PRs by issue number and keywords from the issue title
+gh pr list --repo isaac-sim/IsaacLab --state open --limit 50 \
+  --json number,title,body,headRefName \
+  | jq '.[] | select(.body | test("#<NUMBER>"; "i"))'
+
+gh search prs --repo isaac-sim/IsaacLab --state open \
+  "<keyword1> <keyword2>" --limit 20 \
+  --json number,title,body,headRefName
+
+# Search recently merged PRs (last 60 days)
+gh pr list --repo isaac-sim/IsaacLab --state merged --limit 100 \
+  --json number,title,body,mergedAt \
+  | jq '.[] | select(.body | test("#<NUMBER>"; "i"))'
+
+gh search prs --repo isaac-sim/IsaacLab --state merged \
+  "<keyword1> <keyword2>" --limit 20 \
+  --json number,title,body,mergedAt
+```
+
+Use multiple keyword searches drawn from the issue title, error message, and affected file/class names to maximize coverage.
+
+For each candidate, confirm overlap by reading its diff:
+```bash
+gh pr diff <CANDIDATE_PR_NUMBER> --repo isaac-sim/IsaacLab
+```
+
+**Decision:**
+
+```
+Existing PR found?
+├─ YES — open PR already addresses this issue
+│  └─ Comment on the issue pointing to the open PR, then STOP:
+│     gh issue comment <NUMBER> --repo isaac-sim/IsaacLab \
+│       --body "This appears to be addressed in PR #<OTHER> (_<title>_). Tracking there."
+├─ YES — merged PR already contains the fix
+│  └─ Comment on the issue that the fix is already on develop, then STOP:
+│     gh issue comment <NUMBER> --repo isaac-sim/IsaacLab \
+│       --body "This was fixed in PR #<OTHER> (merged <DATE>). The fix is available on \`develop\`."
+└─ NO  — no existing PR → proceed to Step 1
+```
+
 ### Step 1: Create a feature branch
 
 ```bash
