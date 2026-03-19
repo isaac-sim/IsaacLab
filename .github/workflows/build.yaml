@@ -24,6 +24,7 @@
 # |                            |   (needs build-curobo)                                  |
 # | test-quarantined           | vars.RUN_QUARANTINED_TESTS == "true"                    |
 # | test-environments-training | isaaclab-tasks | isaaclab-core | infra                  |
+# |   (x3 shards)              |                                                         |
 # | build-curobo               | isaaclab-mimic | isaaclab-tasks | isaaclab-core | infra |
 # +----------------------------+---------------------------------------------------------+
 
@@ -629,9 +630,9 @@ jobs:
         container-name: isaac-lab-quarantined-test
 
   test-environments-training:
-    name: "test_environments_training.py"
+    name: "test_environments_training.py 1/3"
     runs-on: [self-hosted, gpu]
-    timeout-minutes: 300
+    timeout-minutes: 180
     continue-on-error: true
     needs: [build, detect-changes]
     if: >-
@@ -652,14 +653,74 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
-        artifact-name: environments-training-test-results
-        container-name: isaac-lab-environments-training-test
+        shard-index: "0"
+        shard-count: "3"
+        artifact-name: environments-training-1-test-results
+        container-name: isaac-lab-environments-training-1-test
+
+  test-environments-training-2:
+    name: "test_environments_training.py 2/3"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_environments_training.py"
+        shard-index: "1"
+        shard-count: "3"
+        artifact-name: environments-training-2-test-results
+        container-name: isaac-lab-environments-training-2-test
+
+  test-environments-training-3:
+    name: "test_environments_training.py 3/3"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_environments_training.py"
+        shard-index: "2"
+        shard-count: "3"
+        artifact-name: environments-training-3-test-results
+        container-name: isaac-lab-environments-training-3-test
 
 
   # Combine and report results from all test jobs
 
   combine-results:
-    needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-isaaclab-tasks-3, test-isaaclab-core, test-isaaclab-core-2, test-isaaclab-core-3, test-isaaclab-rl, test-isaaclab-mimic, test-isaaclab-contrib, test-isaaclab-teleop, test-isaaclab-visualizers, test-isaaclab-assets, test-isaaclab-newton, test-isaaclab-physx, test-curobo, test-skillgen, test-quarantined, test-environments-training]
+    needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-isaaclab-tasks-3, test-isaaclab-core, test-isaaclab-core-2, test-isaaclab-core-3, test-isaaclab-rl, test-isaaclab-mimic, test-isaaclab-contrib, test-isaaclab-teleop, test-isaaclab-visualizers, test-isaaclab-assets, test-isaaclab-newton, test-isaaclab-physx, test-curobo, test-skillgen, test-quarantined, test-environments-training, test-environments-training-2, test-environments-training-3]
     runs-on: ubuntu-latest
     if: always()
     name: Combine Results
