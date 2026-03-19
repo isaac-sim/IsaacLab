@@ -548,7 +548,7 @@ jobs:
         container-name: isaac-lab-physx-test
 
   test-curobo:
-    name: cuRobo Planner Tests
+    name: test-curobo
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -576,7 +576,7 @@ jobs:
         container-name: isaac-lab-curobo-test
 
   test-skillgen:
-    name: SkillGen Tests
+    name: test-skillgen
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
