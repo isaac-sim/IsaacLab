@@ -165,6 +165,19 @@ runs:
           # and use 'wait' which bash interrupts immediately on signal receipt.
           trap "echo '🟠 Signal received, stopping container...'; docker kill $container_name 2>/dev/null; exit 130" INT TERM
 
+          # Watchdog: runs in a separate session (setsid) so it survives even if
+          # the runner SIGKILLs our entire process group on cancellation.  It
+          # polls the parent PID every 5s and kills the container once the parent
+          # is gone.
+          SELF_PID=$$
+          setsid bash -c "
+            while kill -0 $SELF_PID 2>/dev/null; do sleep 5; done
+            echo '🟠 Parent process gone, killing container $container_name...'
+            docker kill $container_name 2>/dev/null
+            docker rm -f $container_name 2>/dev/null
+          " &>/dev/null &
+          WATCHDOG_PID=$!
+
           # Run tests in container with error handling
           echo "🔵 Starting Docker container for tests..."
           docker run --name $container_name \
@@ -228,6 +241,9 @@ runs:
               echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"copy_failed\"><error message=\"Failed to copy test results\">Container may have failed to generate results</error></testcase></testsuite>" > "$reports_dir/$result_file"
             fi
           fi
+
+          # Stop the watchdog — no longer needed after normal completion
+          kill $WATCHDOG_PID 2>/dev/null || true
 
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
