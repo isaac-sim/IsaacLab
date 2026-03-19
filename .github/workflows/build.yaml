@@ -143,6 +143,9 @@ jobs:
 
 
 
+  # Each test job calls the run-package-tests composite action which handles
+  # checkout, ECR pull, pytest in Docker, artifact upload, and fork-PR checks.
+
   test-isaaclab-tasks:
     name: isaaclab_tasks (1/3)
     runs-on: [self-hosted, gpu]
@@ -150,57 +153,17 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run isaaclab_tasks Tests (1/3)
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-tasks-1-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         shard-index: "0"
         shard-count: "3"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-tasks-1-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-tasks-1-test-results
+        container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
     name: isaaclab_tasks (2/3)
@@ -209,31 +172,12 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run isaaclab_tasks Tests (2/3)
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-tasks-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: >-
           test_teleop_environments_with_stage_in_memory.py,
@@ -246,29 +190,8 @@ jobs:
           test_rendering_correctness.py
         shard-index: "1"
         shard-count: "3"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-tasks-2-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-tasks-2-test-results
+        container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
     name: isaaclab_tasks (3/3)
@@ -277,57 +200,17 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run isaaclab_tasks Tests (3/3)
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-tasks-3-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         shard-index: "2"
         shard-count: "3"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-tasks-3-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-tasks-3-test-results
+        container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
     name: isaaclab (core) (1/3)
@@ -335,57 +218,17 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run isaaclab (core) Tests (1/3)
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-core-1-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "not isaaclab_"
         shard-index: "0"
         shard-count: "3"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-core-1-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-core-1-test-results
+        container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
     name: isaaclab (core) (2/3)
@@ -393,57 +236,17 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run isaaclab (core) Tests (2/3)
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-core-2-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-core-2-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-core-2-test-results
+        container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
     name: isaaclab (core) (3/3)
@@ -451,57 +254,17 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run isaaclab (core) Tests (3/3)
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-core-3-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "not isaaclab_"
         shard-index: "2"
         shard-count: "3"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-core-3-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-core-3-test-results
+        container-name: isaac-lab-core-3-test
 
   test-isaaclab-rl:
     name: isaaclab_rl
@@ -509,55 +272,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab RL Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-rl-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_rl"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-rl-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-rl-test-results
+        container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
     name: isaaclab_mimic
@@ -565,55 +288,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab Mimic Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-mimic-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_mimic"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-mimic-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-mimic-test-results
+        container-name: isaac-lab-mimic-test
 
   test-isaaclab-contrib:
     name: isaaclab_contrib
@@ -621,55 +304,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab Contrib Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-contrib-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_contrib"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-contrib-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-contrib-test-results
+        container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
     name: isaaclab_teleop
@@ -682,55 +325,15 @@ jobs:
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab Teleop Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-teleop-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_teleop"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-teleop-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-teleop-test-results
+        container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
@@ -738,55 +341,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab Visualizers Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-visualizers-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_visualizers"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-visualizers-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-visualizers-test-results
+        container-name: isaac-lab-visualizers-test
 
   test-isaaclab-assets:
     name: isaaclab_assets
@@ -794,55 +357,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab Assets Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-assets-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_assets"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-assets-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-assets-test-results
+        container-name: isaac-lab-assets-test
 
   test-isaaclab-newton:
     name: isaaclab_newton
@@ -850,56 +373,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab Newton Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-newton-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_newton"
-
-    - name: Upload IsaacLab Newton Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-newton-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-newton-test-results
+        container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
     name: isaaclab_physx
@@ -907,56 +389,15 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run IsaacLab PhysX Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-physx-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_physx"
-
-    - name: Upload IsaacLab PhysX Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: isaaclab-physx-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: isaaclab-physx-test-results
+        container-name: isaac-lab-physx-test
 
   test-curobo:
     name: cuRobo and SkillGen Tests
@@ -965,57 +406,17 @@ jobs:
     continue-on-error: true
     needs: [build-curobo, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull cuRobo image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-
-    - name: Run cuRobo and SkillGen Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-curobo-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
-        pytest-options: ""
-        filter-pattern: ""
         curobo-only: "true"
-
-    - name: Upload cuRobo Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: curobo-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          # Check if the test results contain any failures
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+        artifact-name: curobo-test-results
+        container-name: isaac-lab-curobo-test
 
   test-quarantined:
     name: "Quarantined Tests"
@@ -1024,56 +425,15 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run Quarantined Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-quarantined-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
-        filter-pattern: ""
         quarantined-only: "true"
-
-    - name: Upload Quarantined Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: quarantined-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
-
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed or QUARANTINED_TESTS may be empty."
-          exit 1
-        fi
-
+        artifact-name: quarantined-test-results
+        container-name: isaac-lab-quarantined-test
 
   test-environments-training:
     name: "test_environments_training.py"
@@ -1082,56 +442,21 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: false  # TEMPORARILY DISABLED
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull image from ECR
-      uses: ./.github/actions/ecr-build-push-pull
+    - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run Environments Training Tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
-        container-name: "isaac-lab-environments-training-test-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
+        artifact-name: environments-training-test-results
+        container-name: isaac-lab-environments-training-test
 
-    - name: Upload Environments Training Test Results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: environments-training-test-results
-        path: reports/${{ github.job }}-report.xml
-        retention-days: 1
-        compression-level: 9
 
-    - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
-      run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
-            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-            exit 1
-          fi
-        else
-          echo "No test results file found. This might indicate test execution failed."
-          exit 1
-        fi
-
+  # ---------------------------------------------------------------------------
+  # Combine and report results from all test jobs
+  # ---------------------------------------------------------------------------
 
   combine-results:
     needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-isaaclab-tasks-3, test-isaaclab-core, test-isaaclab-core-2, test-isaaclab-core-3, test-isaaclab-rl, test-isaaclab-mimic, test-isaaclab-contrib, test-isaaclab-teleop, test-isaaclab-visualizers, test-isaaclab-assets, test-isaaclab-newton, test-isaaclab-physx, test-curobo, test-quarantined, test-environments-training]
@@ -1148,127 +473,12 @@ jobs:
         sparse-checkout: .github/actions
         sparse-checkout-cone-mode: true
 
-    - name: Create Reports Directory
-      run: |
-        mkdir -pv reports
-
-    - name: Download isaaclab_tasks (1/3) Test Results
+    - name: Download All Test Results
       uses: actions/download-artifact@v8
       with:
-        name: isaaclab-tasks-1-test-results
+        pattern: "*-test-results"
         path: reports/
-      continue-on-error: true
-
-    - name: Download isaaclab_tasks (2/3) Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-tasks-2-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download isaaclab_tasks (3/3) Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-tasks-3-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download isaaclab (core) (1/3) Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-core-1-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download isaaclab (core) (2/3) Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-core-2-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download isaaclab (core) (3/3) Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-core-3-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab RL Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-rl-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab Mimic Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-mimic-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab Contrib Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-contrib-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab Teleop Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-teleop-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab Visualizers Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-visualizers-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab Assets Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-assets-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab Newton Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-newton-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download IsaacLab PhysX Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: isaaclab-physx-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download cuRobo Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: curobo-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download Quarantined Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: quarantined-test-results
-        path: reports/
-      continue-on-error: true
-
-    - name: Download Environments Training Test Results
-      uses: actions/download-artifact@v8
-      with:
-        name: environments-training-test-results
-        path: reports/
+        merge-multiple: true
       continue-on-error: true
 
     - name: Combine All Test Results
