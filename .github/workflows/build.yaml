@@ -108,7 +108,7 @@ jobs:
         git fetch --depth=1 origin "${{ github.event.pull_request.base.ref }}"
         changed=$(git diff --name-only FETCH_HEAD HEAD)
 
-        has() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
+        has() { echo -n "- " ; echo "$changed" | grep -qE "$1" && echo 'YES' || echo 'NO'; }
 
         echo "isaaclab-core=$(has '^source/isaaclab/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-physx=$(has '^source/isaaclab_physx/')" >> "$GITHUB_OUTPUT"
@@ -126,18 +126,18 @@ jobs:
         echo "Changed files:"
         echo "$changed" | while IFS= read -r f; do
           case "$f" in
-            source/isaaclab/*)           echo "  $f (isaaclab-core)" ;;
-            source/isaaclab_physx/*)     echo "  $f (isaaclab-physx)" ;;
-            source/isaaclab_newton/*)    echo "  $f (isaaclab-newton)" ;;
-            source/isaaclab_tasks/*)     echo "  $f (isaaclab-tasks)" ;;
-            source/isaaclab_rl/*)        echo "  $f (isaaclab-rl)" ;;
-            source/isaaclab_mimic/*)     echo "  $f (isaaclab-mimic)" ;;
-            source/isaaclab_contrib/*)   echo "  $f (isaaclab-contrib)" ;;
-            source/isaaclab_teleop/*)    echo "  $f (isaaclab-teleop)" ;;
-            source/isaaclab_visualizers/*) echo "  $f (isaaclab-visualizers)" ;;
-            source/isaaclab_assets/*)    echo "  $f (isaaclab-assets)" ;;
-            .github/*|docker/*|tools/*|scripts/*) echo "  $f (infra)" ;;
-            *)                           echo "  $f" ;;
+            source/isaaclab/*)           echo "- $f (isaaclab-core)" ;;
+            source/isaaclab_physx/*)     echo "- $f (isaaclab-physx)" ;;
+            source/isaaclab_newton/*)    echo "- $f (isaaclab-newton)" ;;
+            source/isaaclab_tasks/*)     echo "- $f (isaaclab-tasks)" ;;
+            source/isaaclab_rl/*)        echo "- $f (isaaclab-rl)" ;;
+            source/isaaclab_mimic/*)     echo "- $f (isaaclab-mimic)" ;;
+            source/isaaclab_contrib/*)   echo "- $f (isaaclab-contrib)" ;;
+            source/isaaclab_teleop/*)    echo "- $f (isaaclab-teleop)" ;;
+            source/isaaclab_visualizers/*) echo "- $f (isaaclab-visualizers)" ;;
+            source/isaaclab_assets/*)    echo "- $f (isaaclab-assets)" ;;
+            .github/*|docker/*|tools/*|scripts/*) echo "- $f (infra)" ;;
+            *)                           echo "- $f" ;;
           esac
         done
         echo ""
