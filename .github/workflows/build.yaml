@@ -67,7 +67,7 @@ env:
 
 jobs:
   detect-changes:
-    name: Detect Changed Packages
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       isaaclab-core: ${{ steps.check.outputs.isaaclab-core }}
