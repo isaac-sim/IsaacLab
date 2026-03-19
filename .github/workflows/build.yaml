@@ -462,12 +462,17 @@ jobs:
         container-name: isaac-lab-physx-test
 
   test-curobo:
-    name: cuRobo and SkillGen Tests
+    name: cuRobo Planner Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, detect-changes]
-    if: false  # TEMPORARILY DISABLED
+    if: >-
+      always() && needs.build-curobo.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
     steps:
     - uses: actions/checkout@v6
       with:
@@ -480,9 +485,38 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        curobo-only: "true"
+        include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         artifact-name: curobo-test-results
         container-name: isaac-lab-curobo-test
+
+  test-skillgen:
+    name: SkillGen Tests
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+    needs: [build-curobo, detect-changes]
+    if: >-
+      always() && needs.build-curobo.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.curobo
+        cache-tag: cache-curobo
+        include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
+        artifact-name: skillgen-test-results
+        container-name: isaac-lab-skillgen-test
 
   test-quarantined:
     name: "Quarantined Tests"
