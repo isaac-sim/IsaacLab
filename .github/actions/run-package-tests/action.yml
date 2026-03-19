@@ -65,6 +65,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Record pull start time
+      id: pull-start
+      shell: bash
+      run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
+
     - name: Pull image from ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -73,6 +78,14 @@ runs:
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
         cache-tag: ${{ inputs.cache-tag }}
+
+    - name: Report pull duration
+      if: always()
+      shell: bash
+      run: |
+        elapsed=$(( $(date +%s) - ${{ steps.pull-start.outputs.time }} ))
+        printf "Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
+        echo "### Image Pull: ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Run Tests
       uses: ./.github/actions/run-tests
