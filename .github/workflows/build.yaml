@@ -124,7 +124,7 @@ jobs:
 
         echo ""
         echo ""
-        echo "Changed files:"
+        echo "CHANGED FILES:"
         echo "$changed" | while IFS= read -r f; do
           case "$f" in
             source/isaaclab/*)           echo "$f (isaaclab-core)" ;;
@@ -143,7 +143,7 @@ jobs:
         done
         echo ""
         echo ""
-        echo "Changed packages:"
+        echo "CHANGED PACKAGES:"
         cat "$GITHUB_OUTPUT"
 
   build:
