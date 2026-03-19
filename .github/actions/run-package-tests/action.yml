@@ -113,7 +113,7 @@ runs:
 
     - name: Report Test Results
       if: always() && github.event.pull_request.head.repo.full_name == github.repository
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@31a54ee0be9e4b0b5f59e6c70a0fd75e9eba1c1f # v1.10.0
       with:
         name: "${{ github.job }}"
         path: reports/${{ github.job }}-report.xml
