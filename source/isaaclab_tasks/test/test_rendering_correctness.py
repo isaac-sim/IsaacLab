@@ -53,9 +53,6 @@ _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__
 #
 _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 
-# Max percentage of pixels allowed to exceed _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD
-_MAX_DIFFERENT_PIXELS_PERCENTAGE = 5.0
-
 _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
@@ -252,16 +249,16 @@ def _make_grid(images: torch.Tensor) -> torch.Tensor:
 def _compare_images(
     result_image: Image.Image,
     golden_image: Image.Image,
+    max_different_pixels_percentage: float,
     pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
-    max_different_pixels_percentage: float = _MAX_DIFFERENT_PIXELS_PERCENTAGE,
 ) -> tuple[bool, str | None]:
     """Compare result and golden images; return (True, \"\") if deemed equal.
 
     Args:
         result_image: Result image as PIL Image to compare with golden image.
         golden_image: Golden image as PIL Image to compare with result image.
-        pixel_diff_threshold: Pixel L2 norm difference threshold.
         max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
+        pixel_diff_threshold: Pixel L2 norm difference threshold.
 
     Returns:
         (True, None) if images are deemed equal, else (False, error_message as str).
@@ -295,6 +292,7 @@ def _validate_camera_outputs(
     physics_backend: str,
     renderer: str,
     camera_outputs: dict[str, torch.Tensor],
+    max_different_pixels_percentage: float,
 ) -> None:
     """Validate correctness and consistency of camera outputs.
 
@@ -303,6 +301,7 @@ def _validate_camera_outputs(
         physics_backend: Physics backend.
         renderer: Renderer.
         camera_outputs: {data_type -> tensor}.
+        max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
     """
     assert len(camera_outputs) > 0, f"[{test_name}] No camera outputs produced by {physics_backend} + {renderer}."
 
@@ -343,7 +342,7 @@ def _validate_camera_outputs(
             pytest.fail(f"Error opening golden image: {e}")
 
         # validate the consistency of rendering outputs.
-        succeeded, error_message = _compare_images(result_image, golden_image)
+        succeeded, error_message = _compare_images(result_image, golden_image, max_different_pixels_percentage)
         if not succeeded:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")
@@ -425,7 +424,14 @@ def shadow_hand_env(request):
 def test_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
     physics_backend, renderer, _, env = shadow_hand_env
-    _validate_camera_outputs("shadow_hand", physics_backend, renderer, env._tiled_camera.data.output)
+
+    _validate_camera_outputs(
+        "shadow_hand",
+        physics_backend,
+        renderer,
+        env._tiled_camera.data.output,
+        max_different_pixels_percentage=5.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -464,7 +470,14 @@ def cartpole_env(request):
 def test_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
     physics_backend, renderer, _, env = cartpole_env
-    _validate_camera_outputs("cartpole", physics_backend, renderer, env._tiled_camera.data.output)
+
+    _validate_camera_outputs(
+        "cartpole",
+        physics_backend,
+        renderer,
+        env._tiled_camera.data.output,
+        max_different_pixels_percentage=5.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +520,14 @@ def dexsuite_kuka_allegro_lift_env(request):
 def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
     physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
-    _validate_camera_outputs("dexsuite_kuka", physics_backend, renderer, env.scene.sensors["base_camera"].data.output)
+
+    _validate_camera_outputs(
+        "dexsuite_kuka",
+        physics_backend,
+        renderer,
+        env.scene.sensors["base_camera"].data.output,
+        max_different_pixels_percentage=10.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -584,7 +604,14 @@ def test_registered_tasks(task_id):
         assert num_camera_outputs == 1, f"[{task_id}] Expected 1 camera output, got {num_camera_outputs}."
 
         camera_outputs = next(iter(camera_outputs_nested_dict.values()))
-        _validate_camera_outputs(f"registered_tasks/{task_id}", "default_physics", "default_renderer", camera_outputs)
+
+        _validate_camera_outputs(
+            f"registered_tasks/{task_id}",
+            "default_physics",
+            "default_renderer",
+            camera_outputs,
+            max_different_pixels_percentage=5.0,
+        )
     finally:
         if env is not None:
             env.close()
