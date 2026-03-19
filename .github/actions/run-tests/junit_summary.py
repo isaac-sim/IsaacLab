@@ -39,13 +39,19 @@ if failed or errored:
 else:
     print(f"#### 🟢 {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
 
+
+def sanitize_msg(msg, max_len=80):
+    """Collapse newlines and escape pipe characters for markdown tables."""
+    return msg.replace("\n", " ").replace("\r", "").replace("|", "\\|")[:max_len]
+
+
 if failed or errored:
     print("\n| Status | Test | Time | Message |")
     print("|--------|------|------|---------|")
     for name, t, msg in failed:
-        print(f"| 🔴 FAIL | `{name}` | {t:.1f}s | {msg[:80]} |")
+        print(f"| 🔴 FAIL | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
     for name, t, msg in errored:
-        print(f"| 🔴 ERROR | `{name}` | {t:.1f}s | {msg[:80]} |")
+        print(f"| 🔴 ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
     print(f"\n<details><summary>🟢 {len(passed)} passed tests</summary>\n")
