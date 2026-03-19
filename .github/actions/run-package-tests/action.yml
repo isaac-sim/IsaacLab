@@ -104,6 +104,17 @@ runs:
         retention-days: 1
         compression-level: 9
 
+    - name: Report Test Results
+      if: always() && github.event.pull_request.head.repo.full_name == github.repository
+      uses: dorny/test-reporter@v1
+      with:
+        name: "${{ github.job }}"
+        path: reports/${{ github.job }}-report.xml
+        reporter: java-junit
+        fail-on-error: false
+        only-summary: false
+        max-annotations: '50'
+
     - name: Check Test Results for Fork PRs
       if: github.event.pull_request.head.repo.full_name != github.repository
       shell: bash
