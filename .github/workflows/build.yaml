@@ -3,6 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Test job gating summary
+#
+# +----------------------------+---------------------------------------------------------+
+# | Job                        | Gate (any match triggers the job)                       |
+# +----------------------------+---------------------------------------------------------+
+# | test-isaaclab-tasks (x3)   | isaaclab-tasks | isaaclab-core | infra                  |
+# | test-isaaclab-core (x3)    | isaaclab-core | infra                                   |
+# | test-isaaclab-rl           | isaaclab-rl | isaaclab-core | infra                     |
+# | test-isaaclab-mimic        | isaaclab-mimic | isaaclab-core | infra                  |
+# | test-isaaclab-contrib      | isaaclab-contrib | isaaclab-core | infra                |
+# | test-isaaclab-teleop       | isaaclab-teleop | isaaclab-core | infra                 |
+# | test-isaaclab-visualizers  | isaaclab-visualizers | isaaclab-core | infra            |
+# | test-isaaclab-assets       | isaaclab-assets | isaaclab-core | infra                 |
+# | test-isaaclab-newton       | isaaclab-newton | isaaclab-core | infra                 |
+# | test-isaaclab-physx        | isaaclab-physx | isaaclab-core | infra                  |
+# | test-curobo                | isaaclab-mimic | isaaclab-core | infra                  |
+# |                            |   (needs build-curobo)                                  |
+# | test-skillgen              | isaaclab-mimic | isaaclab-tasks | isaaclab-core | infra |
+# |                            |   (needs build-curobo)                                  |
+# | test-quarantined           | vars.RUN_QUARANTINED_TESTS == "true"                    |
+# | test-environments-training | isaaclab-tasks | isaaclab-core | infra                  |
+# | build-curobo               | isaaclab-mimic | isaaclab-tasks | isaaclab-core | infra |
+# +----------------------------+---------------------------------------------------------+
+
 name: Docker + Tests
 
 on:
