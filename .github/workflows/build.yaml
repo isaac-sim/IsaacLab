@@ -122,7 +122,9 @@ jobs:
         echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
         echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
 
-        echo "\nChanged files:"
+        echo ""
+        echo ""
+        echo "Changed files:"
         echo "$changed" | while IFS= read -r f; do
           case "$f" in
             source/isaaclab/*)           echo "$f (isaaclab-core)" ;;
@@ -139,7 +141,9 @@ jobs:
             *)                           echo "$f" ;;
           esac
         done
-        echo "\nChanged packages:"
+        echo ""
+        echo ""
+        echo "Changed packages:"
         cat "$GITHUB_OUTPUT"
 
   build:
