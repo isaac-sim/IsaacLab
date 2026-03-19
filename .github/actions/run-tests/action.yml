@@ -160,12 +160,14 @@ runs:
 
           echo "Docker environment variables: '$docker_env_vars'"
 
-          # Kill the container on cancellation signals so the job stops quickly
+          # Kill the container on cancellation signals so the job stops quickly.
+          # The trap must fire BEFORE docker run exits, so we background docker
+          # and use 'wait' which bash interrupts immediately on signal receipt.
           trap "echo '🟠 Signal received, stopping container...'; docker kill $container_name 2>/dev/null; exit 130" INT TERM
 
           # Run tests in container with error handling
           echo "🔵 Starting Docker container for tests..."
-          if docker run --name $container_name \
+          docker run --name $container_name \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
             --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
@@ -181,10 +183,16 @@ runs:
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
-            "; then
+            " &
+          DOCKER_PID=$!
+
+          # 'wait' is interrupted by signals, unlike a foreground process
+          wait $DOCKER_PID && DOCKER_EXIT=0 || DOCKER_EXIT=$?
+
+          if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
           else
-            echo "🟠 Docker container failed, but continuing to copy results..."
+            echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
           fi
 
           # Copy test results with error handling
