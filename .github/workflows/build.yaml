@@ -148,7 +148,7 @@ jobs:
 
         # Write job summary visible on the GH Actions UI
         {
-          echo "### Changed Files"
+          echo "#### Changed Files / Packages"
           echo ""
           echo "| File | Package |"
           echo "|------|---------|"
