@@ -672,7 +672,7 @@ jobs:
   #       container-name: isaac-lab-quarantined-test
 
   test-environments-training:
-    name: "Environments Training (1/3)"
+    name: "environments_training [1/3]"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -701,7 +701,7 @@ jobs:
         container-name: isaac-lab-environments-training-1-test
 
   test-environments-training-2:
-    name: "Environments Training (2/3)"
+    name: "environments_training [2/3]"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -730,7 +730,7 @@ jobs:
         container-name: isaac-lab-environments-training-2-test
 
   test-environments-training-3:
-    name: "Environments Training (3/3)"
+    name: "environments_training [3/3]"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
