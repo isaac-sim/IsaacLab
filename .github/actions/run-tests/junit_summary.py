@@ -35,20 +35,20 @@ for tc in root.iter("testcase"):
 mins, secs = divmod(total_time, 60)
 
 if failed or errored:
-    print(f"### ❌ {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
+    print(f"#### 🔴 {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
 else:
-    print(f"### ✅ {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
+    print(f"#### 🟢 {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
 
 if failed or errored:
     print("\n| Status | Test | Time | Message |")
     print("|--------|------|------|---------|")
     for name, t, msg in failed:
-        print(f"| ❌ FAIL | `{name}` | {t:.1f}s | {msg[:80]} |")
+        print(f"| 🔴 FAIL | `{name}` | {t:.1f}s | {msg[:80]} |")
     for name, t, msg in errored:
-        print(f"| 💥 ERROR | `{name}` | {t:.1f}s | {msg[:80]} |")
+        print(f"| 🔴 ERROR | `{name}` | {t:.1f}s | {msg[:80]} |")
 
 if passed:
-    print(f"\n<details><summary>✅ {len(passed)} passed tests</summary>\n")
+    print(f"\n<details><summary>🟢 {len(passed)} passed tests</summary>\n")
     print("| Test | Time |")
     print("|------|------|")
     for name, t in passed:
@@ -56,7 +56,7 @@ if passed:
     print("\n</details>")
 
 if skipped:
-    print(f"\n<details><summary>⏭️ {len(skipped)} skipped</summary>\n")
+    print(f"\n<details><summary>🟠 {len(skipped)} skipped</summary>\n")
     for name, t in skipped:
         print(f"- `{name}`")
     print("\n</details>")

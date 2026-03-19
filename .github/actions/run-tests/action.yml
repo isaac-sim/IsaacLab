@@ -161,10 +161,10 @@ runs:
           echo "Docker environment variables: '$docker_env_vars'"
 
           # Kill the container on cancellation signals so the job stops quickly
-          trap "echo '⚠️ Signal received, stopping container...'; docker kill $container_name 2>/dev/null; exit 130" INT TERM
+          trap "echo '🟠 Signal received, stopping container...'; docker kill $container_name 2>/dev/null; exit 130" INT TERM
 
           # Run tests in container with error handling
-          echo "🚀 Starting Docker container for tests..."
+          echo "🔵 Starting Docker container for tests..."
           if docker run --name $container_name \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
@@ -182,26 +182,26 @@ runs:
               echo 'Starting pytest with path: $test_path'
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
             "; then
-            echo "✅ Docker container completed successfully"
+            echo "🟢 Docker container completed successfully"
           else
-            echo "⚠️ Docker container failed, but continuing to copy results..."
+            echo "🟠 Docker container failed, but continuing to copy results..."
           fi
 
           # Copy test results with error handling
-          echo "📋 Attempting to copy test results..."
+          echo "🔵 Attempting to copy test results..."
           if docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>/dev/null; then
-            echo "✅ Test results copied successfully to $reports_dir/$result_file"
+            echo "🟢 Test results copied successfully to $reports_dir/$result_file"
           else
-            echo "❌ Failed to copy specific result file, trying to copy all test results..."
+            echo "🔴 Failed to copy specific result file, trying to copy all test results..."
             if docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>/dev/null; then
-              echo "✅ All test results copied successfully to $reports_dir/"
+              echo "🟢 All test results copied successfully to $reports_dir/"
               # Look for any XML files and use the first one found
               if [ -f "$reports_dir/full_report.xml" ]; then
                 mv "$reports_dir/full_report.xml" "$reports_dir/$result_file"
-                echo "✅ Found and renamed full_report.xml to $result_file"
+                echo "🟢 Found and renamed full_report.xml to $result_file"
               elif [ -f "$reports_dir/test-reports-"*".xml" ]; then
                 # Combine individual test reports if no full report exists
-                echo "📊 Combining individual test reports..."
+                echo "🔵 Combining individual test reports..."
                 echo '<?xml version="1.0" encoding="utf-8"?><testsuites>' > "$reports_dir/$result_file"
                 for xml_file in "$reports_dir"/test-reports-*.xml; do
                   if [ -f "$xml_file" ]; then
@@ -210,20 +210,20 @@ runs:
                   fi
                 done
                 echo '</testsuites>' >> "$reports_dir/$result_file"
-                echo "✅ Combined individual test reports into $result_file"
+                echo "🟢 Combined individual test reports into $result_file"
               else
-                echo "❌ No test result files found, creating fallback"
+                echo "🔴 No test result files found, creating fallback"
                 echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"no_results_found\"><error message=\"No test results found\">Container may have failed to generate any results</error></testcase></testsuite>" > "$reports_dir/$result_file"
               fi
             else
-              echo "❌ Failed to copy any test results, creating fallback"
+              echo "🔴 Failed to copy any test results, creating fallback"
               echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"copy_failed\"><error message=\"Failed to copy test results\">Container may have failed to generate results</error></testcase></testsuite>" > "$reports_dir/$result_file"
             fi
           fi
 
           # Clean up container
-          echo "🧹 Cleaning up Docker container..."
-          docker rm $container_name 2>/dev/null || echo "⚠️ Container cleanup failed, but continuing..."
+          echo "🔵 Cleaning up Docker container..."
+          docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
         }
 
         # Call the function with provided parameters
@@ -235,7 +235,7 @@ runs:
       run: |
         report="${{ inputs.reports-dir }}/${{ inputs.result-file }}"
         if [ ! -f "$report" ]; then
-          echo "⚠️ No test report found" >> "$GITHUB_STEP_SUMMARY"
+          echo "🟠 No test report found" >> "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
 
@@ -246,6 +246,6 @@ runs:
       if: cancelled()
       shell: bash
       run: |
-        echo "🧹 Workflow cancelled, force-removing container..."
+        echo "🟠 Workflow cancelled, force-removing container..."
         docker kill "${{ inputs.container-name }}" 2>/dev/null || true
         docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
