@@ -722,7 +722,7 @@ jobs:
   combine-results:
     needs: [build, build-curobo, detect-changes, test-isaaclab-tasks, test-isaaclab-tasks-2, test-isaaclab-tasks-3, test-isaaclab-core, test-isaaclab-core-2, test-isaaclab-core-3, test-isaaclab-rl, test-isaaclab-mimic, test-isaaclab-contrib, test-isaaclab-teleop, test-isaaclab-visualizers, test-isaaclab-assets, test-isaaclab-newton, test-isaaclab-physx, test-curobo, test-skillgen, test-quarantined, test-environments-training, test-environments-training-2, test-environments-training-3]
     runs-on: ubuntu-latest
-    if: always()
+    if: "!cancelled()"
     name: Combine Results
 
     steps:
