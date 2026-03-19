@@ -35,9 +35,7 @@ for tc in root.iter("testcase"):
 mins, secs = divmod(total_time, 60)
 
 if failed or errored:
-    print(f"#### 🔴 {len(failed) + len(errored)} failed, {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
-else:
-    print(f"#### 🟢 {len(passed)} passed ({int(mins)}m {secs:.0f}s)")
+    print("🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)")
 
 
 def sanitize_msg(msg, max_len=80):
@@ -54,7 +52,8 @@ if failed or errored:
         print(f"| 🔴 ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
-    print(f"\n<details><summary>🟢 {len(passed)} passed tests</summary>\n")
+    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m:{secs:.0f}s):</summary>\n")
+    print("\n")
     print("| Test | Time |")
     print("|------|------|")
     for name, t in passed:
@@ -62,7 +61,8 @@ if passed:
     print("\n</details>")
 
 if skipped:
-    print(f"\n<details><summary>🟠 {len(skipped)} skipped</summary>\n")
+    print(f"\n<details><summary>🟠 {len(skipped)} SKIPPED:</summary>\n")
+    print("\n")
     print("| Test | Reason |")
     print("|------|--------|")
     for name, t, msg in skipped:
