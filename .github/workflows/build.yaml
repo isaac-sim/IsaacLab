@@ -43,6 +43,7 @@ on:
       - main
       - develop
       - 'release/**'
+  workflow_dispatch:
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
