@@ -46,7 +46,7 @@ class NewtonGlPerspectiveVideo:
         pyglet.options["headless"] = True
         from newton.viewer import ViewerGL
 
-        w, h = self.cfg.gl_viewer_width, self.cfg.gl_viewer_height
+        w, h = self.cfg.window_width, self.cfg.window_height
         viewer = ViewerGL(width=w, height=h, headless=True)
         viewer.set_model(model)
         viewer.set_world_offsets((0.0, 0.0, 0.0))
@@ -54,15 +54,15 @@ class NewtonGlPerspectiveVideo:
 
         import warp as wp
 
-        ex, ey, ez = self.cfg.camera_eye
-        lx, ly, lz = self.cfg.camera_lookat
+        ex, ey, ez = self.cfg.camera_position
+        lx, ly, lz = self.cfg.camera_target
         dx, dy, dz = lx - ex, ly - ey, lz - ez
         length = math.sqrt(dx**2 + dy**2 + dz**2)
         dx, dy, dz = dx / length, dy / length, dz / length
         pitch = math.degrees(math.asin(max(-1.0, min(1.0, dz))))
         yaw = math.degrees(math.atan2(dy, dx))
         aspect = w / h
-        h_fov = math.radians(self.cfg.kit_horizontal_fov_deg)
+        h_fov = math.radians(self.cfg.horiz_fov_deg)
         v_fov_deg = math.degrees(2.0 * math.atan(math.tan(h_fov / 2.0) / aspect))
         viewer.camera.fov = v_fov_deg
         viewer.set_camera(pos=wp.vec3(ex, ey, ez), pitch=pitch, yaw=yaw)

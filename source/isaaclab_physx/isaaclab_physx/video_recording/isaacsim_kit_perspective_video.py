@@ -30,13 +30,13 @@ class IsaacsimKitPerspectiveVideo:
 
         omni.kit.app.get_app().update()
 
-        h, w = self.cfg.render_height, self.cfg.render_width
+        h, w = self.cfg.window_height, self.cfg.window_width
         if self._rgb_annotator is None:
             import isaacsim.core.utils.viewports as isaacsim_viewports
 
             isaacsim_viewports.set_camera_view(
-                eye=list(self.cfg.camera_eye),
-                target=list(self.cfg.camera_lookat),
+                eye=list(self.cfg.camera_position),
+                target=list(self.cfg.camera_target),
                 camera_prim_path=self.cfg.camera_prim_path,
             )
             self._render_product = rep.create.render_product(self.cfg.camera_prim_path, (w, h))

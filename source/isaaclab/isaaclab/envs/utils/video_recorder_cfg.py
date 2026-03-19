@@ -24,13 +24,13 @@ class VideoRecorderCfg:
     class_type: type = VideoRecorder
     """Recorder class to instantiate; must accept ``(cfg, scene)``."""
 
-    render_mode: str | None = None
-    """Render mode forwarded from the environment constructor (``"rgb_array"`` when ``--video`` is active).
+    env_render_mode: str | None = None
+    """Gym render mode forwarded from the environment constructor (``"rgb_array"`` when ``--video`` is active).
 
     Set automatically by the environment base classes; do not set manually.
     """
 
-    camera_eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Perspective camera position in world space (metres).
 
     Direct RL / MARL and manager-based RL environments overwrite this from
@@ -38,11 +38,11 @@ class VideoRecorderCfg:
     task viewport for both Kit (PhysX / Isaac RTX) and Newton GL (Newton / OVRTX / etc.).
     """
 
-    camera_lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Perspective camera look-at in world space (metres). Set from ``ViewerCfg.lookat`` at env init."""
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Perspective camera look-at target in world space (metres). Set from ``ViewerCfg.lookat`` at env init."""
 
-    gl_viewer_width: int = 1280
-    """Width in pixels of the Newton GL perspective frame."""
+    window_width: int = 1280
+    """Width in pixels of the recorded frame."""
 
-    gl_viewer_height: int = 720
-    """Height in pixels of the Newton GL perspective frame."""
+    window_height: int = 720
+    """Height in pixels of the recorded frame."""

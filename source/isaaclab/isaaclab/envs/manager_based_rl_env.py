@@ -78,11 +78,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
         # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
-        # (render_mode="rgb_array") and the perspective view matches the task viewport.
+        # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
         if cfg.video_recorder is not None:
-            cfg.video_recorder.render_mode = render_mode
-            cfg.video_recorder.camera_eye = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.camera_lookat = tuple(float(x) for x in cfg.viewer.lookat)
+            cfg.video_recorder.env_render_mode = render_mode
+            cfg.video_recorder.camera_position = tuple(float(x) for x in cfg.viewer.eye)
+            cfg.video_recorder.camera_target = tuple(float(x) for x in cfg.viewer.lookat)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)

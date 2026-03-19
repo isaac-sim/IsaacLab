@@ -73,7 +73,7 @@ class VideoRecorder:
         self._backend: _VideoBackend | None = None
         self._capture = None
 
-        if cfg.render_mode == "rgb_array":
+        if cfg.env_render_mode == "rgb_array":
             self._backend = _resolve_video_backend(scene)
             if self._backend == "newton_gl":
                 try:
@@ -91,10 +91,10 @@ class VideoRecorder:
                 from isaaclab_newton.video_recording.newton_gl_perspective_video_cfg import NewtonGlPerspectiveVideoCfg
 
                 ncfg = NewtonGlPerspectiveVideoCfg(
-                    gl_viewer_width=cfg.gl_viewer_width,
-                    gl_viewer_height=cfg.gl_viewer_height,
-                    camera_eye=cfg.camera_eye,
-                    camera_lookat=cfg.camera_lookat,
+                    window_width=cfg.window_width,
+                    window_height=cfg.window_height,
+                    camera_position=cfg.camera_position,
+                    camera_target=cfg.camera_target,
                 )
                 self._capture = create_newton_gl_perspective_video(ncfg)
             else:
@@ -106,10 +106,10 @@ class VideoRecorder:
                 )
 
                 kcfg = IsaacsimKitPerspectiveVideoCfg(
-                    camera_eye=cfg.camera_eye,
-                    camera_lookat=cfg.camera_lookat,
-                    render_width=cfg.gl_viewer_width,
-                    render_height=cfg.gl_viewer_height,
+                    camera_position=cfg.camera_position,
+                    camera_target=cfg.camera_target,
+                    window_width=cfg.window_width,
+                    window_height=cfg.window_height,
                 )
                 self._capture = create_isaacsim_kit_perspective_video(kcfg)
 

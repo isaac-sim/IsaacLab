@@ -28,14 +28,14 @@ class IsaacsimKitPerspectiveVideoCfg:
     camera_prim_path: str = "/OmniverseKit_Persp"
     """Viewport camera prim used for the render product."""
 
-    camera_eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Camera position in world space (metres)."""
 
-    camera_lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Camera look-at point in world space (metres)."""
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Camera look-at target in world space (metres)."""
 
-    render_width: int = 1280
+    window_width: int = 1280
     """Output width in pixels."""
 
-    render_height: int = 720
+    window_height: int = 720
     """Output height in pixels."""

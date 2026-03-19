@@ -179,11 +179,11 @@ class DirectRLEnv(gym.Env):
         # stage and registered for the PHYSICS_READY callback before physics initialises.
         # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
         if self.cfg.video_recorder is not None:
-            self.cfg.video_recorder.render_mode = render_mode
+            self.cfg.video_recorder.env_render_mode = render_mode
             # Perspective --video uses same eye/lookat as task viewer (Kit persp + Newton GL).
             vr = self.cfg.video_recorder
-            vr.camera_eye = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.camera_lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
+            vr.camera_position = tuple(float(x) for x in self.cfg.viewer.eye)
+            vr.camera_target = tuple(float(x) for x in self.cfg.viewer.lookat)
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None

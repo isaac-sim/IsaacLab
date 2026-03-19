@@ -23,17 +23,17 @@ class NewtonGlPerspectiveVideoCfg:
     """Implementation class; default is
     :class:`~isaaclab_newton.video_recording.newton_gl_perspective_video.NewtonGlPerspectiveVideo`."""
 
-    gl_viewer_width: int = 1280
+    window_width: int = 1280
     """Viewer width in pixels."""
 
-    gl_viewer_height: int = 720
+    window_height: int = 720
     """Viewer height in pixels."""
 
-    camera_eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Camera position in world space (metres)."""
 
-    camera_lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Camera look-at point in world space (metres)."""
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Camera look-at target in world space (metres)."""
 
-    kit_horizontal_fov_deg: float = 60.0
+    horiz_fov_deg: float = 60.0
     """Horizontal FOV assumed for Kit ``/OmniverseKit_Persp``; converted to vertical FOV for GL viewer."""
