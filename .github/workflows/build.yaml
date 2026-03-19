@@ -127,7 +127,7 @@ jobs:
         cat "$GITHUB_OUTPUT"
 
   build:
-    name: Build Base Docker image
+    name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     steps:
     - name: Checkout Code
@@ -147,7 +147,7 @@ jobs:
 
 
   build-curobo:
-    name: Build cuRobo Docker image
+    name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [detect-changes]
     if: >-
