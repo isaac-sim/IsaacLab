@@ -183,6 +183,8 @@ Fetch issue #N
 | `isaaclab-issue-triage` | `.agent/skills/isaaclab-issue-triage/SKILL.md` | Fetch issue, validate bug template fields, route |
 | `isaaclab-bug-reproduce` | `.agent/skills/isaaclab-bug-reproduce/SKILL.md` | Checkout commit, run repro steps, evaluate result |
 | `isaaclab-bug-fix` | `.agent/skills/isaaclab-bug-fix/SKILL.md` | Branch, fix, test, changelog, pre-commit, PR |
+| `isaaclab-pr-respond` | `.agent/skills/isaaclab-pr-respond/SKILL.md` | Address PR review comments: answer questions, implement improvements, fix new issues or point to existing PRs |
+| `isaaclab-pr-resolve-conflicts` | `.agent/skills/isaaclab-pr-resolve-conflicts/SKILL.md` | Resolve merge conflicts between a PR branch and its target branch, then force-push the result |
 
 ### Required context files
 
@@ -209,6 +211,58 @@ claude "Run the issue triage workflow for all open bug issues"
 ```
 
 This processes each open bug issue sequentially through the full chain.
+
+## PR Review Response Workflow
+
+Automated pipeline for addressing reviewer feedback on open pull requests. Trigger it with:
+
+```bash
+claude "Address review comments on PR #<NUMBER>"
+```
+
+The workflow reads each unresolved comment and routes it through a decision tree:
+
+```
+For each review comment on PR #N
+├─ Question → Post a direct answer as a reply
+├─ Improvement request → Implement change, commit, push, reply with hash
+└─ New issue report
+   ├─ Search recent merged/open PRs for existing fix
+   │  ├─ Found → Comment pointing to other PR → STOP for this item
+   │  └─ Not found → Implement fix, test, changelog, commit, push, reply
+```
+
+### Running for a specific PR
+
+When asked to address review comments on a PR:
+
+1. **Read** `.agent/skills/isaaclab-pr-respond/SKILL.md` — fetch comments, categorize, and act
+
+### Running for all open PRs with unaddressed comments
+
+```bash
+claude "Address all open PR review comments"
+```
+
+## PR Merge Conflict Resolution
+
+Resolves merge conflicts between a PR branch and its target branch (e.g., `develop`). Trigger with:
+
+```bash
+claude "Resolve merge conflicts on PR #<NUMBER>"
+```
+
+The workflow rebases the PR branch onto the latest target, resolves each conflict by understanding both sides, runs pre-commit and tests, then force-pushes:
+
+```
+PR has conflicts?
+├─ NO  → Report already mergeable, stop
+└─ YES → Rebase onto target → resolve conflicts → pre-commit → tests → force-push → comment
+```
+
+When asked to resolve conflicts on a PR:
+
+1. **Read** `.agent/skills/isaaclab-pr-resolve-conflicts/SKILL.md` — rebase, resolve, verify, push
 
 ## Sandbox & Networking
 
