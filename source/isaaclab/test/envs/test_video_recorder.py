@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 """Unit tests for VideoRecorder."""
+
 import importlib.util
 import pathlib
 import sys

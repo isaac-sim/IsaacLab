@@ -12,17 +12,16 @@ from typing import TYPE_CHECKING, Any
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .newton_gl_perspective_video import NewtonGlPerspectiveVideo
+    pass
 
 
 @configclass
 class NewtonGlPerspectiveVideoCfg:
     """Settings for capturing a perspective RGB frame via ``newton.viewer.ViewerGL``."""
 
-    class_type: type[Any] | str = (
-        "isaaclab_newton.video_recording.newton_gl_perspective_video:NewtonGlPerspectiveVideo"
-    )
-    """Implementation class; default is :class:`~isaaclab_newton.video_recording.newton_gl_perspective_video.NewtonGlPerspectiveVideo`."""
+    class_type: type[Any] | str = "isaaclab_newton.video_recording.newton_gl_perspective_video:NewtonGlPerspectiveVideo"
+    """Implementation class; default is
+    :class:`~isaaclab_newton.video_recording.newton_gl_perspective_video.NewtonGlPerspectiveVideo`."""
 
     gl_viewer_width: int = 1280
     """Viewer width in pixels."""

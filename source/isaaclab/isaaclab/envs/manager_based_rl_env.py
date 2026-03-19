@@ -20,7 +20,6 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from .utils.video_recorder import VideoRecorder
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -77,22 +76,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
-        # Forward render_mode to VideoRecorderCfg before super().__init__() creates VideoRecorder,
-        # so fallback cameras are only spawned when --video is active (render_mode="rgb_array").
+        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
+        # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
+        # (render_mode="rgb_array") and the perspective view matches the task viewport.
         if cfg.video_recorder is not None:
             cfg.video_recorder.render_mode = render_mode
+            cfg.video_recorder.camera_eye = tuple(float(x) for x in cfg.viewer.eye)
+            cfg.video_recorder.camera_lookat = tuple(float(x) for x in cfg.viewer.lookat)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
         self.render_mode = render_mode
-
-        if cfg.video_recorder is not None:
-            cfg.video_recorder.camera_eye = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.camera_lookat = tuple(float(x) for x in cfg.viewer.lookat)
-            self.video_recorder = VideoRecorder(cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
 
         # initialize data and constants
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the

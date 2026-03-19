@@ -27,6 +27,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
+
     from .video_recorder_cfg import VideoRecorderCfg
 
 logger = logging.getLogger(__name__)
@@ -80,8 +81,10 @@ class VideoRecorder:
 
                     if not pyglet.options.get("headless", False):
                         pyglet.options["headless"] = True
-                except ImportError:
-                    pass
+                except ImportError as e:
+                    raise ImportError(
+                        "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
+                    ) from e
                 from isaaclab_newton.video_recording.newton_gl_perspective_video import (
                     create_newton_gl_perspective_video,
                 )

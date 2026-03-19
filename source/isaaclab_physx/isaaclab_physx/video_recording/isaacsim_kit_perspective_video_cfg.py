@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .isaacsim_kit_perspective_video import IsaacsimKitPerspectiveVideo
+    pass
 
 
 @configclass
@@ -22,7 +22,8 @@ class IsaacsimKitPerspectiveVideoCfg:
     class_type: type[Any] | str = (
         "isaaclab_physx.video_recording.isaacsim_kit_perspective_video:IsaacsimKitPerspectiveVideo"
     )
-    """Implementation class; default is :class:`~isaaclab_physx.video_recording.isaacsim_kit_perspective_video.IsaacsimKitPerspectiveVideo`."""
+    """Implementation class; default is
+    :class:`~isaaclab_physx.video_recording.isaacsim_kit_perspective_video.IsaacsimKitPerspectiveVideo`."""
 
     camera_prim_path: str = "/OmniverseKit_Persp"
     """Viewport camera prim used for the render product."""

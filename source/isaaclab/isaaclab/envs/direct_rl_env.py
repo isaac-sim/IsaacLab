@@ -32,9 +32,8 @@ from isaaclab.utils.version import has_kit
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
-from .utils.video_recorder import VideoRecorder
-from .utils.video_recorder_cfg import VideoRecorderCfg
 from .utils.spaces import sample_space, spec_to_gym_space
+from .utils.video_recorder import VideoRecorder
 
 if has_kit():
     import omni.kit.app
@@ -185,9 +184,7 @@ class DirectRLEnv(gym.Env):
             vr = self.cfg.video_recorder
             vr.camera_eye = tuple(float(x) for x in self.cfg.viewer.eye)
             vr.camera_lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(
-                self.cfg.video_recorder, self.scene
-            )
+            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None
 
