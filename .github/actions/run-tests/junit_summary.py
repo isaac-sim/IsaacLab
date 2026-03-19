@@ -35,7 +35,7 @@ for tc in root.iter("testcase"):
 mins, secs = divmod(total_time, 60)
 
 if failed or errored:
-    print("🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)")
+    print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)")
 
 
 def sanitize_msg(msg, max_len=80):
