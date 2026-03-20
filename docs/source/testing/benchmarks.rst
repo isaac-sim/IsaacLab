@@ -171,10 +171,11 @@ understanding where time is spent during initialization.
        --headless \
        --benchmark_backend summary
 
-The script profiles four phases independently:
+The script profiles five phases independently:
 
 - **app_launch**: ``launch_simulation()`` context entry (Kit/USD/PhysX init)
 - **python_imports**: importing gymnasium, torch, isaaclab_tasks, etc.
+- **task_config**: ``resolve_task_config()`` (Hydra config resolution)
 - **env_creation**: ``gym.make()`` + ``env.reset()`` (scene creation, sim start)
 - **first_step**: a single ``env.step()`` call
 

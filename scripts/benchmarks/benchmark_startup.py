@@ -93,9 +93,16 @@ if torch.cuda.is_available() and torch.cuda.is_initialized():
     torch.cuda.synchronize()
 imports_time_end = time.perf_counter_ns()
 
-# -- Resolve task config (outside profiling) ---------------------------------
+# -- Resolve task config (profiled) ------------------------------------------
+
+task_config_profile = cProfile.Profile()
+task_config_time_begin = time.perf_counter_ns()
+task_config_profile.enable()
 
 env_cfg, _agent_cfg = resolve_task_config(args_cli.task, None)
+
+task_config_profile.disable()
+task_config_time_end = time.perf_counter_ns()
 
 # -- Detect IsaacLab source prefixes for filtering ---------------------------
 
@@ -134,7 +141,7 @@ if args_cli.whitelist_config is not None:
         )
         sys.exit(1)
     else:
-        _VALID_PHASES = {"app_launch", "python_imports", "env_creation", "first_step"}
+        _VALID_PHASES = {"app_launch", "python_imports", "task_config", "env_creation", "first_step"}
         unknown_phases = set(raw.keys()) - _VALID_PHASES
         if unknown_phases:
             print(
@@ -237,6 +244,7 @@ def main(
         # -- Parse all profiles and log measurements ----------------------------
 
         imports_wall_ms = (imports_time_end - imports_time_begin) / 1e6
+        task_config_wall_ms = (task_config_time_end - task_config_time_begin) / 1e6
         env_creation_wall_ms = (env_creation_time_end - env_creation_time_begin) / 1e6
         first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
 
@@ -262,6 +270,11 @@ def main(
             "python_imports": {
                 "profile": imports_profile,
                 "wall_clock_ms": imports_wall_ms,
+                "extra_measurements": [],
+            },
+            "task_config": {
+                "profile": task_config_profile,
+                "wall_clock_ms": task_config_wall_ms,
                 "extra_measurements": [],
             },
             "env_creation": {
