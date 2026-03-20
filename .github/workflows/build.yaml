@@ -186,7 +186,8 @@ jobs:
           test_hydra.py,
           test_rl_device_separation.py,
           test_cartpole_showcase_environments_with_stage_in_memory.py,
-          test_environments_with_stage_in_memory.py
+          test_environments_with_stage_in_memory.py,
+          test_rendering_correctness.py
 
     - name: Upload IsaacLab Tasks 2 Test Results
       uses: actions/upload-artifact@v4

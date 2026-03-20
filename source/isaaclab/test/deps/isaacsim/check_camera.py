@@ -168,12 +168,6 @@ def main():
         initial_joint_pos = view.get_joint_positions()
         initial_joint_vel = view.get_joint_velocities()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        world.step(render=True)
-
     # Counter
     count = 0
     prev_im = None
