@@ -163,13 +163,14 @@ if args_cli.top_n is None:
 
 # -- Create the benchmark instance ------------------------------------------
 
+env_cfg.seed = args_cli.seed if args_cli.seed is not None else env_cfg.seed
+
 backend_type = get_backend_type(args_cli.benchmark_backend)
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_startup",
     backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
-    env_cfg.seed = args_cli.seed if args_cli.seed is not None else env_cfg.seed
     output_prefix=f"benchmark_startup_{args_cli.task}",
     workflow_metadata={
         "metadata": [
@@ -211,7 +212,7 @@ def main(
     env_creation_profile.enable()
     try:
         env = gym.make(args_cli.task, cfg=env_cfg)
-    except Exception:
+    except BaseException:
         env_creation_profile.disable()
         raise
 
