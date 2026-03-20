@@ -299,6 +299,10 @@ def parse_cprofile_stats(
             short = ".".join(parts[-3:]) if len(parts) >= 3 else ".".join(parts)
         return f"{short}:{funcname}"
 
+    # NOTE: stats.stats is an internal CPython dict, not part of the public pstats API.
+    # The public get_stats_profile() (Python 3.9+) doesn't expose caller info, which
+    # we need for the first-level external call filter. If a future Python release
+    # breaks this, switch to get_stats_profile() and drop the caller-based filtering.
     # stats.stats: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime, callers)
     # callers: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime)
     results = []
