@@ -475,8 +475,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 def _patched_reset(*args, **kwargs):
                     obs, extras = _original_reset(*args, **kwargs)
                     try:
-                        import omni.kit.app
                         import isaaclab_physx.renderers.isaac_rtx_renderer_utils as _rtx_utils
+
+                        import omni.kit.app
 
                         _app = omni.kit.app.get_app()
                         for _ in range(_n_warmup):

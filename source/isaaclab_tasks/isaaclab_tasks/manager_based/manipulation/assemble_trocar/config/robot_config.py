@@ -90,7 +90,7 @@ DEFAULT_JOINT_POS: dict[str, float] = {
 
 G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/localhome/local-mingxueg/mingxue/assets/g1_29dof_with_dex3_base_fix.usd",
+        usd_path="/mnt/Data/lw_v3/robots/g1_29dof_with_dex3_base_fix.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

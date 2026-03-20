@@ -23,12 +23,13 @@
 from __future__ import annotations
 
 import math
-import torch
-import warp as wp
 from typing import TYPE_CHECKING
 
+import torch
+import warp as wp
+
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_mul, quat_apply
+from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

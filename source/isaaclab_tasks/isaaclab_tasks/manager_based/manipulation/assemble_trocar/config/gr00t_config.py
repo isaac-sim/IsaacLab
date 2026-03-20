@@ -22,7 +22,7 @@ from gr00t.data.dataset import ModalityConfig
 from gr00t.data.transform.base import ComposedModalityTransform
 from gr00t.data.transform.concat import ConcatTransform
 from gr00t.data.transform.state_action import StateActionSinCosTransform, StateActionToTensor, StateActionTransform
-from gr00t.data.transform.video import VideoColorJitter, VideoToNumpy, VideoToTensor, VideoResize, VideoCrop
+from gr00t.data.transform.video import VideoColorJitter, VideoToNumpy, VideoToTensor
 from gr00t.experiment.data_config import DATA_CONFIG_MAP, BaseDataConfig
 from gr00t.model.transforms import GR00TTransform
 
@@ -99,13 +99,13 @@ class IsaacLabDataConfig(BaseDataConfig):
             #   1. Disable input size validation in VideoToTensor, OR
             #   2. Set modality meta height/width to 224 to match actual input.
             # Re-enable VideoCrop/VideoResize if camera resolution changes.
-            VideoCrop(apply_to=self.video_keys, scale=0.95),
-            VideoResize(
-                apply_to=self.video_keys,
-                height=224,
-                width=224,
-                interpolation="linear",
-            ),
+            # VideoCrop(apply_to=self.video_keys, scale=0.95),
+            # VideoResize(
+            #     apply_to=self.video_keys,
+            #     height=224,
+            #     width=224,
+            #     interpolation="linear",
+            # ),
             VideoColorJitter(
                 apply_to=self.video_keys,
                 brightness=0.3,

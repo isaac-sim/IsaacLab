@@ -98,8 +98,12 @@ class CameraPresets:
 
     @classmethod
     def g1_front_camera(cls, **overrides) -> CameraCfg:
-        """front camera configuration"""
-        params = {"focal_length": 12.0}
+        params = {
+            "height": 224,
+            "width": 224,
+            "focal_length": 10.5,
+            "horizontal_aperture": 14.25,  # Match original vertical FOV after crop
+        }
         params.update(overrides)
         return CameraBaseCfg.get_camera_config(**params)
 
@@ -108,13 +112,13 @@ class CameraPresets:
         """left wrist camera configuration"""
         params = {
             "prim_path": "/World/envs/env_.*/Robot/left_hand_camera_base_link/left_wrist_camera",
-            "height": 480,
-            "width": 640,
+            "height": 224,
+            "width": 224,
             "update_period": 0.02,
             "data_types": ["rgb"],
             "focal_length": 12.0,
             "focus_distance": 400.0,
-            "horizontal_aperture": 20.0,
+            "horizontal_aperture": 14.25,  # Match original vertical FOV after crop
             "clipping_range": (0.1, 1.0e5),
             "pos_offset": (-0.04012, -0.07441, 0.15711),
             "rot_offset": (0.00539, 0.86024, 0.0424, 0.50809),
@@ -127,13 +131,13 @@ class CameraPresets:
         """right wrist camera configuration"""
         params = {
             "prim_path": "/World/envs/env_.*/Robot/right_hand_camera_base_link/right_wrist_camera",
-            "height": 480,
-            "width": 640,
+            "height": 224,
+            "width": 224,
             "update_period": 0.02,
             "data_types": ["rgb"],
             "focal_length": 12.0,
             "focus_distance": 400.0,
-            "horizontal_aperture": 20.0,
+            "horizontal_aperture": 14.25,  # Match original vertical FOV after crop
             "clipping_range": (0.1, 1.0e5),
             "pos_offset": (-0.04012, 0.07441, 0.15711),
             "rot_offset": (0.00539, 0.86024, 0.0424, 0.50809),
