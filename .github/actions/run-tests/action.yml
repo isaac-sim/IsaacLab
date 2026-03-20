@@ -202,14 +202,17 @@ runs:
               if [ -f "$reports_dir/full_report.xml" ]; then
                 mv "$reports_dir/full_report.xml" "$reports_dir/$result_file"
                 echo "🟢 Found and renamed full_report.xml to $result_file"
-              elif [ -f "$reports_dir/test-reports-"*".xml" ]; then
-                # Combine individual test reports if no full report exists
+              elif ls "$reports_dir"/test-reports-*.xml 1>/dev/null 2>&1; then
+                # Combine individual test reports if no full report exists.
+                # Extract each <testsuite> block intact to produce valid JUnit XML.
                 echo "🔵 Combining individual test reports..."
-                echo '<?xml version="1.0" encoding="utf-8"?><testsuites>' > "$reports_dir/$result_file"
+                echo '<?xml version="1.0" encoding="utf-8"?>' > "$reports_dir/$result_file"
+                echo '<testsuites>' >> "$reports_dir/$result_file"
                 for xml_file in "$reports_dir"/test-reports-*.xml; do
                   if [ -f "$xml_file" ]; then
                     echo "  Processing: $xml_file"
-                    sed '1d; /^<testsuite/d; /^<\/testsuite/d' "$xml_file" >> "$reports_dir/$result_file" 2>/dev/null || true
+                    # Copy everything between <testsuite ...> and </testsuite> (inclusive)
+                    sed -n '/<testsuite/,/<\/testsuite>/p' "$xml_file" >> "$reports_dir/$result_file" 2>/dev/null || true
                   fi
                 done
                 echo '</testsuites>' >> "$reports_dir/$result_file"
