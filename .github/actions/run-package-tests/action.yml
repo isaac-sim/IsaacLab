@@ -128,7 +128,7 @@ runs:
         max-annotations: '50'
 
     - name: Check Test Results for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository
+      if: always() && github.event.pull_request.head.repo.full_name != github.repository
       shell: bash
       run: |
         if [ -f "reports/${{ github.job }}-report.xml" ]; then
