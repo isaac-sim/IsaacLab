@@ -57,7 +57,7 @@ if failed or errored:
         print(f"| ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
-    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m:{secs:.0f}s)</summary>")
+    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)</summary>")
     print("")
     print("<br>")
     print("")
