@@ -19,13 +19,23 @@ try:
 except ET.ParseError as exc:
     print(f"🔴 Failed to parse test report: {exc}")
     sys.exit(0)  # non-fatal so the step summary still renders
+except OSError as exc:
+    print(f"🔴 Failed to read test report: {exc}")
+    sys.exit(0)
 
 passed, failed, errored, skipped = [], [], [], []
 total_time = 0.0
 
+def safe_float(val, default=0.0):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 for tc in root.iter("testcase"):
     name = tc.get("classname", tc.get("name", "unknown"))
-    t = float(tc.get("time", 0))
+    t = safe_float(tc.get("time", 0))
     total_time += t
     if tc.find("failure") is not None:
         failed.append((name, t, tc.find("failure").get("message", "")))
@@ -37,15 +47,22 @@ for tc in root.iter("testcase"):
         passed.append((name, t))
 
 mins, secs = divmod(total_time, 60)
+time_str = f"{int(mins)}m {secs:.0f}s"
 
 
 def sanitize_msg(msg, max_len=300):
-    """Collapse newlines and escape pipe characters for markdown tables."""
+    """Collapse newlines, escape pipe characters, and truncate for markdown tables."""
     return msg.replace("\n", " ").replace("\r", "").replace("|", "\\|")[:max_len]
 
 
 if failed or errored:
-    print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)")
+    print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({time_str})")
+elif passed:
+    print(f"🟢 ALL {len(passed)} PASSED ({time_str})")
+elif skipped:
+    print(f"🟠 ALL {len(skipped)} SKIPPED ({time_str})")
+else:
+    print("🟠 No test cases found in report")
 
 if failed or errored:
     print("")
@@ -57,7 +74,7 @@ if failed or errored:
         print(f"| ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
-    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)</summary>")
+    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({time_str})</summary>")
     print("")
     print("<br>")
     print("")
