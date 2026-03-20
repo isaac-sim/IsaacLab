@@ -200,7 +200,7 @@ runs:
                   if [ -f "$xml_file" ]; then
                     echo "  Processing: $xml_file"
                     # Copy everything between <testsuite ...> and </testsuite> (inclusive)
-                    sed -n '/<testsuite/,/<\/testsuite>/p' "$xml_file" >> "$reports_dir/$result_file" 2>/dev/null || true
+                    sed -n '/<testsuite/,/<\/testsuite>/p' "$xml_file" >> "$reports_dir/$result_file" || echo "🟠 Warning: failed to extract testsuite from $xml_file"
                   fi
                 done
                 echo '</testsuites>' >> "$reports_dir/$result_file"
