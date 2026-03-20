@@ -15,7 +15,6 @@ env_creation:
   - "isaaclab.scene.*:_init_scene"
   - "isaaclab.envs.mdp.observations:*"
   - "isaaclab.utils.assets:_find_usd_dependencies"
-  - "*humanoid.mdp.observations:*"
 
 first_step:
   - "isaaclab.envs.mdp.rewards:*"
