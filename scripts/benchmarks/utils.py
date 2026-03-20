@@ -299,8 +299,8 @@ def parse_cprofile_stats(
             short = ".".join(parts[-3:]) if len(parts) >= 3 else ".".join(parts)
         return f"{short}:{funcname}"
 
-    # stats.stats: dict[(filename, lineno, funcname)] -> (cc, nc, tottime, cumtime, callers)
-    # callers: dict[(filename, lineno, funcname)] -> (cc, nc, tottime, cumtime)
+    # stats.stats: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime, callers)
+    # callers: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime)
     results = []
     for func_key, (_, _, tottime, cumtime, callers) in stats.stats.items():
         filename, _, funcname = func_key
