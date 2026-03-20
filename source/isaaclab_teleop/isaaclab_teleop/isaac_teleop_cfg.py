@@ -108,5 +108,26 @@ class IsaacTeleopCfg:
     If ``None``, the tuning UI will not be opened.
     """
 
+    target_frame_prim_path: str | None = None
+    """Optional USD prim path whose world frame becomes the target coordinate
+    frame for all output poses.
+
+    When set, the device automatically reads this prim's world transform each
+    frame and uses its inverse as the ``target_T_world`` rebase matrix in
+    :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`.  An explicit
+    ``target_T_world`` argument to :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`
+    takes precedence over this config.
+
+    Typical usage: set to the robot base link prim path so that an IK
+    controller receives end-effector poses in the robot's base frame.
+
+    Example::
+
+        IsaacTeleopCfg(
+            target_frame_prim_path="/World/envs/env_0/Robot/base_link",
+            ...
+        )
+    """
+
     app_name: str = "IsaacLabTeleop"
     """Application name for the IsaacTeleop session."""

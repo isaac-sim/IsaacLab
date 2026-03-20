@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+1.5.13 (2026-03-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added consistency validation to the camera outputs in ``test_rendering_correctness.py``.
+
+
+1.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increased ``max_iterations`` from 200 to 300 for ``Isaac-Dexsuite-Kuka-Allegro-Lift-v0``
+  in the benchmarking configuration to allow sufficient training time for convergence.
+
+
 1.5.11 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -20,6 +39,7 @@ Added
 ^^^^^
 
 * Added ``test_rendering_correctness.py`` to validate rendering correctness of the environments.
+
 
 1.5.9 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~

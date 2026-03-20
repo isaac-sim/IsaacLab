@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``test_body_incoming_joint_wrench_b_single_joint`` computing the expected
+  wrench in the parent body's frame instead of the child body's frame. The expected
+  wrench is now expressed in
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b`'s
+  actual convention (child body frame) and body indices are resolved by name to be
+  robust across backends. Also corrected the docstring for
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b` to
+  accurately describe the frame convention.
+
+
 0.5.11 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 

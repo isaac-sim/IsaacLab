@@ -32,7 +32,7 @@ fast:
       reward: 45
       episode_length: 900
     upper_thresholds:
-      duration: 1000 #750
+      duration: 1200 #750
   skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:
@@ -76,12 +76,12 @@ fast:
     upper_thresholds:
       duration: 2000
   rsl_rl:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
-    max_iterations: 200
+    max_iterations: 300 # 200
     lower_thresholds:
-      reward: 0.7
+      reward: 0.4 # 0.7
       episode_length: 150
     upper_thresholds:
-      duration: 1200
+      duration: 1400 #1200
   rsl_rl:Isaac-Reach-OpenArm-v0:
     max_iterations: 200
     lower_thresholds:

@@ -6,9 +6,10 @@
 """Tests for rendering correctness.
 
 Each test builds an environment with a given (physics_backend, renderer, data_type),
-steps once, then asserts that camera outputs are not blank (at least one non-zero
-pixel). Env-specific fixtures use parametrized combinations; a separate test
-covers a list of registered task IDs that use camera-based observations.
+steps once, then checks if camera outputs are not blank (at least one non-zero
+pixel) and consistent with golden images. Env-specific fixtures use parametrized
+combinations; a separate test covers a list of registered task IDs that use
+camera-based observations.
 """
 
 # Launch Isaac Sim Simulator first.
@@ -17,11 +18,15 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
-from typing import Any
+import os  # noqa: E402
+from datetime import datetime  # noqa: E402
+from typing import Any  # noqa: E402
 
 import gymnasium as gym  # noqa: E402
+import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
+from PIL import Image, ImageChops  # noqa: E402
 
 from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
@@ -32,6 +37,26 @@ from isaaclab_tasks.utils.hydra import (  # noqa: E402
     parse_overrides,
 )
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Directory containing golden images.
+_GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
+
+# Pixel L2 norm difference threshold. L2 norm difference is the Euclidean distance between two pixels:
+#
+#   d = sqrt((R1 - R2)^2 + (G1 - G2)^2 + (B1 - B2)^2)
+#
+# If the difference between two pixels is less than this threshold, consider them "equal" (i.e. within the tolerance).
+#
+_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
+
+_OVRTX_DISABLED = pytest.mark.skip(
+    reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
+)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -56,15 +81,20 @@ def cleanup_simulation_context():
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
 
-_OVRTX_DISABLED = pytest.mark.skip(
-    reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
-)
-
 _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
-    pytest.param(("physx", "isaacsim_rtx_renderer", "rgb"), id="physx-isaacsim_rtx-rgb"),
-    pytest.param(("physx", "isaacsim_rtx_renderer", "albedo"), id="physx-isaacsim_rtx-albedo"),
-    pytest.param(("physx", "isaacsim_rtx_renderer", "depth"), id="physx-isaacsim_rtx-depth"),
+    pytest.param(
+        ("physx", "isaacsim_rtx_renderer", "rgb"),
+        id="physx-isaacsim_rtx-rgb",
+    ),
+    pytest.param(
+        ("physx", "isaacsim_rtx_renderer", "albedo"),
+        id="physx-isaacsim_rtx-albedo",
+    ),
+    pytest.param(
+        ("physx", "isaacsim_rtx_renderer", "depth"),
+        id="physx-isaacsim_rtx-depth",
+    ),
     pytest.param(
         ("physx", "isaacsim_rtx_renderer", "simple_shading_constant_diffuse"),
         id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
@@ -78,11 +108,23 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
     ),
     # physx + newton_renderer (warp)
-    pytest.param(("physx", "newton_renderer", "rgb"), id="physx-newton_warp-rgb"),
-    pytest.param(("physx", "newton_renderer", "depth"), id="physx-newton_warp-depth"),
+    pytest.param(
+        ("physx", "newton_renderer", "rgb"),
+        id="physx-newton_warp-rgb",
+    ),
+    pytest.param(
+        ("physx", "newton_renderer", "depth"),
+        id="physx-newton_warp-depth",
+    ),
     # newton + isaacsim_rtx_renderer
-    pytest.param(("newton", "isaacsim_rtx_renderer", "rgb"), id="newton-isaacsim_rtx-rgb"),
-    pytest.param(("newton", "isaacsim_rtx_renderer", "albedo"), id="newton-isaacsim_rtx-albedo"),
+    pytest.param(
+        ("newton", "isaacsim_rtx_renderer", "rgb"),
+        id="newton-isaacsim_rtx-rgb",
+    ),
+    pytest.param(
+        ("newton", "isaacsim_rtx_renderer", "albedo"),
+        id="newton-isaacsim_rtx-albedo",
+    ),
     pytest.param(
         ("newton", "isaacsim_rtx_renderer", "depth"),
         id="newton-isaacsim_rtx-depth",
@@ -100,7 +142,10 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
     ),
     # newton + newton_renderer (warp)
-    pytest.param(("newton", "newton_renderer", "rgb"), id="newton-newton_warp-rgb"),
+    pytest.param(
+        ("newton", "newton_renderer", "rgb"),
+        id="newton-newton_warp-rgb",
+    ),
     pytest.param(
         ("newton", "newton_renderer", "depth"),
         id="newton-newton_warp-depth",
@@ -161,21 +206,151 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
-def _assert_camera_outputs_are_not_blank(label: str, camera_outputs: dict[str, dict[str, torch.Tensor]]) -> None:
-    """Assert each camera output has at least one non-zero pixel.
+def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
+    """Convert camera output tensor to [0, 1] float32 for conversion to image.
 
     Args:
-        label: Label for error messages.
-        camera_outputs: Nested dict: sensor name -> {data_type -> tensor}.
+        tensor: Camera output tensor.
+        data_type: Data type of the camera output.
+
+    Returns:
+        Normalized tensor.
     """
-    assert len(camera_outputs) > 0, f"[{label}] No camera outputs; env may have no cameras or wrong structure."
-    for sensor_name, output in camera_outputs.items():
-        for data_type, tensor in output.items():
-            invalid = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
-            corrected = torch.where(invalid, torch.zeros_like(tensor), tensor)
-            assert corrected.max() > 0, (
-                f"[{label}] Sensor '{sensor_name}' output '{data_type}' has no non-zero pixels. "
-                f"Shape: {corrected.shape}, dtype: {corrected.dtype}."
+    normalized = tensor.float()
+
+    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+        max_val = normalized.max()
+        if max_val > 0:
+            normalized = normalized / max_val
+    elif data_type == "rgba":
+        # Keep 4 channels so tensor -> PIL produces RGBA.
+        normalized = normalized[..., :4] / 255.0
+    else:
+        # rgb, semantic_segmentation, albedo, and simple_shading_* are uint8 [0, 255]
+        normalized = normalized[..., :3] / 255.0
+
+    return normalized
+
+
+def _make_grid(images: torch.Tensor) -> torch.Tensor:
+    """Make a grid of images from a tensor of shape (B, H, W, C).
+
+    Args:
+        images: A tensor of shape (B, H, W, C) containing the images.
+
+    Returns:
+        A tensor of shape (H, W, C) containing the grid of images.
+    """
+    from torchvision.utils import make_grid
+
+    return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
+
+
+def _compare_images(
+    result_image: Image.Image,
+    golden_image: Image.Image,
+    max_different_pixels_percentage: float,
+    pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
+) -> tuple[bool, str | None]:
+    """Compare result and golden images; return (True, \"\") if deemed equal.
+
+    Args:
+        result_image: Result image as PIL Image to compare with golden image.
+        golden_image: Golden image as PIL Image to compare with result image.
+        max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
+        pixel_diff_threshold: Pixel L2 norm difference threshold.
+
+    Returns:
+        (True, None) if images are deemed equal, else (False, error_message as str).
+    """
+    if result_image.size != golden_image.size:
+        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}."
+
+    if result_image.mode != golden_image.mode:
+        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}."
+
+    # Compute pixel-wise L2 norm difference between result and golden images.
+    diff_array = np.array(ImageChops.difference(result_image, golden_image))
+    l2_norm_array = np.linalg.norm(diff_array, axis=2)
+
+    num_different_pixels = np.sum(l2_norm_array > pixel_diff_threshold)
+    num_total_pixels = l2_norm_array.size
+    different_pixels_percentage = 100.0 * num_different_pixels / num_total_pixels
+
+    if different_pixels_percentage > max_different_pixels_percentage:
+        return (
+            False,
+            f"The percentage of different pixels ({different_pixels_percentage:.2f}%, {num_different_pixels} / "
+            f"{num_total_pixels} pixels) exceeds the threshold of {max_different_pixels_percentage:.2f}%.",
+        )
+
+    return True, None
+
+
+def _validate_camera_outputs(
+    test_name: str,
+    physics_backend: str,
+    renderer: str,
+    camera_outputs: dict[str, torch.Tensor],
+    max_different_pixels_percentage: float,
+) -> None:
+    """Validate correctness and consistency of camera outputs.
+
+    Args:
+        test_name: Test name.
+        physics_backend: Physics backend.
+        renderer: Renderer.
+        camera_outputs: {data_type -> tensor}.
+        max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
+    """
+    assert len(camera_outputs) > 0, f"[{test_name}] No camera outputs produced by {physics_backend} + {renderer}."
+
+    golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
+    os.makedirs(golden_image_dir, exist_ok=True)
+
+    for data_type, tensor in camera_outputs.items():
+        # Replace inf/nan with zero so they do not break comparison; ensure the tensor has at least one non-zero value.
+        condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+        corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+        max_val = corrected.max()
+        assert max_val > 0, (
+            f"[{test_name}] Camera output '{data_type}' has no non-zero pixels. "
+            f"Shape: {corrected.shape}, dtype: {corrected.dtype}."
+        )
+
+        # convert tensors to a tiled image.
+        normalized = _normalize_tensor(corrected, data_type)
+        grid = _make_grid(normalized)
+
+        # permute(1, 2, 0) is there to change the tensor layout from channel-first to channel-last so it matches what
+        # PIL expects.
+        ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+        result_image = Image.fromarray(ndarr)
+
+        # first run creates baseline and fails; second run validates.
+        golden_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}.png")
+        if not os.path.exists(golden_path):
+            result_image.save(golden_path)
+            pytest.fail(
+                f"[{test_name}] Golden image not found at {golden_path}. Saved result image to {golden_path}. "
+                "Please run the test again to validate the consistency of rendering outputs."
+            )
+
+        try:
+            golden_image = Image.open(golden_path)
+        except Exception as e:
+            pytest.fail(f"Error opening golden image: {e}")
+
+        # validate the consistency of rendering outputs.
+        succeeded, error_message = _compare_images(result_image, golden_image, max_different_pixels_percentage)
+        if not succeeded:
+            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")
+            result_image.save(result_path)
+            pytest.fail(
+                f"[{test_name}] Inconsistency detected for camera output '{data_type}': {error_message}. "
+                f"Saved result image to {result_path} for further investigation. "
+                f"If result image is correct, please replace the golden image at {golden_path} with the result image."
             )
 
 
@@ -228,6 +403,7 @@ def shadow_hand_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
+    env_cfg.seed = 42
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -245,11 +421,17 @@ def shadow_hand_env(request):
             env.close()
 
 
-def test_camera_outputs_are_not_blank_for_shadow_hand(shadow_hand_env):
+def test_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
-    physics_backend, renderer, data_type, env = shadow_hand_env
-    label = f"shadow_hand-{physics_backend}-{renderer}+{data_type}"
-    _assert_camera_outputs_are_not_blank(label, {"tiled_camera": env._tiled_camera.data.output})
+    physics_backend, renderer, _, env = shadow_hand_env
+
+    _validate_camera_outputs(
+        "shadow_hand",
+        physics_backend,
+        renderer,
+        env._tiled_camera.data.output,
+        max_different_pixels_percentage=5.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +453,7 @@ def cartpole_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
+    env_cfg.seed = 42
 
     env = None
     try:
@@ -284,11 +467,17 @@ def cartpole_env(request):
             env.close()
 
 
-def test_camera_outputs_are_not_blank_for_cartpole(cartpole_env):
+def test_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
-    physics_backend, renderer, data_type, env = cartpole_env
-    label = f"cartpole-{physics_backend}-{renderer}+{data_type}"
-    _assert_camera_outputs_are_not_blank(label, {"tiled_camera": env._tiled_camera.data.output})
+    physics_backend, renderer, _, env = cartpole_env
+
+    _validate_camera_outputs(
+        "cartpole",
+        physics_backend,
+        renderer,
+        env._tiled_camera.data.output,
+        max_different_pixels_percentage=5.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +503,7 @@ def dexsuite_kuka_allegro_lift_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
+    env_cfg.seed = 42
 
     env = None
     try:
@@ -327,11 +517,17 @@ def dexsuite_kuka_allegro_lift_env(request):
             env.close()
 
 
-def test_camera_outputs_are_not_blank_for_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
+def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
-    physics_backend, renderer, data_type, env = dexsuite_kuka_allegro_lift_env
-    label = f"dexsuite_kuka_allegro_lift-{physics_backend}-{renderer}+{data_type}"
-    _assert_camera_outputs_are_not_blank(label, {"base_camera": env.scene.sensors["base_camera"].data.output})
+    physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
+
+    _validate_camera_outputs(
+        "dexsuite_kuka",
+        physics_backend,
+        renderer,
+        env.scene.sensors["base_camera"].data.output,
+        max_different_pixels_percentage=10.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -340,12 +536,7 @@ def test_camera_outputs_are_not_blank_for_dexsuite_kuka_allegro_lift(dexsuite_ku
 
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank rendering.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    "Isaac-Cartpole-RGB-Camera-Direct-v0",
     "Isaac-Cartpole-Albedo-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
-    "Isaac-Cartpole-Depth-Camera-Direct-v0",
     "Isaac-Cartpole-Camera-Presets-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
@@ -356,19 +547,26 @@ _RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
     "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
-    "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
-    "Isaac-Cartpole-RGB-v0",
+    "Isaac-Cartpole-Depth-Camera-Direct-v0",
     "Isaac-Cartpole-Depth-v0",
+    "Isaac-Cartpole-RGB-Camera-Direct-v0",
     "Isaac-Cartpole-RGB-ResNet18-v0",
+    "Isaac-Cartpole-RGB-v0",
+    "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
+    "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
+    "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
+    "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
 ]
 
 
 @pytest.mark.parametrize("task_id", _RENDER_CORRECTNESS_TASK_IDS)
-def test_camera_outputs_are_not_blank_for_registered_task(task_id):
+def test_registered_tasks(task_id):
     """Camera output must be non-empty for each registered task with camera-based observations."""
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
+        env_cfg.seed = 42
+
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
         sim = getattr(unwrapped, "sim", None)
@@ -401,8 +599,19 @@ def test_camera_outputs_are_not_blank_for_registered_task(task_id):
 
         env.step(actions)
 
-        camera_outputs = _collect_camera_outputs(env)
-        _assert_camera_outputs_are_not_blank(task_id, camera_outputs)
+        camera_outputs_nested_dict = _collect_camera_outputs(env)
+        num_camera_outputs = len(camera_outputs_nested_dict)
+        assert num_camera_outputs == 1, f"[{task_id}] Expected 1 camera output, got {num_camera_outputs}."
+
+        camera_outputs = next(iter(camera_outputs_nested_dict.values()))
+
+        _validate_camera_outputs(
+            f"registered_tasks/{task_id}",
+            "default_physics",
+            "default_renderer",
+            camera_outputs,
+            max_different_pixels_percentage=5.0,
+        )
     finally:
         if env is not None:
             env.close()
