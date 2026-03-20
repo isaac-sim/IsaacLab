@@ -729,7 +729,7 @@ jobs:
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
       if: always()
       with:
-        name: pr-${{ github.event.pull_request.number }}-combined-test-results
+        name: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-combined-test-results
         path: reports/combined-results.xml
         retention-days: 7
         compression-level: 9
