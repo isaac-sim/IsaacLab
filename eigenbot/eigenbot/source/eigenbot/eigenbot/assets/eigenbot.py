@@ -34,7 +34,7 @@ EIGENBOT_CFG = ArticulationCfg(
             enable_gyroscopic_forces=True,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
+            enabled_self_collisions=True,
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
         ),
@@ -66,7 +66,7 @@ EIGENBOT_CFG = ArticulationCfg(
     actuators={
         "bendy_joints": ImplicitActuatorCfg(
             joint_names_expr=["bendy_joint_.*"],
-            effort_limit_sim=100.0,
+            effort_limit_sim=8.0,
             stiffness=20.0,
             damping=0.5,
         ),

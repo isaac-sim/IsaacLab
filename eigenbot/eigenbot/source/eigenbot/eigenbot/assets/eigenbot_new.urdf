@@ -1,0 +1,4583 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="Eigenbot">
+  <link name="Eigenbot___recovered_">
+    <visual>
+      <origin xyz="49.025 -9.665 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 -22.83 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_1_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 22.83 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_2_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="36.5 -51.11 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_3_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-36.5 -51.11 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_4_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-36.5 51.11 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_5_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="36.5 51.11 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_6_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 9.665 97. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_7_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 -9.665 -10. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_8_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 22.83 -10. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_9_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 9.665 -10. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_10_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 -22.83 -10. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_11_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="45.8 -22.5 21.5" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_12_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="45.8 22.5 66.5" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_13_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="45.8 -22.5 66.5" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_14_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="45.8 22.5 21.5" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_15_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="31.25 19.46 2.5 " rpy="-1.5707964 0.5235988 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_16_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-26.75 19.46 2.5 " rpy="-1.5707964 0.5235988 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_17_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="31.25 19.46 88.5 " rpy="-1.5707964 -0.5235988 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_18_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-26.75 19.46 88.5 " rpy="-1.5707964 -0.5235988 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_19_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/Core.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 -87.1875 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_21_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 87.1875 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_22_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 39.199642 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_23_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 -87.1875 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_24_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 -39.199642 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_25_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 87.1875 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_26_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 39.199642 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_27_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 -39.199642 -7.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_28_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 22.83 -14.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_29_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 -9.665 -14.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_30_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 -22.83 -14.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_31_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 9.665 -14.5 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_32_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="68.8 12.5 -15.6" rpy="3.1415927 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_33_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="68.8 -12.5 -15.6" rpy="3.1415927 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_34_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 75.84282 -12.35 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_35_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -75.84282 -12.35 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_36_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 75.84282 -9.2 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_37_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -75.84282 -9.2 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_38_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -75.84282 -11.4 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_39_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 75.84282 -11.4 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_40_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/Top_Cover.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="81.05074 -48.83995 69.351585" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_42_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="70.45185 -58.938175 34.00906 " rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_43_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="44.863857 -83.31745 48.648415" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_44_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="55.46275 -73.21922 83.990944" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_45_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="44.863857 -83.31745 69.351585" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_46_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="55.46275 -73.21922 34.00906" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_47_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="70.45185 -58.938175 83.990944" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_48_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="81.05074 -48.83995 48.648415" rpy="0. 0. -2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_49_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-10.351587 -91.26892 83.990944" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_50_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-24.990942 -91.26892 69.351585" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_51_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-10.351587 -91.26892 34.00906 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_52_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="24.990942 -91.26892 48.648415" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_53_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="10.351587 -91.26892 83.990944" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_54_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="24.990942 -91.26892 69.351585" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_55_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-24.990942 -91.26892 48.648415" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_56_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="10.351587 -91.26892 34.00906 " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_57_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-70.45185 -58.938175 83.990944" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_58_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-55.46275 -73.21922 34.00906" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_59_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-81.05074 -48.83995 69.351585" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_60_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-44.863857 -83.31745 48.648415" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_61_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-55.46275 -73.21922 83.990944" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_62_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-44.863857 -83.31745 69.351585" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_63_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-81.05074 -48.83995 48.648415" rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_64_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-70.45185 -58.938175 34.00906 " rpy="0. 0. 2.38038"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_65_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-44.863857 83.31745 48.648415" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_66_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-70.45185 58.938175 83.990944" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_67_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-44.863857 83.31745 69.351585" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_68_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-81.05074 48.83995 69.351585" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_69_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-70.45185 58.938175 34.00906 " rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_70_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-55.46275 73.21922 83.990944" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_71_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-81.05074 48.83995 48.648415" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_72_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-55.46275 73.21922 34.00906" rpy="-3.1415927 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_73_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-10.351587 91.26892 83.990944" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_74_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="10.351587 91.26892 34.00906 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_75_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="24.990942 91.26892 48.648415" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_76_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-24.990942 91.26892 69.351585" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_77_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="10.351587 91.26892 83.990944" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_78_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-24.990942 91.26892 48.648415" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_79_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="24.990942 91.26892 69.351585" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_80_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-10.351587 91.26892 34.00906 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_81_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="70.45185 58.938175 83.990944" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_82_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="81.05074 48.83995 69.351585" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_83_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="44.863857 83.31745 48.648415" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_84_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="55.46275 73.21922 83.990944" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_85_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="44.863857 83.31745 69.351585" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_86_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="81.05074 48.83995 48.648415" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_87_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="70.45185 58.938175 34.00906 " rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_88_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="55.46275 73.21922 34.00906" rpy="3.1415927 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_89_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 87.1875 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_90_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 87.1875 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_91_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 39.199642 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_92_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 39.199642 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_93_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 -39.199642 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_94_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 -39.199642 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_95_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 -87.1875 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_96_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 -87.1875 87. " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_97_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 39.199642 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_98_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 87.1875 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_99_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 87.1875 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_100_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 -87.1875 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_101_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 -87.1875 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_102_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 -39.199642 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_103_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 39.199642 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_104_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 -39.199642 0. " rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_105_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="89.9 12.5 5.05" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_106_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="89.9 -12.5 5.05" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_107_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/Shell.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 -87.1875 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_109_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 -39.199642 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_110_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="34.885113 87.1875 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_111_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="85.29245 39.199642 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_112_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 -39.199642 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_113_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 87.1875 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_114_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-85.29245 39.199642 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_115_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-34.885113 -87.1875 94.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_116_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-36.5 51.11 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_117_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-36.5 -51.11 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_118_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="36.5 51.11 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_119_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="36.5 -51.11 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_120_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 22.83 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_121_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 9.665 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_122_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-51.2 -22.83 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_123_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="49.025 -9.665 101.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_124_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/Bottom_Cover.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="31.25 10.86 88.5 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_126_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-26.75 10.86 88.5 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_127_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-26.75 10.86 2.5 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_128_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="31.25 10.86 2.5 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_129_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_130_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_131_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_132_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_133_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_134_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_135_Body31.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_136_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_137_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_138_Body1__6_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_139_Body1__7_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_140_Body1__8_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_141_Body1__9_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_142_Body1__10_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_143_Body1__11_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-4.5 4.17 77.3 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_144_Body1__12_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_145_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_146_Body33.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_147_Body100.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_148_Body103.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_149_Body110.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_150_Body119.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_151_Body111.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_152_Body112.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_153_Body120.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_154_Body121.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_155_Body118.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_156_Body126.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_157_Body127.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_158_Body128.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_159_Body129.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_160_Body130.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_161_Body131.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_162_Body132.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_163_Body192.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_164_Body193.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_165_Body194.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_166_Body195.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_167_Body202.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_168_Body203.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_169_Body204.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_170_Body205.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_171_Body206.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_172_Body207.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_173_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_174_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_175_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="94.35556 86.25 90.25 " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_176_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_177_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_178_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_179_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_180_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_181_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_182_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_183_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -58.11 31.32" rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_184_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_185_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_186_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_187_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_188_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_189_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_190_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_191_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 58.11 31.32" rpy="0. 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_192_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="87.19894 0.018 -39.00361" rpy="-1.4835298 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_193_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_194_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_195_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_196_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_197_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_198_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_199_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_200_Body1__6_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_201_Body1__7_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_202_Body1__8_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_203_Body1__9_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_204_Body1__10_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_205_Body1__11_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_206_Body1__12_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_207_Body1__13_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_208_Body1__14_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_209_Body13.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_210_Body1__15_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_211_Body1__16_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_212_Body1__17_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_213_Body1__18_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="57.23184 -22.5 66.5 " rpy="0. 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_214_Body1__19_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="95.8 -12.5 5.05" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_215_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="95.8 12.5 5.05" rpy="3.1415927 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_216_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="68.8 -12.5 -21.5" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_217_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="68.8 12.5 -21.5" rpy="3.1415927 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_218_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="96.317726 0.018 -21.86953 " rpy="0. 0.0872665 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_219_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="83.21416 -22.518 -39.35223" rpy="3.1415927 -1.4835298 -3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_220_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="83.21416 22.518 -39.35223" rpy="-3.1415927 -1.4835298 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_221_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_222_Body15.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-178.4189 75. 140.40141" rpy="2.6179938 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_223_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-87.01514 13.391155 66.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_224_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-87.01514 13.391155 16.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_225_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_226_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_227_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_228_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_229_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_230_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_231_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_232_Body1__6_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_233_Body1__7_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_234_Body1__8_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-95.0512 -15. 41.5 " rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_235_Body1__9_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_236_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_237_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_238_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_239_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_240_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_241_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_242_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.3 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_243_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_244_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_245_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_246_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_247_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_248_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_249_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_250_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-58.8 30. -1.102" rpy="3.1415927 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_251_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_252_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_253_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_254_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_255_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_256_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_257_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_258_Body2__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_259_Body3__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_260_Body4__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_261_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_262_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_263_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_264_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_265_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_266_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_267_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 96.222824 59. " rpy="-1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_268_LockRingV2R3E.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 103.722824 59. " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_269_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 103.722824 59. " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_270_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 103.722824 59. " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_271_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 103.722824 59. " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_272_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 103.722824 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_273_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 103.722824 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_274_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_275_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_276_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_277_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_278_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_279_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_280_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_281_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 180.67203 59.1 " rpy="1.5707964 0. 3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_282_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 188.57202 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_283_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 188.57202 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_284_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 188.57202 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_285_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 188.57202 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_286_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 188.57202 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_287_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 188.57202 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_288_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_289_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_290_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_291_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_292_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_293_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_294_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_295_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 265.5212 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_296_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 104.9492 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_297_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 104.9492 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_298_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 104.9492 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_299_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 104.9492 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_300_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 104.9492 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_301_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 104.9492 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_302_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_303_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_304_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_305_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_306_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_307_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_308_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_309_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 181.8984 " rpy="0. 0. 1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_310_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 278.42123 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_311_EigenBotElbowV1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 278.42123 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_312_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 278.42123 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_313_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 278.42123 59.1 " rpy="-1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_314_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_315_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_316_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_317_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_318_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_319_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_320_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_321_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.1 313.42123 97.0492 " rpy="0. 0. -1.9634954"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_322_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-0.2 313.42123 234.3992 " rpy="-1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_323_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_324_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_325_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_326_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_327_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_328_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_329_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_330_Body2__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_331_Body3__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_332_Body4__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_333_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_334_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_335_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_336_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_337_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_338_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_339_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 69.66532 59. " rpy="-2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_340_LockRingV2R3E.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 75.09532 59. " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_341_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 75.09532 59. " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_342_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 75.09532 59. " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_343_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 75.09532 59. " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_344_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 75.09532 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_345_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 75.09532 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_346_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_347_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_348_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_349_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_350_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_351_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_352_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_353_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 130.80655 59.1 " rpy="1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_354_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 136.52614 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_355_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 136.52614 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_356_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 136.52614 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_357_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 136.52614 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_358_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.00458 136.59512 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_359_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.00458 136.59512 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_360_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_361_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_362_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_363_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_364_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_365_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_366_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_367_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.08414 192.30635 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_368_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 104.9492 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_369_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 104.9492 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_370_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 104.9492 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_371_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 104.9492 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_372_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 104.9492 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_373_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 104.9492 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_374_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_375_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_376_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_377_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_378_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_379_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_380_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_381_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 181.8984 " rpy="0. 0. 0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_382_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="191.98254 201.64595 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_383_EigenBotElbowV1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="191.98254 201.64595 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_384_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="191.98254 201.64595 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_385_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="191.98254 201.64595 59.1 " rpy="-0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_386_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_387_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_388_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_389_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_390_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_391_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_392_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_393_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.12555 226.98595 97.0492 " rpy="0. 0. -2.724708"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_394_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.05315 227.05493 234.3992 " rpy="-1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_395_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_396_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_397_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_398_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_399_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_400_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_401_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_402_Body2__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_403_Body3__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_404_Body4__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_405_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_406_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_407_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_408_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_409_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_410_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_411_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="66.3745 -69.66532 59. " rpy="2.332009 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_412_LockRingV2R3E.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 -75.09532 59. " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_413_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 -75.09532 59. " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_414_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 -75.09532 59. " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_415_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 -75.09532 59. " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_416_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 -75.09532 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_417_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="71.548 -75.09532 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_418_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_419_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_420_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_421_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_422_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_423_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_424_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_425_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="124.627556 -130.80655 59.1 " rpy="1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_426_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 -136.52614 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_427_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 -136.52614 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_428_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 -136.52614 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_429_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.07698 -136.52614 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_430_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.14937 -136.45717 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_431_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="130.14937 -136.45717 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_432_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_433_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_434_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_435_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_436_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_437_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_438_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_439_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="183.22893 -192.16838 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_440_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 104.9492 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_441_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 104.9492 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_442_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 104.9492 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_443_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 104.9492 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_444_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 104.9492 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_445_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 104.9492 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_446_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_447_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_448_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_449_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_450_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_451_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_452_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_453_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 181.8984 " rpy="0. 0. -0.8095836"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_454_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="192.12735 -201.50798 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_455_EigenBotElbowV1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="192.12735 -201.50798 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_456_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="192.12735 -201.50798 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_457_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="192.12735 -201.50798 59.1 " rpy="0.8095836 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_458_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_459_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_460_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_461_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_462_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_463_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_464_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_465_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.27036 -226.84799 97.0492 " rpy="0. 0. 1.93931"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_466_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="216.34274 -226.779 234.3992 " rpy="-1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_467_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_468_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_469_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_470_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_471_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_472_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_473_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_474_Body2__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_475_Body3__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_476_Body4__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_477_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_478_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_479_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_480_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_481_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_482_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_483_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 69.66532 59. " rpy="-0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_484_LockRingV2R3E.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 75.09532 59. " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_485_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 75.09532 59. " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_486_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 75.09532 59. " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_487_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 75.09532 59. " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_488_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 75.09532 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_489_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 75.09532 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_490_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_491_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_492_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_493_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_494_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_495_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_496_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_497_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 130.80655 59.1 " rpy="1.5707964 0. -2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_498_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 136.52614 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_499_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 136.52614 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_500_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 136.52614 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_501_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 136.52614 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_502_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.14937 136.45717 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_503_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.14937 136.45717 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_504_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_505_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_506_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_507_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_508_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_509_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_510_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_511_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.22893 192.16838 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_512_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 104.9492 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_513_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 104.9492 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_514_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 104.9492 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_515_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 104.9492 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_516_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 104.9492 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_517_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 104.9492 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_518_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_519_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_520_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_521_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_522_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_523_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_524_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_525_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 181.8984 " rpy="0. 0. 2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_526_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-192.12735 201.50798 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_527_EigenBotElbowV1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-192.12735 201.50798 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_528_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-192.12735 201.50798 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_529_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-192.12735 201.50798 59.1 " rpy="-2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_530_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_531_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_532_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_533_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_534_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_535_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_536_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_537_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.27036 226.84799 97.0492 " rpy="0. 0. -1.2022827"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_538_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.34274 226.779 234.3992 " rpy="-1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_539_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_540_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_541_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_542_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_543_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_544_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_545_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_546_Body2__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_547_Body3__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_548_Body4__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_549_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_550_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_551_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_552_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_553_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_554_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_555_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -96.222824 59. " rpy="1.5707964 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_556_LockRingV2R3E.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -103.722824 59. " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_557_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -103.722824 59. " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_558_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -103.722824 59. " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_559_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -103.722824 59. " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_560_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -103.722824 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_561_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -103.722824 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_562_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_563_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_564_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_565_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_566_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_567_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_568_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_569_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -180.67203 59.1 " rpy="1.5707964 0. 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_570_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -188.57202 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_571_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -188.57202 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_572_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -188.57202 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_573_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. -188.57202 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_574_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -188.57202 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_575_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -188.57202 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_576_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_577_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_578_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_579_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_580_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_581_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_582_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_583_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -265.5212 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_584_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 104.9492 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_585_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 104.9492 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_586_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 104.9492 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_587_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 104.9492 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_588_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 104.9492 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_589_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 104.9492 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_590_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_591_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_592_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_593_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_594_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_595_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_596_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_597_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 181.8984 " rpy="0. 0. -1.5707964"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_598_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -278.42123 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_599_EigenBotElbowV1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -278.42123 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_600_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -278.42123 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_601_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -278.42123 59.1 " rpy="1.5707964 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_602_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_603_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_604_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_605_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_606_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_607_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_608_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_609_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.1 -313.42123 97.0492 " rpy="0. 0. 1.1780972"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_610_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0.2 -313.42123 234.3992 " rpy="-1.5707964 0. -3.1415927"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_611_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_612_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_613_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_614_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_615_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_616_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_617_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_618_Body2__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_619_Body3__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_620_Body4__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_621_Body5.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_622_Body6.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_623_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_624_Body8.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_625_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_626_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_627_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-66.3745 -69.66532 59. " rpy="0.8095836 -1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_628_LockRingV2R3E.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 -75.09532 59. " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_629_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 -75.09532 59. " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_630_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 -75.09532 59. " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_631_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 -75.09532 59. " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_632_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 -75.09532 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_633_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-71.548 -75.09532 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_634_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_635_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_636_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_637_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_638_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_639_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_640_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_641_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-124.627556 -130.80655 59.1 " rpy="1.5707964 0. -0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_642_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 -136.52614 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_643_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 -136.52614 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_644_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 -136.52614 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_645_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.07698 -136.52614 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_646_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.00458 -136.59512 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_647_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-130.00458 -136.59512 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_648_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_649_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_650_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_651_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_652_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_653_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_654_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_655_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-183.08414 -192.30635 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_656_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 104.9492 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_657_SnakeBaseV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 104.9492 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_658_Board.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 104.9492 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_659_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 104.9492 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_660_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 104.9492 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_661_SnakeRotatingV1R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 104.9492 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_662_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_663_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_664_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_665_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_666_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_667_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_668_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_669_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 181.8984 " rpy="0. 0. -2.332009"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_670_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-191.98254 -201.64595 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_671_EigenBotElbowV1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-191.98254 -201.64595 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_672_EigenInterfacePlugV3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-191.98254 -201.64595 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_673_Ring_Difusser_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-191.98254 -201.64595 59.1 " rpy="2.332009 1.5707964 0. "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_674_EigenInterfaceReceptacleV3R3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_675_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_676_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_677_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_678_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_679_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_680_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_681_Fixed_Lock_Ring_V1R1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.12555 -226.98595 97.0492 " rpy="0. 0. 0.4168845"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_682_Fixed_Lock_Ring_V1R1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-216.05315 -227.05493 234.3992 " rpy="-1.5707964 0. 2.38038 "/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_683_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-59.399567 62.498623 18.5 " rpy="-1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_684_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-59.399567 62.498623 18.5 " rpy="-1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_685_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-59.399567 62.498623 18.5 " rpy="-1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_686_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="-59.399567 62.498623 18.5 " rpy="-1.5707964 0. 0.7612127"/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_687_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_688_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_689_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_690_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_691_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_692_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_693_Body31.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_694_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_695_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_696_Body1__6_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_697_Body1__7_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_698_Body1__8_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_699_Body1__9_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_700_Body1__10_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_701_Body1__11_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_702_Body1__12_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_703_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_704_Body33.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_705_Body100.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_706_Body103.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_707_Body110.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_708_Body119.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_709_Body111.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_710_Body112.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_711_Body120.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_712_Body121.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_713_Body118.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_714_Body126.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_715_Body127.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_716_Body128.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_717_Body129.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_718_Body130.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_719_Body131.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_720_Body132.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_721_Body192.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_722_Body193.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_723_Body194.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_724_Body195.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_725_Body202.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_726_Body203.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_727_Body204.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_728_Body205.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_729_Body206.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_730_Body207.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_731_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_732_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_733_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_734_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_735_Body7.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_736_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_737_Body1__1_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_738_Body1__2_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_739_Body1__3_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_740_Body1__4_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_741_Body1__5_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_742_Body1__6_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_743_Body1__7_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_744_Body1__8_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_745_Body1__9_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_746_Body1__10_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_747_Body1__11_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_748_Body1__12_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_749_Body1__13_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_750_Body1__14_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_751_Body13.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_752_Body1__15_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_753_Body1__16_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_754_Body1__17_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_755_Body1__18_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_756_Body1__19_.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_757_Body15.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_758_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_759_Body1.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_760_Body2.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_761_Body3.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+    <visual>
+      <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+      <geometry>
+        <mesh filename="meshes/MeshInstance_762_Body4.obj" scale="1. 1. 1."/>
+      </geometry>
+    </visual>
+  </link>
+</robot>
