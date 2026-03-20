@@ -310,10 +310,12 @@ def _collect_test_files(
 
                 test_files.append(full_path)
 
-    # Apply sharding: sort deterministically, then select every Nth file
+    # Apply file-level sharding: sort deterministically, then select every Nth file.
+    # Skip when include_files is set — in that case the test's own conftest handles
+    # sharding at the test-item level (e.g. parametrized test cases).
     shard_index = os.environ.get("TEST_SHARD_INDEX", "")
     shard_count = os.environ.get("TEST_SHARD_COUNT", "")
-    if shard_index and shard_count:
+    if shard_index and shard_count and not include_files:
         shard_index = int(shard_index)
         shard_count = int(shard_count)
         test_files.sort()
