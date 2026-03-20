@@ -160,27 +160,13 @@ runs:
 
           echo "Docker environment variables: '$docker_env_vars'"
 
-          # Kill the container on cancellation signals so the job stops quickly.
-          # The trap must fire BEFORE docker run exits, so we background docker
-          # and use 'wait' which bash interrupts immediately on signal receipt.
-          trap "echo '🟠 Signal received, stopping container...'; docker kill $container_name 2>/dev/null; exit 130" INT TERM
-
-          # Watchdog: runs in a separate session (setsid) so it survives even if
-          # the runner SIGKILLs our entire process group on cancellation.  It
-          # polls the parent PID every 5s and kills the container once the parent
-          # is gone.
-          SELF_PID=$$
-          setsid bash -c "
-            while kill -0 $SELF_PID 2>/dev/null; do sleep 5; done
-            echo '🟠 Parent process gone, killing container $container_name...'
-            docker kill $container_name 2>/dev/null
-            docker rm -f $container_name 2>/dev/null
-          " &>/dev/null &
-          WATCHDOG_PID=$!
-
-          # Run tests in container with error handling
+          # Run tests in container.
+          # --init: proper signal forwarding inside the container (PID 1 reaps + forwards signals)
+          # --stop-timeout 5: when docker receives a signal or client disconnects, stop quickly
+          # Running in foreground so the runner can kill the process group directly on cancellation.
           echo "🔵 Starting Docker container for tests..."
           docker run --name $container_name \
+            --init --stop-timeout 5 \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
             --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
@@ -196,11 +182,7 @@ runs:
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
-            " &
-          DOCKER_PID=$!
-
-          # 'wait' is interrupted by signals, unlike a foreground process
-          wait $DOCKER_PID && DOCKER_EXIT=0 || DOCKER_EXIT=$?
+            " && DOCKER_EXIT=0 || DOCKER_EXIT=$?
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -241,9 +223,6 @@ runs:
               echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"copy_failed\"><error message=\"Failed to copy test results\">Container may have failed to generate results</error></testcase></testsuite>" > "$reports_dir/$result_file"
             fi
           fi
-
-          # Stop the watchdog — no longer needed after normal completion
-          kill $WATCHDOG_PID 2>/dev/null || true
 
           # Clean up container
           echo "🔵 Cleaning up Docker container..."

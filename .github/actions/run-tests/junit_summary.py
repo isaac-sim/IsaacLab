@@ -52,8 +52,8 @@ if failed or errored:
         print(f"| ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
-    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m:{secs:.0f}s):</summary>\n")
-    print("\n")
+    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m:{secs:.0f}s)</summary>\n")
+    print("\n<br>")
     print("| Test | Time |")
     print("|------|------|")
     for name, t in passed:
@@ -61,8 +61,8 @@ if passed:
     print("\n</details>")
 
 if skipped:
-    print(f"\n<details><summary>🟠 {len(skipped)} SKIPPED:</summary>\n")
-    print("\n")
+    print(f"\n<details><summary>🟠 {len(skipped)} SKIPPED</summary>\n")
+    print("\n<br>")
     print("| Test | Reason |")
     print("|------|--------|")
     for name, t, msg in skipped:

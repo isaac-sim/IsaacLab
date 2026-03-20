@@ -135,3 +135,12 @@ runs:
           echo "No test results file found. This might indicate test execution failed."
           exit 1
         fi
+
+    - name: Kill container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        CONTAINER="${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
+        docker kill "${CONTAINER}" 2>/dev/null || true
+        docker rm -f "${CONTAINER}" 2>/dev/null || true
