@@ -15,7 +15,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.utils import configclass
 
 # ---------------------------------------------------------------------------
@@ -201,7 +201,7 @@ class EigenbotEnvCfg(DirectRLEnvCfg):
         render_interval=4,
         gravity=(0.0, 0.0, -9.81),
         physics_material=None,
-        physx=SimulationCfg.PhysxCfg(
+        physx=PhysxCfg(
             solver_type=1,
             max_position_iteration_count=4,
             max_velocity_iteration_count=0,
