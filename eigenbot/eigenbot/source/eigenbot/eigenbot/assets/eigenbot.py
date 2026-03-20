@@ -26,6 +26,7 @@ EIGENBOT_CFG = ArticulationCfg(
                 damping=0.5,
             ),
         ),
+        activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=1000.0,

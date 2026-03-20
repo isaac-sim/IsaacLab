@@ -200,13 +200,11 @@ class EigenbotEnvCfg(DirectRLEnvCfg):
         dt=0.005,
         render_interval=4,
         gravity=(0.0, 0.0, -9.81),
-        physics_material=None,
         physx=PhysxCfg(
             solver_type=1,
             max_position_iteration_count=4,
             max_velocity_iteration_count=0,
             bounce_threshold_velocity=0.5,
-            max_depenetration_velocity=1.0,
         ),
     )
 

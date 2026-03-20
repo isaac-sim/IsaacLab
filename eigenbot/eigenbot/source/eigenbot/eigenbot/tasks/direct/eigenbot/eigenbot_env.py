@@ -84,8 +84,8 @@ class EigenbotEnv(DirectRLEnv):
         # Contact sensor
         self.contact_sensor = ContactSensor(self.cfg.contact_sensor)
 
-        # Attach USDZ visual overlay
-        self._attach_usdz_visual_asset()
+        # Attach USDZ visual overlay (disabled for now)
+        # self._attach_usdz_visual_asset()
 
         # Clone environments
         self.scene.clone_environments(copy_from_source=False)
