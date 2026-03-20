@@ -818,7 +818,7 @@ jobs:
 
     - name: Report Test Results
       if: github.event.pull_request.head.repo.full_name == github.repository
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@3d76b34a4535afbd0600d347b09a6ee5deb3ed7f # v2.6.0
       with:
         name: IsaacLab Build and Test Results
         path: reports/combined-results.xml
