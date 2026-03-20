@@ -26,6 +26,7 @@ except OSError as exc:
 passed, failed, errored, skipped = [], [], [], []
 total_time = 0.0
 
+
 def safe_float(val, default=0.0):
     try:
         return float(val)
