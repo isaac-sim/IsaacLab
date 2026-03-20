@@ -746,7 +746,7 @@ jobs:
     - name: Comment on Test Results
       id: test-reporter
       if: github.event.pull_request.head.repo.full_name == github.repository
-      uses: EnricoMi/publish-unit-test-result-action@v2
+      uses: EnricoMi/publish-unit-test-result-action@2ceeed2b8f26e15b06c3846719f75354febd9e7b  # v2
       with:
         files: "reports/combined-results.xml"
         check_name: "Tests Summary"

@@ -230,6 +230,8 @@ runs:
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
+
+          return $DOCKER_EXIT
         }
 
         # Call the function with provided parameters
