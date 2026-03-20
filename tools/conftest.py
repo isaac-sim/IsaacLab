@@ -239,6 +239,15 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # Check if there were any failures
         if errors > 0 or failures > 0:
             failed_tests.append(test_file)
+        elif returncode != 0:
+            # Process exited non-zero but XML report shows no failures (e.g. segfault
+            # after report was written).  Mark as failed so crashes are never silent.
+            print(
+                f"Warning: {test_file} exited with code {returncode} but report shows no failures."
+                " Marking as failed."
+            )
+            failed_tests.append(test_file)
+            errors = 1
 
         test_status[test_file] = {
             "errors": errors,
