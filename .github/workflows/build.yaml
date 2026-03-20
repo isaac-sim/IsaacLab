@@ -119,7 +119,16 @@ jobs:
           exit 0
         fi
 
-        has() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
+        has() {
+          echo "$changed" | grep -qE "$1"
+          local rc=$?
+          if [ $rc -eq 0 ]; then echo true
+          elif [ $rc -eq 1 ]; then echo false
+          else
+            echo "::error::grep failed with exit $rc for pattern: $1"
+            exit 1
+          fi
+        }
 
         echo "isaaclab-core=$(has '^source/isaaclab/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-physx=$(has '^source/isaaclab_physx/')" >> "$GITHUB_OUTPUT"
