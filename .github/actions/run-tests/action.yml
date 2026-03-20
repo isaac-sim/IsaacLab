@@ -181,7 +181,7 @@ runs:
               cd /workspace/isaaclab
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
-              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
+              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             " && DOCKER_EXIT=0 || DOCKER_EXIT=$?
 
           if [ $DOCKER_EXIT -eq 0 ]; then
