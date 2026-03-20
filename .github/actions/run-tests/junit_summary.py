@@ -38,7 +38,7 @@ if failed or errored:
     print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({int(mins)}m {secs:.0f}s)")
 
 
-def sanitize_msg(msg, max_len=80):
+def sanitize_msg(msg, max_len=300):
     """Collapse newlines and escape pipe characters for markdown tables."""
     return msg.replace("\n", " ").replace("\r", "").replace("|", "\\|")[:max_len]
 
