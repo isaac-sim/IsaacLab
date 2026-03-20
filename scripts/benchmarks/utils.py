@@ -334,8 +334,14 @@ def parse_cprofile_stats(
                 matched_patterns.add(pattern)
 
     # Add 0.0 placeholders for patterns that matched nothing
+    import warnings
+
     for pattern in whitelist:
         if pattern not in matched_patterns:
+            warnings.warn(
+                f"Whitelist pattern '{pattern}' matched no profiled functions. "
+                "Check for typos or verify the function ran during this phase."
+            )
             matched[pattern] = (pattern, 0.0, 0.0)
 
     filtered = list(matched.values())

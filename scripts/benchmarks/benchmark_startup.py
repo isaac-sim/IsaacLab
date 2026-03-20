@@ -101,11 +101,14 @@ env_cfg, _agent_cfg = resolve_task_config(args_cli.task, None)
 # -- Detect IsaacLab source prefixes for filtering ---------------------------
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-_ISAACLAB_PREFIXES = [
-    os.path.join(_REPO_ROOT, "source", d)
-    for d in os.listdir(os.path.join(_REPO_ROOT, "source"))
-    if os.path.isdir(os.path.join(_REPO_ROOT, "source", d))
-]
+_source_dir = os.path.join(_REPO_ROOT, "source")
+if os.path.isdir(_source_dir):
+    _ISAACLAB_PREFIXES = [
+        os.path.join(_source_dir, d) for d in os.listdir(_source_dir) if os.path.isdir(os.path.join(_source_dir, d))
+    ]
+else:
+    print(f"[WARNING] IsaacLab source directory not found at '{_source_dir}'. Function-level profiling will be empty.")
+    _ISAACLAB_PREFIXES = []
 
 # -- Load whitelist config if provided ---------------------------------------
 
@@ -113,8 +116,26 @@ _WHITELIST: dict[str, list[str]] = {}
 if args_cli.whitelist_config is not None:
     import yaml
 
-    with open(args_cli.whitelist_config) as f:
-        _WHITELIST = yaml.safe_load(f) or {}
+    try:
+        with open(args_cli.whitelist_config) as f:
+            raw = yaml.safe_load(f)
+    except OSError as e:
+        print(f"[ERROR] Cannot read whitelist config '{args_cli.whitelist_config}': {e}")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"[ERROR] Invalid YAML in whitelist config '{args_cli.whitelist_config}': {e}")
+        sys.exit(1)
+
+    if raw is None:
+        _WHITELIST = {}
+    elif not isinstance(raw, dict):
+        print(
+            f"[ERROR] Whitelist config must be a YAML mapping (got {type(raw).__name__})."
+            " Expected format: phase_name: [pattern, ...]"
+        )
+        sys.exit(1)
+    else:
+        _WHITELIST = raw
 
 # Resolve top_n default: 5 when using whitelist (fallback phases stay compact), 30 otherwise
 if args_cli.top_n is None:
@@ -168,11 +189,11 @@ def main(
     env_creation_profile = cProfile.Profile()
     env_creation_time_begin = time.perf_counter_ns()
     env_creation_profile.enable()
-
-    env = gym.make(args_cli.task, cfg=env_cfg)
-    env.reset()
-
-    env_creation_profile.disable()
+    try:
+        env = gym.make(args_cli.task, cfg=env_cfg)
+        env.reset()
+    finally:
+        env_creation_profile.disable()
 
     if torch.cuda.is_available() and torch.cuda.is_initialized():
         torch.cuda.synchronize()
@@ -190,10 +211,10 @@ def main(
     first_step_profile = cProfile.Profile()
     first_step_time_begin = time.perf_counter_ns()
     first_step_profile.enable()
-
-    env.step(actions)
-
-    first_step_profile.disable()
+    try:
+        env.step(actions)
+    finally:
+        first_step_profile.disable()
 
     if torch.cuda.is_available() and torch.cuda.is_initialized():
         torch.cuda.synchronize()
@@ -206,14 +227,17 @@ def main(
     first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
 
     # Collect Timer-based sub-timings for env_creation phase (may not exist for all backends)
+    scene_creation_ms = None
     try:
         scene_creation_ms = Timer.get_timer_info("scene_creation") * 1000
     except TimerError:
-        scene_creation_ms = 0.0
+        print("[INFO] Timer 'scene_creation' not available; sub-timing will be omitted.")
+
+    simulation_start_ms = None
     try:
         simulation_start_ms = Timer.get_timer_info("simulation_start") * 1000
     except TimerError:
-        simulation_start_ms = 0.0
+        print("[INFO] Timer 'simulation_start' not available; sub-timing will be omitted.")
 
     phases = {
         "app_launch": {
@@ -235,7 +259,7 @@ def main(
                     ("Scene Creation Time", scene_creation_ms),
                     ("Simulation Start Time", simulation_start_ms),
                 ]
-                if val > 0.0
+                if val is not None
             ],
         },
         "first_step": {
