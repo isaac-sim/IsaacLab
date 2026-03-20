@@ -6,6 +6,7 @@
 """Sub-module containing utilities for transforming strings and regular expressions."""
 
 import ast
+import functools
 import importlib
 import inspect
 import re
@@ -99,8 +100,8 @@ def is_lambda_expression(name: str) -> bool:
         Whether the input string is a lambda expression.
     """
     try:
-        ast.parse(name)
-        return isinstance(ast.parse(name).body[0], ast.Expr) and isinstance(ast.parse(name).body[0].value, ast.Lambda)
+        tree = ast.parse(name)
+        return isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].value, ast.Lambda)
     except SyntaxError:
         return False
 
@@ -135,8 +136,12 @@ def callable_to_string(value: Callable) -> str:
         return f"{module_name}:{function_name}"
 
 
+@functools.cache
 def string_to_callable(name: str) -> Callable:
     """Resolves the module and function names to return the function.
+
+    Results are cached so repeated calls with the same string (e.g. across
+    multiple :class:`ResolvableString` instances) pay the import cost only once.
 
     Args:
         name: The function name. The format should be 'module:attribute_name' or a

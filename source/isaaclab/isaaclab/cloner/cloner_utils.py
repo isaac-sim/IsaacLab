@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
@@ -22,6 +22,57 @@ if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _disable_usd_notice_handlers(stage: Usd.Stage) -> dict:
+    """Disable USD notice handlers during bulk scene authoring to avoid per-change overhead.
+
+    This mirrors what ``isaacsim.core.cloner.Cloner.disable_change_listener()`` does: it
+    temporarily disables the IFabricUsd notice handler and the SimulationManager notice
+    handler so that bulk USD changes (like cloning thousands of environments) don't trigger
+    expensive per-change Fabric syncs.
+
+    Args:
+        stage: The USD stage.
+
+    Returns:
+        A state dict to pass to :func:`_enable_usd_notice_handlers` for restoration.
+    """
+    state: dict = {}
+    stage_id = UsdUtils.StageCache.Get().Insert(stage).ToLongInt()
+    state["stage_id"] = stage_id
+
+    try:
+        from isaacsim.core.simulation_manager.impl.simulation_manager import SimulationManager
+
+        state["fabric_notice_was_enabled"] = SimulationManager.is_fabric_usd_notice_handler_enabled(stage_id)
+        if state["fabric_notice_was_enabled"]:
+            SimulationManager.enable_fabric_usd_notice_handler(stage_id, False)
+        SimulationManager.enable_usd_notice_handler(False)
+        state["sim_manager_available"] = True
+    except (ImportError, Exception) as e:
+        logger.debug("Could not disable notice handlers: %s", e)
+        state["sim_manager_available"] = False
+
+    return state
+
+
+def _enable_usd_notice_handlers(state: dict) -> None:
+    """Re-enable USD notice handlers after bulk scene authoring.
+
+    Args:
+        state: The state dict returned by :func:`_disable_usd_notice_handlers`.
+    """
+    if not state.get("sim_manager_available", False):
+        return
+    try:
+        from isaacsim.core.simulation_manager.impl.simulation_manager import SimulationManager
+
+        if state.get("fabric_notice_was_enabled", False):
+            SimulationManager.enable_fabric_usd_notice_handler(state["stage_id"], True)
+        SimulationManager.enable_usd_notice_handler(True)
+    except (ImportError, Exception) as e:
+        logger.debug("Could not re-enable notice handlers: %s", e)
 
 
 def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
@@ -39,6 +90,11 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             and replication/mapping behavior.
     """
     cfg: TemplateCloneCfg = template_clone_cfg
+    _clone_from_template_impl(stage, num_clones, cfg)
+
+
+def _clone_from_template_impl(stage: Usd.Stage, num_clones: int, cfg: TemplateCloneCfg) -> None:
+    """Internal implementation of clone_from_template."""
     world_indices = torch.arange(num_clones, device=cfg.device)
     clone_path_fmt = cfg.clone_regex.replace(".*", "{}")
     prototype_id = cfg.template_prototype_identifier
@@ -149,6 +205,7 @@ def usd_replicate(
     mask: torch.Tensor | None = None,
     positions: torch.Tensor | None = None,
     quaternions: torch.Tensor | None = None,
+    _manage_notice_handlers: bool = True,
 ) -> None:
     """Replicate USD prims to per-environment destinations.
 
@@ -164,9 +221,22 @@ def usd_replicate(
         mask: Optional per-source or shared mask. ``None`` selects all.
         positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
         quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
+        _manage_notice_handlers: If True (default), disable/re-enable USD notice handlers
+            around the cloning. Set to False when the caller already manages handlers
+            (e.g. :func:`clone_from_template` or ``InteractiveScene.clone_environments``).
 
     """
     rl = stage.GetRootLayer()
+
+    # Optionally disable USD notice handlers during bulk cloning to avoid per-change Fabric sync.
+    # When the caller manages handlers (e.g., clone_from_template), skip to avoid double disable/enable.
+    if _manage_notice_handlers:
+        _disable_usd_notice_handlers(stage)
+
+    # Note: we intentionally do NOT re-enable the handlers after cloning.
+    # The downstream SimulationContext.reset() / FabricManager.resume() will handle
+    # the Fabric sync. Re-enabling here would trigger an expensive batch resync
+    # that can be slower than incremental syncs for large scenes (8192+ envs).
 
     # Group replication by destination path depth so ancestors land before deeper paths.
     # This avoids composition issues for nested or interdependent specs.
@@ -183,8 +253,9 @@ def usd_replicate(
         d = dp_depth(destinations[i])
         depth_to_indices.setdefault(d, []).append(i)
 
-    for depth in sorted(depth_to_indices.keys()):
-        with Sdf.ChangeBlock():
+    # Wrap all depths in a single ChangeBlock so notifications fire once at the end.
+    with Sdf.ChangeBlock():
+        for depth in sorted(depth_to_indices.keys()):
             for i in depth_to_indices[depth]:
                 src = sources[i]
                 tmpl = destinations[i]
@@ -194,7 +265,7 @@ def usd_replicate(
                     dp = tmpl.format(wid)
                     Sdf.CreatePrimInLayer(rl, dp)
                     if src == dp:
-                        pass  # self-copy: CreatePrimInLayer already ensures it exists; CopySpec would be destructive
+                        pass  # self-copy: CreatePrimInLayer already ensures it exists
                     else:
                         Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
 
@@ -222,6 +293,7 @@ def usd_replicate(
                                 ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
                             )
                             op_order.default = Vt.TokenArray(op_names)
+    # Notice handlers intentionally left disabled; downstream SimulationContext.reset handles Fabric sync
 
 
 def filter_collisions(
