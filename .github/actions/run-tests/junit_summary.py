@@ -13,8 +13,12 @@ if len(sys.argv) < 2:
     print("Usage: junit_summary.py <report.xml>", file=sys.stderr)
     sys.exit(1)
 
-tree = ET.parse(sys.argv[1])
-root = tree.getroot()
+try:
+    tree = ET.parse(sys.argv[1])
+    root = tree.getroot()
+except ET.ParseError as exc:
+    print(f"🔴 Failed to parse test report: {exc}")
+    sys.exit(0)  # non-fatal so the step summary still renders
 
 passed, failed, errored, skipped = [], [], [], []
 total_time = 0.0
