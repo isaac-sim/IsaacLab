@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import cProfile
 import glob
 import os
 import statistics
@@ -235,3 +236,166 @@ def log_convergence(
     benchmark.add_measurement(
         "train", SingleMeasurement(name="Convergence Passed", value=int(result["passed"]), unit="bool")
     )
+
+
+def parse_cprofile_stats(
+    profile: cProfile.Profile,
+    isaaclab_prefixes: list[str],
+    top_n: int = 30,
+    whitelist: list[str] | None = None,
+) -> list[tuple[str, float, float]]:
+    """Parse cProfile stats, filtering to IsaacLab + first-level external calls.
+
+    Walks the pstats data and keeps functions that are either (a) inside an
+    IsaacLab source directory, or (b) directly called by an IsaacLab function.
+    Results are sorted by own-time (tottime) descending.
+
+    When *whitelist* is provided, only functions whose labels match at least one
+    ``fnmatch`` pattern are returned. Patterns that match no profiled function
+    emit a ``(pattern, 0.0, 0.0)`` placeholder so dashboards always receive
+    consistent keys. The *top_n* parameter is ignored in whitelist mode.
+
+    Args:
+        profile: A completed cProfile.Profile instance (after .disable()).
+        isaaclab_prefixes: Absolute file path prefixes identifying IsaacLab source
+            (e.g. ["/home/user/IsaacLab/source/isaaclab", ...]).
+        top_n: Maximum number of functions to return per phase. Ignored when
+            *whitelist* is provided.
+        whitelist: Optional list of ``fnmatch`` patterns to select specific
+            functions (e.g. ``["isaaclab.cloner.*:usd_replicate"]``).
+
+    Returns:
+        List of (function_label, tottime_ms, cumtime_ms) tuples sorted by
+        tottime descending.
+    """
+    import io
+    import pstats
+
+    stats = pstats.Stats(profile, stream=io.StringIO())
+
+    def _is_isaaclab(filename: str) -> bool:
+        return any(filename.startswith(prefix) for prefix in isaaclab_prefixes)
+
+    def _make_label(filename: str, funcname: str) -> str:
+        # For builtins/C-extensions the filename is something like "~" or "<frozen ...>"
+        if not filename or filename.startswith("<") or filename == "~":
+            return funcname
+        # Convert absolute path to dotted module-style label
+        for prefix in isaaclab_prefixes:
+            if filename.startswith(prefix):
+                rel = os.path.relpath(filename, prefix)
+                # Strip .py, replace os.sep with dot
+                rel = rel.replace(os.sep, ".").removesuffix(".py")
+                return f"{rel}:{funcname}"
+        # External function — try to find the top-level package name
+        # e.g. ".../site-packages/torch/nn/modules/linear.py" -> "torch.nn.modules.linear"
+        parts = filename.replace(os.sep, "/").removesuffix(".py").split("/")
+        # Find "site-packages" anchor or fall back to last 3 components
+        try:
+            sp_idx = parts.index("site-packages")
+            short = ".".join(parts[sp_idx + 1 :])
+        except ValueError:
+            short = ".".join(parts[-3:]) if len(parts) >= 3 else ".".join(parts)
+        return f"{short}:{funcname}"
+
+    # stats.stats is dict[(filename, lineno, funcname)] -> (ncalls, totcalls, tottime, cumtime, callers)
+    # callers is dict[(filename, lineno, funcname)] -> (ncalls, totcalls, tottime, cumtime)
+    results = []
+    for func_key, (nc, cc, tottime, cumtime, callers) in stats.stats.items():
+        filename, lineno, funcname = func_key
+        if _is_isaaclab(filename):
+            label = _make_label(filename, funcname)
+            results.append((label, tottime * 1000.0, cumtime * 1000.0))
+        else:
+            # Check if any direct caller is an IsaacLab function
+            for caller_key in callers:
+                caller_filename = caller_key[0]
+                if _is_isaaclab(caller_filename):
+                    label = _make_label(filename, funcname)
+                    results.append((label, tottime * 1000.0, cumtime * 1000.0))
+                    break
+
+    # Sort by tottime (own-time) descending
+    results.sort(key=lambda x: x[1], reverse=True)
+
+    if whitelist is None:
+        return results[:top_n]
+
+    # Whitelist mode: filter by fnmatch patterns, emit placeholders for unmatched patterns
+    import fnmatch
+
+    matched: dict[str, tuple[str, float, float]] = {}
+    matched_patterns: set[str] = set()
+    for label, tottime, cumtime in results:
+        for pattern in whitelist:
+            if fnmatch.fnmatch(label, pattern):
+                if label not in matched:
+                    matched[label] = (label, tottime, cumtime)
+                matched_patterns.add(pattern)
+
+    # Add 0.0 placeholders for patterns that matched nothing
+    for pattern in whitelist:
+        if pattern not in matched_patterns:
+            matched[pattern] = (pattern, 0.0, 0.0)
+
+    filtered = list(matched.values())
+    filtered.sort(key=lambda x: x[1], reverse=True)
+    return filtered
+
+
+def print_startup_summary(
+    phase_results: dict[str, dict],
+) -> None:
+    """Print a human-readable startup profile summary to stdout.
+
+    Args:
+        phase_results: Dict mapping phase name to a dict with keys:
+            - "wall_clock_ms": float, total wall-clock time for the phase.
+            - "functions": list of (label, tottime_ms, cumtime_ms) tuples.
+            - "extra_measurements": optional list of (name, value_ms) for
+              sub-timings like Scene Creation Time.
+    """
+    width = 90
+    sep = "|" + "-" * (width - 2) + "|"
+
+    def box_line(text: str) -> None:
+        inner = width - 4
+        if not text:
+            print(f"| {' ' * inner} |")
+            return
+        # Wrap long lines
+        while len(text) > inner:
+            print(f"| {text[:inner]} |")
+            text = text[inner:]
+        print(f"| {text.ljust(inner)} |")
+
+    print()
+    print(sep)
+    box_line("Startup Profile Summary".center(width - 4))
+    print(sep)
+
+    for phase_name, data in phase_results.items():
+        wall_ms = data["wall_clock_ms"]
+        functions = data["functions"]
+        extras = data.get("extra_measurements", [])
+
+        box_line(f"Phase: {phase_name}  (wall clock: {wall_ms:.1f} ms)")
+        print(sep)
+
+        for name, val_ms in extras:
+            box_line(f"  {name}: {val_ms:.1f} ms")
+
+        if functions:
+            # Header
+            box_line(f"  {'Function':<58} {'Own (ms)':>10} {'Cum (ms)':>10}")
+            box_line(f"  {'-' * 58} {'-' * 10} {'-' * 10}")
+            for label, tottime, cumtime in functions:
+                # Truncate long labels
+                short_label = label if len(label) <= 58 else label[:55] + "..."
+                box_line(f"  {short_label:<58} {tottime:>10.1f} {cumtime:>10.1f}")
+        else:
+            box_line("  (no IsaacLab functions captured)")
+
+        print(sep)
+
+    print()
