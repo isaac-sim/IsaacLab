@@ -83,7 +83,12 @@ runs:
       if: always()
       shell: bash
       run: |
-        elapsed=$(( $(date +%s) - ${{ steps.pull-start.outputs.time }} ))
+        start_time="${{ steps.pull-start.outputs.time }}"
+        if [ -z "$start_time" ]; then
+          echo "🟠 Could not calculate pull duration (start time not recorded)" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        elapsed=$(( $(date +%s) - start_time ))
         printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
         echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
 

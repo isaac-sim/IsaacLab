@@ -149,7 +149,7 @@ runs:
 
           # Run tests in container.
           # --init: proper signal forwarding inside the container (PID 1 reaps + forwards signals)
-          # --stop-timeout 5: when docker receives a signal or client disconnects, stop quickly
+          # --stop-timeout 5: after SIGTERM, wait only 5s before SIGKILL (default is 10s)
           # Running in foreground so the runner can kill the process group directly on cancellation.
           echo "🔵 Starting Docker container for tests..."
           docker run --name $container_name \
@@ -179,11 +179,12 @@ runs:
 
           # Copy test results with error handling
           echo "🔵 Attempting to copy test results..."
-          if docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>/dev/null; then
+          if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
             echo "🟢 Test results copied successfully to $reports_dir/$result_file"
           else
-            echo "🔴 Failed to copy specific result file, trying to copy all test results..."
-            if docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>/dev/null; then
+            echo "🔴 Failed to copy specific result file: $cp_err"
+            echo "🔴 Trying to copy all test results..."
+            if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>&1); then
               echo "🟢 All test results copied successfully to $reports_dir/"
               # Look for any XML files and use the first one found
               if [ -f "$reports_dir/full_report.xml" ]; then

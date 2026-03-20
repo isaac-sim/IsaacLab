@@ -70,7 +70,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -101,7 +101,7 @@ jobs:
         fi
 
     - name: Upload IsaacLab Tasks Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
       if: always()
       with:
         name: isaaclab-tasks-compat-results-${{ matrix.isaacsim_version }}
@@ -127,7 +127,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -158,7 +158,7 @@ jobs:
         fi
 
     - name: Upload General Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
       if: always()
       with:
         name: general-tests-compat-results-${{ matrix.isaacsim_version }}
@@ -173,7 +173,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: false
@@ -185,7 +185,7 @@ jobs:
         mkdir -p reports
 
     - name: Download All Test Results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
       with:
         pattern: '*-compat-results-*'
         path: reports/
@@ -199,7 +199,7 @@ jobs:
         output-file: "reports/combined-compat-results.xml"
 
     - name: Upload Combined Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
       if: always()
       with:
         name: daily-compat-${{ github.run_id }}-combined-test-results
@@ -224,7 +224,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: false
@@ -253,7 +253,7 @@ jobs:
         echo "*This report was generated automatically by the daily compatibility workflow.*" >> compatibility-report.md
 
     - name: Upload Compatibility Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
       if: always()
       with:
         name: compatibility-report-${{ github.run_id }}

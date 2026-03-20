@@ -109,6 +109,16 @@ jobs:
         git fetch --depth=1 origin "${{ github.event.pull_request.base.ref }}"
         changed=$(git diff --name-only FETCH_HEAD HEAD)
 
+        if [ -z "$changed" ]; then
+          echo "::warning::No changed files detected between FETCH_HEAD and HEAD — running all tests as a safety measure"
+          for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
+                     isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
+                     isaaclab-visualizers isaaclab-assets infra; do
+            echo "$pkg=true" >> "$GITHUB_OUTPUT"
+          done
+          exit 0
+        fi
+
         has() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
 
         echo "isaaclab-core=$(has '^source/isaaclab/')" >> "$GITHUB_OUTPUT"
