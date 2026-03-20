@@ -268,6 +268,7 @@ def parse_cprofile_stats(
         List of (function_label, tottime_ms, cumtime_ms) tuples sorted by
         tottime descending.
     """
+    import fnmatch
     import io
     import pstats
 
@@ -298,11 +299,11 @@ def parse_cprofile_stats(
             short = ".".join(parts[-3:]) if len(parts) >= 3 else ".".join(parts)
         return f"{short}:{funcname}"
 
-    # stats.stats is dict[(filename, lineno, funcname)] -> (ncalls, totcalls, tottime, cumtime, callers)
-    # callers is dict[(filename, lineno, funcname)] -> (ncalls, totcalls, tottime, cumtime)
+    # stats.stats: dict[(filename, lineno, funcname)] -> (cc, nc, tottime, cumtime, callers)
+    # callers: dict[(filename, lineno, funcname)] -> (cc, nc, tottime, cumtime)
     results = []
-    for func_key, (nc, cc, tottime, cumtime, callers) in stats.stats.items():
-        filename, lineno, funcname = func_key
+    for func_key, (_, _, tottime, cumtime, callers) in stats.stats.items():
+        filename, _, funcname = func_key
         if _is_isaaclab(filename):
             label = _make_label(filename, funcname)
             results.append((label, tottime * 1000.0, cumtime * 1000.0))
@@ -322,8 +323,6 @@ def parse_cprofile_stats(
         return results[:top_n]
 
     # Whitelist mode: filter by fnmatch patterns, emit placeholders for unmatched patterns
-    import fnmatch
-
     matched: dict[str, tuple[str, float, float]] = {}
     matched_patterns: set[str] = set()
     for label, tottime, cumtime in results:
@@ -334,12 +333,10 @@ def parse_cprofile_stats(
                 matched_patterns.add(pattern)
 
     # Add 0.0 placeholders for patterns that matched nothing
-    import warnings
-
     for pattern in whitelist:
         if pattern not in matched_patterns:
-            warnings.warn(
-                f"Whitelist pattern '{pattern}' matched no profiled functions. "
+            print(
+                f"[WARNING] Whitelist pattern '{pattern}' matched no profiled functions. "
                 "Check for typos or verify the function ran during this phase."
             )
             matched[pattern] = (pattern, 0.0, 0.0)

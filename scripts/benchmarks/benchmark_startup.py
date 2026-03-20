@@ -11,8 +11,6 @@ as SingleMeasurement entries (both own-time and cumulative time) via the
 standard benchmark backend.
 """
 
-# Launch Isaac Sim Simulator first.
-
 import argparse
 import cProfile
 import os
@@ -25,7 +23,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description="Profile IsaacLab startup phases.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--task", type=str, required=True, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--top_n",
@@ -136,6 +134,20 @@ if args_cli.whitelist_config is not None:
         )
         sys.exit(1)
     else:
+        _VALID_PHASES = {"app_launch", "python_imports", "env_creation", "first_step"}
+        unknown_phases = set(raw.keys()) - _VALID_PHASES
+        if unknown_phases:
+            print(
+                f"[WARNING] Whitelist config contains unknown phase(s): {unknown_phases}. "
+                f"Valid phases: {_VALID_PHASES}. Check for typos."
+            )
+        for phase_name, patterns in raw.items():
+            if not isinstance(patterns, list) or not all(isinstance(p, str) for p in patterns):
+                print(
+                    f"[ERROR] Whitelist phase '{phase_name}' must be a list of strings, "
+                    f"got {type(patterns).__name__}. Check YAML formatting (use '- pattern' syntax)."
+                )
+                sys.exit(1)
         _WHITELIST = raw
 
 # Resolve top_n default: 5 when using whitelist (fallback phases stay compact), 30 otherwise
@@ -200,112 +212,112 @@ def main(
         torch.cuda.synchronize()
     env_creation_time_end = time.perf_counter_ns()
 
-    # -- First step profiled ----------------------------------------------------
-
-    # Sample random actions
-    actions = (
-        torch.rand(env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device)
-        * 2.0
-        - 1.0
-    )
-
-    first_step_profile = cProfile.Profile()
-    first_step_time_begin = time.perf_counter_ns()
-    first_step_profile.enable()
     try:
-        env.step(actions)
+        # -- First step profiled ------------------------------------------------
+
+        # Sample random actions
+        actions = (
+            torch.rand(env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device)
+            * 2.0
+            - 1.0
+        )
+
+        first_step_profile = cProfile.Profile()
+        first_step_time_begin = time.perf_counter_ns()
+        first_step_profile.enable()
+        try:
+            env.step(actions)
+        finally:
+            first_step_profile.disable()
+
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+        first_step_time_end = time.perf_counter_ns()
+
+        # -- Parse all profiles and log measurements ----------------------------
+
+        imports_wall_ms = (imports_time_end - imports_time_begin) / 1e6
+        env_creation_wall_ms = (env_creation_time_end - env_creation_time_begin) / 1e6
+        first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
+
+        # Collect Timer-based sub-timings for env_creation phase (may not exist for all environment types)
+        scene_creation_ms = None
+        try:
+            scene_creation_ms = Timer.get_timer_info("scene_creation") * 1000
+        except TimerError:
+            print("[INFO] Timer 'scene_creation' not available; sub-timing will be omitted.")
+
+        simulation_start_ms = None
+        try:
+            simulation_start_ms = Timer.get_timer_info("simulation_start") * 1000
+        except TimerError:
+            print("[INFO] Timer 'simulation_start' not available; sub-timing will be omitted.")
+
+        phases = {
+            "app_launch": {
+                "profile": app_launch_profile,
+                "wall_clock_ms": app_launch_wall_ms,
+                "extra_measurements": [],
+            },
+            "python_imports": {
+                "profile": imports_profile,
+                "wall_clock_ms": imports_wall_ms,
+                "extra_measurements": [],
+            },
+            "env_creation": {
+                "profile": env_creation_profile,
+                "wall_clock_ms": env_creation_wall_ms,
+                "extra_measurements": [
+                    (name, val)
+                    for name, val in [
+                        ("Scene Creation Time", scene_creation_ms),
+                        ("Simulation Start Time", simulation_start_ms),
+                    ]
+                    if val is not None
+                ],
+            },
+            "first_step": {
+                "profile": first_step_profile,
+                "wall_clock_ms": first_step_wall_ms,
+                "extra_measurements": [],
+            },
+        }
+
+        # Parse profiles and log measurements to benchmark
+        for phase_name, phase_data in phases.items():
+            phase_whitelist = _WHITELIST.get(phase_name)
+            functions = parse_cprofile_stats(
+                phase_data["profile"], _ISAACLAB_PREFIXES, top_n=args_cli.top_n, whitelist=phase_whitelist
+            )
+            wall_ms = phase_data["wall_clock_ms"]
+            extras = phase_data["extra_measurements"]
+
+            # Log wall-clock time
+            benchmark.add_measurement(
+                phase_name, measurement=SingleMeasurement(name="Wall Clock Time", value=wall_ms, unit="ms")
+            )
+
+            # Log extra sub-timings
+            for extra_name, extra_val in extras:
+                benchmark.add_measurement(
+                    phase_name, measurement=SingleMeasurement(name=extra_name, value=extra_val, unit="ms")
+                )
+
+            # Log per-function measurements (tottime + cumtime)
+            for label, tottime_ms, cumtime_ms in functions:
+                benchmark.add_measurement(
+                    phase_name, measurement=SingleMeasurement(name=label, value=round(tottime_ms, 2), unit="ms")
+                )
+                benchmark.add_measurement(
+                    phase_name,
+                    measurement=SingleMeasurement(name=f"{label} (cumtime)", value=round(cumtime_ms, 2), unit="ms"),
+                )
+
+        # Finalize benchmark output
+        benchmark.update_manual_recorders()
+        benchmark._finalize_impl()
     finally:
-        first_step_profile.disable()
-
-    if torch.cuda.is_available() and torch.cuda.is_initialized():
-        torch.cuda.synchronize()
-    first_step_time_end = time.perf_counter_ns()
-
-    # -- Parse all profiles and log measurements -----------------------------
-
-    imports_wall_ms = (imports_time_end - imports_time_begin) / 1e6
-    env_creation_wall_ms = (env_creation_time_end - env_creation_time_begin) / 1e6
-    first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
-
-    # Collect Timer-based sub-timings for env_creation phase (may not exist for all environment types)
-    scene_creation_ms = None
-    try:
-        scene_creation_ms = Timer.get_timer_info("scene_creation") * 1000
-    except TimerError:
-        print("[INFO] Timer 'scene_creation' not available; sub-timing will be omitted.")
-
-    simulation_start_ms = None
-    try:
-        simulation_start_ms = Timer.get_timer_info("simulation_start") * 1000
-    except TimerError:
-        print("[INFO] Timer 'simulation_start' not available; sub-timing will be omitted.")
-
-    phases = {
-        "app_launch": {
-            "profile": app_launch_profile,
-            "wall_clock_ms": app_launch_wall_ms,
-            "extra_measurements": [],
-        },
-        "python_imports": {
-            "profile": imports_profile,
-            "wall_clock_ms": imports_wall_ms,
-            "extra_measurements": [],
-        },
-        "env_creation": {
-            "profile": env_creation_profile,
-            "wall_clock_ms": env_creation_wall_ms,
-            "extra_measurements": [
-                (name, val)
-                for name, val in [
-                    ("Scene Creation Time", scene_creation_ms),
-                    ("Simulation Start Time", simulation_start_ms),
-                ]
-                if val is not None
-            ],
-        },
-        "first_step": {
-            "profile": first_step_profile,
-            "wall_clock_ms": first_step_wall_ms,
-            "extra_measurements": [],
-        },
-    }
-
-    # Parse profiles and log measurements to benchmark
-    for phase_name, phase_data in phases.items():
-        phase_whitelist = _WHITELIST.get(phase_name)
-        functions = parse_cprofile_stats(
-            phase_data["profile"], _ISAACLAB_PREFIXES, top_n=args_cli.top_n, whitelist=phase_whitelist
-        )
-        wall_ms = phase_data["wall_clock_ms"]
-        extras = phase_data["extra_measurements"]
-
-        # Log wall-clock time
-        benchmark.add_measurement(
-            phase_name, measurement=SingleMeasurement(name="Wall Clock Time", value=wall_ms, unit="ms")
-        )
-
-        # Log extra sub-timings
-        for extra_name, extra_val in extras:
-            benchmark.add_measurement(
-                phase_name, measurement=SingleMeasurement(name=extra_name, value=extra_val, unit="ms")
-            )
-
-        # Log per-function measurements (tottime + cumtime)
-        for label, tottime_ms, cumtime_ms in functions:
-            benchmark.add_measurement(
-                phase_name, measurement=SingleMeasurement(name=label, value=round(tottime_ms, 2), unit="ms")
-            )
-            benchmark.add_measurement(
-                phase_name,
-                measurement=SingleMeasurement(name=f"{label} (cumtime)", value=round(cumtime_ms, 2), unit="ms"),
-            )
-
-    # Finalize benchmark output
-    benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
-
-    # Close the simulator
-    env.close()
+        env.close()
 
 
 if __name__ == "__main__":

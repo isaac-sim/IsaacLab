@@ -189,7 +189,7 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
 
 .. code-block:: yaml
 
-   # startup_whitelist.yaml
+   # Example whitelist config
    app_launch:
      - "isaaclab.utils.configclass:_custom_post_init"
      - "isaaclab.sim.*:__init__"

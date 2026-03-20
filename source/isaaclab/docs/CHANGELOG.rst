@@ -7,7 +7,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Changed :class:`~isaaclab.test.benchmark.backends.SummaryMetrics` to
+* Changed ``SummaryMetrics`` backend to
   dynamically render unknown benchmark phases. Previously only hard-coded phase
   names (``startup``, ``runtime``, ``train``, ``frametime``) were printed in the
   summary report; any other phases were silently dropped. Unknown phases now
