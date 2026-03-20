@@ -44,7 +44,8 @@ def sanitize_msg(msg, max_len=80):
 
 
 if failed or errored:
-    print("\n| Status | Test | Time | Message |")
+    print("")
+    print("| Status | Test | Time | Message |")
     print("|--------|------|------|---------|")
     for name, t, msg in failed:
         print(f"| ASSERTION | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
@@ -52,19 +53,25 @@ if failed or errored:
         print(f"| ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
-    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m:{secs:.0f}s)</summary>\n")
-    print("\n<br>")
+    print(f"\n<details><summary>🟢 {len(passed)} PASSED ({int(mins)}m:{secs:.0f}s)</summary>")
+    print("")
+    print("<br>")
+    print("")
     print("| Test | Time |")
     print("|------|------|")
     for name, t in passed:
         print(f"| `{name}` | {t:.1f}s |")
-    print("\n</details>")
+    print("")
+    print("</details>")
 
 if skipped:
-    print(f"\n<details><summary>🟠 {len(skipped)} SKIPPED</summary>\n")
-    print("\n<br>")
+    print(f"\n<details><summary>🟠 {len(skipped)} SKIPPED</summary>")
+    print("")
+    print("<br>")
+    print("")
     print("| Test | Reason |")
     print("|------|--------|")
     for name, t, msg in skipped:
         print(f"| `{name}` | {sanitize_msg(msg)} |")
-    print("\n</details>")
+    print("")
+    print("</details>")
