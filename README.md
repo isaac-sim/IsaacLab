@@ -31,15 +31,13 @@ pip install -e source/eigenbot
 # Render the eigenbot with zero actions
 cd /workspace/eigenbot
 python scripts/zero_agent.py --task Template-Eigenbot-Direct-v0 --num_envs 1
+
+# Train with PPO (no viz)
+python scripts/rsl_rl/train.py --task Template-Eigenbot-Direct-v0 --num_envs 4096 --headless
+
+# Train with visualization
+python scripts/rsl_rl/train.py --task Template-Eigenbot-Direct-v0 --num_envs 4096
+
+# Replay trained checkpoint
+python scripts/rsl_rl/play.py --task Template-Eigenbot-Direct-v0 --num_envs 32
 ```
-
-## Visualization
-
-**X11 forwarding (Linux with display):** The `container.py` script auto-detects X11 and sets it up. The Isaac Sim GUI window should appear on your host display.
-
-**Headless / remote server:** Use Isaac Sim's livestream mode and connect with the Omniverse Streaming Client:
-```bash
-python scripts/zero_agent.py --task Template-Eigenbot-Direct-v0 --num_envs 1 --livestream 1
-```
-
-**WSL2 on Windows:** WSLg handles display forwarding automatically. Run the above commands from within WSL2.
