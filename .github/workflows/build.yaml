@@ -86,7 +86,7 @@ jobs:
       infra: ${{ steps.check.outputs.infra }}
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v6
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
 
@@ -178,7 +178,7 @@ jobs:
     needs: [detect-changes]
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v6
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -204,7 +204,7 @@ jobs:
       needs.detect-changes.outputs.infra == 'true'
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v6
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -236,7 +236,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -264,7 +264,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -301,7 +301,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -327,7 +327,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -353,7 +353,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -379,7 +379,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -406,7 +406,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -431,7 +431,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -456,7 +456,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -481,7 +481,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -506,7 +506,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -531,7 +531,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -556,7 +556,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -581,7 +581,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -607,7 +607,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -636,7 +636,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -661,7 +661,7 @@ jobs:
   #     always() && needs.build.result == 'success' &&
   #     vars.RUN_QUARANTINED_TESTS == 'true'
   #   steps:
-  #   - uses: actions/checkout@v6
+  #   - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
   #     with:
   #       fetch-depth: 1
   #       lfs: true
@@ -687,7 +687,7 @@ jobs:
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: true
@@ -712,7 +712,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v6
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       with:
         fetch-depth: 1
         lfs: false
@@ -720,7 +720,7 @@ jobs:
         sparse-checkout-cone-mode: true
 
     - name: Download All Test Results
-      uses: actions/download-artifact@v8
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
       with:
         pattern: "*-test-results"
         path: reports/
@@ -735,7 +735,7 @@ jobs:
         output-file: "reports/combined-results.xml"
 
     - name: Upload Combined Test Results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
       if: always()
       with:
         name: pr-${{ github.event.pull_request.number }}-combined-test-results
