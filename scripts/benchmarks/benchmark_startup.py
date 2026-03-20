@@ -169,7 +169,7 @@ benchmark = BaseIsaacLabBenchmark(
     backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
-    frametime_recorders=False,
+    env_cfg.seed = args_cli.seed if args_cli.seed is not None else env_cfg.seed
     output_prefix=f"benchmark_startup_{args_cli.task}",
     workflow_metadata={
         "metadata": [
