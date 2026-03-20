@@ -17,7 +17,7 @@ Reference: https://www.flexiv.com/product/rizon
 import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -116,46 +116,46 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         rot=(0.0, 0.0, 0.0, 1.0),
     ),
     actuators={
-        "shoulder": ImplicitActuatorCfg(
+        "shoulder": IdealPDActuatorCfg(
             joint_names_expr=["joint[1-2]"],
-            effort_limit_sim=123.0,
-            velocity_limit_sim=2.094,
+            effort_limit=123.0,
+            velocity_limit=2.094,
             stiffness=1320.0,
             damping=72.0,
             friction=0.0,
             armature=0.0,
         ),
-        "elbow": ImplicitActuatorCfg(
+        "elbow": IdealPDActuatorCfg(
             joint_names_expr=["joint[3-4]"],
-            effort_limit_sim=64.0,
-            velocity_limit_sim=2.443,
+            effort_limit=64.0,
+            velocity_limit=2.443,
             stiffness=600.0,
             damping=35.0,
             friction=0.0,
             armature=0.0,
         ),
-        "wrist": ImplicitActuatorCfg(
+        "wrist": IdealPDActuatorCfg(
             joint_names_expr=["joint[5-7]"],
-            effort_limit_sim=39.0,
-            velocity_limit_sim=4.887,
+            effort_limit=39.0,
+            velocity_limit=4.887,
             stiffness=216.0,
             damping=29.0,
             friction=0.0,
             armature=0.0,
         ),
-        "gripper_drive": ImplicitActuatorCfg(
+        "gripper_drive": IdealPDActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=200.0,
-            velocity_limit_sim=0.6,
+            effort_limit=200.0,
+            velocity_limit=0.6,
             stiffness=2e3,
             damping=1e1,
             friction=0.0,
             armature=0.0,
         ),
-        "gripper_passive": ImplicitActuatorCfg(
+        "gripper_passive": IdealPDActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
-            effort_limit_sim=1.0,
-            velocity_limit_sim=1.0,
+            effort_limit=1.0,
+            velocity_limit=1.0,
             stiffness=0.0,
             damping=0.0,
             friction=0.0,
@@ -163,7 +163,7 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         ),
     },
 )
-"""Configuration of Flexiv Rizon 4s arm with Grav gripper using implicit actuator models.
+"""Configuration of Flexiv Rizon 4s arm with Grav gripper using explicit ideal PD actuator models.
 
 The Grav gripper is a parallel gripper with the following joint configuration:
 - finger_joint: Main actuation joint (opened: 45 deg, closed: -8.88 deg)
