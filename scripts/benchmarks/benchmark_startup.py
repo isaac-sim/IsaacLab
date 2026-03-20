@@ -211,15 +211,19 @@ def main(
     env_creation_profile.enable()
     try:
         env = gym.make(args_cli.task, cfg=env_cfg)
-        env.reset()
-    finally:
+    except Exception:
         env_creation_profile.disable()
-
-    if torch.cuda.is_available() and torch.cuda.is_initialized():
-        torch.cuda.synchronize()
-    env_creation_time_end = time.perf_counter_ns()
+        raise
 
     try:
+        try:
+            env.reset()
+        finally:
+            env_creation_profile.disable()
+
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+        env_creation_time_end = time.perf_counter_ns()
         # -- First step profiled ------------------------------------------------
 
         # Sample random actions
