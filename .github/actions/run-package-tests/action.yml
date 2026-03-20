@@ -85,7 +85,7 @@ runs:
       run: |
         elapsed=$(( $(date +%s) - ${{ steps.pull-start.outputs.time }} ))
         printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
-        echo "_🔵 Docker Pull Took: ${elapsed}s_" >> "$GITHUB_STEP_SUMMARY"
+        echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Run Tests
       uses: ./.github/actions/run-tests
