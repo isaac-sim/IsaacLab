@@ -490,4 +490,4 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0 if num_failing == 0 else 1)
+    pytest.exit("Custom test execution completed", returncode=0 if (num_failing == 0 and num_timeout == 0) else 1)
