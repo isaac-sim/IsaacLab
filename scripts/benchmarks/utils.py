@@ -259,7 +259,7 @@ def parse_cprofile_stats(
         profile: A completed cProfile.Profile instance (after .disable()).
         isaaclab_prefixes: Absolute file path prefixes identifying IsaacLab source
             (e.g. ["/home/user/IsaacLab/source/isaaclab", ...]).
-        top_n: Maximum number of functions to return per phase. Ignored when
+        top_n: Maximum number of functions to return. Ignored when
             *whitelist* is provided.
         whitelist: Optional list of ``fnmatch`` patterns to select specific
             functions (e.g. ``["isaaclab.cloner.*:usd_replicate"]``).
@@ -347,61 +347,3 @@ def parse_cprofile_stats(
     filtered = list(matched.values())
     filtered.sort(key=lambda x: x[1], reverse=True)
     return filtered
-
-
-def print_startup_summary(
-    phase_results: dict[str, dict],
-) -> None:
-    """Print a human-readable startup profile summary to stdout.
-
-    Args:
-        phase_results: Dict mapping phase name to a dict with keys:
-            - "wall_clock_ms": float, total wall-clock time for the phase.
-            - "functions": list of (label, tottime_ms, cumtime_ms) tuples.
-            - "extra_measurements": optional list of (name, value_ms) for
-              sub-timings like Scene Creation Time.
-    """
-    width = 90
-    sep = "|" + "-" * (width - 2) + "|"
-
-    def box_line(text: str) -> None:
-        inner = width - 4
-        if not text:
-            print(f"| {' ' * inner} |")
-            return
-        # Wrap long lines
-        while len(text) > inner:
-            print(f"| {text[:inner]} |")
-            text = text[inner:]
-        print(f"| {text.ljust(inner)} |")
-
-    print()
-    print(sep)
-    box_line("Startup Profile Summary".center(width - 4))
-    print(sep)
-
-    for phase_name, data in phase_results.items():
-        wall_ms = data["wall_clock_ms"]
-        functions = data["functions"]
-        extras = data.get("extra_measurements", [])
-
-        box_line(f"Phase: {phase_name}  (wall clock: {wall_ms:.1f} ms)")
-        print(sep)
-
-        for name, val_ms in extras:
-            box_line(f"  {name}: {val_ms:.1f} ms")
-
-        if functions:
-            # Header
-            box_line(f"  {'Function':<58} {'Own (ms)':>10} {'Cum (ms)':>10}")
-            box_line(f"  {'-' * 58} {'-' * 10} {'-' * 10}")
-            for label, tottime, cumtime in functions:
-                # Truncate long labels
-                short_label = label if len(label) <= 58 else label[:55] + "..."
-                box_line(f"  {short_label:<58} {tottime:>10.1f} {cumtime:>10.1f}")
-        else:
-            box_line("  (no IsaacLab functions captured)")
-
-        print(sep)
-
-    print()

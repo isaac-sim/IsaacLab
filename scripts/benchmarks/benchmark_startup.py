@@ -7,10 +7,11 @@
 
 Each startup stage (app launch, python imports, env creation, first step) is
 wrapped in its own cProfile session. The top functions by own-time are emitted
-as SingleMeasurement entries via the standard benchmark backend.
+as SingleMeasurement entries (both own-time and cumulative time) via the
+standard benchmark backend.
 """
 
-"""Launch Isaac Sim Simulator first."""
+# Launch Isaac Sim Simulator first.
 
 import argparse
 import cProfile
@@ -75,7 +76,7 @@ from scripts.benchmarks.utils import (
     parse_cprofile_stats,
 )
 
-# -- Phase 1: Python imports (profiled) --------------------------------------
+# -- Python imports (profiled) ------------------------------------------------
 
 imports_profile = cProfile.Profile()
 imports_time_begin = time.perf_counter_ns()
@@ -171,7 +172,7 @@ def main(
     app_launch_profile: cProfile.Profile,
     app_launch_wall_ms: float,
 ):
-    """Run env creation and first step with profiling.
+    """Profile env creation and first step, then log all phase measurements.
 
     Args:
         env_cfg: Resolved environment configuration for the task.
@@ -184,7 +185,7 @@ def main(
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
     env_cfg.seed = args_cli.seed
 
-    # -- Phase 3: Env creation (gym.make + env.reset) profiled ---------------
+    # -- Env creation (gym.make + env.reset) profiled ---------------------------
 
     env_creation_profile = cProfile.Profile()
     env_creation_time_begin = time.perf_counter_ns()
@@ -199,7 +200,7 @@ def main(
         torch.cuda.synchronize()
     env_creation_time_end = time.perf_counter_ns()
 
-    # -- Phase 4: First step profiled ----------------------------------------
+    # -- First step profiled ----------------------------------------------------
 
     # Sample random actions
     actions = (
@@ -226,7 +227,7 @@ def main(
     env_creation_wall_ms = (env_creation_time_end - env_creation_time_begin) / 1e6
     first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
 
-    # Collect Timer-based sub-timings for env_creation phase (may not exist for all backends)
+    # Collect Timer-based sub-timings for env_creation phase (may not exist for all environment types)
     scene_creation_ms = None
     try:
         scene_creation_ms = Timer.get_timer_info("scene_creation") * 1000
@@ -308,7 +309,7 @@ def main(
 
 
 if __name__ == "__main__":
-    # -- Phase 2: App launch (profiled) --------------------------------------
+    # -- App launch (profiled) --------------------------------------------------
 
     app_launch_profile = cProfile.Profile()
     app_launch_time_begin = time.perf_counter_ns()
