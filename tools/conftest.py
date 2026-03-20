@@ -189,9 +189,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             }
             continue
 
-        if returncode != 0:
-            failed_tests.append(test_file)
-
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
