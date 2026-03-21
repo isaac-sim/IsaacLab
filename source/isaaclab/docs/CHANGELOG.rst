@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.24 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for absolute named imports (``from pkg import a, b``) in
+  ``.pyi`` stubs processed by :func:`~isaaclab.utils.module.lazy_export`.
+  Previously only relative imports and absolute wildcard fallbacks were
+  handled; explicit names from absolute packages are now eagerly resolved
+  and re-exported.
+
+
 4.5.23 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
 
