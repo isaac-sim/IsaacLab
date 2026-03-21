@@ -48,7 +48,7 @@ for tc in root.iter("testcase"):
         passed.append((name, t))
 
 mins, secs = divmod(total_time, 60)
-time_str = f"{int(mins)}m {secs:.0f}s"
+time_str = f"{int(mins)}m:{secs:.0f}s"
 
 
 def sanitize_msg(msg, max_len=300):
