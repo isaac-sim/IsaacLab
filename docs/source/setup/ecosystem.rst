@@ -137,6 +137,17 @@ and hope that others in the community will join us too in this effort. If you ar
 to Isaac Lab, please reach out to us.
 
 
+Community Projects
+------------------
+
+The following projects are built on top of Isaac Lab and extend its capabilities:
+
+* `RoboGate <https://github.com/liveplex-cpu/robogate>`__ — AI policy deployment validation and runtime monitoring
+  platform for industrial Pick & Place robotics. RoboGate automatically tests new robot AI policies through
+  physics-validated simulation scenarios in Isaac Sim before production deployment, generating Pass/Fail reports
+  with Deployment Confidence Scores. Includes 20,000+ physics-validated failure experiments across Franka Panda
+  and UR5e robots. (`Website <https://robogate.io>`__ | `Failure Dictionary <https://huggingface.co/datasets/liveplex/robogate-failure-dictionary>`__)
+
 .. _PhysX: https://developer.nvidia.com/physx-sdk
 .. _Isaac Sim: https://developer.nvidia.com/isaac-sim
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
