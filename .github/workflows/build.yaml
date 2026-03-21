@@ -166,8 +166,6 @@ jobs:
 
         # Write job summary visible on the GH Actions UI
         {
-          echo "#### Changed Files / Packages"
-          echo ""
           echo "| File | Package |"
           echo "|------|---------|"
           echo "$changed" | while IFS= read -r f; do
