@@ -132,7 +132,7 @@ runs:
       shell: bash
       run: |
         if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -q 'failures="[1-9]' reports/${{ github.job }}-report.xml || grep -q 'errors="[1-9]' reports/${{ github.job }}-report.xml; then
+          if grep -qE 'failures="[1-9][0-9]*"' reports/${{ github.job }}-report.xml || grep -qE 'errors="[1-9][0-9]*"' reports/${{ github.job }}-report.xml; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
