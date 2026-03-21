@@ -262,7 +262,6 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         shard-index: "0"
         shard-count: "3"
-        artifact-name: isaaclab-tasks-1-test-results
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -290,7 +289,6 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         shard-index: "1"
         shard-count: "3"
-        artifact-name: isaaclab-tasks-2-test-results
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -318,7 +316,6 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         shard-index: "2"
         shard-count: "3"
-        artifact-name: isaaclab-tasks-3-test-results
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -344,7 +341,6 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "0"
         shard-count: "3"
-        artifact-name: isaaclab-core-1-test-results
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -370,7 +366,6 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
-        artifact-name: isaaclab-core-2-test-results
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -396,7 +391,6 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "2"
         shard-count: "3"
-        artifact-name: isaaclab-core-3-test-results
         container-name: isaac-lab-core-3-test
 
   test-isaaclab-rl:
@@ -421,7 +415,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_rl"
-        artifact-name: isaaclab-rl-test-results
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -446,7 +439,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_mimic"
-        artifact-name: isaaclab-mimic-test-results
         container-name: isaac-lab-mimic-test
 
   test-isaaclab-contrib:
@@ -471,7 +463,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_contrib"
-        artifact-name: isaaclab-contrib-test-results
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -496,7 +487,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_teleop"
-        artifact-name: isaaclab-teleop-test-results
         container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
@@ -521,7 +511,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_visualizers"
-        artifact-name: isaaclab-visualizers-test-results
         container-name: isaac-lab-visualizers-test
 
   test-isaaclab-assets:
@@ -546,7 +535,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_assets"
-        artifact-name: isaaclab-assets-test-results
         container-name: isaac-lab-assets-test
 
   test-isaaclab-newton:
@@ -571,7 +559,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_newton"
-        artifact-name: isaaclab-newton-test-results
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -596,7 +583,6 @@ jobs:
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_physx"
-        artifact-name: isaaclab-physx-test-results
         container-name: isaac-lab-physx-test
 
   test-curobo:
@@ -624,7 +610,6 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
-        artifact-name: curobo-test-results
         container-name: isaac-lab-curobo-test
 
   test-skillgen:
@@ -653,7 +638,6 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
         include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
-        artifact-name: skillgen-test-results
         container-name: isaac-lab-skillgen-test
 
   # test-quarantined:
@@ -676,7 +660,6 @@ jobs:
   #       isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
   #       isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
   #       quarantined-only: "true"
-  #       artifact-name: quarantined-test-results
   #       container-name: isaac-lab-quarantined-test
 
   test-environments-training:
@@ -703,7 +686,6 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
-        artifact-name: environments-training-test-results
         container-name: isaac-lab-environments-training-test
 
 
