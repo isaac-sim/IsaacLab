@@ -104,13 +104,14 @@ class KitVisualizer(BaseVisualizer):
         self._step_counter += 1
         try:
             import omni.kit.app
-
             from isaaclab.app.settings_manager import get_settings_manager
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
                 # Keep app pumping for viewport/UI updates only.
-                # Simulation stepping is owned by SimulationContext.
+                # Simulation stepping/pause state is owned by SimulationContext.
+                # Temporarily disable Kit transport play to prevent app.update()
+                # from advancing PhysX during visualizer-only pumping.
                 settings = get_settings_manager()
                 settings.set_bool("/app/player/playSimulations", False)
                 app.update()

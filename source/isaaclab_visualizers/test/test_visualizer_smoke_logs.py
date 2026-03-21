@@ -12,7 +12,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import logging
 import socket
+import copy
 
+import numpy as np
 import pytest
 import torch
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
@@ -30,6 +32,8 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import (
     CartpolePhysicsCfg,
     CartpoleSceneCfg,
 )
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
+from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
 # Set to False to only fail on visualizer errors; when True, also fail on warnings.
 ASSERT_VISUALIZER_WARNINGS = True
@@ -93,7 +97,8 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "viser":
         __import__("newton")
         __import__("viser")
-        return ViserVisualizerCfg(open_browser=False), ViserVisualizer
+        port = _find_free_tcp_port(host="127.0.0.1")
+        return ViserVisualizerCfg(open_browser=False, port=port), ViserVisualizer
     if visualizer_kind == "rerun":
         __import__("newton")
         __import__("rerun")
@@ -215,6 +220,52 @@ def _run_smoke_test(cfg, expected_visualizer_cls, expected_backend: str, caplog)
             SimulationContext.clear_instance()
 
 
+def _assert_non_black_tensor(image_tensor: torch.Tensor, *, min_nonzero_pixels: int = 1) -> None:
+    """Assert camera-like tensor contains non-black pixels."""
+    assert isinstance(image_tensor, torch.Tensor), f"Expected torch.Tensor, got {type(image_tensor)!r}"
+    assert image_tensor.numel() > 0, "Image tensor is empty."
+    finite_tensor = torch.where(torch.isfinite(image_tensor), image_tensor, torch.zeros_like(image_tensor))
+    if finite_tensor.dtype.is_floating_point:
+        nonzero = torch.count_nonzero(torch.abs(finite_tensor) > 1e-6).item()
+    else:
+        nonzero = torch.count_nonzero(finite_tensor > 0).item()
+    assert nonzero >= min_nonzero_pixels, "Rendered frame appears black (no non-zero pixels)."
+
+
+def _assert_non_black_frame_array(frame) -> None:
+    """Assert viewer-captured frame has visible, non-black content."""
+    frame_arr = np.asarray(frame)
+    assert frame_arr.size > 0, "Viewer returned an empty frame."
+    if frame_arr.ndim == 2:
+        color = frame_arr
+    else:
+        assert frame_arr.shape[-1] >= 3, f"Expected at least 3 channels, got shape {frame_arr.shape}."
+        color = frame_arr[..., :3]
+    finite = np.where(np.isfinite(color), color, 0)
+    assert np.count_nonzero(finite) > 0, "Viewer frame appears fully black."
+
+
+def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> CartpoleCameraEnv:
+    """Create cartpole camera env configured with selected visualizer and physics backend."""
+    env_cfg_root = CartpoleCameraPresetsEnvCfg()
+    # PresetCfg wrappers may expose concrete presets either on the instance or class.
+    env_cfg = getattr(env_cfg_root, "default", None)
+    if env_cfg is None:
+        env_cfg = getattr(type(env_cfg_root), "default", None)
+    if env_cfg is None:
+        raise RuntimeError(
+            "CartpoleCameraPresetsEnvCfg does not expose a 'default' preset config. "
+            f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
+        )
+    env_cfg = copy.deepcopy(env_cfg)
+    env_cfg.scene.num_envs = 1
+    env_cfg.seed = 42
+    env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
+    visualizer_cfg, _ = _get_visualizer_cfg(visualizer_kind)
+    env_cfg.sim.visualizer_cfgs = visualizer_cfg
+    return CartpoleCameraEnv(env_cfg)
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun", "viser"])
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
@@ -222,6 +273,60 @@ def test_visualizer_backend_smoke(visualizer_kind: str, backend_kind: str, caplo
     """Smoke test each (visualizer, backend) pair; assert no errors (optionally no warnings)."""
     cfg, expected_viz_cls, expected_backend = _resolve_case(visualizer_kind, backend_kind)
     _run_smoke_test(cfg, expected_viz_cls, expected_backend, caplog)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun", "viser"])
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+def test_cartpole_visualizer_non_black_camera_frame(visualizer_kind: str, backend_kind: str):
+    """Cartpole tiled-camera output should not be black when visualizers are enabled."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = _make_cartpole_camera_env(visualizer_kind=visualizer_kind, backend_kind=backend_kind)
+        env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
+        env.reset()
+        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+        for _ in range(_SMOKE_STEPS):
+            env.step(action=actions)
+        rgb = env._tiled_camera.data.output["rgb"]
+        _assert_non_black_tensor(rgb)
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+def test_newton_visualizer_non_black_viewer_frame(backend_kind: str):
+    """Newton visualizer should produce at least one non-black viewer frame for Cartpole."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = _make_cartpole_camera_env(visualizer_kind="newton", backend_kind=backend_kind)
+        env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
+        env.reset()
+        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+        for _ in range(max(_SMOKE_STEPS, 6)):
+            env.step(action=actions)
+
+        newton_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonVisualizer)]
+        assert newton_visualizers, "Expected an initialized Newton visualizer."
+        viewer = getattr(newton_visualizers[0], "_viewer", None)
+        assert viewer is not None, "Newton viewer was not created."
+
+        get_frame = getattr(viewer, "get_frame", None)
+        if not callable(get_frame):
+            pytest.skip("ViewerGL.get_frame is not available in this Newton version.")
+        frame = get_frame()
+        _assert_non_black_frame_array(frame)
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
 
 
 if __name__ == "__main__":

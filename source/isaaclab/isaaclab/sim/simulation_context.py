@@ -693,7 +693,13 @@ class SimulationContext:
                         logger.info("Visualizer not running: %s", type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
+                # Treat Kit transport pause as a simulation-level pause trigger.
+                # Intentionally no auto-resume bridge: unpause should be explicit.
+                if type(viz).__name__ == "KitVisualizer" and viz.is_training_paused() and self.is_playing():
+                    self.pause()
                 if viz.is_rendering_paused():
+                    # Keep polling viewer/UI events while rendering is paused so users can unpause.
+                    viz.step(0.0)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)

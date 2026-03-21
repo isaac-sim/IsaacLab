@@ -20,6 +20,7 @@ EXTRAS_REQUIRE = {
         "newton",
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.5",
+        "munch",
     ],
     "rerun": [
         "newton",
