@@ -58,7 +58,7 @@ def sanitize_msg(msg, max_len=300):
 
 if failed or errored:
     print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({time_str})")
-else:
+elif not passed and not skipped:
     print("🟠 No test cases found in report")
 
 if failed or errored:
