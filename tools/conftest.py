@@ -243,8 +243,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             # Process exited non-zero but XML report shows no failures (e.g. segfault
             # after report was written).  Mark as failed so crashes are never silent.
             print(
-                f"Warning: {test_file} exited with code {returncode} but report shows no failures."
-                " Marking as failed."
+                f"Warning: {test_file} exited with code {returncode} but report shows no failures. Marking as failed."
             )
             failed_tests.append(test_file)
             errors = 1
