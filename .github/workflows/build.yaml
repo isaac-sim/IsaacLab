@@ -61,9 +61,7 @@ env:
   # On merge to main defaults will point to "nvcr.io/nvidia/isaac-sim:6.0.0"
   ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
   ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
-  # TEMPORARY: use pre-built image from 31947bd63a3 for debugging; revert to dynamic tag when done
-  # DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  DOCKER_IMAGE_TAG: isaac-lab-dev:my-gated-tests-1-31947bd63a33b3a242ec6e66d701f53a57409b42
+  DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
   # To run quarantined tests, create a GitHub repo variable named
   # RUN_QUARANTINED_TESTS and set it to 'true'. The test-quarantined
   # job is skipped when the variable is absent or not 'true'.
@@ -191,9 +189,8 @@ jobs:
         } >> "$GITHUB_STEP_SUMMARY"
 
   build:
-    name: Build Base Docker Image (SKIPPED - using cached image)
+    name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
-    if: false  # TEMPORARY: skip build, using pre-built image from 31947bd63a3
     needs: [detect-changes]
     steps:
     - name: Checkout Code
@@ -249,7 +246,7 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -277,7 +274,7 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -305,7 +302,7 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -332,7 +329,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
@@ -358,7 +355,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
@@ -384,7 +381,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
@@ -410,7 +407,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-rl == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -435,7 +432,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -460,7 +457,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-contrib == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -485,7 +482,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-teleop == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -510,7 +507,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-visualizers == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -535,7 +532,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-assets == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -560,7 +557,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-newton == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -585,7 +582,7 @@ jobs:
     timeout-minutes: 180
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-physx == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
@@ -691,7 +688,7 @@ jobs:
     continue-on-error: true
     needs: [build, detect-changes]
     if: >-
-      always() && (
+      always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
         needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
