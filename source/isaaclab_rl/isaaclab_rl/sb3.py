@@ -340,10 +340,16 @@ class Sb3VecEnvWrapper(VecEnv):
 
         # obtain gym spaces
         # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we set it to some high value here. Maybe this is not general but something to think about.
+        #   we clamp to [-1, 1]. Using large bounds (e.g. [-100, 100]) breaks off-policy
+        #   algorithms like SAC, which rescale actions to fill the full [low, high] range.
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+            warnings.warn(
+                "The environment has an unbounded action space. Clamping to [-1, 1] for SB3 compatibility. "
+                "For best results, define bounded action spaces in your environment config.",
+                stacklevel=2,
+            )
+            action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=action_space.shape)
 
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)
