@@ -347,7 +347,7 @@ class Sb3VecEnvWrapper(VecEnv):
             warnings.warn(
                 "The environment has an unbounded action space. Clamping to [-1, 1] for SB3 compatibility. "
                 "For best results, define bounded action spaces in your environment config.",
-                stacklevel=2,
+                stacklevel=3,
             )
             action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=action_space.shape)
 
