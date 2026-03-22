@@ -168,6 +168,7 @@ Guidelines for modifications:
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* Zachary Tang
 * Zehao Wang
 * Zijian Li
 * Ziqi Fan
