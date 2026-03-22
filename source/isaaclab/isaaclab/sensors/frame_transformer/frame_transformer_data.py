@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     )
     from isaaclab_physx.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
 
+from isaaclab.utils.leapp_semantics import leapp_tensor_semantics
+
 
 class FrameTransformerData(FactoryBase, BaseFrameTransformerData):
     """Factory for creating frame transformer data instances."""

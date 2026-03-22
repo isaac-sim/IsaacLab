@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from isaaclab_newton.sensors.contact_sensor.contact_sensor_data import ContactSensorData as NewtonContactSensorData
     from isaaclab_physx.sensors.contact_sensor import ContactSensorData as PhysXContactSensorData
 
+from isaaclab.utils.leapp_semantics import leapp_tensor_semantics
+
 
 class ContactSensorData(FactoryBase, BaseContactSensorData):
     """Factory for creating contact sensor data instances."""

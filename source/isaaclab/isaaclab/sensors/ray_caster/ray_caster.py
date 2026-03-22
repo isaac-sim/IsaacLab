@@ -301,6 +301,7 @@ class RayCaster(SensorBase):
         """Fills the buffers of the sensor data."""
         self._update_ray_infos(env_mask)
 
+<<<<<<< HEAD
         # Fill ray hits with inf before raycasting
         wp.launch(
             fill_vec3_inf_kernel,
@@ -335,6 +336,19 @@ class RayCaster(SensorBase):
             inputs=[env_mask, self._ray_cast_drift, self._data._ray_hits_w],
             device=self._device,
         )
+=======
+        # ray cast and store the hits
+        # TODO: Make this work for multiple meshes?
+        self._data._ray_hits_w[env_ids] = raycast_mesh(
+            self._ray_starts_w[env_ids],
+            self._ray_directions_w[env_ids],
+            max_dist=self.cfg.max_distance,
+            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
+        )[0]
+
+        # apply vertical drift to ray starting position in ray caster frame
+        self._data._ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)
+>>>>>>> 8eaf56c107f (Add LEAPP export integration for manager-based RSL-RL environments)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:

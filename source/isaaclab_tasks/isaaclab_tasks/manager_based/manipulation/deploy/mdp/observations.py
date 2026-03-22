@@ -186,8 +186,7 @@ class gear_shaft_quat_w(ManagerTermBase):
         # Ensure w component is positive (q and -q represent the same rotation)
         # Pick one canonical form to reduce observation variation seen by the policy
         w_negative = base_quat[:, 3] < 0
-        positive_quat = base_quat.clone()
-        positive_quat[w_negative] = -base_quat[w_negative]
+        positive_quat = torch.where(w_negative.unsqueeze(-1), -base_quat, base_quat)
 
         return positive_quat
 

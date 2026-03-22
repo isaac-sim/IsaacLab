@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from isaaclab_newton.sensors.imu import ImuData as NewtonImuData
     from isaaclab_physx.sensors.imu import ImuData as PhysXImuData
 
+from isaaclab.utils.leapp_semantics import leapp_tensor_semantics
+
 
 class ImuData(FactoryBase, BaseImuData):
     """Factory for creating IMU data instances."""

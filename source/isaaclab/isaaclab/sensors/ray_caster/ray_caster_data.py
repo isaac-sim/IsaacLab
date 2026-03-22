@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
-
+from isaaclab.utils.leapp_semantics import leapp_tensor_semantics
 
 class RayCasterData:
     """Data container for the ray-cast sensor.
@@ -27,6 +27,7 @@ class RayCasterData:
         # Accessing the public properties before create_buffers() raises AttributeError.
 
     @property
+    @leapp_tensor_semantics(kind="state/sensor/position", element_names_source="xyz")
     def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m].
 
@@ -37,6 +38,7 @@ class RayCasterData:
         return self._pos_w_ta
 
     @property
+    @leapp_tensor_semantics(kind="state/sensor/rotation", element_names_source="quat_wxyz")
     def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
@@ -47,6 +49,7 @@ class RayCasterData:
         return self._quat_w_ta
 
     @property
+    @leapp_tensor_semantics(kind="state/sensor/ray_hit_position")
     def ray_hits_w(self) -> ProxyArray:
         """The ray hit positions in the world frame [m].
 

@@ -82,6 +82,9 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
 
+        self.cfg.cmd_hint = self.cfg.cmd_hint or "command/body/pose"
+        self.cfg.element_names = self.cfg.element_names or ["x", "y", "z", "qw", "qx", "qy", "qz"]
+
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
