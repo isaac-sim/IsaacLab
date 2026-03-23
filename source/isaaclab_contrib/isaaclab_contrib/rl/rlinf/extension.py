@@ -468,6 +468,32 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 isaac_env_cfg.scene.num_envs = self.cfg.init_params.num_envs
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
+
+                _original_reset = env.reset
+                _n_warmup = max(getattr(env.cfg, "num_rerenders_on_reset", 0), 1)
+
+                def _patched_reset(*args, **kwargs):
+                    obs, extras = _original_reset(*args, **kwargs)
+                    try:
+                        import isaaclab_physx.renderers.isaac_rtx_renderer_utils as _rtx_utils
+
+                        import omni.kit.app
+
+                        _app = omni.kit.app.get_app()
+                        for _ in range(_n_warmup):
+                            _rtx_utils._last_render_update_key = (0, -1)
+                            env.sim.set_setting("/app/player/playSimulations", False)
+                            _app.update()
+                            env.sim.set_setting("/app/player/playSimulations", True)
+                            env.scene.update(dt=0)
+                    except ImportError:
+                        pass
+                    obs = env.observation_manager.compute(update_history=True)
+                    env.obs_buf = obs
+                    return obs, extras
+
+                env.reset = _patched_reset
+
                 return env, sim_app
 
             return make_env_isaaclab
@@ -481,7 +507,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             - ``"extra_view_images"``: ``(B, N, H, W, C)`` — stacked extra cameras.
             - ``"states"``: ``(B, D)`` — concatenated state vector.
             - ``"task_descriptions"``: ``list[str]`` — task descriptions.
-
             Config is read from the YAML file via :func:`_get_isaaclab_cfg`.
 
             Args:
