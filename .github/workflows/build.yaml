@@ -135,6 +135,7 @@ jobs:
         tasks=$(has '^source/isaaclab_tasks/')
 
         # Changes in apps/ trigger: core, physx, newton, tasks
+        apps=$(has '^apps/')
         if [ "$apps" = "true" ]; then
           core=true
           physx=true
