@@ -235,6 +235,8 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
+    elif data_type in {"albedo"}:
+        normalized = normalized[..., :3] / 255.0
     else:
         normalized = normalized / 255.0
 
