@@ -5,13 +5,12 @@
 
 """Export annotations for Isaac Lab policies using proxy-based patching.
 
-Observation and action annotation share a single set of annotating getters
-and a unified dedup cache so that a state property (e.g. ``joint_pos``)
-read by both an observation term and an action term resolves to one LEAPP
-input edge.
+Observation and action annotation share a unified dedup cache so that a
+state property (e.g. ``joint_pos``) read by both an observation term and
+an action term resolves to one LEAPP input edge.
 
 - Observation term functions see an _EnvProxy whose scene returns
-  _ArticulationProxy objects with annotating data getters.
+  _ArticulationProxy objects with annotating data proxies.
 
 - Action terms have their ``_asset`` attribute replaced with an
   _ArticulationWriteProxy that intercepts ``_leapp_semantics``-decorated
@@ -33,8 +32,8 @@ Cache lifecycle (assuming single-env play-mode export):
 
 from __future__ import annotations
 
-import inspect
 import logging
+from collections.abc import Callable
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
@@ -42,7 +41,7 @@ import torch
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
-from isaaclab.assets.articulation.articulation import Articulation
+from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
 
@@ -62,26 +61,6 @@ _GAIN_JOINT_SEMANTICS = type(
 )()
 
 
-def _discover_data_classes(scene) -> set[type]:
-    """Discover all data class types from entities present in the scene.
-
-    Iterates over all dict-valued instance attributes on the scene object
-    (which is how ``InteractiveScene`` stores its entity families internally)
-    and collects ``type(entity.data)`` for any value that exposes a ``.data``
-    attribute. (``.data``) is a formal contract in the asset base class.
-    getting data from any data class @property will be automatically traced.
-    """
-    classes: set[type] = set()
-    for attr_value in vars(scene).values():
-        if not isinstance(attr_value, dict):
-            continue
-        for entity in attr_value.values():
-            data = getattr(entity, "data", None)
-            if data is not None:
-                classes.add(type(data))
-    return classes
-
-
 # ══════════════════════════════════════════════════════════════════
 # ExportPatcher
 # ══════════════════════════════════════════════════════════════════
@@ -90,16 +69,16 @@ def _discover_data_classes(scene) -> set[type]:
 class ExportPatcher:
     """Unified patcher that annotates observation inputs and action outputs for LEAPP export.
 
-    At setup time the patcher discovers all data classes present in the scene
-    (``ArticulationData``, ``RigidObjectData``, sensor data classes, …) and
-    builds annotating getters for **every** ``@property`` on those classes.
+    Observation-side property semantics are resolved lazily inside
+    ``_DataProxy`` by combining:
 
-    - Properties carrying ``_leapp_semantics`` produce rich annotations
-      (kind, element_names) used by the downstream deployment resolver.
-    - Properties **without** ``_leapp_semantics`` are still traced so that
-      no tensor is silently baked as a constant during export.
+    - the concrete runtime getter from the backend data class
+    - the nearest ``_leapp_semantics`` metadata found while walking the MRO
 
-    The getters and a shared dedup cache are wired into both:
+    This lets backends override property implementations without duplicating
+    decorators from the abstract API.
+
+    The proxies and a shared dedup cache are wired into both:
 
     - The observation proxy chain (``_EnvProxy`` → ``_SceneProxy`` →
       ``_EntityProxy`` → ``_DataProxy``) for state reads
@@ -119,6 +98,8 @@ class ExportPatcher:
         self.export_method = export_method
         self.required_obs_groups = required_obs_groups
         self._annotated_tensor_cache: dict[tuple[int, str], torch.Tensor] = {}
+        self._data_property_resolution_cache: dict[tuple[type, str], tuple[Callable, object] | None] = {}
+        self._write_method_resolution_cache: dict[tuple[type, str], tuple[Callable, object, object] | None] = {}
         self._action_output_cache: list[TensorSemantics] = []
         self._captured_write_term_names: set[str] = set()
         self._fallback_term_names: set[str] = set()
@@ -130,11 +111,9 @@ class ExportPatcher:
         """Patch observation and action managers on the unwrapped env."""
         unwrapped = env.env.unwrapped
 
-        annotating_getters = self._build_annotating_getters(unwrapped.scene)
-        annotating_write_methods = self._build_annotating_write_methods()
         cache = self._annotated_tensor_cache
 
-        scene_proxy = _SceneProxy(unwrapped.scene, annotating_getters, cache)
+        scene_proxy = _SceneProxy(unwrapped.scene, self.task_name, self._data_property_resolution_cache, cache)
         proxy_env = _EnvProxy(unwrapped, scene_proxy)
 
         self._disable_training_managers(unwrapped)
@@ -142,9 +121,7 @@ class ExportPatcher:
         self._patch_history_buffers(unwrapped.observation_manager)
         self._patch_action_manager(
             unwrapped.action_manager,
-            annotating_getters,
             cache,
-            annotating_write_methods,
         )
 
     # ── Disable training-only managers ─────────────────────────────
@@ -183,118 +160,6 @@ class ExportPatcher:
             rm.record_pre_reset = _noop
             rm.record_post_reset = _noop
             rm.record_post_physics_decimation_step = _noop
-
-    # ── Scanning ──────────────────────────────────────────────────
-
-    def _build_annotating_getters(self, scene) -> dict[type, dict[str, callable]]:
-        """Discover data classes from the scene and build annotating getters for all properties.
-
-        This method introspects the actual scene to find every data class in use.
-        For each class it registers getters for **all** public ``@property``
-        descriptors — not just those decorated with ``_leapp_semantics``.  Properties
-        without semantics are still traced (with ``kind=None``) so that no tensor
-        read is silently baked as a constant during export.
-
-        Returns a dict mapping data class type to a dict of
-        ``property_name -> callable(data_self, input_name) -> annotated_tensor``.
-        """
-        data_classes = _discover_data_classes(scene)
-        getters: dict[type, dict[str, callable]] = {}
-        for data_cls in data_classes:
-            class_getters: dict[str, callable] = {}
-            for prop_name in dir(data_cls):
-                if prop_name.startswith("_"):  # ignore all private properties
-                    continue
-                prop = getattr(data_cls, prop_name, None)
-                if isinstance(prop, property) and prop.fget:  # only consider properties with a getter
-                    class_getters[prop_name] = self._make_annotating_getter(prop.fget, prop_name)
-            if class_getters:
-                getters[data_cls] = class_getters
-        return getters
-
-    def _make_annotating_getter(self, original_fget, prop_name: str):
-        """Create an annotating getter callable for a single annotated data property.
-
-        The returned callable invokes the real getter, then registers the result
-        as a LEAPP input tensor with the property's semantic metadata and the
-        caller-supplied public input name.
-        """
-        task_name = self.task_name
-
-        def getter(data_self, input_name: str):
-            result = original_fget(data_self)
-            result = ensure_torch_tensor(result)
-            if not isinstance(result, torch.Tensor):
-                return result
-            semantics_meta = getattr(original_fget, "_leapp_semantics", None)
-            sem = TensorSemantics(
-                name=input_name,
-                ref=result,
-                kind=semantics_meta.kind if semantics_meta else None,
-                element_names=resolve_leapp_element_names(semantics_meta, data_self),
-            )
-            return annotate.input_tensors(task_name, sem)
-
-        return getter
-
-    def _build_annotating_write_methods(self) -> dict[str, callable]:
-        """Scan Articulation for ``_leapp_semantics`` methods and build interceptors.
-
-        Returns a dict mapping method name to a factory callable.  The factory takes
-        ``(real_asset, original_bound_method, term_name, output_cache)`` and returns
-        a callable that the proxy returns in ``__getattr__``.
-        """
-        methods: dict[str, callable] = {}
-        for method_name in dir(Articulation):
-            method = getattr(Articulation, method_name, None)
-            if callable(method) and hasattr(method, "_leapp_semantics"):
-                methods[method_name] = self._make_write_interceptor_factory(method, method_name)
-        return methods
-
-    def _make_write_interceptor_factory(self, original_unbound, method_name: str):
-        """Create a factory that produces bound annotating wrappers for a single write method.
-
-        The factory is called by ``_ArticulationWriteProxy.__getattr__`` each time the
-        method is accessed.  It returns a callable that:
-
-        1. Calls the real method on the real asset.
-        2. Inspects the ``target`` argument.
-        3. Records a ``TensorSemantics`` entry in the shared output cache.
-        4. Records the term name in ``_captured_write_term_names`` so that
-           the fallback path knows this term produced write outputs.
-        """
-        signature = inspect.signature(original_unbound)
-        semantics = getattr(original_unbound, "_leapp_semantics", None)
-        captured_write_term_names = self._captured_write_term_names
-
-        def factory(real_asset: Articulation, original_bound, term_name: str, output_cache: list):
-            def interceptor(*args, **kwargs):
-                result = original_bound(*args, **kwargs)
-                bound_args = signature.bind_partial(real_asset, *args, **kwargs)
-                target = bound_args.arguments.get("target")
-
-                if isinstance(target, torch.Tensor):
-                    tensor_target: torch.Tensor = target
-                    output_name = _unique_output_name(term_name, method_name, output_cache)
-                    joint_ids = bound_args.arguments.get("joint_ids")
-                    output_cache.append(
-                        TensorSemantics(
-                            name=output_name,
-                            ref=tensor_target.clone(),
-                            kind=semantics.kind if semantics is not None else None,
-                            element_names=resolve_leapp_element_names(
-                                semantics,
-                                _JointNameContext(real_asset.joint_names, joint_ids),
-                            ),
-                        )
-                    )
-                    captured_write_term_names.add(term_name)
-
-                return result
-
-            return interceptor
-
-        return factory
 
     @staticmethod
     def _resolve_scene_entity_key(scene, entity: Any) -> str | None:
@@ -394,17 +259,18 @@ class ExportPatcher:
 
     # ── Action manager patches ────────────────────────────────────
 
-    def _patch_action_manager(self, action_manager, annotating_getters, cache, annotating_write_methods):
+    def _patch_action_manager(self, action_manager, cache):
         """Patch action terms with write+read proxies and patch manager methods."""
         scene = action_manager._env.scene
         for term_name, term in action_manager._terms.items():
             asset = getattr(term, "_asset", None)
-            if isinstance(asset, Articulation):
-                real_asset: Articulation = asset
+            if isinstance(asset, BaseArticulation):
+                real_asset: BaseArticulation = asset
                 scene_key = self._resolve_scene_entity_key(scene, real_asset) or "ego"
                 data_proxy = _DataProxy(
                     real_asset.data,
-                    annotating_getters,
+                    self.task_name,
+                    self._data_property_resolution_cache,
                     cache,
                     input_name_resolver=lambda prop_name, k=scene_key: f"{k}_{prop_name}",
                 )
@@ -412,7 +278,8 @@ class ExportPatcher:
                     real_asset=real_asset,
                     term_name=term_name,
                     output_cache=self._action_output_cache,
-                    annotating_methods=annotating_write_methods,
+                    method_resolution_cache=self._write_method_resolution_cache,
+                    captured_write_term_names=self._captured_write_term_names,
                     data_proxy=data_proxy,
                 )
 
@@ -648,7 +515,7 @@ class ExportPatcher:
                 if hasattr(real_asset, "joint_names"):
                     joint_name_context = _JointNameContext(real_asset.joint_names, joint_ids)
                 if hasattr(data, "default_joint_stiffness") and data.default_joint_stiffness is not None:
-                    gains = data.default_joint_stiffness
+                    gains = ensure_torch_tensor(data.default_joint_stiffness)
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kp_gains",
@@ -665,7 +532,7 @@ class ExportPatcher:
                         )
                     )
                 if hasattr(data, "default_joint_damping") and data.default_joint_damping is not None:
-                    gains = data.default_joint_damping
+                    gains = ensure_torch_tensor(data.default_joint_damping)
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kd_gains",
@@ -697,23 +564,6 @@ class _JointNameContext:
     def __init__(self, joint_names: list[str], joint_ids):
         self.joint_names = joint_names
         self._joint_ids = joint_ids
-
-
-def _unique_output_name(term_name: str, method_name: str, output_cache: list[TensorSemantics]) -> str:
-    """Return a stable, unique output name for an action write entry.
-
-    Prefers ``term_name``, falls back to ``term_name_method_name``, and appends a
-    numeric suffix if even that collides.
-    """
-    existing = {t.name for t in output_cache}
-    candidate = term_name
-    if candidate in existing:
-        candidate = f"{term_name}_{method_name}"
-    suffix = 2
-    while candidate in existing:
-        candidate = f"{term_name}_{method_name}_{suffix}"
-        suffix += 1
-    return candidate
 
 
 # ══════════════════════════════════════════════════════════════════

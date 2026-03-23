@@ -7,7 +7,15 @@ import warnings
 from abc import ABC, abstractmethod
 
 import warp as wp
+from leapp import InputKindEnum
 
+from isaaclab.utils.leapp_semantics import (
+    POSE7_ELEMENT_NAMES,
+    QUAT_WXYZ_ELEMENT_NAMES,
+    WRENCH6_ELEMENT_NAMES,
+    XYZ_ELEMENT_NAMES,
+    leapp_tensor_semantics,
+)
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -47,16 +55,16 @@ class BaseArticulationData(ABC):
     # Names.
     ##
 
-    body_names: list[str] = None
+    body_names: list[str] | None = None
     """Body names in the order parsed by the simulation view."""
 
-    joint_names: list[str] = None
+    joint_names: list[str] | None = None
     """Joint names in the order parsed by the simulation view."""
 
-    fixed_tendon_names: list[str] = None
+    fixed_tendon_names: list[str] | None = None
     """Fixed tendon names in the order parsed by the simulation view."""
 
-    spatial_tendon_names: list[str] = None
+    spatial_tendon_names: list[str] | None = None
     """Spatial tendon names in the order parsed by the simulation view."""
 
     ##
@@ -65,6 +73,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def default_root_pose(self) -> ProxyArray:
         """Default root pose ``[pos, quat]`` in the local environment frame.
 
@@ -75,6 +84,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def default_root_vel(self) -> ProxyArray:
         """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
@@ -85,12 +95,14 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def default_root_state(self) -> ProxyArray:
         """Deprecated, same as :attr:`default_root_pose` and :attr:`default_root_vel`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def default_joint_pos(self) -> ProxyArray:
         """Default joint positions of all joints.
 
@@ -102,6 +114,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def default_joint_vel(self) -> ProxyArray:
         """Default joint velocities of all joints.
 
@@ -117,6 +130,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
         """Joint position targets commanded by the user.
 
@@ -130,6 +144,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
         """Joint velocity targets commanded by the user.
 
@@ -143,6 +158,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
         """Joint effort targets commanded by the user.
 
@@ -160,6 +176,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/joint/computed_torque")
     def computed_torque(self) -> ProxyArray:
         """Joint torques computed from the actuator model (before clipping).
 
@@ -173,6 +190,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/joint/applied_torque")
     def applied_torque(self) -> ProxyArray:
         """Joint torques applied from the actuator model (after clipping).
 
@@ -189,6 +207,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_stiffness(self) -> ProxyArray:
         """Joint stiffness provided to the simulation.
 
@@ -200,6 +219,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_damping(self) -> ProxyArray:
         """Joint damping provided to the simulation.
 
@@ -211,6 +231,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -220,6 +241,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_friction_coeff(self) -> ProxyArray:
         """Joint static friction coefficient provided to the simulation.
 
@@ -229,6 +251,18 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
+    def joint_viscous_friction_coeff(self) -> ProxyArray:
+        """Joint viscous friction coefficient provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_joints).
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits provided to the simulation.
 
@@ -241,6 +275,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 
@@ -250,6 +285,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def joint_effort_limits(self) -> ProxyArray:
         """Joint maximum effort provided to the simulation.
 
@@ -263,6 +299,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def soft_joint_pos_limits(self) -> ProxyArray:
         r"""Soft joint positions limits for all joints.
 
@@ -288,6 +325,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
         """Soft joint velocity limits for all joints.
 
@@ -300,6 +338,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def gear_ratio(self) -> ProxyArray:
         """Gear ratio for relating motor torques to applied Joint torques.
 
@@ -313,6 +352,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_stiffness(self) -> ProxyArray:
         """Fixed tendon stiffness provided to the simulation.
 
@@ -323,6 +363,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_damping(self) -> ProxyArray:
         """Fixed tendon damping provided to the simulation.
 
@@ -333,6 +374,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Fixed tendon limit stiffness provided to the simulation.
 
@@ -343,6 +385,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_rest_length(self) -> ProxyArray:
         """Fixed tendon rest length provided to the simulation.
 
@@ -353,6 +396,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_offset(self) -> ProxyArray:
         """Fixed tendon offset provided to the simulation.
 
@@ -363,6 +407,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_pos_limits(self) -> ProxyArray:
         """Fixed tendon position limits provided to the simulation.
 
@@ -377,6 +422,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def spatial_tendon_stiffness(self) -> ProxyArray:
         """Spatial tendon stiffness provided to the simulation.
 
@@ -387,6 +433,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def spatial_tendon_damping(self) -> ProxyArray:
         """Spatial tendon damping provided to the simulation.
 
@@ -397,6 +444,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def spatial_tendon_limit_stiffness(self) -> ProxyArray:
         """Spatial tendon limit stiffness provided to the simulation.
 
@@ -407,6 +455,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def spatial_tendon_offset(self) -> ProxyArray:
         """Spatial tendon offset provided to the simulation.
 
@@ -421,6 +470,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
     def root_link_pose_w(self) -> ProxyArray:
         """Root link pose ``[pos, quat]`` in simulation world frame.
 
@@ -433,6 +483,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=WRENCH6_ELEMENT_NAMES)
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -445,6 +496,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
     def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -457,6 +509,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=WRENCH6_ELEMENT_NAMES)
     def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -469,18 +522,21 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/state")
     def root_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/link_state")
     def root_link_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/com_state")
     def root_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError
@@ -491,6 +547,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def body_mass(self) -> ProxyArray:
         """Body mass ``wp.float32`` in the world frame.
 
@@ -500,6 +557,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
         """Flattened body inertia in the world frame.
 
@@ -510,6 +568,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
     def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
 
@@ -523,6 +582,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_pose")
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -536,6 +596,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
     def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -549,6 +610,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_pose")
     def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -562,24 +624,28 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/state")
     def body_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/link_state")
     def body_link_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/com_state")
     def body_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_source="body_pose")
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
 
@@ -592,6 +658,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
     def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
 
@@ -605,6 +672,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.WRENCH)
     def body_incoming_joint_wrench_b(self) -> ProxyArray:
         """Joint reaction wrench applied from body parent to child body in parent body frame.
 
@@ -626,6 +694,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.JOINT_POSITION, element_names_source="joint_names")
     def joint_pos(self) -> ProxyArray:
         """Joint positions of all joints.
 
@@ -636,6 +705,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.JOINT_VELOCITY, element_names_source="joint_names")
     def joint_vel(self) -> ProxyArray:
         """Joint velocities of all joints.
 
@@ -646,6 +716,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/joint/acceleration", element_names_source="joint_names")
     def joint_acc(self) -> ProxyArray:
         """Joint acceleration of all joints.
 
@@ -660,6 +731,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
     def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
@@ -669,6 +741,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/heading")
     def heading_w(self) -> ProxyArray:
         """Yaw heading of the base frame (in radians).
 
@@ -682,6 +755,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
@@ -694,6 +768,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
 
@@ -706,6 +781,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
 
@@ -718,6 +794,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
 
@@ -734,6 +811,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_link_pos_w(self) -> ProxyArray:
         """Root link position in simulation world frame.
 
@@ -745,6 +823,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
     def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
 
@@ -756,6 +835,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
 
@@ -767,6 +847,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
 
@@ -778,6 +859,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_com_pos_w(self) -> ProxyArray:
         """Root center of mass position in simulation world frame.
 
@@ -789,6 +871,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
     def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
@@ -800,6 +883,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
 
@@ -811,6 +895,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
 
@@ -822,6 +907,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
     def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
@@ -834,6 +920,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
     def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
@@ -846,6 +933,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
     def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -858,6 +946,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
     def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -870,6 +959,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
     def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
@@ -882,6 +972,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
     def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
@@ -894,6 +985,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
     def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -906,6 +998,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
     def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -918,6 +1011,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_source="body_xyz")
     def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
 
@@ -930,6 +1024,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_source="body_xyz")
     def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
 
@@ -942,6 +1037,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
     def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 
@@ -954,6 +1050,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
     def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their respective link
         frames.
@@ -991,121 +1088,145 @@ class BaseArticulationData(ABC):
     """
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
     def root_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pose_w`."""
         return self.root_link_pose_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
     def root_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=WRENCH6_ELEMENT_NAMES)
     def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_lin_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_b`."""
         return self.root_com_lin_vel_b
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_ang_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
     def body_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
     def body_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
     def body_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_wrench")
     def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
     def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
     def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_source="body_wrench")
     def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_source="body_xyz")
     def body_lin_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_source="body_xyz")
     def body_ang_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
     def com_pos_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
     def com_quat_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
     @property
+    @leapp_tensor_semantics(const=True)
     def joint_limits(self) -> ProxyArray:
         """Shorthand for :attr:`joint_pos_limits`."""
         return self.joint_pos_limits
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_limits(self) -> ProxyArray:
         """Shorthand for :attr:`default_joint_pos_limits`."""
         return self.default_joint_pos_limits
 
     @property
+    @leapp_tensor_semantics(const=True)
     def joint_velocity_limits(self) -> ProxyArray:
         """Shorthand for :attr:`joint_vel_limits`."""
         return self.joint_vel_limits
 
     @property
+    @leapp_tensor_semantics(const=True)
     def joint_friction(self) -> ProxyArray:
         """Shorthand for :attr:`joint_friction_coeff`."""
         return self.joint_friction_coeff
 
     @property
+    @leapp_tensor_semantics(const=True)
     def fixed_tendon_limit(self) -> ProxyArray:
         """Shorthand for :attr:`fixed_tendon_pos_limits`."""
         return self.fixed_tendon_pos_limits
@@ -1115,6 +1236,7 @@ class BaseArticulationData(ABC):
     """
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_mass(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
         warnings.warn(
@@ -1128,6 +1250,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_mass)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_inertia(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
         warnings.warn(
@@ -1141,6 +1264,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_inertia)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_stiffness` instead and manage the default joint stiffness
         manually."""
@@ -1155,6 +1279,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_joint_stiffness)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_damping(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_damping` instead and manage the default joint damping
         manually."""
@@ -1169,6 +1294,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_joint_damping)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_armature(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_armature` instead and manage the default joint armature
         manually."""
@@ -1183,6 +1309,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_joint_armature)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_friction_coeff(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead and manage the default joint friction
         coefficient manually."""
@@ -1197,6 +1324,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_joint_friction_coeff)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_viscous_friction_coeff(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_viscous_friction_coeff` instead and manage the default joint
         viscous friction coefficient manually."""
@@ -1211,6 +1339,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_joint_viscous_friction_coeff)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_pos_limits(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead and manage the default joint position
         limits manually."""
@@ -1225,6 +1354,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_joint_pos_limits)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_stiffness` instead and manage the default fixed tendon
         stiffness manually."""
@@ -1239,6 +1369,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_fixed_tendon_stiffness)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_damping(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_damping` instead and manage the default fixed tendon
         damping manually."""
@@ -1253,6 +1384,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_fixed_tendon_damping)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_limit_stiffness` instead and manage the default fixed
         tendon limit stiffness manually."""
@@ -1267,6 +1399,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_fixed_tendon_limit_stiffness)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_rest_length(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_rest_length` instead and manage the default fixed tendon
         rest length manually."""
@@ -1281,6 +1414,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_fixed_tendon_rest_length)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_offset(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_offset` instead and manage the default fixed tendon
         offset manually."""
@@ -1295,6 +1429,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_fixed_tendon_offset)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_pos_limits(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead and manage the default fixed tendon
         position limits manually."""
@@ -1309,6 +1444,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_fixed_tendon_pos_limits)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_spatial_tendon_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_stiffness` instead and manage the default spatial
         tendon stiffness manually."""
@@ -1323,6 +1459,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_spatial_tendon_stiffness)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_spatial_tendon_damping(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_damping` instead and manage the default spatial tendon
         damping manually."""
@@ -1337,6 +1474,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_spatial_tendon_damping)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_spatial_tendon_limit_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_limit_stiffness` instead and manage the default
         spatial tendon limit stiffness manually."""
@@ -1353,6 +1491,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_spatial_tendon_limit_stiffness)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_spatial_tendon_offset(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_offset` instead and manage the default spatial tendon
         offset manually."""
@@ -1367,6 +1506,7 @@ class BaseArticulationData(ABC):
         return ProxyArray(self._default_spatial_tendon_offset)
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_limit(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
         warnings.warn(
@@ -1378,6 +1518,7 @@ class BaseArticulationData(ABC):
         return self.default_fixed_tendon_pos_limits
 
     @property
+    @leapp_tensor_semantics(const=True)
     def default_joint_friction(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
         warnings.warn(

@@ -5,40 +5,131 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from typing import Any
 
 import torch
+from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
-from isaaclab.assets.articulation.articulation import Articulation
+from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
+from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
+
+from .utils import ensure_torch_tensor
 
 
-def _lookup_annotating_getter(
-    annotating_getters_by_type: dict[type, dict[str, Callable]], real_data: Any, name: str
-) -> Callable | None:
-    """Return the annotating getter for a property on the given data object, if any."""
+def _resolve_annotated_property(
+    property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
+    real_data: Any,
+    name: str,
+) -> tuple[Callable, Any] | None:
+    """Resolve a concrete property getter and inherited semantics metadata.
+
+    The execution getter always comes from the concrete runtime class. Semantic
+    metadata is resolved independently by walking the MRO until a property
+    definition with ``_leapp_semantics`` is found. This mirrors the output-side
+    export path, where semantics are authored on the base API while concrete
+    backends provide the runtime implementation.
+    """
+    cache_key = (type(real_data), name)
+    if cache_key in property_resolution_cache:
+        return property_resolution_cache[cache_key]
+
+    execution_prop = getattr(type(real_data), name, None)
+    if not isinstance(execution_prop, property) or execution_prop.fget is None:
+        property_resolution_cache[cache_key] = None
+        return None
+
+    semantics_meta = None
     for data_cls in type(real_data).__mro__:
-        getter = annotating_getters_by_type.get(data_cls, {}).get(name)
-        if getter is not None:
-            return getter
+        prop = data_cls.__dict__.get(name)
+        if not isinstance(prop, property) or prop.fget is None:
+            continue
+        candidate = getattr(prop.fget, "_leapp_semantics", None)
+        if candidate is None:
+            continue
+        if getattr(candidate, "const", False):
+            property_resolution_cache[cache_key] = None
+            return None
+        semantics_meta = candidate
+        break
+
+    if semantics_meta is None:
+        property_resolution_cache[cache_key] = None
+        return None
+
+    resolution = (execution_prop.fget, semantics_meta)
+    property_resolution_cache[cache_key] = resolution
+    return resolution
+
+
+def _resolve_annotated_method(
+    method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
+    real_asset: BaseArticulation,
+    name: str,
+) -> tuple[Callable, Any, inspect.Signature] | None:
+    """Resolve a concrete bound method and inherited semantics metadata."""
+    cache_key = (type(real_asset), name)
+    if cache_key in method_resolution_cache:
+        return method_resolution_cache[cache_key]
+
+    original_method = getattr(real_asset, name, None)
+    if not callable(original_method):
+        method_resolution_cache[cache_key] = None
+        return None
+
+    for asset_cls in type(real_asset).__mro__:
+        candidate = asset_cls.__dict__.get(name)
+        if not callable(candidate):
+            continue
+        semantics_meta = getattr(candidate, "_leapp_semantics", None)
+        if semantics_meta is None:
+            continue
+        resolution = (original_method, semantics_meta, inspect.signature(candidate))
+        method_resolution_cache[cache_key] = resolution
+        return resolution
+
+    method_resolution_cache[cache_key] = None
     return None
+
+
+class _WriteJointNameContext:
+    """Resolve runtime joint-name subsets for lazy write interception."""
+
+    __slots__ = ("joint_names", "_joint_ids")
+
+    def __init__(self, joint_names: list[str], joint_ids):
+        self.joint_names = joint_names
+        self._joint_ids = joint_ids
+
+
+def _unique_output_name(term_name: str, method_name: str, output_cache: list[TensorSemantics]) -> str:
+    """Return a stable, unique output name for an action write entry."""
+    existing = {t.name for t in output_cache}
+    candidate = term_name
+    if candidate in existing:
+        candidate = f"{term_name}_{method_name}"
+    suffix = 2
+    while candidate in existing:
+        candidate = f"{term_name}_{method_name}_{suffix}"
+        suffix += 1
+    return candidate
 
 
 class _DataProxy:
     """Proxy around a real data object that intercepts tensor-returning property reads.
 
     The real data object may be any scene entity data class (``ArticulationData``,
-    ``RigidObjectData``, sensor data classes, etc.).  The proxy intercepts all
-    ``@property`` getters that were registered during scene introspection.  When
-    the getter returns a ``torch.Tensor``, the result is annotated as a LEAPP
-    input and cached for deduplication.  Non-tensor results are forwarded
-    transparently.
+    ``RigidObjectData``, sensor data classes, etc.). The proxy resolves property
+    semantics lazily on first access by walking the runtime class MRO. This lets
+    concrete backend overrides reuse semantic metadata authored on abstract base
+    properties without copying decorators onto every implementation.
 
-    Properties with ``_leapp_semantics`` metadata produce rich annotations
-    (kind, element_names).  Properties without it are still traced — with no
-    semantic metadata — so that no tensor is silently baked as a constant.
+    When a semantic property returns a ``torch.Tensor``, the result is annotated
+    as a LEAPP input and cached for deduplication. Non-tensor results and
+    ordinary attributes are forwarded transparently.
 
     All other attribute access is forwarded transparently to the real object.
     """
@@ -46,32 +137,47 @@ class _DataProxy:
     def __init__(
         self,
         real_data: Any,
-        annotating_getters_by_type: dict[type, dict[str, Callable]],
+        task_name: str,
+        property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
         cache: dict,
         input_name_resolver: Callable,
     ):
         object.__setattr__(self, "_real_data", real_data)
-        object.__setattr__(self, "_annotating_getters_by_type", annotating_getters_by_type)
+        object.__setattr__(self, "_task_name", task_name)
+        object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)
         object.__setattr__(self, "_cache", cache)
         object.__setattr__(self, "_input_name_resolver", input_name_resolver)
 
     def __getattr__(self, name):
-        """Intercept registered property reads; forward everything else."""
+        """Intercept semantic property reads; forward everything else."""
         real_data = object.__getattribute__(self, "_real_data")
-        getter = _lookup_annotating_getter(
-            object.__getattribute__(self, "_annotating_getters_by_type"), real_data, name
+        resolution = _resolve_annotated_property(
+            object.__getattribute__(self, "_property_resolution_cache"), real_data, name
         )
-        if getter is not None:
-            cache = object.__getattribute__(self, "_cache")
-            cache_key = (id(real_data), name)
-            if cache_key in cache:
-                return cache[cache_key].clone()
-            input_name = object.__getattribute__(self, "_input_name_resolver")(name)
-            result = getter(real_data, input_name)
-            if isinstance(result, torch.Tensor):
-                cache[cache_key] = result
+        if resolution is None:
+            return getattr(real_data, name)
+
+        cache = object.__getattribute__(self, "_cache")
+        cache_key = (id(real_data), name)
+        if cache_key in cache:
+            return cache[cache_key].clone()
+
+        execution_fget, semantics_meta = resolution
+        result = execution_fget(real_data)
+        result = ensure_torch_tensor(result)
+        if not isinstance(result, torch.Tensor):
             return result
-        return getattr(real_data, name)
+
+        input_name = object.__getattribute__(self, "_input_name_resolver")(name)
+        sem = TensorSemantics(
+            name=input_name,
+            ref=result,
+            kind=semantics_meta.kind,
+            element_names=resolve_leapp_element_names(semantics_meta, real_data),
+        )
+        annotated = annotate.input_tensors(object.__getattribute__(self, "_task_name"), sem)
+        cache[cache_key] = annotated
+        return annotated
 
 
 class _EntityProxy:
@@ -97,9 +203,16 @@ class _EntityProxy:
 class _EntityMappingProxy:
     """Proxy around a mapping of scene entities that lazily wraps data-producing entries."""
 
-    def __init__(self, real_mapping, annotating_getters_by_type: dict[type, dict[str, Callable]], cache: dict):
+    def __init__(
+        self,
+        real_mapping,
+        task_name: str,
+        property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
+        cache: dict,
+    ):
         object.__setattr__(self, "_real_mapping", real_mapping)
-        object.__setattr__(self, "_annotating_getters_by_type", annotating_getters_by_type)
+        object.__setattr__(self, "_task_name", task_name)
+        object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)
         object.__setattr__(self, "_cache", cache)
         object.__setattr__(self, "_proxied", {})
 
@@ -113,10 +226,10 @@ class _EntityMappingProxy:
         data = getattr(entity, "data", None)
         if data is None:
             return entity
-        annotating_getters_by_type = object.__getattribute__(self, "_annotating_getters_by_type")
         data_proxy = _DataProxy(
             data,
-            annotating_getters_by_type,
+            object.__getattribute__(self, "_task_name"),
+            object.__getattribute__(self, "_property_resolution_cache"),
             object.__getattribute__(self, "_cache"),
             input_name_resolver=lambda prop_name: f"{key}_{prop_name}",
         )
@@ -152,10 +265,17 @@ class _SceneProxy:
     ``scene["name"]`` and ``scene.sensors["name"]`` access paths.
     """
 
-    def __init__(self, real_scene, annotating_getters_by_type: dict[type, dict[str, Callable]], cache: dict):
+    def __init__(
+        self,
+        real_scene,
+        task_name: str,
+        property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
+        cache: dict,
+    ):
         # use object.__setattr__ to avoid creating new attributes, only set the ones that are already defined
         object.__setattr__(self, "_real_scene", real_scene)
-        object.__setattr__(self, "_annotating_getters_by_type", annotating_getters_by_type)
+        object.__setattr__(self, "_task_name", task_name)
+        object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)
         object.__setattr__(self, "_cache", cache)
         object.__setattr__(self, "_proxied", {})
         object.__setattr__(self, "_sensor_mapping_proxy", None)
@@ -170,11 +290,11 @@ class _SceneProxy:
         if data is None:
             return entity
 
-        annotating_getters_by_type = object.__getattribute__(self, "_annotating_getters_by_type")
         cache = object.__getattribute__(self, "_cache")
         data_proxy = _DataProxy(
             data,
-            annotating_getters_by_type,
+            object.__getattribute__(self, "_task_name"),
+            object.__getattribute__(self, "_property_resolution_cache"),
             cache,
             input_name_resolver=lambda prop_name, k=key: f"{k}_{prop_name}",
         )
@@ -196,7 +316,8 @@ class _SceneProxy:
             real_scene = object.__getattribute__(self, "_real_scene")
             sensor_mapping_proxy = _EntityMappingProxy(
                 real_scene.sensors,
-                object.__getattribute__(self, "_annotating_getters_by_type"),
+                object.__getattribute__(self, "_task_name"),
+                object.__getattribute__(self, "_property_resolution_cache"),
                 object.__getattribute__(self, "_cache"),
             )
             object.__setattr__(self, "_sensor_mapping_proxy", sensor_mapping_proxy)
@@ -304,7 +425,7 @@ class _ManagerTermProxy(ManagerTermBase):
 
 
 class _ArticulationWriteProxy:
-    """Proxy around a real Articulation for action terms.
+    """Proxy around a real articulation implementation for action terms.
 
     Intercepts ``_leapp_semantics``-decorated write methods **and** routes
     ``.data`` reads through a shared ``_DataProxy`` so that
@@ -317,16 +438,18 @@ class _ArticulationWriteProxy:
 
     def __init__(
         self,
-        real_asset: Articulation,
+        real_asset: BaseArticulation,
         term_name: str,
         output_cache: list[TensorSemantics],
-        annotating_methods: dict[str, Callable],
+        method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
+        captured_write_term_names: set[str],
         data_proxy: _DataProxy,
     ):
         object.__setattr__(self, "_real_asset", real_asset)
         object.__setattr__(self, "_term_name", term_name)
         object.__setattr__(self, "_output_cache", output_cache)
-        object.__setattr__(self, "_annotating_methods", annotating_methods)
+        object.__setattr__(self, "_method_resolution_cache", method_resolution_cache)
+        object.__setattr__(self, "_captured_write_term_names", captured_write_term_names)
         object.__setattr__(self, "_data_proxy", data_proxy)
 
     @property
@@ -335,12 +458,41 @@ class _ArticulationWriteProxy:
         return object.__getattribute__(self, "_data_proxy")
 
     def __getattr__(self, name):
-        """Return an annotating wrapper for _leapp_semantics methods; forward everything else."""
-        methods = object.__getattribute__(self, "_annotating_methods")
-        if name in methods:
-            real_asset = object.__getattribute__(self, "_real_asset")
-            term_name = object.__getattribute__(self, "_term_name")
-            output_cache = object.__getattribute__(self, "_output_cache")
-            original_method = getattr(real_asset, name)
-            return methods[name](real_asset, original_method, term_name, output_cache)
-        return getattr(object.__getattribute__(self, "_real_asset"), name)
+        """Return an annotating wrapper for semantic write methods; forward everything else."""
+        real_asset = object.__getattribute__(self, "_real_asset")
+        resolution = _resolve_annotated_method(
+            object.__getattribute__(self, "_method_resolution_cache"),
+            real_asset,
+            name,
+        )
+        if resolution is None:
+            return getattr(real_asset, name)
+
+        original_method, semantics_meta, signature = resolution
+        term_name = object.__getattribute__(self, "_term_name")
+        output_cache = object.__getattribute__(self, "_output_cache")
+        captured_write_term_names = object.__getattribute__(self, "_captured_write_term_names")
+
+        def interceptor(*args, **kwargs):
+            result = original_method(*args, **kwargs)
+            bound_args = signature.bind_partial(real_asset, *args, **kwargs)
+            target = bound_args.arguments.get("target")
+
+            if isinstance(target, torch.Tensor):
+                joint_ids = bound_args.arguments.get("joint_ids")
+                output_cache.append(
+                    TensorSemantics(
+                        name=_unique_output_name(term_name, name, output_cache),
+                        ref=target.clone(),
+                        kind=semantics_meta.kind,
+                        element_names=resolve_leapp_element_names(
+                            semantics_meta,
+                            _WriteJointNameContext(real_asset.joint_names, joint_ids),
+                        ),
+                    )
+                )
+                captured_write_term_names.add(term_name)
+
+            return result
+
+        return interceptor

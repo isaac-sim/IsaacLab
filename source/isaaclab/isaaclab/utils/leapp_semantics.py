@@ -20,6 +20,7 @@ class LeappTensorSemantics:
     kind: Any = None
     element_names: list[str] | list[list[str]] | None = None
     element_names_source: str | None = None
+    const: bool = False
 
 
 XYZ_ELEMENT_NAMES: list[str] = ["x", "y", "z"]
@@ -33,6 +34,7 @@ def leapp_tensor_semantics(
     kind: Any = None,
     element_names: list[str] | list[list[str]] | None = None,
     element_names_source: str | None = None,
+    const: bool = False,
 ) -> Callable:
     """Attach LEAPP semantic metadata to a raw tensor-producing function."""
 
@@ -40,6 +42,7 @@ def leapp_tensor_semantics(
         kind=kind,
         element_names=element_names,
         element_names_source=element_names_source,
+        const=const,
     )
 
     def _apply(func: Callable) -> Callable:
@@ -116,10 +119,4 @@ def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_sel
         if body_names is None:
             return None
         return [body_names, WRENCH6_ELEMENT_NAMES]
-    if source == "pose7":
-        return POSE7_ELEMENT_NAMES
-    if source == "xyz":
-        return XYZ_ELEMENT_NAMES
-    if source == "quat_wxyz":
-        return QUAT_WXYZ_ELEMENT_NAMES
     return None
