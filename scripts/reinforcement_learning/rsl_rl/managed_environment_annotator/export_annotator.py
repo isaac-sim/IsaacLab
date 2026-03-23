@@ -35,17 +35,19 @@ from __future__ import annotations
 
 import inspect
 import logging
-import torch
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
+import torch
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
-from proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy, _SceneProxy
 
 from isaaclab.assets.articulation.articulation import Articulation
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
+
+from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy, _SceneProxy
+from .utils import ensure_torch_tensor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -221,6 +223,7 @@ class ExportPatcher:
 
         def getter(data_self, input_name: str):
             result = original_fget(data_self)
+            result = ensure_torch_tensor(result)
             if not isinstance(result, torch.Tensor):
                 return result
             semantics_meta = getattr(original_fget, "_leapp_semantics", None)
@@ -265,7 +268,6 @@ class ExportPatcher:
         captured_write_term_names = self._captured_write_term_names
 
         def factory(real_asset: Articulation, original_bound, term_name: str, output_cache: list):
-
             def interceptor(*args, **kwargs):
                 result = original_bound(*args, **kwargs)
                 bound_args = signature.bind_partial(real_asset, *args, **kwargs)

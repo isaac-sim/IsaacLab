@@ -10,12 +10,14 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import importlib.metadata as metadata
 import sys
 import time
-import torch
 from collections.abc import Mapping
 
 import leapp
+import torch
+import warp as wp
 from leapp import annotate
 
 # Disable TorchScript before importing task/environment modules so any
@@ -94,34 +96,46 @@ args_cli.headless = True
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
+# Check for installed RSL-RL version
+installed_version = metadata.version("rsl-rl-lib")
+
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import os
 
-_ANNOTATOR_DIR = os.path.join(
-    os.path.dirname(__file__),
-    "managed_environment_annotator.py",
-)
-if _ANNOTATOR_DIR not in sys.path:
-    sys.path.insert(0, _ANNOTATOR_DIR)
-
-from export_annotator import patch_env_for_export
+import gymnasium as gym
+from managed_environment_annotator.export_annotator import patch_env_for_export
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 
-from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
+
+
+def _patch_warp_to_torch_passthrough() -> None:
+    """Make wp.to_torch idempotent for torch tensors during export."""
+    if getattr(wp.to_torch, "_leapp_passthrough_patch", False):
+        return
+
+    original_to_torch = wp.to_torch
+
+    def patched_to_torch(value, *args, **kwargs):
+        if isinstance(value, torch.Tensor):
+            return value
+        return original_to_torch(value, *args, **kwargs)
+
+    patched_to_torch._leapp_passthrough_patch = True  # type: ignore[attr-defined]
+    wp.to_torch = patched_to_torch
 
 
 def _get_actor_memory_module(policy_nn):
@@ -179,6 +193,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     agent_cfg: RslRlBaseRunnerCfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
 
+    # handle deprecated configurations
+    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
@@ -225,6 +242,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         export_method=args_cli.export_method,
         required_obs_groups=required_obs_groups,
     )
+    _patch_warp_to_torch_passthrough()
 
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)

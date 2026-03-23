@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Callable
 from typing import Any
 
+import torch
 from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.assets.articulation.articulation import Articulation
