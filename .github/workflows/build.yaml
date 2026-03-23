@@ -128,10 +128,24 @@ jobs:
           fi
         }
 
-        echo "isaaclab-core=$(has '^source/isaaclab/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-physx=$(has '^source/isaaclab_physx/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-newton=$(has '^source/isaaclab_newton/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-tasks=$(has '^source/isaaclab_tasks/')" >> "$GITHUB_OUTPUT"
+        # Detect per-package changes
+        core=$(has '^source/isaaclab/')
+        physx=$(has '^source/isaaclab_physx/')
+        newton=$(has '^source/isaaclab_newton/')
+        tasks=$(has '^source/isaaclab_tasks/')
+
+        # Changes in apps/ trigger: core, physx, newton, tasks
+        if [ "$apps" = "true" ]; then
+          core=true
+          physx=true
+          newton=true
+          tasks=true
+        fi
+
+        echo "isaaclab-core=$core" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-physx=$physx" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-newton=$newton" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-tasks=$tasks" >> "$GITHUB_OUTPUT"
         echo "isaaclab-rl=$(has '^source/isaaclab_rl/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-mimic=$(has '^source/isaaclab_mimic/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-contrib=$(has '^source/isaaclab_contrib/')" >> "$GITHUB_OUTPUT"
@@ -140,7 +154,6 @@ jobs:
         echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
         echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
 
-        echo ""
         echo ""
         echo "CHANGED FILES:"
         echo "$changed" | while IFS= read -r f; do
@@ -156,10 +169,10 @@ jobs:
             source/isaaclab_visualizers/*) echo "$f (isaaclab-visualizers)" ;;
             source/isaaclab_assets/*)    echo "$f (isaaclab-assets)" ;;
             .github/*|docker/*|tools/*|scripts/*) echo "$f (infra)" ;;
-            *)                           echo "$f" ;;
+            apps/*)                          echo "$f (apps - core/physx/newton/tasks)" ;;
+            *)                               echo "$f" ;;
           esac
         done
-        echo ""
         echo ""
         echo "CHANGED PACKAGES:"
         cat "$GITHUB_OUTPUT"
@@ -181,6 +194,7 @@ jobs:
               source/isaaclab_visualizers/*) echo "| \`$f\` | isaaclab-visualizers |" ;;
               source/isaaclab_assets/*)      echo "| \`$f\` | isaaclab-assets |" ;;
               .github/*|docker/*|tools/*|scripts/*) echo "| \`$f\` | infra |" ;;
+              apps/*)                        echo "| \`$f\` | apps - core/physx/newton/tasks |" ;;
               *)                             echo "| \`$f\` | - |" ;;
             esac
           done
