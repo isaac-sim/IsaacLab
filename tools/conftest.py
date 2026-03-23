@@ -106,6 +106,7 @@ def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
     """Create a test case entry for a timeout test with captured logs."""
     test_suite = TestSuite(name=f"timeout_{os.path.splitext(os.path.basename(test_file))[0]}")
     test_case = TestCase(name="test_execution", classname=os.path.splitext(os.path.basename(test_file))[0])
+    test_case.time = timeout
 
     # Create error message with timeout info and captured logs
     error_msg = f"Test timed out after {timeout} seconds"
