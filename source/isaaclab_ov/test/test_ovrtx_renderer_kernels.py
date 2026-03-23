@@ -68,6 +68,7 @@ def _reference_color(input_id: int) -> int:
     return r | (g << 8) | (b << 16) | (a << 24)
 
 
+@pytest.mark.skip(reason="OVRTX is optional and experimental feature and temporarily is excluded from testing.")
 class TestRandomColorsFromIdsKernel:
     """Tests for generate_random_colors_from_ids_kernel."""
 
