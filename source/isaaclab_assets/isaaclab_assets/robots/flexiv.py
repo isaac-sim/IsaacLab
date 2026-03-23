@@ -17,7 +17,7 @@ Reference: https://www.flexiv.com/product/rizon
 import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -116,31 +116,28 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         rot=(0.0, 0.0, 0.0, 1.0),
     ),
     actuators={
-        "shoulder": DCMotorCfg(
+        "shoulder": IdealPDActuatorCfg(
             joint_names_expr=["joint[1-2]"],
             effort_limit=123.0,
             velocity_limit=2.094,
-            saturation_effort=246.0,
             stiffness=6000.0,
             damping=108.4,
             friction=0.0,
             armature=0.0,
         ),
-        "elbow": DCMotorCfg(
+        "elbow": IdealPDActuatorCfg(
             joint_names_expr=["joint[3-4]"],
             effort_limit=64.0,
             velocity_limit=2.443,
-            saturation_effort=128.0,
             stiffness=4200.0,
             damping=90.7,
             friction=0.0,
             armature=0.0,
         ),
-        "wrist": DCMotorCfg(
+        "wrist": IdealPDActuatorCfg(
             joint_names_expr=["joint[5-7]"],
             effort_limit=39.0,
             velocity_limit=4.887,
-            saturation_effort=78.0,
             stiffness=1500.0,
             damping=54.2,
             friction=0.0,
@@ -166,7 +163,7 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         ),
     },
 )
-"""Configuration of Flexiv Rizon 4s arm with Grav gripper using DC motor actuator models.
+"""Configuration of Flexiv Rizon 4s arm with Grav gripper using IdealPD actuator models.
 
 The Grav gripper is a parallel gripper with the following joint configuration:
 - finger_joint: Main actuation joint (opened: 45 deg, closed: -8.88 deg)
