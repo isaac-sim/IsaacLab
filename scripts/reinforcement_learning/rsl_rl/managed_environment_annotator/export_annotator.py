@@ -445,12 +445,6 @@ class ExportPatcher:
 
         def patched_process_action(action: torch.Tensor):
             """Register raw_action buffers, call real process_action, preserve action clone."""
-            for term_name, term in action_manager._terms.items():
-                if hasattr(term, "_raw_actions") and term._raw_actions is not None:
-                    term._raw_actions = annotate.register_buffer(
-                        task_name, {f"{term_name}_raw_actions": term._raw_actions}
-                    )
-
             original_process(action)
             action_manager._action = action.clone()
             self._pending_action_output_export = True
