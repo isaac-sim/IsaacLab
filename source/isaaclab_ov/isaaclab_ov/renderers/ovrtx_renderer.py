@@ -45,10 +45,10 @@ from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     DEVICE,
-    compute_crc32_hash_kernel,
     create_camera_transforms_kernel,
     extract_depth_tile_from_tiled_buffer_kernel,
     extract_tile_from_tiled_buffer_kernel,
+    generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
@@ -122,6 +122,7 @@ class OVRTXRenderer(BaseRenderer):
         self._sensor_ref: weakref.ref[object] | None = None
         self._exported_usd_path: str | None = None
         self._camera_rel_path: str | None = None
+        self._output_semantic_color_buffer: wp.array | None = None
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
@@ -399,16 +400,21 @@ class OVRTXRenderer(BaseRenderer):
         if src.ptr != output_data.data_ptr():
             wp.copy(dest=wp.from_torch(output_data), src=src)
 
-    def _compute_crc32_hash(self, input_data: wp.array) -> wp.array:
-        """Compute CRC32 hash per pixel for a 2D uint32 buffer; returns (h, w) uint32 array."""
-        output_hash = wp.zeros(shape=input_data.shape, dtype=wp.uint32, device=DEVICE)
+    def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
+        """Generate pseudo-random colors from semantic IDs."""
+        if self._output_semantic_color_buffer is None or self._output_semantic_color_buffer.shape != input_ids.shape:
+            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=DEVICE)
+
+        output_colors = self._output_semantic_color_buffer
+
         wp.launch(
-            kernel=compute_crc32_hash_kernel,
-            dim=input_data.shape,
-            inputs=[input_data, output_hash],
+            kernel=generate_random_colors_from_ids_kernel,
+            dim=input_ids.shape,
+            inputs=[input_ids, output_colors],
             device=DEVICE,
         )
-        return output_hash
+
+        return output_colors
 
     def _extract_rgba_tiles(
         self,
@@ -495,10 +501,9 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
                 if tiled_semantic_data.dtype == wp.uint32:
-                    # Hash each semantic ID so nearby IDs (e.g. 1, 2, 3) map to visually distinct colors in the output.
-                    semantic_hash = self._compute_crc32_hash(tiled_semantic_data)
+                    semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
 
-                    semantic_torch = wp.to_torch(semantic_hash)
+                    semantic_torch = wp.to_torch(semantic_colors)
                     semantic_uint8 = semantic_torch.view(torch.uint8)
 
                     if semantic_torch.dim() == 2:
@@ -568,4 +573,5 @@ class OVRTXRenderer(BaseRenderer):
             self._renderer = None
 
         self._render_product_paths.clear()
+        self._output_semantic_color_buffer = None
         self._initialized_scene = False
