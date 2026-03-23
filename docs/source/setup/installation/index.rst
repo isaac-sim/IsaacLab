@@ -33,7 +33,7 @@ installation methods.
       ./isaaclab.sh --install   # or ./isaaclab.sh -i
 
    This installs the core Isaac Lab packages and the Newton physics backend. Isaac Sim is **not**
-   required for this mode. See `Kit-less Installation`_ below for which features are available
+   required for this mode. See :doc:`kitless_installation` for which features are available
    without Isaac Sim.
 
    When you need full simulation features — including PhysX, ROS, URDF/MJCF
@@ -130,44 +130,6 @@ to resolve installation issues in Linux.
 You can use `Isaac Sim Compatibility Checker <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`_
 to automatically check if the above requirements are met for running Isaac Sim on your system.
 
-.. _kitless-installation:
-
-Kit-less Installation
----------------------
-
-Isaac Lab can be installed and used **without Isaac Sim** using the kit-less mode. This is the
-fastest way to get started and is ideal for users who only need the Newton physics backend.
-
-.. code-block:: bash
-
-   # Clone Isaac Lab
-   git clone https://github.com/isaac-sim/IsaacLab.git
-   cd IsaacLab
-
-   # Install Isaac Lab (Newton backend, no Isaac Sim required)
-   ./isaaclab.sh --install   # or ./isaaclab.sh -i
-
-**Features available in kit-less mode (Newton backend, no Isaac Sim):**
-
-- Newton physics simulation (GPU-accelerated, including MuJoCo-Warp solver)
-- All manager-based and direct RL environments that support Newton
-- RL training with SKRL, RSL-RL, and other frameworks
-- Robot assets compatible with Newton
-
-**Features that require Isaac Sim:**
-
-- PhysX physics backend
-- Isaac Sim RTX rendering (not ovrtx)
-- Kit visualizer
-- Photorealistic rendering workflows
-- ROS / ROS2 integration
-- URDF and MJCF importers (GUI-based)
-- Deformable objects and surface gripper (PhysX-only)
-- Teleoperation and imitiation learning workflows
-
-To install Isaac Sim, use the pip method described in :doc:`pip_installation`.
-
-
 Isaac Sim Installation
 ----------------------
 
@@ -188,7 +150,7 @@ Use this table to decide:
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Method              | Isaac Sim                    | Isaac Lab                    | Best For                      | Difficulty |
 +=====================+==============================+==============================+===============================+============+
-| **Kit-less**        | |:x:| not required           | |:floppy_disk:| source (git) | Newton-only, fastest start    | Easiest    |
+| **Kit-less (beta)** | |:x:| not required           | |:floppy_disk:| source (git) | Newton-only, fastest start    | Easiest    |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | **Pip (uv)**        | |:package:| pip install      | |:floppy_disk:| source (git) | Most users, full features     | Easy       |
 | **(Recommended)**   |                              |                              |                               |            |
@@ -209,7 +171,7 @@ Next Steps
 
 Once you've reviewed the installation methods, continue with the guide that matches your workflow:
 
-- |:rocket:| `Kit-less Installation`_ (above)
+- |:rocket:| :doc:`kitless_installation`
 
   - Install Isaac Lab without Isaac Sim.
   - Uses the Newton physics backend.
@@ -263,6 +225,7 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
    :maxdepth: 1
    :hidden:
 
+   kitless_installation
    pip_installation
    binaries_installation
    source_installation

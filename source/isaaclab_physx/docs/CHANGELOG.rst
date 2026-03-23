@@ -1,6 +1,47 @@
 Changelog
 ---------
 
+0.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``test_body_incoming_joint_wrench_b_single_joint`` computing the expected
+  wrench in the parent body's frame instead of the child body's frame. The expected
+  wrench is now expressed in
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b`'s
+  actual convention (child body frame) and body indices are resolved by name to be
+  robust across backends. Also corrected the docstring for
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b` to
+  accurately describe the frame convention.
+
+
+0.5.11 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed articulation root prim discovery failing when the
+  ``physxArticulation:articulationEnabled`` attribute is not authored on the
+  USD prim. The predicate now treats an unset attribute as enabled (the PhysX
+  default) instead of rejecting the prim.
+
+
+0.5.10 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed verbose ``logger.info`` calls from
+  :class:`~isaaclab_physx.assets.RigidObject` and
+  :class:`~isaaclab_physx.assets.Articulation` initialization that logged body
+  names, joint names, and instance counts. Articulation joint parameter tables and
+  actuator group summaries are retained.
+
+
 0.5.9 (2026-03-11)
 ~~~~~~~~~~~~~~~~~~
 

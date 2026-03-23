@@ -105,12 +105,6 @@ def test_camera_init(setup_sim_camera):
     assert camera._sensor_prims[0].GetPath().pathString == camera_cfg.prim_path
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     # Check buffers that exist and have correct shapes
     assert camera.data.pos_w.shape == (1, 3)
     assert camera.data.quat_w_ros.shape == (1, 4)
@@ -199,12 +193,6 @@ def test_camera_init_offset(setup_sim_camera):
         rtol=1e-5,
     )
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     # check if transform correctly set in output
     np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
     np.testing.assert_allclose(camera_ros.data.quat_w_ros[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
@@ -228,11 +216,6 @@ def test_multi_camera_init(setup_sim_camera):
     # play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(10):
         # perform rendering
@@ -264,11 +247,6 @@ def test_multi_camera_with_different_resolution(setup_sim_camera):
     # play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # perform rendering
     sim.step()
     # update camera
@@ -348,12 +326,6 @@ def test_camera_set_world_poses(setup_sim_camera):
     # set new pose
     camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w, position)
     torch.testing.assert_close(camera.data.quat_w_world, orientation)
@@ -376,12 +348,6 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
     # set new pose
     camera.set_world_poses_from_view(eyes.clone(), targets.clone())
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w, eyes)
     torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
@@ -401,12 +367,6 @@ def test_intrinsic_matrix(setup_sim_camera):
     rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
     # Set matrix into simulator
     camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     # Simulate physics
     for _ in range(10):
@@ -459,11 +419,6 @@ def test_depth_clipping(setup_sim_camera):
 
     # Play sim
     sim.reset()
-
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     camera_zero.update(dt)
     camera_none.update(dt)
@@ -559,11 +514,6 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -625,11 +575,6 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
 
     # Play sim
     sim.reset()
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(12):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -694,11 +639,6 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -746,11 +686,6 @@ def test_camera_resolution_rgb_only(setup_sim_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -773,11 +708,6 @@ def test_camera_resolution_rgba_only(setup_sim_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -800,11 +730,6 @@ def test_camera_resolution_albedo_only(setup_sim_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -831,11 +756,6 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -858,11 +778,6 @@ def test_camera_resolution_depth_only(setup_sim_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
 
     # expected sizes
@@ -896,11 +811,6 @@ def test_throughput(setup_sim_camera):
     targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
     camera.set_world_poses_from_view(eyes, targets)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(5):
         # perform rendering

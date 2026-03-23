@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import torch
@@ -21,7 +21,52 @@ if TYPE_CHECKING:
 
 from .isaac_teleop_cfg import IsaacTeleopCfg
 
+
+class SupportsDLPack(Protocol):
+    """Duck type for objects supporting the DLPack buffer protocol.
+
+    Satisfied by :class:`torch.Tensor`, :class:`numpy.ndarray` (>= 1.22),
+    ``wp.array``, CuPy arrays, JAX arrays, and other frameworks.
+    """
+
+    def __dlpack__(self, *, stream: Any = ...) -> Any: ...
+
+    def __dlpack_device__(self) -> tuple[int, int]: ...
+
+
 logger = logging.getLogger(__name__)
+
+_DLDEVICE_CPU = 1
+
+
+def _to_numpy_4x4(mat: np.ndarray | torch.Tensor | SupportsDLPack) -> np.ndarray:
+    """Convert a (4, 4) transform to a float32 numpy array.
+
+    Prefers the DLPack buffer protocol (``__dlpack__``) for zero-copy
+    interop with torch, warp, cupy, jax, and other frameworks.
+
+    Args:
+        mat: A (4, 4) transform matrix.
+
+    Returns:
+        A (4, 4) float32 :class:`numpy.ndarray`.
+    """
+    if isinstance(mat, np.ndarray):
+        return np.asarray(mat, dtype=np.float32)
+    if isinstance(mat, torch.Tensor):
+        return np.asarray(np.from_dlpack(mat.detach().cpu()), dtype=np.float32)
+    if hasattr(mat, "__dlpack_device__"):
+        device_type, _ = mat.__dlpack_device__()
+        if device_type == _DLDEVICE_CPU:
+            return np.asarray(np.from_dlpack(mat), dtype=np.float32)
+        # Non-CPU DLPack source (e.g. CUDA wp.array): .numpy() typically
+        # handles the device-to-host transfer internally.
+        if hasattr(mat, "numpy"):
+            return np.asarray(mat.numpy(), dtype=np.float32)  # type: ignore[union-attr]
+        raise TypeError(f"Cannot convert non-CPU DLPack array of type {type(mat).__name__} to numpy")
+    if hasattr(mat, "numpy"):
+        return np.asarray(mat.numpy(), dtype=np.float32)  # type: ignore[union-attr]
+    return np.asarray(mat, dtype=np.float32)
 
 
 class TeleopSessionLifecycle:
@@ -247,10 +292,12 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        Tries to acquire OpenXR handles from Kit's XR.  If the handles
-        are available, creates and enters the ``TeleopSession``.  If not (e.g.
-        the user hasn't started AR yet), the attempt is silently deferred and
-        will be retried on the next :meth:`step` call.
+        Tries to acquire OpenXR handles from Kit's XR bridge.  If the
+        handles are available, creates and enters the ``TeleopSession``.
+        If the handles are not yet complete — either because the XR session
+        has not started or because the bridge component has not finished
+        registering — session creation is deferred and will be retried on
+        the next :meth:`step` call.
 
         Returns:
             ``True`` if the session was successfully started (or was already
@@ -259,6 +306,13 @@ class TeleopSessionLifecycle:
         if self._session is not None:
             return True
 
+        # In headless mode the AR profile setting is deliberately omitted
+        # from the .kit file so that all extensions (including the teleop
+        # bridge and its BridgeComponent) can load and register before Kit
+        # creates the OpenXR instance.  We enable it here, after extensions
+        # are loaded; Kit will process the change on the next event-loop tick.
+        self._ensure_xr_ar_profile_enabled()
+
         from isaacteleop.oxr import OpenXRSessionHandles
         from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
@@ -266,9 +320,15 @@ class TeleopSessionLifecycle:
 
         if oxr_handles is None:
             if not self._session_start_deferred_logged:
-                logger.info(
-                    "OpenXR handles not yet available (waiting for AR to start); IsaacTeleop session creation deferred"
-                )
+                if self._kit_xr_session_is_active():
+                    logger.info(
+                        "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
+                    )
+                else:
+                    logger.info(
+                        "OpenXR handles not yet available (waiting for XR session); "
+                        "IsaacTeleop session creation deferred"
+                    )
                 self._session_start_deferred_logged = True
             return False
 
@@ -291,7 +351,11 @@ class TeleopSessionLifecycle:
     # Stepping
     # ------------------------------------------------------------------
 
-    def step(self, anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None) -> torch.Tensor | None:
+    def step(
+        self,
+        anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None,
+        target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None,
+    ) -> torch.Tensor | None:
         """Execute one step of the teleop session and return the action tensor.
 
         If the session has not been started yet (because OpenXR handles were
@@ -308,6 +372,14 @@ class TeleopSessionLifecycle:
             anchor_world_matrix_fn: Optional callable returning the (4, 4)
                 world-to-anchor transform.  Used to build external inputs
                 for ``ValueInput`` leaf nodes in the pipeline.
+            target_T_world: Optional (4, 4) transform matrix that rebases
+                pipeline poses into a target coordinate frame.  When provided,
+                the anchor matrix is left-multiplied by this transform
+                (``target_T_world @ world_T_anchor``) so all output poses
+                are expressed in the target frame.  Accepts any object
+                supporting the DLPack buffer protocol (``__dlpack__``),
+                including :class:`numpy.ndarray`, :class:`torch.Tensor`,
+                and ``wp.array``.
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -327,7 +399,7 @@ class TeleopSessionLifecycle:
 
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.
-        external_inputs = self._build_external_inputs(anchor_world_matrix_fn)
+        external_inputs = self._build_external_inputs(anchor_world_matrix_fn, target_T_world)
 
         # Execute one step of the teleop session.
         # If the underlying OpenXR session was destroyed externally (e.g.
@@ -345,11 +417,12 @@ class TeleopSessionLifecycle:
         # Store the right controller TensorGroup for button polling
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
 
-        # Extract the flattened action array from TensorReorderer output
-        action_np = result["action"][0]
-
-        # Convert to torch tensor and move to device
-        action = torch.from_numpy(np.asarray(action_np, dtype=np.float32)).to(self._device)
+        # Extract the flattened action array (DLPack-compatible) from
+        # TensorReorderer and move to the simulation device.
+        action_array = result["action"][0]
+        action = torch.from_dlpack(action_array).to(  # type: ignore[attr-defined]
+            dtype=torch.float32, device=self._device
+        )
 
         return action
 
@@ -380,16 +453,27 @@ class TeleopSessionLifecycle:
     # External input building
     # ------------------------------------------------------------------
 
-    def _build_external_inputs(self, anchor_world_matrix_fn: Callable[[], np.ndarray] | None) -> dict | None:
+    def _build_external_inputs(
+        self,
+        anchor_world_matrix_fn: Callable[[], np.ndarray] | None,
+        target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None,
+    ) -> dict | None:
         """Build external inputs for non-DeviceIO leaf nodes in the pipeline.
 
         Checks whether the active ``TeleopSession`` has external (non-DeviceIO)
         leaf nodes and, for each recognized leaf, constructs the corresponding
         ``TensorGroup`` data.
 
+        When *target_T_world* is provided, the anchor matrix is left-multiplied
+        by the rebase transform so that all pipeline poses are expressed in
+        the target coordinate frame:
+        ``target_T_world @ world_T_anchor = target_T_anchor``.
+
         Args:
             anchor_world_matrix_fn: Callable returning the (4, 4)
                 world-to-anchor transform matrix.
+            target_T_world: Optional (4, 4) rebase transform.  See
+                :meth:`step` for details.
 
         Returns:
             A dict suitable for ``TeleopSession.step(external_inputs=...)``,
@@ -410,6 +494,8 @@ class TeleopSessionLifecycle:
                     anchor_matrix = anchor_world_matrix_fn()
                 else:
                     anchor_matrix = np.eye(4, dtype=np.float32)
+                if target_T_world is not None:
+                    anchor_matrix = _to_numpy_4x4(target_T_world) @ anchor_matrix
                 xform_tg = TensorGroup(TransformMatrix())
                 xform_tg[0] = anchor_matrix
                 external_inputs[leaf_name] = {ValueInput.VALUE: xform_tg}
@@ -425,11 +511,66 @@ class TeleopSessionLifecycle:
     # OpenXR handle acquisition
     # ------------------------------------------------------------------
 
+    _xr_ar_profile_enabled = False
+
+    @classmethod
+    def _ensure_xr_ar_profile_enabled(cls) -> None:
+        """Enable the XR AR profile via carb.settings when running headless.
+
+        In headless mode the ``xr.profile.ar.enabled`` setting is intentionally
+        omitted from the ``.kit`` file so that all extensions — including
+        ``isaacsim.kit.xr.teleop.bridge`` and its ``BridgeComponent`` — can
+        load and register with Kit's XR system *before* the OpenXR instance is
+        created.  This method sets the flag from Python once extensions are
+        loaded.  Kit's XR system picks up the change on the next event-loop
+        tick, which is why handle acquisition may be deferred by one frame.
+
+        Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
+        setting which the :class:`~isaaclab.app.AppLauncher` stores after
+        resolving the headless state (covers both explicit ``--headless`` and
+        implicit headless when no Kit visualizer is requested).  In
+        non-headless mode this is a no-op because Kit's profile system manages
+        AR activation through the UI.
+        """
+        if cls._xr_ar_profile_enabled:
+            return
+        cls._xr_ar_profile_enabled = True
+        try:
+            import carb.settings
+
+            settings = carb.settings.get_settings()
+
+            if not settings.get("/isaaclab/xr/auto_start"):
+                return
+
+            if not settings.get("/xr/profile/ar/enabled"):
+                settings.set("/xr/profile/ar/enabled", True)
+                logger.info("Enabled /xr/profile/ar/enabled via carb.settings")
+        except (ImportError, AttributeError):
+            pass
+
+    @staticmethod
+    def _kit_xr_session_is_active() -> bool:
+        """Check whether Kit's XR system has an active OpenXR session.
+
+        Used to provide a more specific log message when deferring session
+        creation: "waiting for XR session" vs "bridge handles incomplete".
+
+        Returns:
+            ``True`` if Kit reports non-zero instance **and** session handles.
+        """
+        try:
+            import omni.kit.xr.system.openxr as openxr
+
+            return bool(openxr.get_instance_handle() and openxr.get_session_handle())
+        except (ImportError, ModuleNotFoundError, AttributeError):
+            return False
+
     @staticmethod
     def _acquire_kit_oxr_handles(handles_cls: type[OpenXRSessionHandles]) -> OpenXRSessionHandles | None:
         """Acquire OpenXR session handles from Kit's XR bridge extension.
 
-        Imports ``omni.kit.xr.openxr`` and reads the four raw handle
+        Imports ``omni.kit.xr.system.openxr`` and reads the four raw handle
         values (XrInstance, XrSession, XrSpace, xrGetInstanceProcAddr) that Kit's
         OpenXR system exposes.  The handles are returned as an
         ``OpenXRSessionHandles`` instance ready for ``DeviceIOSession.run()``.
@@ -440,7 +581,7 @@ class TeleopSessionLifecycle:
 
         Returns:
             An ``OpenXRSessionHandles`` instance, or ``None`` if the bridge
-            extension is not available (e.g. running outside Isaac Sim).
+            extension is not available or any handle is missing.
         """
         try:
             import omni.kit.xr.system.openxr as openxr
@@ -455,7 +596,7 @@ class TeleopSessionLifecycle:
 
         if not all((instance, session, space, proc_addr)):
             logger.debug(
-                "XR bridge returned incomplete handles "
+                "Kit XR bridge returned incomplete handles "
                 f"(instance={instance}, session={session}, space={space}, proc_addr={proc_addr})"
             )
             return None

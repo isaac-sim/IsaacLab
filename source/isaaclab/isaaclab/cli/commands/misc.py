@@ -9,6 +9,7 @@ from ..utils import (
     ISAACLAB_ROOT,
     extract_isaacsim_exe,
     extract_python_exe,
+    get_pip_command,
     is_windows,
     print_info,
     print_warning,
@@ -82,8 +83,9 @@ def command_build_docs() -> None:
     docs_dir = ISAACLAB_ROOT / "docs"
 
     # Install reqs.
+    pip_cmd = get_pip_command(python_exe)
     run_command(
-        [python_exe, "-m", "pip", "install", "-r", "requirements.txt"],
+        pip_cmd + ["install", "-r", "requirements.txt"],
         cwd=docs_dir,
     )
 

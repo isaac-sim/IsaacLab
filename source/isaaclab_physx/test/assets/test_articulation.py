@@ -1879,11 +1879,15 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
 
     # Play the simulator
     sim.reset()
+
+    # Resolve body indices by name (ordering may differ across physics backends)
+    arm_idx = articulation.body_names.index("Arm")
+    root_idx = articulation.body_names.index("CenterPivot")
     # apply external force
     external_force_vector_b = torch.zeros((num_articulations, articulation.num_bodies, 3), device=device)
-    external_force_vector_b[:, 1, 1] = 10.0  # 10 N in Y direction
+    external_force_vector_b[:, arm_idx, 1] = 10.0  # 10 N in Y direction
     external_torque_vector_b = torch.zeros((num_articulations, articulation.num_bodies, 3), device=device)
-    external_torque_vector_b[:, 1, 2] = 10.0  # 10 Nm in z direction
+    external_torque_vector_b[:, arm_idx, 2] = 10.0  # 10 Nm in z direction
 
     # apply action to the articulation
     joint_pos = torch.ones_like(wp.to_torch(articulation.data.joint_pos)) * 1.5708 / 2.0
@@ -1917,31 +1921,38 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     pos_w = wp.to_torch(articulation.data.body_pos_w)
     quat_w = wp.to_torch(articulation.data.body_quat_w)
 
-    mass_link2 = mass[:, 1].view(num_articulations, -1)
+    mass_link2 = mass[:, arm_idx].view(num_articulations, -1)
     gravity = torch.tensor(sim.cfg.gravity, device="cpu").repeat(num_articulations, 1).view((num_articulations, 3))
 
     # NOTE: the com and link pose for single joint are colocated
     weight_vector_w = mass_link2 * gravity
     # expected wrench from link mass and external wrench
+    # PhysX reports the incoming joint wrench as the force FROM body0 ONTO body1 (body1's frame).
+    # The USD asset defines body0=CenterPivot, body1=Arm, so the wrench is the constraint/support
+    # force from CenterPivot onto Arm, expressed in Arm's frame.
+    # In static equilibrium this equals -(gravity + external forces on Arm).
+    total_force_w = weight_vector_w.to(device) + math_utils.quat_apply(
+        quat_w[:, arm_idx, :], external_force_vector_b[:, arm_idx, :]
+    )
+    total_torque_w = torch.cross(
+        pos_w[:, arm_idx, :].to(device) - pos_w[:, root_idx, :].to(device),
+        total_force_w,
+        dim=-1,
+    ) + math_utils.quat_apply(quat_w[:, arm_idx, :], external_torque_vector_b[:, arm_idx, :])
     expected_wrench = torch.zeros((num_articulations, 6), device=device)
     expected_wrench[:, :3] = math_utils.quat_apply(
-        math_utils.quat_conjugate(quat_w[:, 0, :]),
-        weight_vector_w.to(device) + math_utils.quat_apply(quat_w[:, 1, :], external_force_vector_b[:, 1, :]),
+        math_utils.quat_conjugate(quat_w[:, arm_idx, :]),
+        -total_force_w,
     )
     expected_wrench[:, 3:] = math_utils.quat_apply(
-        math_utils.quat_conjugate(quat_w[:, 0, :]),
-        torch.cross(
-            pos_w[:, 1, :].to(device) - pos_w[:, 0, :].to(device),
-            weight_vector_w.to(device) + math_utils.quat_apply(quat_w[:, 1, :], external_force_vector_b[:, 1, :]),
-            dim=-1,
-        )
-        + math_utils.quat_apply(quat_w[:, 1, :], external_torque_vector_b[:, 1, :]),
+        math_utils.quat_conjugate(quat_w[:, arm_idx, :]),
+        -total_torque_w,
     )
 
     # check value of last joint wrench
     torch.testing.assert_close(
         expected_wrench,
-        wp.to_torch(articulation.data.body_incoming_joint_wrench_b)[:, 1, :].squeeze(1),
+        wp.to_torch(articulation.data.body_incoming_joint_wrench_b)[:, arm_idx, :].squeeze(1),
         atol=1e-2,
         rtol=1e-3,
     )

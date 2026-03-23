@@ -143,6 +143,34 @@ def _print_debug_env(prefix: str, env: dict[str, str] | None) -> None:
         print_debug(f"{prefix}: ENV removed: {env_removed}")
 
 
+_CMD_METACHARACTERS = frozenset("<>|&^")
+
+
+def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> str | list[str]:
+    """
+    Quote ``cmd.exe`` metacharacters when invoking ``.bat``/``.cmd`` files.
+
+    Returns a command string (not list) so ``subprocess.run`` bypasses
+    ``list2cmdline`` which doesn't escape cmd.exe metacharacters (<, >, |, &, ^).
+    """
+    # Only .bat/.cmd files are executed via cmd.exe.
+    exe = str(cmd[0]).lower()
+    if not (exe.endswith(".bat") or exe.endswith(".cmd")):
+        return list(cmd)
+
+    # Wrap args that contain metacharacters or whitespace in double quotes.
+    parts: list[str] = []
+    for arg in cmd:
+        s = str(arg)
+        if any(c in s for c in _CMD_METACHARACTERS) or " " in s or "\t" in s:
+            parts.append(f'"{s}"')
+        else:
+            parts.append(s)
+
+    # Return a string so subprocess skips list2cmdline.
+    return " ".join(parts)
+
+
 def run_command(
     cmd: str | list[str] | tuple[str, ...],
     cwd: str | Path | None = None,
@@ -178,6 +206,10 @@ def run_command(
     print_debug(f'run_command(): CWD: "{cwd}"')
     print_debug(f'run_command(): CMD: "{command_str}"')
     _print_debug_env("run_command()", env)
+
+    # On Windows, escape cmd.exe metacharacters when invoking .bat/.cmd files.
+    if isinstance(cmd, (list, tuple)) and is_windows():
+        cmd = _escape_for_cmd_exe(cmd)
 
     try:
         return subprocess.run(
@@ -257,6 +289,18 @@ def extract_python_exe() -> str:
                     python_exe = Path(conda_prefix) / "bin" / "python3"
         else:
             print_debug("extract_python_exe(): No CONDA_PREFIX found.")
+
+    # Try the default Isaac Lab uv venv (env_isaaclab/) in the repo root.
+    if not python_exe or not Path(python_exe).exists():
+        default_venv = ISAACLAB_ROOT / "env_isaaclab"
+        if default_venv.is_dir():
+            if is_windows():
+                candidate = default_venv / "Scripts" / "python.exe"
+            else:
+                candidate = default_venv / "bin" / "python"
+            if candidate.exists():
+                print_debug(f"extract_python_exe(): Found default venv python: {candidate}")
+                python_exe = candidate
 
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
