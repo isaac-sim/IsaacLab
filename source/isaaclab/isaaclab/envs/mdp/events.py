@@ -26,7 +26,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.version import compare_versions, get_isaac_sim_version
+from isaaclab.utils.version import compare_versions
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets import Articulation as NewtonArticulation
