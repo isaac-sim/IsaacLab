@@ -1,7 +1,276 @@
-Seed not set for the environment. The environment creation may not be deterministic.
-form linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3.12
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /home/horde/IsaacLab/env_isaaclab/bin/python
 cachedir: .pytest_cache
 rootdir: /home/horde/IsaacLab
 configfile: pyproject.toml
-plugins: mock-3.15.1, anyio-4.13.0, hydra-core-1.3.2, flaky-3.8.1
-collecting ... 
+plugins: mock-3.15.1, anyio-4.13.0, timeout-2.4.0, hydra-core-1.3.2, flaky-3.8.1
+timeout: 120.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 210 items
+
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestRigidBodyViewBackend::test_factory_creates_torch_by_default PASSED [  0%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestRigidBodyViewBackend::test_factory_creates_torch_when_specified PASSED [  0%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestRigidBodyViewBackend::test_factory_creates_warp_when_specified PASSED [  1%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestArticulationViewBackend::test_factory_creates_torch_by_default PASSED [  1%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestArticulationViewBackend::test_factory_creates_torch_when_specified PASSED [  2%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestArticulationViewBackend::test_factory_creates_warp_when_specified PASSED [  2%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestRigidContactViewBackend::test_factory_creates_torch_by_default PASSED [  3%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestRigidContactViewBackend::test_factory_creates_torch_when_specified PASSED [  3%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestRigidContactViewBackend::test_factory_creates_warp_when_specified PASSED [  4%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestQuadrupedViewBackend::test_factory_creates_torch_by_default PASSED [  4%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestQuadrupedViewBackend::test_factory_creates_warp_when_specified PASSED [  5%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestHumanoidViewBackend::test_factory_creates_torch_by_default PASSED [  5%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestHumanoidViewBackend::test_factory_creates_warp_when_specified PASSED [  6%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestBackendConsistency::test_warp_views_have_backend_attribute PASSED [  6%]
+source/isaaclab_physx/test/test_mock_interfaces/test_backend_factory.py::TestBackendConsistency::test_torch_rigid_body_view_has_backend_attribute PASSED [  7%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewInit::test_default_init PASSED [  7%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewInit::test_custom_configuration PASSED [  8%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewInit::test_custom_names PASSED [  8%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewInit::test_tendon_properties PASSED [  9%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewRootGetters::test_get_root_transforms_shape PASSED [  9%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewRootGetters::test_get_root_transforms_default_quaternion PASSED [ 10%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewRootGetters::test_get_root_velocities_shape PASSED [ 10%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewLinkGetters::test_get_link_transforms_shape PASSED [ 10%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewLinkGetters::test_get_link_velocities_shape PASSED [ 11%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_positions_shape PASSED [ 11%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_velocities_shape PASSED [ 12%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_projected_joint_forces_shape PASSED [ 12%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_limits_shape PASSED [ 13%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_limits_default_values PASSED [ 13%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_stiffnesses_shape PASSED [ 14%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_dampings_shape PASSED [ 14%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_max_forces_shape PASSED [ 15%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_max_velocities_shape PASSED [ 15%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_armatures_shape PASSED [ 16%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewDOFGetters::test_get_dof_friction_coefficients_shape PASSED [ 16%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMassGetters::test_get_masses_shape PASSED [ 17%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMassGetters::test_get_coms_shape PASSED [ 17%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMassGetters::test_get_inertias_shape PASSED [ 18%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewSetters::test_set_root_transforms PASSED [ 18%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewSetters::test_set_dof_positions PASSED [ 19%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewSetters::test_set_dof_positions_with_indices PASSED [ 19%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewSetters::test_set_dof_velocities PASSED [ 20%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewSetters::test_set_dof_limits PASSED [ 20%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewSetters::test_set_dof_stiffnesses PASSED [ 20%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewNoopSetters::test_set_dof_position_targets_noop PASSED [ 21%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewNoopSetters::test_set_dof_velocity_targets_noop PASSED [ 21%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewNoopSetters::test_set_dof_actuation_forces_noop PASSED [ 22%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMockSetters::test_set_mock_root_transforms PASSED [ 22%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMockSetters::test_set_mock_link_transforms PASSED [ 23%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMockSetters::test_set_mock_dof_positions PASSED [ 23%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewMockSetters::test_set_mock_dof_velocities PASSED [ 24%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewFactories::test_create_mock_articulation_view_basic PASSED [ 24%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewFactories::test_create_mock_quadruped_view PASSED [ 25%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view.py::TestMockArticulationViewFactories::test_create_mock_humanoid_view PASSED [ 25%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpInit::test_default_init PASSED [ 26%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpInit::test_custom_configuration PASSED [ 26%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpInit::test_custom_names PASSED [ 27%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpInit::test_tendon_properties PASSED [ 27%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpRootGetters::test_get_root_transforms_shape PASSED [ 28%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpRootGetters::test_get_root_transforms_default_quaternion PASSED [ 28%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpRootGetters::test_get_root_velocities_shape PASSED [ 29%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpLinkGetters::test_get_link_transforms_shape PASSED [ 29%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpLinkGetters::test_get_link_velocities_shape PASSED [ 30%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpLinkGetters::test_get_link_accelerations_shape PASSED [ 30%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpLinkGetters::test_get_link_incoming_joint_force_shape PASSED [ 30%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_positions_shape PASSED [ 31%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_velocities_shape PASSED [ 31%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_projected_joint_forces_shape PASSED [ 32%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_limits_shape PASSED [ 32%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_limits_default_values PASSED [ 33%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_stiffnesses_shape PASSED [ 33%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_dampings_shape PASSED [ 34%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_max_forces_shape PASSED [ 34%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_max_velocities_shape PASSED [ 35%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_armatures_shape PASSED [ 35%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_friction_coefficients_shape PASSED [ 36%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpDOFGetters::test_get_dof_friction_properties_shape PASSED [ 36%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMassGetters::test_get_masses_shape PASSED [ 37%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMassGetters::test_get_coms_shape PASSED [ 37%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMassGetters::test_get_inertias_shape PASSED [ 38%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpSetters::test_set_root_transforms PASSED [ 38%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpSetters::test_set_dof_positions PASSED [ 39%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpSetters::test_set_dof_positions_with_indices PASSED [ 39%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpSetters::test_set_dof_velocities PASSED [ 40%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpSetters::test_set_dof_limits PASSED [ 40%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpSetters::test_set_dof_stiffnesses PASSED [ 40%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpNoopSetters::test_set_dof_position_targets_noop PASSED [ 41%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpNoopSetters::test_set_dof_velocity_targets_noop PASSED [ 41%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpNoopSetters::test_set_dof_actuation_forces_noop PASSED [ 42%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMockSetters::test_set_mock_root_transforms PASSED [ 42%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMockSetters::test_set_mock_link_transforms PASSED [ 43%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMockSetters::test_set_mock_dof_positions PASSED [ 43%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpMockSetters::test_set_mock_dof_velocities PASSED [ 44%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpFactories::test_create_mock_articulation_view_basic PASSED [ 44%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpFactories::test_create_mock_quadruped_view PASSED [ 45%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_articulation_view_warp.py::TestMockArticulationViewWarpFactories::test_create_mock_humanoid_view PASSED [ 45%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewInit::test_default_init PASSED [ 46%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewInit::test_custom_count PASSED [ 46%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewInit::test_custom_prim_paths PASSED [ 47%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_transforms_shape PASSED [ 47%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_transforms_default_quaternion PASSED [ 48%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_velocities_shape PASSED [ 48%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_accelerations_shape PASSED [ 49%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_masses_shape PASSED [ 49%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_masses_default_value PASSED [ 50%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_coms_shape PASSED [ 50%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_inertias_shape PASSED [ 50%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_get_inertias_default_value PASSED [ 51%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewGetters::test_getters_return_clones PASSED [ 51%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewSetters::test_set_transforms PASSED [ 52%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewSetters::test_set_transforms_with_indices PASSED [ 52%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewSetters::test_set_velocities PASSED [ 53%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewSetters::test_set_masses PASSED [ 53%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewMockSetters::test_set_mock_transforms PASSED [ 54%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewMockSetters::test_set_mock_velocities PASSED [ 54%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewMockSetters::test_set_mock_accelerations PASSED [ 55%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewMockSetters::test_set_mock_masses PASSED [ 55%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewMockSetters::test_set_mock_coms PASSED [ 56%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewMockSetters::test_set_mock_inertias PASSED [ 56%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewActions::test_apply_forces_and_torques_at_position_noop PASSED [ 57%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewFactory::test_factory_basic PASSED [ 57%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view.py::TestMockRigidBodyViewFactory::test_factory_with_prim_paths PASSED [ 58%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpInit::test_default_init PASSED [ 58%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpInit::test_custom_count PASSED [ 59%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpInit::test_custom_prim_paths PASSED [ 59%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_transforms_shape PASSED [ 60%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_transforms_default_quaternion PASSED [ 60%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_velocities_shape PASSED [ 60%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_accelerations_shape PASSED [ 61%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_masses_shape PASSED [ 61%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_masses_default_value PASSED [ 62%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_coms_shape PASSED [ 62%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_inertias_shape PASSED [ 63%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_get_inertias_default_value PASSED [ 63%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpGetters::test_getters_return_clones PASSED [ 64%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpSetters::test_set_transforms PASSED [ 64%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpSetters::test_set_transforms_with_indices PASSED [ 65%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpSetters::test_set_velocities PASSED [ 65%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpSetters::test_set_masses PASSED [ 66%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpMockSetters::test_set_mock_transforms PASSED [ 66%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpMockSetters::test_set_mock_velocities PASSED [ 67%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpMockSetters::test_set_mock_accelerations PASSED [ 67%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpMockSetters::test_set_mock_masses PASSED [ 68%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpMockSetters::test_set_mock_coms PASSED [ 68%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpMockSetters::test_set_mock_inertias PASSED [ 69%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpActions::test_apply_forces_and_torques_at_position_noop PASSED [ 69%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpFactory::test_factory_basic PASSED [ 70%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_body_view_warp.py::TestMockRigidBodyViewWarpFactory::test_factory_with_prim_paths PASSED [ 70%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewInit::test_default_init PASSED [ 70%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewInit::test_custom_configuration PASSED [ 71%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewGetters::test_get_net_contact_forces_shape PASSED [ 71%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewGetters::test_get_contact_force_matrix_shape PASSED [ 72%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewGetters::test_get_contact_data_shapes PASSED [ 72%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewGetters::test_get_friction_data_shapes PASSED [ 73%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewGetters::test_getters_return_clones PASSED [ 73%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewMockSetters::test_set_mock_net_contact_forces PASSED [ 74%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewMockSetters::test_set_mock_contact_force_matrix PASSED [ 74%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewMockSetters::test_set_mock_contact_data_partial PASSED [ 75%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewMockSetters::test_set_mock_contact_data_full PASSED [ 75%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewMockSetters::test_set_mock_friction_data PASSED [ 76%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewFactory::test_factory_basic PASSED [ 76%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewFactory::test_factory_custom_max_contacts PASSED [ 77%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view.py::TestMockRigidContactViewZeroFilterCount::test_contact_force_matrix_zero_filters PASSED [ 77%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpInit::test_default_init PASSED [ 78%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpInit::test_custom_configuration PASSED [ 78%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpGetters::test_get_net_contact_forces_shape PASSED [ 79%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpGetters::test_get_contact_force_matrix_shape PASSED [ 79%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpGetters::test_get_contact_data_shapes PASSED [ 80%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpGetters::test_get_friction_data_shapes PASSED [ 80%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpGetters::test_getters_return_clones PASSED [ 80%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpMockSetters::test_set_mock_net_contact_forces PASSED [ 81%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpMockSetters::test_set_mock_contact_force_matrix PASSED [ 81%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpMockSetters::test_set_mock_contact_data_partial PASSED [ 82%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpMockSetters::test_set_mock_contact_data_full PASSED [ 82%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpMockSetters::test_set_mock_friction_data PASSED [ 83%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpFactory::test_factory_basic PASSED [ 83%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpFactory::test_factory_custom_max_contacts PASSED [ 84%]
+source/isaaclab_physx/test/test_mock_interfaces/test_mock_rigid_contact_view_warp.py::TestMockRigidContactViewWarpZeroFilterCount::test_contact_force_matrix_zero_filters PASSED [ 84%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestPatchRigidBodyView::test_basic_patching PASSED [ 85%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestPatchRigidBodyView::test_patching_preserves_configuration PASSED [ 85%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestPatchArticulationView::test_basic_patching PASSED [ 86%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestPatchArticulationView::test_patching_with_names PASSED [ 86%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestPatchRigidContactView::test_basic_patching PASSED [ 87%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorUtilities::test_mock_rigid_body_view_decorator PASSED [ 87%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorUtilities::test_mock_articulation_view_decorator PASSED [ 88%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorUtilities::test_mock_rigid_contact_view_decorator PASSED [ 88%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorUtilities::test_decorator_with_prim_paths PASSED [ 89%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorUtilities::test_decorator_with_fixed_base PASSED [ 89%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorFunctionPreservation::test_function_name_preserved PASSED [ 90%]
+source/isaaclab_physx/test/test_mock_interfaces/test_patching.py::TestDecoratorFunctionPreservation::test_docstring_preserved PASSED [ 90%]
+source/isaaclab/test/cli/test_install.py::TestGetPipCommand::test_returns_uv_pip_in_venv_without_pip_module PASSED [ 90%]
+source/isaaclab/test/cli/test_install.py::TestGetPipCommand::test_returns_uv_pip_in_venv_with_uv PASSED [ 91%]
+source/isaaclab/test/cli/test_install.py::TestGetPipCommand::test_returns_python_pip_without_uv PASSED [ 91%]
+source/isaaclab/test/cli/test_install.py::TestGetPipCommand::test_returns_python_pip_in_conda_without_uv PASSED [ 92%]
+source/isaaclab/test/cli/test_install.py::TestExtractPythonExe::test_uses_virtual_env_when_set PASSED [ 92%]
+source/isaaclab/test/cli/test_install.py::TestExtractPythonExe::test_uses_conda_prefix_when_no_venv PASSED [ 93%]
+source/isaaclab/test/cli/test_install.py::TestExtractIsaacsimPath::test_returns_none_when_not_required PASSED [ 93%]
+source/isaaclab/test/cli/test_install.py::TestExtractIsaacsimPath::test_exits_when_required PASSED [ 94%]
+source/isaaclab/test/cli/test_install.py::TestExtractIsaacsimPath::test_returns_path_when_symlink_exists PASSED [ 94%]
+source/isaaclab/test/cli/test_install.py::TestDeterminePythonVersion::test_defaults_to_3_12_when_no_sim PASSED [ 95%]
+source/isaaclab/test/cli/test_install.py::TestDeterminePythonVersion::test_returns_3_11_for_sim_5 PASSED [ 95%]
+source/isaaclab/test/cli/test_install.py::TestDeterminePythonVersion::test_returns_3_12_for_sim_6 PASSED [ 96%]
+source/isaaclab/test/cli/test_install.py::TestDeterminePythonVersion::test_raises_for_unknown_version PASSED [ 96%]
+source/isaaclab/test/cli/test_install.py::TestDeterminePythonVersion::test_uses_package_metadata_when_no_version_file PASSED [ 97%]
+source/isaaclab/test/managers/test_manager_base.py::test_nested_term_cfg_in_dict_params PASSED [ 97%]
+source/isaaclab/test/managers/test_manager_base.py::test_nested_term_cfg_in_list_params PASSED [ 98%]
+source/isaaclab/test/managers/test_manager_base.py::test_string_func_in_nested_term_cfg PASSED [ 98%]
+source/isaaclab/test/managers/test_manager_base.py::test_string_func_top_level_class_term PASSED [ 99%]
+source/isaaclab/test/managers/test_manager_base.py::test_deeply_nested_dict_in_params PASSED [ 99%]
+source/isaaclab/test/managers/test_manager_base.py::test_chained_containing_chained_and_list PASSED [100%]
+
+=============================== warnings summary ===============================
+env_isaaclab/lib/python3.12/site-packages/torch/jit/_script.py:1480: 35 warnings
+  /home/horde/IsaacLab/env_isaaclab/lib/python3.12/site-packages/torch/jit/_script.py:1480: DeprecationWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 210 passed, 35 warnings in 5.23s =======================
+Warning: The rigid body at /World/envs/env_0/Robot/slider has a possibly invalid inertia tensor of {1.0, 1.0, 1.0} and a negative mass. Either specify correct values in the mass properties, or add collider(s) to any shape(s) that you wish to automatically compute mass properties for. If you do not want the objects to collide, add colliders regardless then disable the 'enable collision' property. [python3.12]
+Warning: The rigid body at /World/envs/env_0/Robot/cart has a possibly invalid inertia tensor of {1.0, 1.0, 1.0}, small sphere approximated inertia was used. Either specify correct values in the mass properties, or add collider(s) to any shape(s) that you wish to automatically compute mass properties for. If you do not want the objects to collide, add colliders regardless then disable the 'enable collision' property. [python3.12]
+Warning: The rigid body at /World/envs/env_0/Robot/pole has a possibly invalid inertia tensor of {1.0, 1.0, 1.0}, small sphere approximated inertia was used. Either specify correct values in the mass properties, or add collider(s) to any shape(s) that you wish to automatically compute mass properties for. If you do not want the objects to collide, add colliders regardless then disable the 'enable collision' property. [python3.12]
+Failed to get root com velocity. If the articulation is fixed, this is expected. Setting root com velocity to zeros.
+=== Isaac Lab 3.0 Cartpole Benchmark ===
+Task: Isaac-Cartpole-Direct-Warp-v0 (Newton/Warp backend)
+Envs: 64
+Steps: 100
+
+[INFO]: Base environment:
+	Environment device    : cuda:0
+	Environment seed      : 42
+	Physics step-size     : 0.008333333333333333
+	Rendering step-size   : 0.016666666666666666
+	Environment step-size : 0.016666666666666666
+[INFO]: Time taken for scene creation Last: 1.533468 s, Mean: 1.533468 s, Std: 0.000000 s, N: 1
+[INFO]: Scene manager:  <class InteractiveSceneWarp>
+	Number of environments: 64
+	Environment spacing   : 4.0
+	Source prim name      : /World/envs/env_0
+	Global prim paths     : []
+	Replicate physics     : True
+Finalize builder took: Last: 0.017159 s, Mean: 0.017159 s, Std: 0.000000 s, N: 1
+Initialize solver took: Last: 2.497314 s, Mean: 2.497314 s, Std: 0.000000 s, N: 1
+CUDA graph took: Last: 0.306023 s, Mean: 0.306023 s, Std: 0.000000 s, N: 1
+[INFO]: Time taken for simulation start Last: 2.968761 s, Mean: 2.968761 s, Std: 0.000000 s, N: 1
+[INFO]: Completed setting up the environment...
+Environment created successfully
+Observation space: Box(-inf, inf, (64, 4), float32)
+Action space: Box(-inf, inf, (64, 1), float32)
+Reset OK, obs shape: torch.Size([64, 4])
+First obs sample: [0.57487243 0.         0.         0.        ]
+
+=== RESULTS ===
+100 steps x 64 envs completed in 0.296s
+Throughput: 21638 env-steps/s
+
+Reward statistics (step 100):
+  Mean: 0.0216
+  Std:  1.2588
+  Min:  -5.2516
+  Max:  0.9941
+
+Final obs (env 0): [1.5283067 9.088264  0.7514977 6.137108 ]
+Final obs shape: torch.Size([64, 4])
+
+Benchmark complete.
