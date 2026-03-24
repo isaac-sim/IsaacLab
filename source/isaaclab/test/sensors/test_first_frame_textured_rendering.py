@@ -30,7 +30,7 @@ GREY_CHANNEL_TOLERANCE = 3.0
 GREY_MEAN_THRESHOLD = 85.0
 
 # number of sim steps to warm up before capturing the first frame
-WARMUP_STEPS = 3
+WARMUP_STEPS = 10
 
 # number of extra sim steps before capturing the stabilised reference frame
 STABILISATION_STEPS = 5
