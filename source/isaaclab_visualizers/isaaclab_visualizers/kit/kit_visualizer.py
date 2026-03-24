@@ -105,16 +105,10 @@ class KitVisualizer(BaseVisualizer):
         try:
             import omni.kit.app
 
-            from isaaclab.app.settings_manager import get_settings_manager
-
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                # Keep app pumping for viewport/UI updates only.
-                # Simulation stepping is owned by SimulationContext.
-                settings = get_settings_manager()
-                settings.set_bool("/app/player/playSimulations", False)
+                # Pump Kit/UI events only; SimulationContext owns physics stepping.
                 app.update()
-                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
@@ -148,13 +142,15 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        """Return whether simulation play flag is paused in Kit settings."""
+        """Return whether Kit timeline transport is paused."""
         try:
-            from isaaclab.app.settings_manager import get_settings_manager
+            import omni.timeline
 
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            return play_flag is False
+            timeline = omni.timeline.get_timeline_interface()
+            if timeline is None:
+                return False
+            # Pause is transport state that is neither playing nor stopped.
+            return (not timeline.is_playing()) and (not timeline.is_stopped())
         except Exception:
             return False
 

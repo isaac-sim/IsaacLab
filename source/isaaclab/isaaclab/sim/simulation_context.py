@@ -701,6 +701,9 @@ class SimulationContext:
                     visualizers_to_remove.append(viz)
                     continue
                 if viz.is_rendering_paused():
+                    # Keep visualizer event loops responsive while rendering is paused
+                    # so UI controls (e.g. "Resume Rendering") remain interactive.
+                    viz.step(0.0)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)
