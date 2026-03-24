@@ -12,6 +12,10 @@ FROM ${DEPS_IMAGE}
 ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 
+# Remove stale source from the deps cache so deleted modules don't survive
+# (COPY merges directories rather than replacing them.)
+RUN rm -rf ${ISAACLAB_PATH} && mkdir -pv ${ISAACLAB_PATH}
+
 # Overwrite with the current working tree (mirrors the final COPY in Dockerfile.base/curobo)
 COPY ../ ${ISAACLAB_PATH}/
 WORKDIR ${ISAACLAB_PATH}

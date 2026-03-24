@@ -29,6 +29,9 @@ WIDTH = 256
 GREY_CHANNEL_TOLERANCE = 3.0
 GREY_MEAN_THRESHOLD = 85.0
 
+# number of sim steps to warm up before capturing the first frame
+WARMUP_STEPS = 3
+
 # number of extra sim steps before capturing the stabilised reference frame
 STABILISATION_STEPS = 5
 
@@ -117,7 +120,11 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     # Play sim
     sim.reset()
 
-    # Capture the first frame immediately after reset
+    # Warm up the renderer so textures have time to stream in
+    for _ in range(WARMUP_STEPS):
+        sim.step()
+
+    # Capture the first frame after warm-up
     sim.step()
     camera.update(dt)
     first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
@@ -158,7 +165,11 @@ def test_first_frame_is_textured_tiled_camera(setup_sim, device):
     # Play sim
     sim.reset()
 
-    # Capture the first frame immediately after reset
+    # Warm up the renderer so textures have time to stream in
+    for _ in range(WARMUP_STEPS):
+        sim.step()
+
+    # Capture the first frame after warm-up
     sim.step()
     camera.update(dt)
     first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)

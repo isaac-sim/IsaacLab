@@ -102,15 +102,28 @@ def capture_test_output_with_timeout(cmd, timeout, env):
         return -1, str(e).encode(), b"", False
 
 
+def _create_error_test_suite(test_file, error_msg, details, elapsed_time=0):
+    """Create a JUnit test suite with a single errored test case.
+
+    Used for synthetic reports when the test process fails to produce its own
+    XML output (e.g. timeout, crash, missing report).
+    """
+    base_name = os.path.splitext(os.path.basename(test_file))[0]
+    test_suite = TestSuite(name=base_name)
+    test_case = TestCase(name="test_execution", classname=base_name)
+    test_case.time = elapsed_time
+
+    error = Error(message=error_msg)
+    error.text = details
+    test_case.result = error
+
+    test_suite.add_testcase(test_case)
+    return test_suite
+
+
 def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
     """Create a test case entry for a timeout test with captured logs."""
-    test_suite = TestSuite(name=f"timeout_{os.path.splitext(os.path.basename(test_file))[0]}")
-    test_case = TestCase(name="test_execution", classname=os.path.splitext(os.path.basename(test_file))[0])
-
-    # Create error message with timeout info and captured logs
     error_msg = f"Test timed out after {timeout} seconds"
-
-    # Add captured output to error details
     details = f"Timeout after {timeout} seconds\n\n"
 
     if stdout_data:
@@ -121,12 +134,7 @@ def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
         details += "=== STDERR ===\n"
         details += stderr_data.decode("utf-8", errors="replace") + "\n"
 
-    error = Error(message=error_msg)
-    error.text = details
-    test_case.result = error
-
-    test_suite.add_testcase(test_case)
-    return test_suite
+    return _create_error_test_suite(test_file, error_msg, details, elapsed_time=timeout)
 
 
 def run_individual_tests(test_files, workspace_root, isaacsim_ci):
@@ -189,19 +197,29 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             }
             continue
 
-        if returncode != 0:
-            failed_tests.append(test_file)
-
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
             print(f"Warning: Test report not found at {report_file}")
             failed_tests.append(test_file)
+
+            # Write a synthetic error report so the result appears in the
+            # merged JUnit XML and CI summary instead of silently vanishing.
+            error_suite = _create_error_test_suite(
+                test_file,
+                error_msg=f"Test crashed without producing a report (exit code {returncode})",
+                details=f"No JUnit XML report found at {report_file}.\n"
+                f"The test process exited with code {returncode}.\n",
+            )
+            crash_report = JUnitXml()
+            crash_report.add_testsuite(error_suite)
+            crash_report.write(report_file)
+
             test_status[test_file] = {
-                "errors": 1,  # Assume error since we can't read the report
+                "errors": 1,
                 "failures": 0,
                 "skipped": 0,
-                "tests": 0,
+                "tests": 1,
                 "result": "FAILED",
                 "time_elapsed": 0.0,
             }
@@ -229,11 +247,22 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         except Exception as e:
             print(f"Error reading test report {report_file}: {e}")
             failed_tests.append(test_file)
+
+            # Overwrite the corrupt report with a synthetic error entry.
+            error_suite = _create_error_test_suite(
+                test_file,
+                error_msg=f"Failed to parse test report: {e}",
+                details=f"The report at {report_file} could not be parsed.\n",
+            )
+            error_report = JUnitXml()
+            error_report.add_testsuite(error_suite)
+            error_report.write(report_file)
+
             test_status[test_file] = {
                 "errors": 1,
                 "failures": 0,
                 "skipped": 0,
-                "tests": 0,
+                "tests": 1,
                 "result": "FAILED",
                 "time_elapsed": 0.0,
             }
@@ -242,6 +271,14 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # Check if there were any failures
         if errors > 0 or failures > 0:
             failed_tests.append(test_file)
+        elif returncode != 0:
+            # Process exited non-zero but XML report shows no failures (e.g. segfault
+            # after report was written).  Mark as failed so crashes are never silent.
+            print(
+                f"Warning: {test_file} exited with code {returncode} but report shows no failures. Marking as failed."
+            )
+            failed_tests.append(test_file)
+            errors = 1
 
         test_status[test_file] = {
             "errors": errors,
@@ -264,7 +301,6 @@ def _collect_test_files(
     include_files,
     quarantined_only,
     curobo_only,
-    cuda_issue_only,
 ):
     """Collect test files from source directories, applying all active filters."""
     test_files = []
@@ -285,9 +321,6 @@ def _collect_test_files(
                 elif curobo_only:
                     if file not in test_settings.CUROBO_TESTS:
                         continue
-                elif cuda_issue_only:
-                    if file not in test_settings.CUDA_ISSUE_TESTS:
-                        continue
                 else:
                     # An explicit include_files entry overrides TESTS_TO_SKIP, allowing
                     # dedicated jobs (e.g. test-environments-training) to run tests that
@@ -301,7 +334,7 @@ def _collect_test_files(
                 if filter_pattern and filter_pattern not in full_path:
                     print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
                     continue
-                if exclude_pattern and exclude_pattern in full_path:
+                if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
                     print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
                 if include_files and file not in include_files:
@@ -309,6 +342,19 @@ def _collect_test_files(
                     continue
 
                 test_files.append(full_path)
+
+    # Apply file-level sharding: sort deterministically, then select every Nth file.
+    # Skip when include_files is set — in that case the test's own conftest handles
+    # sharding at the test-item level (e.g. parametrized test cases).
+    shard_index = os.environ.get("TEST_SHARD_INDEX", "")
+    shard_count = os.environ.get("TEST_SHARD_COUNT", "")
+    if shard_index and shard_count and not include_files:
+        shard_index = int(shard_index)
+        shard_count = int(shard_count)
+        test_files.sort()
+        test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
+        print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
+
     return test_files
 
 
@@ -327,7 +373,6 @@ def pytest_sessionstart(session):
     include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
     quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
-    cuda_issue_only = os.environ.get("TEST_CUDA_ISSUE_ONLY", "false") == "true"
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
@@ -353,13 +398,11 @@ def pytest_sessionstart(session):
     print(f"Include files: {include_files if include_files else 'none'}")
     print(f"Quarantined-only mode: {quarantined_only}")
     print(f"Curobo-only mode: {curobo_only}")
-    print(f"CUDA-issue-only mode: {cuda_issue_only}")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
     print(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
-    print(f"TEST_CUDA_ISSUE_ONLY env var: '{os.environ.get('TEST_CUDA_ISSUE_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -370,7 +413,6 @@ def pytest_sessionstart(session):
         include_files,
         quarantined_only,
         curobo_only,
-        cuda_issue_only,
     )
 
     if isaacsim_ci:
@@ -477,4 +519,4 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0 if num_failing == 0 else 1)
+    pytest.exit("Custom test execution completed", returncode=0 if (num_failing == 0 and num_timeout == 0) else 1)

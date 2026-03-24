@@ -61,26 +61,46 @@ PER_TEST_TIMEOUTS = {
 Note: Any tests not listed here will use the default timeout.
 """
 
-CUROBO_TESTS = [
+CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",
+    "test_pink_ik.py",
+]
+"""Tests for the cuRobo motion planner and Pink IK controller.
+
+These tests are skipped in the base image CI jobs and run in the dedicated
+``test-curobo`` CI job which uses the cuRobo Docker image.
+"""
+
+SKILLGEN_TESTS = [
     "test_generate_dataset_skillgen.py",
     "test_environments_skillgen.py",
     "test_environments_automate.py",
-    "test_pink_ik.py",
+]
+"""SkillGen and AutoMate environment tests.
+
+These tests are skipped in the base image CI jobs and run in the dedicated
+``test-skillgen`` CI job which uses the cuRobo Docker image.
+"""
+
+CUROBO_TESTS = [
+    *CUROBO_PLANNER_TESTS,
+    *SKILLGEN_TESTS,
 ]
 """A list of tests that require cuRobo installation.
 
 These tests are skipped in the base image CI jobs and run separately in the
-dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
+dedicated ``test-curobo`` and ``test-skillgen`` CI jobs which use the cuRobo
+Docker image.
 """
 
 QUARANTINED_TESTS: list[str] = []
 """A list of tests that are quarantined due to known instability.
 
-These tests are skipped in normal CI runs and executed in the dedicated
-``test-quarantined`` CI job (gated by the ``RUN_QUARANTINED_TESTS`` env
-var) where failures do not block PR merges. Add test filenames here to
+These tests are skipped in normal CI runs. When the ``test-quarantined``
+CI job is enabled (gated by the ``RUN_QUARANTINED_TESTS`` repository
+variable), they run in a dedicated job where failures do not block PR
+merges. The job is currently disabled. Add test filenames here to
 quarantine them from regular CI.
 """
 
@@ -94,13 +114,13 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
-    # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
+    # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
 ]
-"""A list of tests to skip by run_tests.py"""
+"""A list of tests to skip in CI (see conftest.py)."""
 
 TEST_RL_ENVS = [
     # classic control

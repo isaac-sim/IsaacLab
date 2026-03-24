@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
+import os
 from datetime import datetime
 
 import pytest
@@ -85,6 +86,21 @@ def tag(request):
 @pytest.fixture(scope="session")
 def kpi_store():
     return GLOBAL_KPI_STORE  # Using global variable for storing KPI data
+
+
+# Shard parametrized test items across parallel CI jobs.
+# Reads the same TEST_SHARD_INDEX / TEST_SHARD_COUNT env vars used by tools/conftest.py
+# for file-level sharding, but applies them at the test-item level so a single
+# parametrized file can be split across multiple runners.
+# This is a pytest hook — pytest calls it automatically during test collection.
+def pytest_collection_modifyitems(config, items):
+    shard_index = os.environ.get("TEST_SHARD_INDEX", "")
+    shard_count = os.environ.get("TEST_SHARD_COUNT", "")
+    if shard_index and shard_count:
+        shard_index = int(shard_index)
+        shard_count = int(shard_count)
+        items[:] = [item for i, item in enumerate(items) if i % shard_count == shard_index]
+        print(f"Shard {shard_index}/{shard_count}: selected {len(items)} test items")
 
 
 # This hook dynamically generates test cases based on the --workflows option.

@@ -67,7 +67,7 @@ runs:
         export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
 
         if [ -n "${{ env.NGC_API_KEY }}" ]; then
-          echo "🟢 Logging into nvcr.io..."
+          echo "🔵 Logging into nvcr.io..."
           docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
         else
           echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
@@ -87,13 +87,13 @@ runs:
         ECR_URL="${INPUT_ECR_URL:-}"
 
         if [ -z "${ECR_URL}" ]; then
-          echo "🟢 ecr-url input not set, trying ECR_CACHE_URL env var..."
+          echo "🔵 ecr-url input not set, trying ECR_CACHE_URL env var..."
           ECR_URL="${ECR_CACHE_URL:-}"
           [ -n "${ECR_URL}" ] && echo "🟢 Using ECR_CACHE_URL env var: ${ECR_URL}"
         fi
 
         if [ -z "${ECR_URL}" ]; then
-          echo "🟢 ECR_CACHE_URL env var not set, trying SSM..."
+          echo "🔵 ECR_CACHE_URL env var not set, trying SSM..."
           IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
             -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
           INSTANCE_ID=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
@@ -109,10 +109,10 @@ runs:
             if [ -n "${ECR_URL}" ]; then
               echo "🟢 Resolved ECR URL from SSM (/github-runner/${INSTANCE_ID}/ecr-cache-url): ${ECR_URL}"
             else
-              echo "🟢 SSM parameter not found for instance ${INSTANCE_ID}"
+              echo "🔵 SSM parameter not found for instance ${INSTANCE_ID}"
             fi
           else
-            echo "🟢 Not running on EC2 or IMDS unavailable, skipping SSM lookup"
+            echo "🔵 Not running on EC2 or IMDS unavailable, skipping SSM lookup"
           fi
         fi
 
@@ -148,7 +148,7 @@ runs:
         echo "ECR_IMAGE=${ECR_IMAGE}"     >> "$GITHUB_ENV"
         echo "CACHE_IMAGE=${CACHE_IMAGE}" >> "$GITHUB_ENV"
 
-        echo "🟢 Logging into ECR registry..."
+        echo "🔵 Logging into ECR registry..."
         aws ecr get-login-password --region "${AWS_REGION}" | \
           docker login --username AWS --password-stdin "${REGISTRY}"
 
@@ -162,7 +162,7 @@ runs:
       if: steps.resolve-ecr.outputs.available == 'true'
       shell: bash
       run: |
-        echo "🟢 Trying to pull commit-tagged ${ECR_IMAGE} from ECR..."
+        echo "🔵 Trying to pull commit-tagged ${ECR_IMAGE} from ECR..."
         if docker pull "${ECR_IMAGE}" 2>/dev/null; then
           docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
           echo "🟢 Commit-tagged image pulled, skipping build!"
@@ -208,15 +208,15 @@ runs:
           BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
         fi
 
-        echo "🟢 Base image ID: ${BASE_IMAGE_UNIQ_ID}"
+        echo "🔵 Base image ID: ${BASE_IMAGE_UNIQ_ID}"
 
         MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
         FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
           | sha256sum | cut -c1-16)
         DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
         DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
-        echo "🟢 Deps hash: ${DEPS_HASH}"
-        echo "🟢 Trying to pull deps image ${DEPS_ECR_IMAGE} from ECR..."
+        echo "🔵 Deps hash: ${DEPS_HASH}"
+        echo "🔵 Trying to pull deps image ${DEPS_ECR_IMAGE} from ECR..."
 
         if docker pull "${DEPS_ECR_IMAGE}" 2>/dev/null; then
           echo "🟢 Deps cache HIT!!! Building thin overlay (final COPY only)..."
@@ -235,7 +235,7 @@ runs:
             .
           echo "🟢 Overlay build complete!"
           docker tag "${{ inputs.image-tag }}" "${ECR_IMAGE}"
-          echo "🟢 Pushing overlay image ${ECR_IMAGE} to ECR for future reuse..."
+          echo "🔵 Pushing overlay image ${ECR_IMAGE} to ECR for future reuse..."
           docker push "${ECR_IMAGE}"
           echo "overlay-built=true" >> "$GITHUB_OUTPUT"
         else
@@ -277,7 +277,7 @@ runs:
           || docker buildx use "${BUILDER_NAME}"
         trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
 
-        echo "🟢 Building ${{ inputs.image-tag }}..."
+        echo "🔵 Building ${{ inputs.image-tag }}..."
         docker buildx build --load "${BUILD_ARGS[@]}" .
 
     ##### 7: Push to ECR #####
@@ -292,7 +292,7 @@ runs:
         steps.deps-cache.outputs.overlay-built != 'true'
       shell: bash
       run: |
-        echo "🟢 Pushing ${ECR_IMAGE} to ECR..."
+        echo "🔵 Pushing ${ECR_IMAGE} to ECR..."
         docker push "${ECR_IMAGE}"
         echo "🟢 Pushed ${ECR_IMAGE}"
 
@@ -305,7 +305,7 @@ runs:
       if: env.PUSH_DEPS_IMAGE == 'true'
       shell: bash
       run: |
-        echo "🟢 Pushing deps image for future cache hits: ${DEPS_ECR_IMAGE}"
+        echo "🔵 Pushing deps image for future cache hits: ${DEPS_ECR_IMAGE}"
         docker tag "${{ inputs.image-tag }}" "${DEPS_ECR_IMAGE}"
         docker push "${DEPS_ECR_IMAGE}"
 

@@ -35,16 +35,20 @@ inputs:
     description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
     default: 'false'
     required: false
-  cuda-issue-only:
-    description: 'Run only tests with known CUDA issues (isolated from general tests)'
-    default: 'false'
-    required: false
   quarantined-only:
     description: 'Run only tests listed in QUARANTINED_TESTS (skipped in normal jobs)'
     default: 'false'
     required: false
   include-files:
     description: 'Comma-separated list of specific test file paths to include (e.g., source/pkg/test/test_a.py,source/pkg/test/test_b.py)'
+    default: ''
+    required: false
+  shard-index:
+    description: 'Zero-based index of this shard (used with shard-count to split tests across parallel jobs)'
+    default: ''
+    required: false
+  shard-count:
+    description: 'Total number of shards (used with shard-index to split tests across parallel jobs)'
     default: ''
     required: false
 
@@ -64,9 +68,10 @@ runs:
           local pytest_options="$6"
           local filter_pattern="$7"
           local curobo_only="$8"
-          local cuda_issue_only="$9"
-          local include_files="${10}"
-          local quarantined_only="${11}"
+          local include_files="$9"
+          local quarantined_only="${10}"
+          local shard_index="${11}"
+          local shard_count="${12}"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -78,11 +83,11 @@ runs:
           if [ "$curobo_only" = "true" ]; then
             echo "cuRobo-only mode enabled: running only cuRobo and SkillGen tests"
           fi
-          if [ "$cuda_issue_only" = "true" ]; then
-            echo "cuda-issue-only mode enabled: running only CUDA issue tests"
-          fi
           if [ -n "$include_files" ]; then
             echo "Include files: $include_files"
+          fi
+          if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
+            echo "Shard: $shard_index of $shard_count"
           fi
 
           # Create reports directory
@@ -107,11 +112,6 @@ runs:
             echo "Setting TEST_CUROBO_ONLY=true"
           fi
 
-          if [ "$cuda_issue_only" = "true" ]; then
-            docker_env_vars="$docker_env_vars -e TEST_CUDA_ISSUE_ONLY=true"
-            echo "Setting TEST_CUDA_ISSUE_ONLY=true"
-          fi
-
           if [ "$quarantined_only" = "true" ]; then
             docker_env_vars="$docker_env_vars -e TEST_QUARANTINED_ONLY=true"
             echo "Setting TEST_QUARANTINED_ONLY=true"
@@ -125,9 +125,15 @@ runs:
             echo "Setting TEST_INCLUDE_FILES=$include_files_compact"
           fi
 
+          if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_SHARD_INDEX=$shard_index -e TEST_SHARD_COUNT=$shard_count"
+            echo "Setting TEST_SHARD_INDEX=$shard_index TEST_SHARD_COUNT=$shard_count"
+          fi
+
           if [ -n "$filter_pattern" ]; then
-            if [[ "$filter_pattern" == not* ]]; then
-              # Handle "not pattern" case
+            if [[ "$filter_pattern" == "not "* ]]; then
+              # Handle "not <pattern>" case — note the trailing space to avoid
+              # matching words that happen to start with "not".
               exclude_pattern="${filter_pattern#not }"
               docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
               echo "Setting exclude pattern: $exclude_pattern"
@@ -142,9 +148,13 @@ runs:
 
           echo "Docker environment variables: '$docker_env_vars'"
 
-          # Run tests in container with error handling
-          echo "🚀 Starting Docker container for tests..."
-          if docker run --name $container_name \
+          # Run tests in container.
+          # --init: proper signal forwarding inside the container (PID 1 reaps + forwards signals)
+          # --stop-timeout 5: after SIGTERM, wait only 5s before SIGKILL (default is 10s)
+          # Running in foreground so the runner can kill the process group directly on cancellation.
+          echo "🔵 Starting Docker container for tests..."
+          docker run --name $container_name \
+            --init --stop-timeout 5 \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
             --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
@@ -159,51 +169,84 @@ runs:
               cd /workspace/isaaclab
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
-              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
-            "; then
-            echo "✅ Docker container completed successfully"
+              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
+            " && DOCKER_EXIT=0 || DOCKER_EXIT=$?
+
+          if [ $DOCKER_EXIT -eq 0 ]; then
+            echo "🟢 Docker container completed successfully"
           else
-            echo "⚠️ Docker container failed, but continuing to copy results..."
+            echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
           fi
 
           # Copy test results with error handling
-          echo "📋 Attempting to copy test results..."
-          if docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>/dev/null; then
-            echo "✅ Test results copied successfully to $reports_dir/$result_file"
+          echo "🔵 Attempting to copy test results..."
+          if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
+            echo "🟢 Test results copied successfully to $reports_dir/$result_file"
           else
-            echo "❌ Failed to copy specific result file, trying to copy all test results..."
-            if docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>/dev/null; then
-              echo "✅ All test results copied successfully to $reports_dir/"
+            echo "🔴 Failed to copy specific result file: $cp_err"
+            echo "🔴 Trying to copy all test results..."
+            if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>&1); then
+              echo "🟢 All test results copied successfully to $reports_dir/"
               # Look for any XML files and use the first one found
               if [ -f "$reports_dir/full_report.xml" ]; then
                 mv "$reports_dir/full_report.xml" "$reports_dir/$result_file"
-                echo "✅ Found and renamed full_report.xml to $result_file"
-              elif [ -f "$reports_dir/test-reports-"*".xml" ]; then
-                # Combine individual test reports if no full report exists
-                echo "📊 Combining individual test reports..."
-                echo '<?xml version="1.0" encoding="utf-8"?><testsuites>' > "$reports_dir/$result_file"
+                echo "🟢 Found and renamed full_report.xml to $result_file"
+              elif ls "$reports_dir"/test-reports-*.xml 1>/dev/null 2>&1; then
+                # Combine individual test reports if no full report exists.
+                # Extract each <testsuite> block intact to produce valid JUnit XML.
+                echo "🔵 Combining individual test reports..."
+                echo '<?xml version="1.0" encoding="utf-8"?>' > "$reports_dir/$result_file"
+                echo '<testsuites>' >> "$reports_dir/$result_file"
                 for xml_file in "$reports_dir"/test-reports-*.xml; do
                   if [ -f "$xml_file" ]; then
                     echo "  Processing: $xml_file"
-                    sed '1d; /^<testsuite/d; /^<\/testsuite/d' "$xml_file" >> "$reports_dir/$result_file" 2>/dev/null || true
+                    # Copy everything between <testsuite ...> and </testsuite> (inclusive)
+                    sed -n '/<testsuite/,/<\/testsuite>/p' "$xml_file" >> "$reports_dir/$result_file" || echo "🟠 Warning: failed to extract testsuite from $xml_file"
                   fi
                 done
                 echo '</testsuites>' >> "$reports_dir/$result_file"
-                echo "✅ Combined individual test reports into $result_file"
+                echo "🟢 Combined individual test reports into $result_file"
               else
-                echo "❌ No test result files found, creating fallback"
+                echo "🔴 No test result files found, creating fallback"
                 echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"no_results_found\"><error message=\"No test results found\">Container may have failed to generate any results</error></testcase></testsuite>" > "$reports_dir/$result_file"
               fi
             else
-              echo "❌ Failed to copy any test results, creating fallback"
+              echo "🔴 Failed to copy any test results, creating fallback"
               echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"copy_failed\"><error message=\"Failed to copy test results\">Container may have failed to generate results</error></testcase></testsuite>" > "$reports_dir/$result_file"
             fi
           fi
 
           # Clean up container
-          echo "🧹 Cleaning up Docker container..."
-          docker rm $container_name 2>/dev/null || echo "⚠️ Container cleanup failed, but continuing..."
+          echo "🔵 Cleaning up Docker container..."
+          docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
+
+          return $DOCKER_EXIT
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.cuda-issue-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}"
+
+    - name: Write job summary
+      if: always()
+      shell: bash
+      run: |
+        report="${{ inputs.reports-dir }}/${{ inputs.result-file }}"
+        if [ ! -f "$report" ]; then
+          echo "🟠 No test report found" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        # Parse JUnit XML and produce a markdown summary.
+        # Exit code 2 means the report was corrupt/unreadable — surface the
+        # error in the summary but don't mask the real test exit code.
+        if ! python3 .github/actions/run-tests/junit_summary.py "$report" >> "$GITHUB_STEP_SUMMARY"; then
+          echo "::warning::junit_summary.py failed to parse $report — test results may be missing from the summary"
+        fi
+
+    - name: Clean up container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        echo "🟠 Workflow cancelled, force-removing container..."
+        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
+        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
