@@ -98,11 +98,33 @@ def apply_named_preset(env_cfg: object, raw_cfg: object, preset_name: str) -> No
                     resolved = getattr(raw_value, preset_name)
                     setattr(env_cfg, field_name, resolved)
                     apply_named_preset(resolved, resolved, preset_name)
+                else:
+                    # Preset doesn't have the requested name, but recurse into the
+                    # default value to resolve nested PresetCfgs that may have it.
+                    default_val = getattr(raw_value, "default", None)
+                    env_value = getattr(env_cfg, field_name, None)
+                    if (
+                        default_val is not None
+                        and env_value is not None
+                        and hasattr(default_val, "__dataclass_fields__")
+                        and hasattr(env_value, "__dataclass_fields__")
+                    ):
+                        apply_named_preset(env_value, default_val, preset_name)
             elif _is_old_style_preset(raw_value):
                 if preset_name in raw_value.presets:
                     resolved = raw_value.presets[preset_name]
                     setattr(env_cfg, field_name, resolved)
                     apply_named_preset(resolved, resolved, preset_name)
+                else:
+                    default_val = raw_value.presets.get("default")
+                    env_value = getattr(env_cfg, field_name, None)
+                    if (
+                        default_val is not None
+                        and env_value is not None
+                        and hasattr(default_val, "__dataclass_fields__")
+                        and hasattr(env_value, "__dataclass_fields__")
+                    ):
+                        apply_named_preset(env_value, default_val, preset_name)
             else:
                 env_value = getattr(env_cfg, field_name, None)
                 if env_value is not None and hasattr(env_value, "__dataclass_fields__"):
