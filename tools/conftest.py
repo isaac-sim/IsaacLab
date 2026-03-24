@@ -23,10 +23,28 @@ def pytest_ignore_collect(collection_path, config):
     return True
 
 
-def capture_test_output_with_timeout(cmd, timeout, env):
-    """Run a command with timeout and capture all output while streaming in real-time."""
+def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
+    """Run a command with a timeout and stream captured output.
+
+    Args:
+        cmd: Command to run as a subprocess.
+        timeout: Maximum runtime [seconds] for the test itself.
+        env: Environment variables for the subprocess.
+        report_file: Optional JUnit XML path used to detect test completion and
+            apply a shorter shutdown grace period (defined in SHUTDOWN_GRACE_PERIOD
+            in test_settings.py).
+
+    Returns:
+        Tuple of ``(returncode, stdout_data, stderr_data, timed_out)``.
+        ``timed_out`` is ``True`` only when the test exceeds ``timeout``.
+    """
     stdout_data = b""
     stderr_data = b""
+    report_detected_at = None
+
+    # Remove stale report so we can detect when the subprocess writes a new one.
+    if report_file and os.path.exists(report_file):
+        os.remove(report_file)
 
     try:
         # Use Popen to capture output in real-time
@@ -52,8 +70,35 @@ def capture_test_output_with_timeout(cmd, timeout, env):
         start_time = time.time()
 
         while process.poll() is None:
-            # Check for timeout
-            if time.time() - start_time > timeout:
+            now = time.time()
+
+            # Detect when pytest writes the report (tests finished).
+            if report_file and report_detected_at is None and os.path.exists(report_file):
+                report_detected_at = now
+
+            # Shutdown grace period: tests completed but process won't exit.
+            # Some SimulationApp teardowns hang indefinitely; kill early.
+            if report_detected_at is not None:
+                if now - report_detected_at > test_settings.SHUTDOWN_GRACE_PERIOD:
+                    print(
+                        f"Process still running {test_settings.SHUTDOWN_GRACE_PERIOD}s after test report was"
+                        " written. Killing (likely SimulationApp shutdown hang)."
+                    )
+                    process.kill()
+                    try:
+                        remaining_stdout, remaining_stderr = process.communicate(timeout=5)
+                        stdout_data += remaining_stdout
+                        stderr_data += remaining_stderr
+                    except subprocess.TimeoutExpired:
+                        process.terminate()
+                        remaining_stdout, remaining_stderr = process.communicate(timeout=1)
+                        stdout_data += remaining_stdout
+                        stderr_data += remaining_stderr
+                    # Not a test timeout — tests completed, only cleanup hung.
+                    return 0, stdout_data, stderr_data, False
+
+            # Test timeout: tests themselves didn't finish in time.
+            elif now - start_time > timeout:
                 process.kill()
                 try:
                     remaining_stdout, remaining_stderr = process.communicate(timeout=5)
@@ -172,10 +217,47 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         cmd.append(str(test_file))
 
         # Run test with timeout and capture output
-        returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
+        report_file = f"tests/test-reports-{str(file_name)}.xml"
+        returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(
+            cmd, timeout, env, report_file=report_file
+        )
 
         if timed_out:
             print(f"Test {test_file} timed out after {timeout} seconds...")
+
+            # Check whether the subprocess managed to write a valid report
+            # before the timeout.  This happens when most tests pass but the
+            # last few hang, or when the process hangs during shutdown.
+            if os.path.exists(report_file):
+                try:
+                    existing_report = JUnitXml.fromfile(report_file)
+                    existing_tests = int(existing_report.tests) if existing_report.tests is not None else 0
+                    existing_errors = int(existing_report.errors) if existing_report.errors is not None else 0
+                    existing_failures = int(existing_report.failures) if existing_report.failures is not None else 0
+
+                    if existing_tests > 0:
+                        print(
+                            f"  Valid test report found ({existing_tests} tests,"
+                            f" {existing_errors} errors, {existing_failures} failures)."
+                            " Using existing results instead of overwriting with timeout."
+                        )
+                        if existing_errors > 0 or existing_failures > 0:
+                            failed_tests.append(test_file)
+
+                        test_status[test_file] = {
+                            "errors": existing_errors,
+                            "failures": existing_failures,
+                            "skipped": (int(existing_report.skipped) if existing_report.skipped is not None else 0),
+                            "tests": existing_tests,
+                            "result": ("FAILED" if (existing_errors > 0 or existing_failures > 0) else "passed"),
+                            "time_elapsed": (
+                                float(existing_report.time) if existing_report.time is not None else timeout
+                            ),
+                        }
+                        continue
+                except Exception:
+                    pass  # Fall through to synthetic timeout report
+
             failed_tests.append(test_file)
 
             # Create a special XML report for timeout tests with captured logs
@@ -184,7 +266,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             timeout_report.add_testsuite(timeout_suite)
 
             # Write timeout report
-            report_file = f"tests/test-reports-{str(file_name)}.xml"
             timeout_report.write(report_file)
 
             test_status[test_file] = {
@@ -198,7 +279,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             continue
 
         # check report for any failures
-        report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
             print(f"Warning: Test report not found at {report_file}")
             failed_tests.append(test_file)
