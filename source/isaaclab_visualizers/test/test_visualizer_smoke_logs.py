@@ -346,7 +346,7 @@ def test_visualizer_backend_smoke(visualizer_kind: str, backend_kind: str, caplo
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("backend_kind", ["physx"])
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_kit_visualizer_non_black_viewport_frame(backend_kind: str):
     """Kit visualizer viewport camera output should not be black."""
     env = None
@@ -366,7 +366,7 @@ def test_kit_visualizer_non_black_viewport_frame(backend_kind: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("backend_kind", ["physx"])
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_newton_visualizer_non_black_viewer_frame(backend_kind: str):
     """Newton visualizer should produce at least one non-black viewer frame for Cartpole."""
     env = None
