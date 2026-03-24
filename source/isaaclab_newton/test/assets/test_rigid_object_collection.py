@@ -522,42 +522,39 @@ def test_reset_object_collection(num_envs, num_cubes, device):
                 )
 
 
-@pytest.mark.skip(reason="Newton doesn't support friction/restitution/material properties yet")
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_set_material_properties(num_envs, num_cubes, device):
-    """Test getting and setting material properties of rigid object."""
+    """Test getting and setting material properties of rigid object collection."""
     with _newton_sim_context(device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
         sim.reset()
 
-        # Set material properties
-        static_friction = torch.FloatTensor(num_envs, num_cubes, 1).uniform_(0.4, 0.8)
-        dynamic_friction = torch.FloatTensor(num_envs, num_cubes, 1).uniform_(0.4, 0.8)
-        restitution = torch.FloatTensor(num_envs, num_cubes, 1).uniform_(0.0, 0.2)
+        # Set material properties using Newton's native API
+        # Get actual number of shapes from the collection
+        num_shapes = object_collection.num_shapes
+        shape_ids = torch.arange(num_shapes, dtype=torch.int32, device=device)
+        env_ids = torch.arange(num_envs, dtype=torch.int32, device=device)
+        friction = torch.empty(num_envs, num_shapes, device=device).uniform_(0.4, 0.8)
+        restitution = torch.empty(num_envs, num_shapes, device=device).uniform_(0.0, 0.2)
 
-        materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-        # Add friction to cube
-        indices = torch.tensor(range(num_cubes * num_envs), dtype=torch.int)
-        object_collection.root_view.set_material_properties(
-            object_collection.reshape_data_to_view_3d(wp.from_torch(materials, dtype=wp.float32), 3, device="cpu"),
-            wp.from_torch(indices, dtype=wp.int32),
-        )
+        # Use Newton's native friction/restitution API with shape_ids
+        object_collection.set_friction_index(friction=friction, shape_ids=shape_ids, env_ids=env_ids)
+        object_collection.set_restitution_index(restitution=restitution, shape_ids=shape_ids, env_ids=env_ids)
 
         # Perform simulation
         sim.step()
         object_collection.update(sim.cfg.dt)
 
-        # Get material properties
-        materials_to_check = object_collection.root_view.get_material_properties()
+        # Get material properties via internal bindings (for test verification only)
+        mu = wp.to_torch(object_collection.data._sim_bind_shape_material_mu)
+        restitution_check = wp.to_torch(object_collection.data._sim_bind_shape_material_restitution)
 
         # Check if material properties are set correctly
-        torch.testing.assert_close(
-            wp.to_torch(object_collection.reshape_view_to_data_3d(materials_to_check, 3, device="cpu")), materials
-        )
+        torch.testing.assert_close(mu, friction)
+        torch.testing.assert_close(restitution_check, restitution)
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])

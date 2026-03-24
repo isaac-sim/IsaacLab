@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+4.5.31 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.randomize_rigid_body_inertia` event term for
+  randomizing body inertia tensors. Supports diagonal-only and full 3x3 modes.
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab.envs.mdp.randomize_rigid_body_material` to use
+  backend-specific APIs (PhysX 3-tuple vs Newton separate friction/restitution).
+
+
 4.5.30 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

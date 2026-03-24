@@ -1323,6 +1323,16 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_velocity_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
+        # -- shape material properties (for collision shapes)
+        self._sim_bind_shape_material_mu = self._root_view.get_attribute(
+            "shape_material_mu", SimulationManager.get_model()
+        )[:, 0]
+        self._sim_bind_shape_material_restitution = self._root_view.get_attribute(
+            "shape_material_restitution", SimulationManager.get_model()
+        )[:, 0]
+        self._num_shapes = (
+            self._sim_bind_shape_material_mu.shape[1] if len(self._sim_bind_shape_material_mu.shape) > 1 else 1
+        )
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""

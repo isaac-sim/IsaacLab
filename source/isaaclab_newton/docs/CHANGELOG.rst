@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.5.12 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``set_friction_index/mask`` and ``set_restitution_index/mask`` methods to
+  Newton assets for native material property randomization.
+
+Changed
+^^^^^^^
+
+* Removed ``shape_material_mu`` and ``shape_material_restitution`` data properties.
+* Removed hardcoded ``default_body_armature`` from Newton cloner. Use
+  :class:`~isaaclab.envs.mdp.randomize_rigid_body_inertia` event term instead.
+
+
 0.5.11 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -589,7 +589,6 @@ def test_reset_rigid_object(num_cubes, device):
                 assert torch.count_nonzero(wp.to_torch(cube_object._permanent_wrench_composer.composed_torque)) == 0
 
 
-@pytest.mark.skip(reason="Newton friction/restitution/material not yet supported")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -603,30 +602,30 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         # Play sim
         sim.reset()
 
-        # Set material properties
-        static_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        dynamic_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
+        # Set material properties using Newton's native API
+        # Get actual number of shapes from the object
+        num_shapes = cube_object.num_shapes
+        shape_ids = torch.arange(num_shapes, dtype=torch.int32, device=device)
+        env_ids = torch.arange(num_cubes, dtype=torch.int32, device=device)
+        friction = torch.empty(num_cubes, num_shapes, device=device).uniform_(0.4, 0.8)
+        restitution = torch.empty(num_cubes, num_shapes, device=device).uniform_(0.0, 0.2)
 
-        materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-        indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-        # Add friction to cube
-        cube_object.root_view.set_material_properties(
-            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
-        )
+        # Use Newton's native friction/restitution API with shape_ids
+        cube_object.set_friction_index(friction=friction, shape_ids=shape_ids, env_ids=env_ids)
+        cube_object.set_restitution_index(restitution=restitution, shape_ids=shape_ids, env_ids=env_ids)
 
         # Simulate physics
-        # perform rendering
         sim.step()
         # update object
         cube_object.update(sim.cfg.dt)
 
-        # Get material properties
-        materials_to_check = wp.to_torch(cube_object.root_view.get_material_properties())
+        # Get material properties via internal bindings (for test verification only)
+        mu = wp.to_torch(cube_object.data._sim_bind_shape_material_mu)
+        restitution_check = wp.to_torch(cube_object.data._sim_bind_shape_material_restitution)
 
         # Check if material properties are set correctly
-        torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
+        torch.testing.assert_close(mu, friction)
+        torch.testing.assert_close(restitution_check, restitution)
 
 
 @pytest.mark.skip(reason="Newton friction/restitution/material not yet supported")
