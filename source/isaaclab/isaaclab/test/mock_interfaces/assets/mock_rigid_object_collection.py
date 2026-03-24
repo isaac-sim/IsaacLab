@@ -103,9 +103,9 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
     def default_body_vel(self) -> wp.array:
         """Default body velocities. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._default_body_vel is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
-                wp.spatial_vectorf
-            )
+            self._default_body_vel = wp.zeros(
+                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
+            ).view(wp.spatial_vectorf)
         return self._default_body_vel
 
     @property
