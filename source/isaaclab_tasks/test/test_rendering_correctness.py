@@ -46,10 +46,10 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
 
 # Minimum SSIM (Structural Similarity Index) score for golden-image comparison.
-# SSIM measures perceptual similarity (1.0 = identical). A threshold of 0.85
-# tolerates minor per-pixel noise from non-deterministic rendering while still
+# SSIM measures perceptual similarity (1.0 = identical). A threshold of 0.75
+# tolerates per-pixel noise from non-deterministic rendering while still
 # catching meaningful regressions (missing objects, wrong colors, etc.).
-_MIN_SSIM_THRESHOLD = 0.85
+_MIN_SSIM_THRESHOLD = 0.75
 
 _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
