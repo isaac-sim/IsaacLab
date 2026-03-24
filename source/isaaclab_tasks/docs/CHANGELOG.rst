@@ -8,6 +8,7 @@ Added
 ^^^^^
 
 * Added semantic segmentation to preset data types for the Cartpole Camera environment.
+* Added semantic segmentation to preset data types for the Shadow Hand environment.
 * Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
 
 
