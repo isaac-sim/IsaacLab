@@ -26,7 +26,7 @@ Installation
 
          .. code:: batch
 
-            isaaclab.bat --install :: or "isaaclab.bat -i"
+            isaaclab.bat --install
 
 
    By default, the above will install **all** the learning frameworks. These include
@@ -50,7 +50,7 @@ Installation
 
          .. code:: batch
 
-            isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
+            isaaclab.bat --install rl_games
 
    The valid options are ``all``, ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``,
    and ``none``. If ``none`` is passed, then no learning frameworks will be installed.
