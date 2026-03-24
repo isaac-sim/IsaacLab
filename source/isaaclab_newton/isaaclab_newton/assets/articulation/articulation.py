@@ -3909,10 +3909,10 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of shape indices or a tensor of shape indices.
         """
-        if isinstance(shape_ids, list):
-            return wp.array(shape_ids, dtype=wp.int32, device=self.device)
         if (shape_ids is None) or (shape_ids == slice(None)):
             return self._ALL_SHAPE_INDICES
+        elif isinstance(shape_ids, list):
+            return wp.array(shape_ids, dtype=wp.int32, device=self.device)
         return shape_ids
 
     def _resolve_fixed_tendon_ids(
