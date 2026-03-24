@@ -10,6 +10,10 @@ import warp as wp
 from leapp import InputKindEnum
 
 from isaaclab.utils.leapp.leapp_semantics import (
+    body_pose_resolver,
+    body_quat_resolver,
+    body_wrench_resolver,
+    body_xyz_resolver,
     leapp_tensor_semantics,
 )
 from isaaclab.utils.warp import ProxyArray
@@ -104,7 +108,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
 
@@ -118,7 +122,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose_resolver)
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -132,7 +136,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -146,7 +150,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose_resolver)
     def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -181,7 +185,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose_resolver)
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
 
@@ -194,7 +198,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
 
@@ -233,7 +237,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names_resolver=body_xyz_resolver)
     def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
@@ -259,7 +263,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
@@ -273,7 +277,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
 
@@ -287,7 +291,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
 
@@ -301,7 +305,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
 
@@ -319,7 +323,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
@@ -332,7 +336,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
@@ -345,7 +349,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -358,7 +362,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -371,7 +375,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies' center of mass in simulation world frame.
 
@@ -384,7 +388,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
@@ -397,7 +401,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -410,7 +414,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -423,7 +427,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
 
@@ -436,7 +440,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
 
@@ -449,7 +453,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 
@@ -462,7 +466,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
         respective link frames.
@@ -479,67 +483,67 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def body_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def body_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def body_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_wrench")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_wrench_resolver)
     def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_source="body_wrench")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_wrench_resolver)
     def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_lin_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_ang_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def com_pos_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def com_quat_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
@@ -590,7 +594,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.default_body_state
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_link_pose_w(self):
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
         warnings.warn(
@@ -602,7 +606,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose_resolver)
     def object_link_vel_w(self):
         """Deprecated property. Please use :attr:`body_link_vel_w` instead."""
         warnings.warn(
@@ -614,7 +618,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_com_pose_w(self):
         """Deprecated property. Please use :attr:`body_com_pose_w` instead."""
         warnings.warn(
@@ -626,7 +630,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose_resolver)
     def object_com_vel_w(self):
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         warnings.warn(
@@ -673,7 +677,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_state_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose_resolver)
     def object_com_acc_w(self):
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         warnings.warn(
@@ -685,7 +689,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_com_pose_b(self):
         """Deprecated property. Please use :attr:`body_com_pose_b` instead."""
         warnings.warn(
@@ -697,7 +701,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pose_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_link_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
@@ -709,7 +713,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_link_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
@@ -721,7 +725,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_lin_vel_w` instead."""
         warnings.warn(
@@ -733,7 +737,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_ang_vel_w` instead."""
         warnings.warn(
@@ -745,7 +749,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_com_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_pos_w` instead."""
         warnings.warn(
@@ -757,7 +761,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_com_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_quat_w` instead."""
         warnings.warn(
@@ -769,7 +773,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
@@ -781,7 +785,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
@@ -793,7 +797,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_com_lin_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
@@ -805,7 +809,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_com_ang_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
@@ -817,7 +821,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_com_pos_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
         warnings.warn(
@@ -829,7 +833,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pos_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_com_quat_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
         warnings.warn(
@@ -841,7 +845,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_lin_vel_b` instead."""
         warnings.warn(
@@ -853,7 +857,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_lin_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_ang_vel_b` instead."""
         warnings.warn(
@@ -865,7 +869,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_ang_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
@@ -877,7 +881,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
@@ -889,7 +893,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_source="body_pose")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_pose_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
         warnings.warn(
@@ -900,7 +904,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
@@ -911,7 +915,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_source="body_quat")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
@@ -922,7 +926,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_source="body_wrench")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_wrench_resolver)
     def object_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         warnings.warn(
@@ -933,7 +937,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
@@ -945,7 +949,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
@@ -957,7 +961,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
@@ -969,7 +973,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
@@ -981,7 +985,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_source="body_wrench")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_wrench_resolver)
     def object_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         warnings.warn(
@@ -992,7 +996,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_lin_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
@@ -1004,7 +1008,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_source="body_xyz")
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_ang_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(

@@ -45,21 +45,17 @@ from leapp.utils.tensor_description import TensorSemantics
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 
-from .leapp_semantics import resolve_leapp_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
-from .utils import ensure_torch_tensor, patch_warp_to_torch_passthrough
+from .utils import (
+    build_command_connection,
+    build_write_connection,
+    ensure_torch_tensor,
+    patch_warp_to_torch_passthrough,
+    select_element_names,
+)
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-
-
-# Reuse the generic joint-name resolver for kp/kd outputs by providing the
-# same ``element_names_source`` contract as articulation getters/writers.
-_GAIN_JOINT_SEMANTICS = type(
-    "GainJointSemantics",
-    (),
-    {"element_names": None, "element_names_source": "joint_names"},
-)()
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -108,6 +104,7 @@ class ExportPatcher:
         self._fallback_term_names: set[str] = set()
         self._pending_action_output_export: bool = False
         self._uses_last_action_state: bool = False
+        self._action_term_scene_keys: dict[str, str] = {}
 
     def setup(self, env):
         """Patch observation and action managers on the unwrapped env."""
@@ -266,6 +263,7 @@ class ExportPatcher:
                 scene_key = self._resolve_scene_entity_key(scene, real_asset) or "ego"
                 data_proxy = _DataProxy(
                     real_asset.data,
+                    scene_key,
                     self.task_name,
                     self._data_property_resolution_cache,
                     cache,
@@ -273,12 +271,14 @@ class ExportPatcher:
                 )
                 term._asset = _ArticulationWriteProxy(
                     real_asset=real_asset,
+                    entity_name=scene_key,
                     term_name=term_name,
                     output_cache=self._action_output_cache,
                     method_resolution_cache=self._write_method_resolution_cache,
                     captured_write_term_names=self._captured_write_term_names,
                     data_proxy=data_proxy,
                 )
+                self._action_term_scene_keys[term_name] = scene_key
 
         self._patch_action_manager_methods(action_manager)
 
@@ -400,6 +400,7 @@ class ExportPatcher:
                 ref=result,
                 kind=getattr(command_cfg, "cmd_kind", None),
                 element_names=getattr(command_cfg, "element_names", None),
+                extra=build_command_connection(leapp_input_name),
             )
             return annotate.input_tensors(task_name, sem)
 
@@ -408,8 +409,7 @@ class ExportPatcher:
 
     # ── Output collection ─────────────────────────────────────────
 
-    @staticmethod
-    def _collect_action_outputs(action_manager) -> list[TensorSemantics]:
+    def _collect_action_outputs(self, action_manager) -> list[TensorSemantics]:
         """Collect non-writer action tensors that should be exported (e.g. OSC dynamic gains)."""
         tensors: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
@@ -418,22 +418,15 @@ class ExportPatcher:
                 asset = getattr(term, "_asset", None)
                 real_asset = getattr(asset, "_real_asset", asset)
                 joint_ids = getattr(term, "_joint_ids", None)
-                joint_name_context = None
-                if real_asset is not None and hasattr(real_asset, "joint_names"):
-                    joint_name_context = _JointNameContext(real_asset.joint_names, joint_ids)
+                joint_names = getattr(real_asset, "joint_names", None) if real_asset else None
+                scene_key = self._action_term_scene_keys.get(term_name, "ego")
                 tensors.append(
                     TensorSemantics(
                         name=f"{term_name}_kp_gains",
                         ref=torch.diagonal(osc._motion_p_gains_task, dim1=-2, dim2=-1),
                         kind="kp",
-                        element_names=(
-                            resolve_leapp_element_names(
-                                _GAIN_JOINT_SEMANTICS,
-                                joint_name_context,
-                            )
-                            if joint_name_context is not None
-                            else None
-                        ),
+                        element_names=select_element_names(joint_names, joint_ids),
+                        extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim"),
                     )
                 )
                 tensors.append(
@@ -441,14 +434,8 @@ class ExportPatcher:
                         name=f"{term_name}_kd_gains",
                         ref=torch.diagonal(osc._motion_d_gains_task, dim1=-2, dim2=-1),
                         kind="kd",
-                        element_names=(
-                            resolve_leapp_element_names(
-                                _GAIN_JOINT_SEMANTICS,
-                                joint_name_context,
-                            )
-                            if joint_name_context is not None
-                            else None
-                        ),
+                        element_names=select_element_names(joint_names, joint_ids),
+                        extra=build_write_connection(scene_key, "write_joint_damping_to_sim"),
                     )
                 )
         return tensors
@@ -488,8 +475,9 @@ class ExportPatcher:
         self._fallback_term_names = fallback_terms
         return tensors
 
-    @staticmethod
-    def _collect_action_static_outputs(action_manager, skip_terms: set[str] | None = None) -> list[TensorSemantics]:
+    def _collect_action_static_outputs(
+        self, action_manager, skip_terms: set[str] | None = None
+    ) -> list[TensorSemantics]:
         """Collect static kp/kd gain values from action terms for export metadata.
 
         Terms in ``skip_terms`` are excluded — these are terms that fell back
@@ -508,9 +496,8 @@ class ExportPatcher:
             if real_asset and hasattr(real_asset, "data"):
                 data = real_asset.data
                 joint_ids = getattr(term, "_joint_ids", None)
-                joint_name_context = None
-                if hasattr(real_asset, "joint_names"):
-                    joint_name_context = _JointNameContext(real_asset.joint_names, joint_ids)
+                joint_names = getattr(real_asset, "joint_names", None)
+                scene_key = self._action_term_scene_keys.get(term_name, "ego")
                 if hasattr(data, "default_joint_stiffness") and data.default_joint_stiffness is not None:
                     gains = ensure_torch_tensor(data.default_joint_stiffness)
                     static_values.append(
@@ -518,14 +505,8 @@ class ExportPatcher:
                             name=f"{term_name}_kp_gains",
                             ref=gains[:, joint_ids] if joint_ids else gains,
                             kind="kp",
-                            element_names=(
-                                resolve_leapp_element_names(
-                                    _GAIN_JOINT_SEMANTICS,
-                                    joint_name_context,
-                                )
-                                if joint_name_context is not None
-                                else None
-                            ),
+                            element_names=select_element_names(joint_names, joint_ids),
+                            extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim"),
                         )
                     )
                 if hasattr(data, "default_joint_damping") and data.default_joint_damping is not None:
@@ -535,14 +516,8 @@ class ExportPatcher:
                             name=f"{term_name}_kd_gains",
                             ref=gains[:, joint_ids] if joint_ids else gains,
                             kind="kd",
-                            element_names=(
-                                resolve_leapp_element_names(
-                                    _GAIN_JOINT_SEMANTICS,
-                                    joint_name_context,
-                                )
-                                if joint_name_context is not None
-                                else None
-                            ),
+                            element_names=select_element_names(joint_names, joint_ids),
+                            extra=build_write_connection(scene_key, "write_joint_damping_to_sim"),
                         )
                     )
         return static_values
@@ -551,16 +526,6 @@ class ExportPatcher:
 # ══════════════════════════════════════════════════════════════════
 # Helpers
 # ══════════════════════════════════════════════════════════════════
-
-
-class _JointNameContext:
-    """Lightweight stand-in for resolving runtime joint name subsets in ``resolve_leapp_element_names``."""
-
-    __slots__ = ("joint_names", "_joint_ids")
-
-    def __init__(self, joint_names: list[str], joint_ids):
-        self.joint_names = joint_names
-        self._joint_ids = joint_ids
 
 
 # ══════════════════════════════════════════════════════════════════

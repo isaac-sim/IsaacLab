@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
+
+from .utils import select_element_names
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,7 @@ class LeappTensorSemantics:
 
     kind: Any = None
     element_names: list[str] | list[list[str]] | None = None
-    element_names_source: str | None = None
+    element_names_resolver: Callable | None = None
     const: bool = False
 
 
@@ -33,7 +34,7 @@ def leapp_tensor_semantics(
     *,
     kind: Any = None,
     element_names: list[str] | list[list[str]] | None = None,
-    element_names_source: str | None = None,
+    element_names_resolver: Callable | None = None,
     const: bool = False,
 ) -> Callable:
     """Attach LEAPP semantic metadata to a raw tensor-producing function."""
@@ -41,7 +42,7 @@ def leapp_tensor_semantics(
     semantics = LeappTensorSemantics(
         kind=kind,
         element_names=element_names,
-        element_names_source=element_names_source,
+        element_names_resolver=element_names_resolver,
         const=const,
     )
 
@@ -52,92 +53,55 @@ def leapp_tensor_semantics(
     return _apply
 
 
-def _select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
-    """Select element names using optional runtime indices."""
-    if names is None:
-        return None
-    if indices is None or indices == slice(None):
-        return list(names)
-    if isinstance(indices, slice):
-        return list(names[indices])
-    with suppress(AttributeError):
-        indices = indices.tolist()
-    if isinstance(indices, (list, tuple)):
-        return [names[int(index)] for index in indices]
-    if isinstance(indices, int):
-        return [names[indices]]
-    return None
-
-
 def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_self) -> list | None:
     """Resolve element names from attached semantics and a tensor-producing object."""
     if semantics is None:
         return None
     if semantics.element_names is not None:
         return semantics.element_names
-
-    source = semantics.element_names_source
-    if source == "xyz":
-        return XYZ_ELEMENT_NAMES
-    if source == "quat_wxyz":
-        return QUAT_WXYZ_ELEMENT_NAMES
-    if source == "pose7":
-        return POSE7_ELEMENT_NAMES
-    if source == "joint_names":
-        return _select_element_names(
-            getattr(data_self, "joint_names", getattr(data_self, "_joint_names", None)),
-            getattr(data_self, "_joint_ids", None),
-        )
-    if source == "body_names":
-        return _select_element_names(
-            getattr(data_self, "body_names", getattr(data_self, "_body_names", None)),
-            getattr(data_self, "_body_ids", None),
-        )
-    if source == "body_xyz":
-        body_names = _select_element_names(
-            getattr(data_self, "body_names", getattr(data_self, "_body_names", None)),
-            getattr(data_self, "_body_ids", None),
-        )
-        if body_names is None:
-            return None
-        return [body_names, XYZ_ELEMENT_NAMES]
-    if source == "body_pose":
-        body_names = _select_element_names(
-            getattr(data_self, "body_names", getattr(data_self, "_body_names", None)),
-            getattr(data_self, "_body_ids", None),
-        )
-        if body_names is None:
-            return None
-        return [body_names, POSE7_ELEMENT_NAMES]
-    if source == "body_quat":
-        body_names = _select_element_names(
-            getattr(data_self, "body_names", getattr(data_self, "_body_names", None)),
-            getattr(data_self, "_body_ids", None),
-        )
-        if body_names is None:
-            return None
-        return [body_names, QUAT_WXYZ_ELEMENT_NAMES]
-    if source == "body_wrench":
-        body_names = _select_element_names(
-            getattr(data_self, "body_names", getattr(data_self, "_body_names", None)),
-            getattr(data_self, "_body_ids", None),
-        )
-        if body_names is None:
-            return None
-        return [body_names, WRENCH6_ELEMENT_NAMES]
-    if source == "target_frame_xyz":
-        frame_names = getattr(data_self, "target_frame_names", None)
-        if frame_names is None:
-            return None
-        return [list(frame_names), XYZ_ELEMENT_NAMES]
-    if source == "target_frame_quat":
-        frame_names = getattr(data_self, "target_frame_names", None)
-        if frame_names is None:
-            return None
-        return [list(frame_names), QUAT_WXYZ_ELEMENT_NAMES]
-    if source == "target_frame_pose":
-        frame_names = getattr(data_self, "target_frame_names", None)
-        if frame_names is None:
-            return None
-        return [list(frame_names), POSE7_ELEMENT_NAMES]
+    if semantics.element_names_resolver is not None:
+        return semantics.element_names_resolver(data_self)
     return None
+
+
+# ── Predefined element-name resolvers ─────────────────────────────
+
+
+def joint_names_resolver(data_self) -> list[str] | None:
+    """Resolve joint element names from the data object at trace time."""
+    return select_element_names(
+        getattr(data_self, "joint_names", getattr(data_self, "_joint_names", None)),
+        getattr(data_self, "_joint_ids", None),
+    )
+
+
+def body_names_resolver(data_self) -> list[str] | None:
+    """Resolve body element names from the data object at trace time."""
+    return select_element_names(
+        getattr(data_self, "body_names", getattr(data_self, "_body_names", None)),
+        getattr(data_self, "_body_ids", None),
+    )
+
+
+def _compound_resolver(outer_fn: Callable, inner_names: list[str]) -> Callable:
+    """Build a 2D resolver: ``[outer_names, inner_constant_names]``."""
+
+    def resolver(data_self) -> list | None:
+        outer = outer_fn(data_self)
+        return [outer, inner_names] if outer else None
+
+    return resolver
+
+
+def _target_frame_names(data_self) -> list[str] | None:
+    names = getattr(data_self, "target_frame_names", None)
+    return list(names) if names is not None else None
+
+
+body_xyz_resolver = _compound_resolver(body_names_resolver, XYZ_ELEMENT_NAMES)
+body_pose_resolver = _compound_resolver(body_names_resolver, POSE7_ELEMENT_NAMES)
+body_quat_resolver = _compound_resolver(body_names_resolver, QUAT_WXYZ_ELEMENT_NAMES)
+body_wrench_resolver = _compound_resolver(body_names_resolver, WRENCH6_ELEMENT_NAMES)
+target_frame_xyz_resolver = _compound_resolver(_target_frame_names, XYZ_ELEMENT_NAMES)
+target_frame_quat_resolver = _compound_resolver(_target_frame_names, QUAT_WXYZ_ELEMENT_NAMES)
+target_frame_pose_resolver = _compound_resolver(_target_frame_names, POSE7_ELEMENT_NAMES)

@@ -16,7 +16,7 @@ from leapp.utils.tensor_description import TensorSemantics
 from isaaclab.managers import ManagerTermBase
 
 from .leapp_semantics import resolve_leapp_element_names
-from .utils import ensure_torch_tensor
+from .utils import build_state_connection, build_write_connection, ensure_torch_tensor
 
 
 def _resolve_annotated_property(
@@ -136,12 +136,14 @@ class _DataProxy:
     def __init__(
         self,
         real_data: Any,
+        entity_name: str,
         task_name: str,
         property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
         cache: dict,
         input_name_resolver: Callable,
     ):
         object.__setattr__(self, "_real_data", real_data)
+        object.__setattr__(self, "_entity_name", entity_name)
         object.__setattr__(self, "_task_name", task_name)
         object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)
         object.__setattr__(self, "_cache", cache)
@@ -173,6 +175,7 @@ class _DataProxy:
             ref=result,
             kind=semantics_meta.kind,
             element_names=resolve_leapp_element_names(semantics_meta, real_data),
+            extra=build_state_connection(object.__getattribute__(self, "_entity_name"), name),
         )
         annotated = annotate.input_tensors(object.__getattribute__(self, "_task_name"), sem)
         cache[cache_key] = annotated
@@ -227,6 +230,7 @@ class _EntityMappingProxy:
             return entity
         data_proxy = _DataProxy(
             data,
+            key,
             object.__getattribute__(self, "_task_name"),
             object.__getattribute__(self, "_property_resolution_cache"),
             object.__getattribute__(self, "_cache"),
@@ -292,6 +296,7 @@ class _SceneProxy:
         cache = object.__getattribute__(self, "_cache")
         data_proxy = _DataProxy(
             data,
+            key,
             object.__getattribute__(self, "_task_name"),
             object.__getattribute__(self, "_property_resolution_cache"),
             cache,
@@ -448,6 +453,7 @@ class _ArticulationWriteProxy:
     def __init__(
         self,
         real_asset: Any,
+        entity_name: str,
         term_name: str,
         output_cache: list[TensorSemantics],
         method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
@@ -455,6 +461,7 @@ class _ArticulationWriteProxy:
         data_proxy: _DataProxy,
     ):
         object.__setattr__(self, "_real_asset", real_asset)
+        object.__setattr__(self, "_entity_name", entity_name)
         object.__setattr__(self, "_term_name", term_name)
         object.__setattr__(self, "_output_cache", output_cache)
         object.__setattr__(self, "_method_resolution_cache", method_resolution_cache)
@@ -500,6 +507,10 @@ class _ArticulationWriteProxy:
                     element_names=resolve_leapp_element_names(
                         semantics_meta,
                         _WriteJointNameContext(real_asset.joint_names, joint_ids),
+                    ),
+                    extra=build_write_connection(
+                        object.__getattribute__(self, "_entity_name"),
+                        name,
                     ),
                 )
             )
