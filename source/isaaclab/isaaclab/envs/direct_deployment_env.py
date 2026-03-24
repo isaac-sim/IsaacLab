@@ -6,27 +6,31 @@
 """Deployment environment that runs LEAPP-exported policies in simulation.
 
 This environment bypasses all Isaac Lab managers (observation, action, reward, etc.)
-and instead wires raw ``ArticulationData`` properties and ``CommandManager`` outputs
-directly to a LEAPP ``InferenceManager``, then writes the model outputs back to the
-articulation.  All I/O resolution is driven by the ``kind`` field in the LEAPP YAML.
+and instead wires scene entity data properties and ``CommandManager`` outputs directly
+to a LEAPP ``InferenceManager``, then writes the model outputs back to the
+corresponding scene entities.  All I/O resolution is driven by the
+``isaaclab_connection`` field in the LEAPP YAML.
 """
 
 from __future__ import annotations
 
+import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import torch
 import yaml
 from leapp import InferenceManager
 
-from isaaclab.assets.articulation.articulation import Articulation
-from isaaclab.assets.articulation.articulation_data import ArticulationData
 from isaaclab.managers import CommandManager, EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils.configclass import resolve_cfg_presets
+from isaaclab.utils.leapp.utils import ensure_torch_tensor
+
+from .ui import ViewportCameraController
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +42,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StateInputSpec:
-    """Read a property from ``ArticulationData``, optionally sliced by joint."""
+    """Read a property from a scene entity's data object."""
 
+    entity_name: str
     property_name: str
     joint_ids: list[int] | None = None
 
@@ -52,104 +57,43 @@ class CommandInputSpec:
 
 
 @dataclass
-class OutputSpec:
-    """Write a tensor to an ``Articulation`` method, optionally indexed by joint."""
+class WriteOutputSpec:
+    """Write a tensor to a scene entity method, optionally indexed by joint."""
 
+    entity_name: str
     method_name: str
+    value_param: str
     joint_ids: list[int] | None = None
 
 
 # ══════════════════════════════════════════════════════════════════
-# Kind → source/target resolution helpers
+# Connection-string helpers
 # ══════════════════════════════════════════════════════════════════
 
-_JOINT_LEVEL_KIND_PREFIXES = ("state/joint/", "target/joint/")
-_JOINT_LEVEL_GAIN_KINDS = ("kp", "kd")
 
-
-def _build_kind_to_property_map() -> dict[str, list[str]]:
-    """Scan ``ArticulationData`` for ``_leapp_semantics`` properties.
-
-    Returns a mapping from ``kind`` string to a list of property names that
-    carry that kind (there can be more than one, e.g. ``root_lin_vel_b`` and
-    ``root_lin_vel_w`` both have ``state/body/linear_velocity``).
-    """
-    kind_to_props: dict[str, list[str]] = {}
-    for prop_name in dir(ArticulationData):
-        prop = getattr(ArticulationData, prop_name, None)
-        if isinstance(prop, property) and prop.fget and hasattr(prop.fget, "_leapp_semantics"):
-            kind = prop.fget._leapp_semantics.kind
-            if kind is not None:
-                kind_to_props.setdefault(kind, []).append(prop_name)
-    return kind_to_props
-
-
-def _build_kind_to_write_method_map() -> dict[str, str]:
-    """Scan ``Articulation`` for ``_leapp_semantics`` methods + hardcoded kp/kd.
-
-    Returns a mapping from output ``kind`` to the method name on ``Articulation``.
-    """
-    kind_to_method: dict[str, str] = {}
-    for method_name in dir(Articulation):
-        method = getattr(Articulation, method_name, None)
-        if callable(method) and hasattr(method, "_leapp_semantics"):
-            kind = method._leapp_semantics.kind
-            if kind is not None:
-                kind_to_method[kind] = method_name
-    kind_to_method["kp"] = "write_joint_stiffness_to_sim"
-    kind_to_method["kd"] = "write_joint_damping_to_sim"
-    return kind_to_method
-
-
-def _disambiguate_property(kind: str, leapp_name: str, kind_to_props: dict[str, list[str]]) -> str:
-    """Pick the right ``ArticulationData`` property when multiple share a ``kind``.
-
-    The export path uses the property name as the LEAPP input name, so we strip
-    the ``_in`` / ``_out`` suffix that LEAPP adds for collision avoidance and match.
-    """
-    candidates = kind_to_props.get(kind)
-    if candidates is None:
-        raise ValueError(f"No ArticulationData property found for kind='{kind}'")
-    if len(candidates) == 1:
-        return candidates[0]
-    base_name = leapp_name.removesuffix("_in").removesuffix("_out")
-    for prop in candidates:
-        if prop == base_name:
-            return prop
-    return candidates[0]
-
-
-def _resolve_joint_ids(element_names: list | None, asset: Articulation) -> list[int] | None:
+def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | None:
     """Convert ``element_names[0]`` joint names to integer joint indices.
 
-    Returns ``None`` when no slicing is needed (all joints or non-joint tensor).
+    Returns ``None`` when no slicing is needed (all joints, non-joint tensor,
+    or entity does not support joint lookup).
     """
-    if element_names is None:
+    if element_names is None or not hasattr(entity, "find_joints"):
         return None
     joint_names = element_names[0]
     if not isinstance(joint_names, list) or not joint_names:
         return None
-    if joint_names == list(asset.joint_names):
+    if joint_names == list(entity.joint_names):
         return None
-    joint_ids, _ = asset.find_joints(joint_names, preserve_order=True)
+    joint_ids, _ = entity.find_joints(joint_names, preserve_order=True)
     return joint_ids
 
 
-def _find_command_term_by_hint(kind: str, command_manager: CommandManager) -> str:
-    """Find the ``CommandTerm`` name whose ``cfg.cmd_kind`` matches ``kind``."""
-    for name, term in command_manager._terms.items():
-        if getattr(term.cfg, "cmd_kind", None) == kind:
-            return name
-    raise ValueError(f"No command term with cmd_kind='{kind}'. Available terms: {list(command_manager._terms.keys())}")
-
-
-def _find_robot_asset(scene: InteractiveScene) -> Articulation:
-    """Return the first ``Articulation`` in the scene (assumed to be the robot)."""
-    for entity_name in scene.articulations:
-        entity = scene[entity_name]
-        if isinstance(entity, Articulation):
-            return entity
-    raise RuntimeError("No Articulation found in scene")
+def _first_param_name(method: Any) -> str:
+    """Return the name of the first non-self parameter of *method*."""
+    params = list(inspect.signature(method).parameters.values())
+    if not params:
+        raise TypeError(f"{method} has no parameters")
+    return params[0].name
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -162,7 +106,16 @@ class DirectDeploymentEnv:
 
     The environment sets up the simulation scene and physics from a standard
     Isaac Lab config, then wires raw sensor/command data to a LEAPP
-    ``InferenceManager`` and writes the model outputs back to the articulation.
+    ``InferenceManager`` and writes the model outputs back to the corresponding
+    scene entities.
+
+    I/O wiring is driven entirely by the ``isaaclab_connection`` metadata field
+    in the LEAPP YAML. Each connection string encodes the type of access, the
+    scene entity name, and the property or method to call:
+
+    - ``state:{entity}:{property}`` -- read ``scene[entity].data.{property}``
+    - ``command:{name}`` -- read ``command_manager.get_command(name)``
+    - ``write:{entity}:{method}`` -- call ``scene[entity].{method}(tensor, ...)``
 
     No observation, action, reward, termination, or curriculum managers are used.
     The LEAPP model already contains all pre/post-processing.
@@ -178,34 +131,41 @@ class DirectDeploymentEnv:
 
         cfg.scene.num_envs = 1
         cfg.validate()
+        resolve_cfg_presets(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path
         self._step_count = 0
+        self._sim_step_counter = 0
 
         # ── Simulation + scene ────────────────────────────────────
         self.sim = SimulationContext(cfg.sim)
         if "cuda" in self.sim.device:
             torch.cuda.set_device(self.sim.device)
 
-        with use_stage(self.sim.get_initial_stage()):
+        with use_stage(self.sim.stage):
             self.scene = InteractiveScene(cfg.scene)
-            attach_stage_to_usd_context()
-        self.sim.reset()
+        with use_stage(self.sim.stage):
+            self.sim.reset()
         self.scene.update(dt=self.physics_dt)
+        self.has_rtx_sensors = bool(self.sim.get_setting("/isaaclab/render/rtx_sensors"))
 
-        # ── Robot asset ───────────────────────────────────────────
-        self._asset = _find_robot_asset(self.scene)
+        # Match the standard env initialization path for viewport camera setup.
+        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
+        if self.sim.has_gui or has_visualizers:
+            self.viewport_camera_controller = ViewportCameraController(cast(Any, self), self.cfg.viewer)
+        else:
+            self.viewport_camera_controller = None
 
         # ── EventManager (optional, for resets) ───────────────────
         self.event_manager: EventManager | None = None
         if hasattr(cfg, "events") and cfg.events is not None:
-            self.event_manager = EventManager(cfg.events, self)
+            self.event_manager = EventManager(cfg.events, cast(Any, self))
 
         # ── CommandManager (optional, for command/* inputs) ───────
         self.command_manager: CommandManager | None = None
         if hasattr(cfg, "commands") and cfg.commands is not None:
-            self.command_manager = CommandManager(cfg.commands, self)
+            self.command_manager = CommandManager(cfg.commands, cast(Any, self))
 
         # ── LEAPP InferenceManager ────────────────────────────────
         self.inference = InferenceManager(leapp_yaml_path)
@@ -214,7 +174,7 @@ class DirectDeploymentEnv:
         with open(leapp_yaml_path) as f:
             self._leapp_desc = yaml.safe_load(f)
         self._input_mapping: dict[str, StateInputSpec | CommandInputSpec] = {}
-        self._output_mapping: dict[str, OutputSpec] = {}
+        self._output_mapping: dict[str, WriteOutputSpec] = {}
         self._resolve_io()
 
         logger.info(
@@ -222,6 +182,11 @@ class DirectDeploymentEnv:
             len(self._input_mapping),
             len(self._output_mapping),
         )
+
+        if self.sim.has_gui and getattr(self.cfg, "ui_window_class_type", None) is not None:
+            self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
+        else:
+            self._window = None
 
     # ── Properties ────────────────────────────────────────────────
 
@@ -244,81 +209,97 @@ class DirectDeploymentEnv:
     # ── I/O Resolution ────────────────────────────────────────────
 
     def _resolve_io(self):
-        """Build ``_input_mapping`` and ``_output_mapping`` from LEAPP YAML ``kind`` fields."""
-        kind_to_props = _build_kind_to_property_map()
-        kind_to_write = _build_kind_to_write_method_map()
+        """Build ``_input_mapping`` and ``_output_mapping`` from ``isaaclab_connection`` fields."""
         pipeline = self._leapp_desc["pipeline"]
 
-        # --- Inputs ---
         for node_name, input_names in pipeline["inputs"].items():
             node = self.inference.nodes[node_name]
             desc_by_name = {d["name"]: d for d in node.input_descriptions}
             for input_name in input_names:
                 desc = desc_by_name[input_name]
-                kind = desc.get("kind")
-                key = f"{node_name}/{input_name}"
-                if kind is None:
+                connection = desc.get("isaaclab_connection")
+                if connection is None:
                     continue
-                if kind.startswith("state/"):
-                    prop = _disambiguate_property(kind, input_name, kind_to_props)
-                    needs_joint_slice = kind.startswith("state/joint/")
-                    jids = _resolve_joint_ids(desc.get("element_names"), self._asset) if needs_joint_slice else None
-                    self._input_mapping[key] = StateInputSpec(property_name=prop, joint_ids=jids)
-                elif kind.startswith("command/"):
+                key = f"{node_name}/{input_name}"
+                parts = connection.split(":")
+                conn_type = parts[0]
+
+                if conn_type == "state":
+                    entity_name, prop_name = parts[1], parts[2]
+                    entity = self.scene[entity_name]
+                    jids = _resolve_joint_ids(desc.get("element_names"), entity)
+                    self._input_mapping[key] = StateInputSpec(
+                        entity_name=entity_name,
+                        property_name=prop_name,
+                        joint_ids=jids,
+                    )
+                elif conn_type == "command":
+                    command_name = parts[1]
                     if self.command_manager is None:
                         raise RuntimeError(
-                            f"LEAPP input '{key}' has kind='{kind}' but no CommandManager "
-                            "is available (cfg.commands is None)."
+                            f"LEAPP input '{key}' requires command '{command_name}' but no "
+                            "CommandManager is available (cfg.commands is None)."
                         )
-                    term_name = _find_command_term_by_hint(kind, self.command_manager)
-                    self._input_mapping[key] = CommandInputSpec(command_term_name=term_name)
+                    self._input_mapping[key] = CommandInputSpec(command_term_name=command_name)
                 else:
-                    logger.warning("Unknown input kind '%s' for '%s' — skipping", kind, key)
+                    logger.warning("Unknown connection type '%s' for input '%s'", conn_type, key)
 
-        # --- Outputs ---
         for node_name, output_names in pipeline["outputs"].items():
             node = self.inference.nodes[node_name]
             desc_by_name = {d["name"]: d for d in node.output_descriptions}
             for output_name in output_names:
                 desc = desc_by_name[output_name]
-                kind = desc.get("kind")
+                connection = desc.get("isaaclab_connection")
+                if connection is None:
+                    continue
                 key = f"{node_name}/{output_name}"
-                if kind is None:
-                    continue
-                if kind not in kind_to_write:
-                    logger.warning("Unknown output kind '%s' for '%s' — skipping", kind, key)
-                    continue
-                method_name = kind_to_write[kind]
-                needs_joint_ids = kind.startswith("target/joint/") or kind in _JOINT_LEVEL_GAIN_KINDS
-                jids = _resolve_joint_ids(desc.get("element_names"), self._asset) if needs_joint_ids else None
-                self._output_mapping[key] = OutputSpec(method_name=method_name, joint_ids=jids)
+                parts = connection.split(":")
+                conn_type = parts[0]
+
+                if conn_type == "write":
+                    entity_name, method_name = parts[1], parts[2]
+                    entity = self.scene[entity_name]
+                    jids = _resolve_joint_ids(desc.get("element_names"), entity)
+                    value_param = _first_param_name(getattr(entity, method_name))
+                    self._output_mapping[key] = WriteOutputSpec(
+                        entity_name=entity_name,
+                        method_name=method_name,
+                        value_param=value_param,
+                        joint_ids=jids,
+                    )
+                else:
+                    logger.warning("Unknown connection type '%s' for output '%s'", conn_type, key)
 
     # ── Read / Write ──────────────────────────────────────────────
 
     def _read_inputs(self) -> dict[str, torch.Tensor]:
-        """Read all mapped inputs from the scene and command manager."""
+        """Read all mapped inputs from scene entities and command manager."""
         inputs: dict[str, torch.Tensor] = {}
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
-                value = getattr(self._asset.data, spec.property_name)
+                entity = self.scene[spec.entity_name]
+                value = ensure_torch_tensor(getattr(entity.data, spec.property_name))
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value
             elif isinstance(spec, CommandInputSpec):
-                inputs[key] = self.command_manager.get_command(spec.command_term_name)
+                command_manager = self.command_manager
+                assert command_manager is not None
+                inputs[key] = command_manager.get_command(spec.command_term_name)
         return inputs
 
     def _write_outputs(self, outputs: dict[str, torch.Tensor]):
-        """Write model outputs to the articulation."""
+        """Write model outputs to scene entities."""
         for key, tensor in outputs.items():
             spec = self._output_mapping.get(key)
             if spec is None:
                 continue
-            method = getattr(self._asset, spec.method_name)
+            entity = self.scene[spec.entity_name]
+            method = getattr(entity, spec.method_name)
             if spec.joint_ids is not None:
-                method(tensor, joint_ids=spec.joint_ids)
+                method(**{spec.value_param: tensor, "joint_ids": spec.joint_ids})
             else:
-                method(tensor)
+                method(**{spec.value_param: tensor})
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -341,12 +322,23 @@ class DirectDeploymentEnv:
         self.sim.forward()
         self.scene.update(dt=self.physics_dt)
 
+        # If RTX sensors are present, rerender after reset to refresh their outputs.
+        if self.has_rtx_sensors and getattr(self.cfg, "num_rerenders_on_reset", 0) > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
+
+        if getattr(self.cfg, "wait_for_textures", False) and self.has_rtx_sensors:
+            assets_loading = getattr(self.sim.physics_manager, "assets_loading", None)
+            if callable(assets_loading):
+                while assets_loading():
+                    self.sim.render()
+
         self.inference.reset()
 
         return self._read_inputs()
 
     def step(self, external_inputs: dict[str, torch.Tensor] | None = None) -> dict[str, torch.Tensor]:
-        """Run one environment step: read → infer → write → physics.
+        """Run one environment step: read -> infer -> write -> physics.
 
         Args:
             external_inputs: Optional overrides keyed by ``"ModelName/input_name"``.
@@ -372,15 +364,16 @@ class DirectDeploymentEnv:
         with torch.inference_mode():
             outputs = self.inference.run_policy(inputs)
 
-        # 5. Write outputs to asset
+        # 5. Write outputs to scene entities
         self._write_outputs(outputs)
 
         # 6. Decimation loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        is_rendering = self.sim.is_rendering
         for _ in range(self.cfg.decimation):
+            self._sim_step_counter += 1
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            if is_rendering:
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
             self.scene.update(dt=self.physics_dt)
 
@@ -389,9 +382,15 @@ class DirectDeploymentEnv:
     def close(self):
         """Clean up the environment."""
         if not self._is_closed:
+            self.sim.stop()
             if self.command_manager is not None:
                 del self.command_manager
             if self.event_manager is not None:
                 del self.event_manager
             del self.scene
+            if self.viewport_camera_controller is not None:
+                del self.viewport_camera_controller
+            self.sim.clear_instance()
+            if self._window is not None:
+                self._window = None
             self._is_closed = True

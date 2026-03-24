@@ -3,15 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deploy a LEAPP-exported policy in an Isaac Lab simulation.
-
-Usage::
-
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy.py \
-        --task Isaac-Velocity-Flat-Anymal-B-v0 \
-        --leapp_model .pretrained_checkpoints/rsl_rl/Isaac-Velocity-Flat-Anymal-B-v0/Isaac-Velocity-Flat-Anymal-B-v0/Isaac-Velocity-Flat-Anymal-B-v0.yaml \
-        --headless
-"""
+"""Deploy a LEAPP-exported policy in an Isaac Lab simulation."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -60,11 +52,13 @@ def main():
 
     # ── Run loop ──────────────────────────────────────────────────
     env.reset()
-    with torch.inference_mode():
-        while simulation_app.is_running():
-            env.step()
-
-    env.close()
+    try:
+        with torch.inference_mode():
+            while simulation_app.is_running():
+                env.step()
+        env.close()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

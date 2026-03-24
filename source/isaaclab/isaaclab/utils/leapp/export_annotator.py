@@ -426,7 +426,7 @@ class ExportPatcher:
                         ref=torch.diagonal(osc._motion_p_gains_task, dim1=-2, dim2=-1),
                         kind="kp",
                         element_names=select_element_names(joint_names, joint_ids),
-                        extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim"),
+                        extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
                     )
                 )
                 tensors.append(
@@ -435,7 +435,7 @@ class ExportPatcher:
                         ref=torch.diagonal(osc._motion_d_gains_task, dim1=-2, dim2=-1),
                         kind="kd",
                         element_names=select_element_names(joint_names, joint_ids),
-                        extra=build_write_connection(scene_key, "write_joint_damping_to_sim"),
+                        extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
                     )
                 )
         return tensors
@@ -506,7 +506,7 @@ class ExportPatcher:
                             ref=gains[:, joint_ids] if joint_ids else gains,
                             kind="kp",
                             element_names=select_element_names(joint_names, joint_ids),
-                            extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim"),
+                            extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
                         )
                     )
                 if hasattr(data, "default_joint_damping") and data.default_joint_damping is not None:
@@ -517,7 +517,7 @@ class ExportPatcher:
                             ref=gains[:, joint_ids] if joint_ids else gains,
                             kind="kd",
                             element_names=select_element_names(joint_names, joint_ids),
-                            extra=build_write_connection(scene_key, "write_joint_damping_to_sim"),
+                            extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
                         )
                     )
         return static_values
