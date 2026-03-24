@@ -4,10 +4,11 @@ Changelog
 1.5.15 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 
-Fixed
+Added
 ^^^^^
 
 * Added semantic segmentation to preset data types for the Cartpole Camera environment.
+* Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
 
 
 1.5.14 (2026-03-24)
