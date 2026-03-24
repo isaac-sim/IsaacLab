@@ -103,12 +103,21 @@ class KitVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
         try:
+            import carb.settings
             import omni.kit.app
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
                 # Pump Kit/UI events only; SimulationContext owns physics stepping.
-                app.update()
+                settings = carb.settings.get_settings()
+                play_simulations_path = "/app/player/playSimulations"
+                previous_play_simulations = None if settings is None else settings.get(play_simulations_path)
+                should_restore = bool(previous_play_simulations)
+                if should_restore:
+                    settings.set_bool(play_simulations_path, False)
+                    app.update()
+                if should_restore:
+                    settings.set_bool(play_simulations_path, True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
