@@ -22,7 +22,7 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_camera_env_cfg impor
     CartpoleDepthCameraEnvCfg,
     CartpoleRGBCameraEnvCfg,
 )
-from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
+from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 
 
 def test_non_concatenated_obs_groups_contain_all_terms():
@@ -109,19 +109,24 @@ def test_non_concatenated_obs_groups_contain_all_terms():
 
 @pytest.mark.parametrize(
     "env_cfg_cls",
-    [CartpoleRGBCameraEnvCfg, CartpoleDepthCameraEnvCfg, AnymalCRoughEnvCfg],
-    ids=["RGB", "Depth", "RayCaster"],
+    [CartpoleRGBCameraEnvCfg, CartpoleDepthCameraEnvCfg, CartpoleEnvCfg],
+    ids=["RGB", "Depth", "Clipped"],
 )
 def test_obs_space_follows_clip_contraint(env_cfg_cls):
-    """Ensure curriculum terms apply correctly after the fallback and replacement."""
+    """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
 
-    # configure the cartpole env
+    # configure the env
     env_cfg = env_cfg_cls()
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
     env_cfg.sim.device = "cuda:0"
+
+    # For the lightweight CartpoleEnvCfg, add a clip to one term so we test
+    # the clip != None code path without needing a heavy locomotion env.
+    if env_cfg_cls is CartpoleEnvCfg:
+        env_cfg.observations.policy.joint_pos_rel.clip = (-1.0, 1.0)
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
     for group_name, group_space in env.observation_space.spaces.items():
