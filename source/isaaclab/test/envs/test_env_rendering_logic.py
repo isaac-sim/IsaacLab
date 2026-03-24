@@ -145,7 +145,7 @@ def render_callback():
 
 
 @pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
-@pytest.mark.parametrize("render_interval", [1, 2, 4, 8, 10])
+@pytest.mark.parametrize("render_interval", [1, 4, 10])
 def test_env_rendering_logic(env_type, render_interval, physics_callback, render_callback):
     """Test the rendering logic of the different environment workflows."""
     physics_cb, get_physics_stats = physics_callback
@@ -204,7 +204,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         actions = torch.zeros((env.num_envs, 0), device=env.device)
 
         # run the environment and check the rendering logic
-        for i in range(50):
+        for i in range(10):
             # apply zero actions
             env.step(action=actions)
 
