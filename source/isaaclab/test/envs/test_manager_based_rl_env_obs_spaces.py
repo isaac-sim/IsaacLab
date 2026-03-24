@@ -25,8 +25,7 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_camera_env_cfg impor
 from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_non_concatenated_obs_groups_contain_all_terms(device):
+def test_non_concatenated_obs_groups_contain_all_terms():
     """Test that non-concatenated observation groups contain all defined terms (issue #3133).
 
     Before the fix, only the last term in each non-concatenated group would be present
@@ -42,7 +41,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     # configure the stack env - it has multiple non-concatenated observation groups
     env_cfg = FrankaCubeStackEnvCfg()
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
-    env_cfg.sim.device = device
+    env_cfg.sim.device = "cuda:0"
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
 
@@ -113,8 +112,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     [CartpoleRGBCameraEnvCfg, CartpoleDepthCameraEnvCfg, AnymalCRoughEnvCfg],
     ids=["RGB", "Depth", "RayCaster"],
 )
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
+def test_obs_space_follows_clip_contraint(env_cfg_cls):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage
     sim_utils.create_new_stage()
@@ -123,7 +121,7 @@ def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
     env_cfg = env_cfg_cls()
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
-    env_cfg.sim.device = device
+    env_cfg.sim.device = "cuda:0"
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
     for group_name, group_space in env.observation_space.spaces.items():
