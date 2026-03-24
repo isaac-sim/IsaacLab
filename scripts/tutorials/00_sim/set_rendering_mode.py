@@ -33,6 +33,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from isaaclab_physx.visualizers import KitVisualizerCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -41,21 +43,15 @@ def main():
     """Main function."""
 
     # rendering modes include performance, balanced, and quality
-    # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over
-    # this Render Config setting
+    # note: the CLI argument (--rendering_mode) takes precedence over this visualizer setting
     rendering_mode = "performance"
 
-    # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting
-    carb_settings = {"rtx.reflections.enabled": True}
-
-    # Initialize render config
-    render_cfg = sim_utils.RenderCfg(
-        rendering_mode=rendering_mode,
-        carb_settings=carb_settings,
+    # Initialize simulation config with a Kit visualizer rendering profile.
+    sim_cfg = sim_utils.SimulationCfg(
+        visualizer_cfgs=[
+            KitVisualizerCfg(rendering_mode=rendering_mode),
+        ]
     )
-
-    # Initialize the simulation context with render coofig
-    sim_cfg = sim_utils.SimulationCfg(render=render_cfg)
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Pose camera in the hospital lobby area

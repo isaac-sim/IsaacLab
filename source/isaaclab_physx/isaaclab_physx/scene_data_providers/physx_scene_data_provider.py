@@ -364,6 +364,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
+        except Exception as exc:
+            logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
+            self._filtered_newton_model = None
+            self._filtered_newton_state = None
+            self._filtered_body_indices = []
 
     def _extract_model_path_list(self, model: Any, attr_candidates: list[str]) -> list[str]:
         """Extract a list of prim paths from the first supported model attribute."""
@@ -415,11 +420,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 len(articulation_paths),
             )
         return rigid_paths, articulation_paths
-        except Exception as exc:
-            logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
-            self._filtered_newton_model = None
-            self._filtered_newton_state = None
-            self._filtered_body_indices = []
 
     def _build_env_id_to_body_indices(self) -> None:
         """Build mapping env_id -> list of body indices from rigid_body_paths."""

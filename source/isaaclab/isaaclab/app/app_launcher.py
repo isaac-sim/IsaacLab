@@ -361,7 +361,7 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--headless",
-            action="store_true",
+            action=ExplicitTrueAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
             help=(
                 "[DEPRECATED] Disable visualizers and force headless mode (display off)."
@@ -685,6 +685,7 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
+        headless_arg_explicit = bool(launcher_args.pop("headless_explicit", False))
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:

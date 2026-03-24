@@ -49,7 +49,8 @@ Notes:
 * ``--rendering_mode`` is the supported CLI entry point.
 
 Example renders from the ``set_rendering_mode.py`` script.
-To help assess rendering, the example scene includes reflections, translucency, direct and ambient lighting, and several material types.
+To help assess rendering, the example scene includes reflections, translucency,
+direct and ambient lighting, and several material types.
 
 -  Quality Mode
 
@@ -69,21 +70,23 @@ To help assess rendering, the example scene includes reflections, translucency, 
       :width: 100%
       :alt: Performance Rendering Mode Example
 
-Overwriting Specific Rendering Settings
----------------------------------------
+Overriding Rendering Mode Settings
+----------------------------------
 
-Preset rendering settings can be overwritten via :class:`~sim.RenderingModeCfg`.
+Preset rendering settings can be overwritten via
+:class:`~isaaclab.rendering_mode.RenderingModeCfg`.
 
 There are two ways to provide settings that overwrite presets:
 
-1. :class:`~sim.RenderingModeCfg` supports overwriting specific settings via explicit
+1. :class:`~isaaclab.rendering_mode.RenderingModeCfg` supports overwriting specific settings via explicit
    ``kit_*`` fields that map to underlying RTX settings.
 
    .. code-block:: python
 
       import isaaclab.sim as sim_utils
+      from isaaclab.rendering_mode import RenderingModeCfg
 
-      mode_cfg = sim_utils.RenderingModeCfg(
+      mode_cfg = RenderingModeCfg(
           rendering_mode_preset="performance",
           # explicit field overrides
           kit_enable_translucency=True,  # defaults to False in performance mode
@@ -125,25 +128,24 @@ There are two ways to provide settings that overwrite presets:
       +------------------------------------+-------------------------------------------------------------------------+
 
 
-2. For more control, :class:`~sim.RenderCfg` allows you to overwrite any RTX setting by using the ``carb_settings`` argument.
-
-   Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
-
-   In addition, the full NVIDIA RTX renderer documentation can be found at
-   https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
-
-   An example usage of ``carb_settings``.
+2. If you need a custom profile, define your own named entry in
+   :attr:`~sim.SimulationCfg.rendering_mode_cfgs` and select it from each visualizer.
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="quality",
-         # carb setting overwrites
-         carb_settings={
-            "rtx.translucency.enabled": False,
-            "rtx.reflections.enabled": False,
-            "rtx.domeLight.upperLowerStrategy": 3,
-         }
+      import isaaclab.sim as sim_utils
+      from isaaclab.rendering_mode import RenderingModeCfg
+      from isaaclab_physx.visualizers import KitVisualizerCfg
+
+      sim_cfg = sim_utils.SimulationCfg(
+          rendering_mode_cfgs={
+              "my_profile": RenderingModeCfg(
+                  rendering_mode_preset="balanced",
+                  kit_enable_reflections=True,
+                  kit_dlss_mode=2,
+              ),
+          },
+          visualizer_cfgs=[KitVisualizerCfg(rendering_mode="my_profile")],
       )
 
 Current Limitations
@@ -152,22 +154,22 @@ Current Limitations
 For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
-``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
-quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+For renders at lower resolutions, we advise setting
+``kit_antialiasing_mode="DLAA"`` in
+:class:`~isaaclab.rendering_mode.RenderingModeCfg`, and potentially enabling
+``kit_enable_dl_denoiser=True``. Both settings can improve quality at a cost
+of performance.
 
 
 If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
 adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
 areas that become newly visible between frames:
 
-.. code-block:: python
+.. note::
 
-   render_cfg = sim_utils.RenderCfg(
-      carb_settings={
-         "/rtx/aovConverter/disocclusionScale": 10000,
-      }
-   )
+   Low-level carb rendering settings (for example,
+   ``/rtx/aovConverter/disocclusionScale``) are not currently exposed through
+   :class:`~isaaclab.rendering_mode.RenderingModeCfg`.
 
 .. note::
 
@@ -183,13 +185,10 @@ When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
 `3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
 in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
 
-.. code-block:: python
+.. note::
 
-   render_cfg = sim_utils.RenderCfg(
-      carb_settings={
-         "omni.rtx.nre.compositing.rendererHints": 3,
-      }
-   )
+   This setting is not currently exposed through
+   :class:`~isaaclab.rendering_mode.RenderingModeCfg`.
 
 .. warning::
 
