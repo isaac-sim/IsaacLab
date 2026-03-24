@@ -1,135 +1,78 @@
-# Template for Isaac Lab Projects
+# Eigenbot IsaacLab Extension
+
+This is an external extension for IsaacLab to add the EigenBot robot system and training. All modifications to code should generally stay within this extension.
+
+As with the original IsaacGym implementation, we use `rsl_rl` as the library for RL and robotic learning, a direct workflow to easily port from `legged_gym`, and single-agent control, since EigenBot currently does not need to itneract with other robots.
+
+Once full porting is complete, RL is stress tested, and ROS migration is finished, we can conduct another port to a manager-based workflow to improve modularity, but this is not needed currently.
 
 ## Overview
+Here is an overview of the extension structure.
 
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
-
-**Key Features:**
-
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
-
-**Keywords:** extension, template, isaaclab
-
-## Installation
-
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda or uv installation as it simplifies calling Python scripts from the terminal.
-
-- Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
-
-- Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
-
-    ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-    python -m pip install -e source/eigenbot
-
-- Verify that the extension is correctly installed by:
-
-    - Listing the available tasks:
-
-        Note: It the task name changes, it may be necessary to update the search pattern `"Template-"`
-        (in the `scripts/list_envs.py` file) so that it can be listed.
-
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/list_envs.py
-        ```
-
-    - Running a task:
-
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
-        ```
-
-    - Running a task with dummy agents:
-
-        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
-        - Zero-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/zero_agent.py --task=<TASK_NAME>
-            ```
-        - Random-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/random_agent.py --task=<TASK_NAME>
-            ```
-
-### Set up IDE (Optional)
-
-To setup the IDE, please follow these instructions:
-
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
-
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
-
-### Setup as Omniverse Extension (Optional)
-
-We provide an example UI extension that will load upon enabling your extension defined in `source/eigenbot/eigenbot/ui_extension_example.py`.
-
-To enable your extension, follow these steps:
-
-1. **Add the search path of this project/repository** to the extension manager:
-    - Navigate to the extension manager using `Window` -> `Extensions`.
-    - Click on the **Hamburger Icon**, then go to `Settings`.
-    - In the `Extension Search Paths`, enter the absolute path to the `source` directory of this project/repository.
-    - If not already present, in the `Extension Search Paths`, enter the path that leads to Isaac Lab's extension directory directory (`IsaacLab/source`)
-    - Click on the **Hamburger Icon**, then click `Refresh`.
-
-2. **Search and enable your extension**:
-    - Find your extension under the `Third Party` category.
-    - Toggle it to enable your extension.
-
-## Code formatting
-
-We have a pre-commit template to automatically format your code.
-To install pre-commit:
-
-```bash
-pip install pre-commit
+```
+eigenbot/
+├── scripts/
+│   ├── list_envs.py
+│   ├── random_agent.py
+│   ├── zero_agent.py
+│   └── rsl_rl/
+│       ├── cli_args.py
+│       ├── play.py
+│       └── train.py
+└── source/
+    └── eigenbot/
+        ├── setup.py
+        └── eigenbot/
+            ├── ui_extension_example.py
+            ├── assets/
+            │   ├── eigenbot.py
+            │   └── eigenbot/
+            │       ├── urdf/
+            │       │   └── eigenbot_hexapod.urdf
+            │       └── meshes/
+            │           └── *.stl
+            └── tasks/
+                └── direct/
+                    └── eigenbot/
+                        ├── eigenbot_env.py
+                        ├── eigenbot_env_cfg.py
+                        └── agents/
+                            └── rsl_rl_ppo_cfg.py
 ```
 
-Then you can run pre-commit with:
+## Specifics
 
-```bash
-pre-commit run --all-files
-```
+### Assets
+The `source/eigenbot/eigenbot/assets` folder will contain all the model files, URDFs, and supporting USD-style files necessary for rendering the EigenBot. The `eigenbot/meshes` subfolder should contain all `.stl, .obj, .png` files needed for meshes and textures, and the `eigenbot/urdf` file should contain the EigenBot URDF file.
 
-## Troubleshooting
+#### Modifying
+When modifying assets, add additional mesh, texture, and URDF files to the corresponding folders, being careful that naming is consitent and all URDF dependencies are satisfied and pathed correctly. Then, modify the simulation core to create compatability.
 
-### Pylance Missing Indexing of Extensions
+### Simulation Core
+The simulation core is contained within two main files.
+- `source/eigenbot/eigenbot/assets/eigenbot.py` contains the physics properties, joint properties, actuators, and initialization pose for the EigenBot as an `ArticulationCfg`.
+- `source/eigenbot/tasks/direct/eigenbot/eigenbot_env_cfg.py` contains the environment properties, consisting of environment rewards, physics, sensing, interactions, and terrain subconfigs, wrapped within the `EigenbotEnvCfg` main config.
 
-In some VsCode versions, the indexing of part of the extensions is missing.
-In this case, add the path to your extension in `.vscode/settings.json` under the key `"python.analysis.extraPaths"`.
+#### Modifying
+It is relatively easily to modify environment properties or add/remove properties by modifying the configuration files and treating any downstream effects.
 
-```json
-{
-    "python.analysis.extraPaths": [
-        "<path-to-ext-repo>/source/eigenbot"
-    ]
-}
-```
+### RL Core
+The reinforcement leearning core is contained within two main files.
+- `source/eigenbot/tasks/direct/eigenbot/eigenbot_env.py`contains the `EigenbotEnv` class which holds all the rewards functions, computations, actions, reset, etc. functionality for an RL environment that will train the EigenBot. This is the most complex file, but think about it as just serving an RL environment.
+- `source/eigenbot/tasks/direct/eigenbot/agents/rsl_rl_ppo_cfg.py` configures the PPO training policy from RSL_RL to train the robot.
 
-### Pylance Crash
+#### Modifying
+For changing the training hyperparameters, this can be easily done by changing the PPO training config. For changing the RL rewards themselves, more complex programming needs to be done to modify the `EigenbotEnv` class.
 
-If you encounter a crash in `pylance`, it is probable that too many files are indexed and you run out of memory.
-A possible solution is to exclude some of omniverse packages that are not used in your project.
-To do so, modify `.vscode/settings.json` and comment out packages under the key `"python.analysis.extraPaths"`
-Some examples of packages that can likely be excluded are:
+### RL Scripting
+The `scripts/rsl_rl` folder contains scripts to train, play, and process command line arguments for RL policy training. The `scripts`folder itself also has scripts to list the registered environments in the EigenBot extension and run smoke tests with a random action agent or a no-action agent to test gravity and environment function.
 
-```json
-"<path-to-isaac-sim>/extscache/omni.anim.*"         // Animation packages
-"<path-to-isaac-sim>/extscache/omni.kit.*"          // Kit UI tools
-"<path-to-isaac-sim>/extscache/omni.graph.*"        // Graph UI tools
-"<path-to-isaac-sim>/extscache/omni.services.*"     // Services tools
-...
-```
+### Extras
+The `source/eigenbot/setup.py` file is a metadata file to indicate how the EigenBot extension should be bundled and installed as a Python package in the Docker image. The `source/eigenbot/eigenbot/ui_extension_example.py` is an example for how Omniverse Kit UI extensions should be made to be added to the IsaacSim interface.
+
+## Changes and More Work
+- **Terrain curriculum not yet implemented**. The current env uses flat ground. Height observations return constant values.
+- **Physical domain randomization (friction/mass/COM applied to physics)** requires explicit torque control mode — currently values are stored for privileged observations only.
+- **Depth Camera**. This sensor was omitted from the current port for simplicity. It needs to be added back using a `CameraCfg` sensor and a RSL_RL policy class to support sim and training.
+- **Action Delay**. This was a disabled by default feature in the IsaacGym implementation, which simulates latency by adding action frames to a history buffer. Currently only the observation history buffer is ported, but the action history buffer is not.
+- **Scan/privileged encoders**. Original IsaacGym uses specialized `scan_encoder` and `priv_encoder` networks. The current config uses a standard MLP. A custom RSL_RL policy class would be needed for the full encoder architecture. This is however, an RL training rewrite, not a sim part.

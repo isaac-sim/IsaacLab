@@ -32,6 +32,9 @@ pip install -e source/eigenbot
 cd /workspace/eigenbot
 python scripts/zero_agent.py --task Template-Eigenbot-Direct-v0 --num_envs 1
 
+# Move the eigenbot with random actions (untested)
+python scripts/random_agent.py --task Template-Eigenbot-Direct-v0 --num_envs 1
+
 # Train with PPO (no viz)
 python scripts/rsl_rl/train.py --task Template-Eigenbot-Direct-v0 --num_envs 4096 --headless
 
