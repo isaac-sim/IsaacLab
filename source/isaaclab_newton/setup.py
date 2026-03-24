@@ -42,10 +42,10 @@ INSTALL_REQUIRES = [
 EXTRAS_REQUIRE = {
     "all": [
         "prettytable==3.3.0",
-        "mujoco==3.5.0",
-        "mujoco-warp==3.5.0.2",
+        "mujoco==3.6.0",
+        "mujoco-warp==3.6.0",
         "PyOpenGL-accelerate==3.1.10",
-        "newton==1.0.0",
+        "newton @ git+https://github.com/newton-physics/newton.git@141baffff9",
     ],
 }
 

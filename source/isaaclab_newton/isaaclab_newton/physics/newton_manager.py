@@ -288,7 +288,21 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
-        # Set smaller contact margin for manipulation examples (default 10cm is too large)
+
+        # WAR: USD import produces shapes with zero contact margin. Zero margin causes
+        # CCD to use the is_discrete path (epsilon=0), where GJK fails to converge on
+        # mesh terrain, producing NaN in body_q/joint_q.
+        # TODO: file upstream Newton issue for USD importer zero-margin default.
+        contact_margin = 0.01
+        n_margin_fixed = 0
+        for i in range(len(cls._builder.shape_margin)):
+            if cls._builder.shape_margin[i] == 0.0:
+                cls._builder.shape_margin[i] = contact_margin
+                n_margin_fixed += 1
+        if n_margin_fixed > 0:
+            n_total = len(cls._builder.shape_margin)
+            logger.info(f"Set contact margin={contact_margin} on {n_margin_fixed}/{n_total} shapes with zero margin")
+
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
@@ -398,7 +412,12 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+                # WAR: default max_triangle_pairs (1M) overflows with mesh terrain at
+                # 4096+ envs (~2M triangle pairs). Overflow silently drops contacts.
+                # No upstream issue tracking auto-sizing yet.
+                cls._collision_pipeline = CollisionPipeline(
+                    cls._model, broad_phase="explicit", max_triangle_pairs=2_000_000
+                )
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
