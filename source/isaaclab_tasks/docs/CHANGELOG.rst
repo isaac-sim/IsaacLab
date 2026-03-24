@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.5.14 (2026-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated golden images in ``test_rendering_correctness.py`` to reflect changes in rendering output after synchronizing
+  tests to wait for streaming completion. This ensures that rendering correctness is now validated against images
+  generated under fully streamed, stable conditions.
+
+
 1.5.13 (2026-03-18)
 ~~~~~~~~~~~~~~~~~~~
 
