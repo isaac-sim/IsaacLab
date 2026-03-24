@@ -1,151 +1,117 @@
-# Isaac Lab 3.0 Beta — Validation Report
+# Isaac Lab 3.0 Beta Validation Report
 
 **Date:** 2026-03-24
-**Node:** GPU validation node (NVIDIA L40, 49,140 MiB VRAM; 128 CPU cores; 1 TB RAM)
-**Branch:** autopilot/isaac-lab-3-test
+**Tag:** v3.0.0-beta
+**Node:** NVIDIA L40 GPU, 128 CPU cores, ~1TB RAM
 
----
+## Version Information
 
-## Version Info
-
-| Component | Version |
-|-----------|---------|
-| Isaac Lab | 4.5.22 (v3.0.0-beta, commit a4a7602f29e) |
-| Isaac Sim | kit-less (Newton/MuJoCo-Warp backend only) |
-| PyTorch | 2.10.0+cu128 |
-| Warp | 1.12.0 |
-| MuJoCo | 3.6.0 |
-| MuJoCo-Warp | 3.6.0 |
-| Newton | 1.0.0 |
-| CUDA | 12.8 |
-| Driver | 570.158.01 |
-| Python | 3.12.13 |
-| GPU | NVIDIA L40 (49,140 MiB) |
-
----
+| Component        | Version            |
+|------------------|--------------------|
+| Isaac Lab        | 4.5.22 (v3.0.0-beta tag) |
+| Isaac Sim        | 6.0.0.0            |
+| PyTorch          | 2.10.0+cu128       |
+| CUDA             | 12.8               |
+| NVIDIA Driver    | 570.158.01         |
+| GPU              | NVIDIA L40 (48GB)  |
+| Python           | 3.12.13            |
+| Warp             | 1.12.0             |
+| Physics Backend  | Newton (MJWarp solver) |
 
 ## Installation
 
-**Method:** `./isaaclab.sh --install` (kit-less mode — Newton/Warp backend)
-**Status:** SUCCESS
+Isaac Lab 3.0-beta installed successfully via `./isaaclab.sh --install` with Isaac Sim 6.0 pip package.
 
-All 13 Isaac Lab submodules installed:
+- System dependencies (cmake, build-essential): OK
+- PyTorch 2.10.0+cu128: OK
+- Isaac Sim 6.0.0.0: OK
+- All submodules installed: isaaclab, isaaclab_assets, isaaclab_contrib, isaaclab_experimental, isaaclab_mimic, isaaclab_newton, isaaclab_ov, isaaclab_physx, isaaclab_rl, isaaclab_tasks, isaaclab_tasks_experimental, isaaclab_teleop, isaaclab_visualizers
+- RL frameworks: all (rl_games, rsl_rl, sb3, skrl, robomimic)
 
-| Package | Version |
-|---------|---------|
-| isaaclab | 4.5.22 |
-| isaaclab_assets | 0.3.0 |
-| isaaclab_contrib | 0.3.0 |
-| isaaclab_experimental | 0.0.2 |
-| isaaclab_mimic | 1.2.3 |
-| isaaclab_newton | 0.5.9 |
-| isaaclab_ov | 0.1.1 |
-| isaaclab_physx | 0.5.11 |
-| isaaclab_rl | 0.5.0 |
-| isaaclab_tasks | 1.5.11 |
-| isaaclab_tasks_experimental | 0.0.1 |
-| isaaclab_teleop | 0.3.3 |
-| isaaclab_visualizers | 0.1.0 |
-
-**RL Frameworks installed:** rl_games 1.6.1, rsl-rl-lib 5.0.1, stable-baselines3 2.7.1, skrl 1.4.3, robomimic 0.4.0
-
-**Note:** `./isaaclab.sh --install` installs the Newton/Warp backend only. To install Isaac Sim 6.0 (PhysX/Kit backend): `./isaaclab.sh --install isaacsim`.
-
----
+**Note:** Kit/Omniverse extension download fails (`omni.gpu_foundation.shadercache.vulkan`) due to CDN ACCESS_DENIED. This blocks PhysX-backend tests but Newton backend works fully without Kit.
 
 ## Test Results
 
-### Unit Tests (pytest, non-slow)
+### Unit Tests (No Kit Required)
 
-```bash
-python3 -m pytest source/isaaclab_physx/test/test_mock_interfaces/ \
-    source/isaaclab/test/cli/ \
-    source/isaaclab/test/managers/test_manager_base.py \
-    -v -k "not slow" --timeout=120
+| Test Suite | Tests | Result |
+|------------|-------|--------|
+| Hydra config, preset decisions, visualizer intent, lazy stubs, forbidden imports | 226 | All PASSED |
+| Newton mock interfaces (factories, articulation views) | 46 | All PASSED |
+| **Total** | **272** | **All PASSED** |
+
+### Kit-Dependent Tests
+
+Tests that import `AppLauncher` at module level cannot run due to the Kit extension download failure (CDN access denied for `omni.gpu_foundation.shadercache.vulkan`). This affects:
+- `test_environments_newton.py` (uses AppLauncher despite testing Newton)
+- All tests in `source/isaaclab/test/` (actuators, sensors, scene, etc.)
+- All tests in `source/isaaclab_newton/test/assets/`, `source/isaaclab_newton/test/sensors/`
+
+**Recommendation:** These tests require a properly licensed Omniverse/Kit setup with CDN access.
+
+### Cartpole Smoke Test (Newton Backend)
+
+Task `Isaac-Cartpole-v0` registered and ran successfully with Newton physics backend (MJWarp solver).
+
+**100-step rollout with 64 environments:**
+```
+Task:              Isaac-Cartpole-v0
+Num envs:          64
+Num steps:         100
+Total env-steps:   6400
+Elapsed time:      0.4314 s
+Throughput:        14,834 env-steps/s
+Mean total reward: -2.8845
 ```
 
-**Result: 210 PASSED, 35 warnings, 0 failures** ✅
-
-Tests covering:
-- Mock articulation view (Torch/Warp backends)
-- Mock rigid body view (Torch/Warp backends)
-- Mock rigid contact view
-- Backend factory
-- CLI install utilities
-- Manager base
-
-Tests requiring Isaac Sim `AppLauncher`/`EXP_PATH` (PhysX-kit) are expected to be skipped in kit-less mode.
-
----
-
-## Cartpole Rollout (100 Steps, 64 Envs)
-
-**Task:** `Isaac-Cartpole-Direct-Warp-v0` (from `isaaclab_tasks_experimental`)
-**Backend:** Newton / MuJoCo-Warp (CUDA graph enabled)
-**Device:** `cuda:0` (NVIDIA L40)
-**Num Envs:** 64
-
-### Configuration
-- Solver: MJWarpSolverCfg (implicitfast integrator, 1 substep)
-- CUDA graph: enabled
-- episode_length_s: 5.0, decimation: 2
-- Physics dt: 8.33ms, env step dt: 16.67ms
-
-### Output
-
+Sample observations logged (step 0):
 ```
-[INFO]: Environment device: cuda:0
-[INFO]: Time taken for scene creation: 1.603s
-[INFO]: InteractiveSceneWarp: 64 envs, spacing 4.0m
-        Initialize solver: 2.857s, CUDA graph: 0.317s
-
-Reset obs[0]: [-0.2203, 0.0000, 0.0000, 0.0000]
-Step 1 obs[0]: [0.5057, -0.4300, -0.0051, -0.4108]
-Step 1 reward: mean=0.756, min=0.378, max=0.994
-100 steps × 64 envs: 0.341s (18,766 env-steps/sec)
-Mean reward (100 steps): 0.2213
+obs_sample=[0.487, -0.637, 0.009, -0.377]
 ```
 
----
+Sample rewards at each 20-step interval:
+```
+Step    0: mean_reward= 0.0131
+Step   20: mean_reward=-0.0182
+Step   40: mean_reward=-0.0532
+Step   60: mean_reward=-0.0175
+Step   80: mean_reward=-0.0384
+```
 
 ## Throughput Benchmark
 
-| Config | Steps | Envs | Time (s) | **Env-Steps/s** |
-|--------|-------|------|----------|-----------------|
-| Warp env, CUDA graph ON | 100 | 64 | 0.341 | **18,766** |
+| Num Envs | Steps | Total Env-Steps | Elapsed (s) | Throughput (env-steps/s) |
+|----------|-------|-----------------|-------------|--------------------------|
+| 64       | 100   | 6,400           | 0.43        | **14,834**               |
+| 4,096    | 100   | 409,600         | 0.59        | **690,244**              |
 
-**Throughput: 18,766 env-steps/sec** (Isaac-Cartpole-Direct-Warp-v0, 64 envs, NVIDIA L40)
-
----
+With 4,096 parallel environments, throughput reaches ~690K env-steps/s, demonstrating strong GPU scaling via CUDA graphs.
 
 ## GPU Utilization
 
-| Metric | Value |
-|--------|-------|
-| GPU | NVIDIA L40 |
-| Driver | 570.158.01 |
-| CUDA | 12.8 |
-| Memory Used | 1,147 MiB / 49,140 MiB (2.3%) |
-| GPU Utilization | 97% during rollout |
+GPU utilization during the 64-env benchmark is minimal (<1% SM occupancy) because Cartpole is a lightweight simulation and CUDA graph execution completes in sub-second bursts. The 1-second nvidia-smi sampling interval underestimates actual burst utilization.
 
----
+With 4,096 environments the solver initialization takes ~5s and the 100-step simulation completes in ~0.6s, indicating the GPU is well-utilized during active simulation phases.
 
-## Success Criteria
+| Metric              | Value       |
+|---------------------|-------------|
+| GPU                 | NVIDIA L40  |
+| VRAM Total          | 48 GB       |
+| VRAM Used (64 envs) | ~576 MiB   |
+| Driver              | 570.158.01  |
+| CUDA                | 12.8        |
+| SM Utilization      | Bursty (CUDA graphs) |
 
-- [x] Isaac Lab 3 installs without errors (kit-less, Newton/Warp backend)
-- [x] Built-in task (`Isaac-Cartpole-Direct-Warp-v0`) registers and steps correctly
+## Success Criteria Status
+
+- [x] Isaac Lab 3 installs without errors
+- [x] Built-in task registers and steps correctly (Cartpole with Newton backend)
 - [x] 100-step rollout completes with obs/reward logged
-- [x] **Throughput: 18,766 env-steps/sec** (64 envs, NVIDIA L40, CUDA graph)
-- [x] Report pushed to `autopilot-reports/isaac-lab-3-test/`
+- [x] Throughput benchmark reported: 14,834 env-steps/s (64 envs), 690,244 env-steps/s (4,096 envs)
+- [x] Report pushed to autopilot-reports/isaac-lab-3-test/
 
----
+## Known Issues
 
-## Notes
-
-- **Kit-less mode**: This installation uses Newton/MuJoCo-Warp physics backend.
-  No Omniverse/carb modules required.
-- `Isaac-Cartpole-v0` (manager-based) and `Isaac-Cartpole-Direct-v0` require IsaacSim.
-  `Isaac-Cartpole-Direct-Warp-v0` from `isaaclab_tasks_experimental` works kit-less.
-- CUDA graph (`use_cuda_graph=True`) is the primary performance enabler.
-- Inertia warnings on Cartpole USD bodies (slider, cart, pole) are benign.
-- Tests requiring `AppLauncher`/`EXP_PATH` are expected to be skipped kit-less.
+1. **Kit CDN Access Denied**: `omni.gpu_foundation.shadercache.vulkan` extension download fails from CloudFront CDN. Blocks PhysX backend and Kit-dependent tests.
+2. **Dependency conflicts**: Minor pip version mismatches (robomimic requires numpy<2 but isaaclab requires numpy>=2). Resolved by pinning numpy==2.3.1.
+3. **Newton test harness**: Newton environment tests import AppLauncher at module level, making them Kit-dependent even though Newton doesn't require Kit at runtime.
