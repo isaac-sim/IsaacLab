@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import torch
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
 
@@ -67,7 +66,7 @@ def _resolve_annotated_property(
 
 def _resolve_annotated_method(
     method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
-    real_asset: BaseArticulation,
+    real_asset: Any,
     name: str,
 ) -> tuple[Callable, Any, inspect.Signature] | None:
     """Resolve a concrete bound method and inherited semantics metadata."""
@@ -335,9 +334,19 @@ class _EnvProxy:
     is forwarded transparently to the real env.
     """
 
-    def __init__(self, real_env, scene_proxy: _SceneProxy):
+    def __init__(
+        self,
+        real_env,
+        task_name: str,
+        property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
+        cache: dict,
+    ):
         object.__setattr__(self, "_real_env", real_env)
-        object.__setattr__(self, "_scene_proxy", scene_proxy)
+        object.__setattr__(
+            self,
+            "_scene_proxy",
+            _SceneProxy(real_env.scene, task_name, property_resolution_cache, cache),
+        )
 
     @property
     def scene(self):
@@ -438,7 +447,7 @@ class _ArticulationWriteProxy:
 
     def __init__(
         self,
-        real_asset: BaseArticulation,
+        real_asset: Any,
         term_name: str,
         output_cache: list[TensorSemantics],
         method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
@@ -478,20 +487,23 @@ class _ArticulationWriteProxy:
             bound_args = signature.bind_partial(real_asset, *args, **kwargs)
             target = bound_args.arguments.get("target")
 
-            if isinstance(target, torch.Tensor):
-                joint_ids = bound_args.arguments.get("joint_ids")
-                output_cache.append(
-                    TensorSemantics(
-                        name=_unique_output_name(term_name, name, output_cache),
-                        ref=target.clone(),
-                        kind=semantics_meta.kind,
-                        element_names=resolve_leapp_element_names(
-                            semantics_meta,
-                            _WriteJointNameContext(real_asset.joint_names, joint_ids),
-                        ),
-                    )
+            if not isinstance(target, torch.Tensor):
+                return result
+
+            target_tensor = cast(torch.Tensor, target)
+            joint_ids = bound_args.arguments.get("joint_ids")
+            output_cache.append(
+                TensorSemantics(
+                    name=_unique_output_name(term_name, name, output_cache),
+                    ref=target_tensor.clone(),
+                    kind=semantics_meta.kind,
+                    element_names=resolve_leapp_element_names(
+                        semantics_meta,
+                        _WriteJointNameContext(real_asset.joint_names, joint_ids),
+                    ),
                 )
-                captured_write_term_names.add(term_name)
+            )
+            captured_write_term_names.add(term_name)
 
             return result
 

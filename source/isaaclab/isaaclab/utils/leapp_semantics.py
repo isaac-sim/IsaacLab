@@ -77,6 +77,12 @@ def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_sel
         return semantics.element_names
 
     source = semantics.element_names_source
+    if source == "xyz":
+        return XYZ_ELEMENT_NAMES
+    if source == "quat_wxyz":
+        return QUAT_WXYZ_ELEMENT_NAMES
+    if source == "pose7":
+        return POSE7_ELEMENT_NAMES
     if source == "joint_names":
         return _select_element_names(
             getattr(data_self, "joint_names", getattr(data_self, "_joint_names", None)),
@@ -119,4 +125,19 @@ def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_sel
         if body_names is None:
             return None
         return [body_names, WRENCH6_ELEMENT_NAMES]
+    if source == "target_frame_xyz":
+        frame_names = getattr(data_self, "target_frame_names", None)
+        if frame_names is None:
+            return None
+        return [list(frame_names), XYZ_ELEMENT_NAMES]
+    if source == "target_frame_quat":
+        frame_names = getattr(data_self, "target_frame_names", None)
+        if frame_names is None:
+            return None
+        return [list(frame_names), QUAT_WXYZ_ELEMENT_NAMES]
+    if source == "target_frame_pose":
+        frame_names = getattr(data_self, "target_frame_names", None)
+        if frame_names is None:
+            return None
+        return [list(frame_names), POSE7_ELEMENT_NAMES]
     return None

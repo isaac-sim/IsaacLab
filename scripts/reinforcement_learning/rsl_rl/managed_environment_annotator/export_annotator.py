@@ -9,8 +9,8 @@ Observation and action annotation share a unified dedup cache so that a
 state property (e.g. ``joint_pos``) read by both an observation term and
 an action term resolves to one LEAPP input edge.
 
-- Observation term functions see an _EnvProxy whose scene returns
-  _ArticulationProxy objects with annotating data proxies.
+- Observation term functions see an ``_EnvProxy`` whose scene returns
+  ``_EntityProxy`` objects with annotating data proxies.
 
 - Action terms have their ``_asset`` attribute replaced with an
   _ArticulationWriteProxy that intercepts ``_leapp_semantics``-decorated
@@ -19,7 +19,7 @@ an action term resolves to one LEAPP input edge.
 
 Cache lifecycle (assuming single-env play-mode export):
 
-    compute_group()          clear cache → obs terms populate cache
+    compute()                clear cache → obs terms populate cache
     policy inference         TracedTensors propagate through NN
     process_action()         register_buffer for raw_actions
     apply_action() [tracing] reuse cached TracedTensors for state reads,
@@ -27,11 +27,12 @@ Cache lifecycle (assuming single-env play-mode export):
                              then clear cache
     apply_action() [decim.]  clear cache → fresh reads for simulation
     ...
-    compute_group()          clear cache → fresh reads for next obs
+    compute()                clear cache → fresh reads for next obs
 """
 
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import Callable
 from contextlib import suppress
@@ -45,7 +46,7 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
 
-from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy, _SceneProxy
+from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import ensure_torch_tensor
 
 if TYPE_CHECKING:
@@ -99,29 +100,32 @@ class ExportPatcher:
         self.required_obs_groups = required_obs_groups
         self._annotated_tensor_cache: dict[tuple[int, str], torch.Tensor] = {}
         self._data_property_resolution_cache: dict[tuple[type, str], tuple[Callable, object] | None] = {}
-        self._write_method_resolution_cache: dict[tuple[type, str], tuple[Callable, object, object] | None] = {}
+        self._write_method_resolution_cache: dict[
+            tuple[type, str], tuple[Callable, object, inspect.Signature] | None
+        ] = {}
         self._action_output_cache: list[TensorSemantics] = []
         self._captured_write_term_names: set[str] = set()
         self._fallback_term_names: set[str] = set()
         self._pending_action_output_export: bool = False
         self._uses_last_action_state: bool = False
-        self._patched_history_state_names: dict[int, str] = {}
 
     def setup(self, env):
         """Patch observation and action managers on the unwrapped env."""
         unwrapped = env.env.unwrapped
 
-        cache = self._annotated_tensor_cache
-
-        scene_proxy = _SceneProxy(unwrapped.scene, self.task_name, self._data_property_resolution_cache, cache)
-        proxy_env = _EnvProxy(unwrapped, scene_proxy)
+        proxy_env = _EnvProxy(
+            unwrapped,
+            self.task_name,
+            self._data_property_resolution_cache,
+            self._annotated_tensor_cache,
+        )
 
         self._disable_training_managers(unwrapped)
         self._patch_observation_manager(unwrapped.observation_manager, proxy_env)
         self._patch_history_buffers(unwrapped.observation_manager)
         self._patch_action_manager(
             unwrapped.action_manager,
-            cache,
+            self._annotated_tensor_cache,
         )
 
     # ── Disable training-only managers ─────────────────────────────
@@ -220,7 +224,6 @@ class ExportPatcher:
 
         circular_buffer._leapp_original_append = original_append
         circular_buffer._append = patched_append
-        self._patched_history_state_names[id(circular_buffer)] = state_name
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
         """Patch observation terms to use annotating proxies and disable noise."""
@@ -242,7 +245,6 @@ class ExportPatcher:
                 term_cfg.noise = None
 
         original_compute = obs_manager.compute
-        original_compute_group = obs_manager.compute_group
         cache = self._annotated_tensor_cache
 
         def patched_compute(*args, **kwargs):
@@ -250,12 +252,7 @@ class ExportPatcher:
             cache.clear()
             return original_compute(*args, **kwargs)
 
-        def patched_compute_group(*args, **kwargs):
-            """Run the real compute_group using the current observation-pass cache."""
-            return original_compute_group(*args, **kwargs)
-
         obs_manager.compute = patched_compute
-        obs_manager.compute_group = patched_compute_group
 
     # ── Action manager patches ────────────────────────────────────
 
@@ -588,10 +585,10 @@ def patch_env_for_export(
     - Action terms route through proxy objects that annotate both data
       reads **and** ``Articulation`` write methods.
 
-    Data classes are discovered automatically by scanning the scene at
-    setup time — no hardcoded class list is required.  Properties with
-    ``_leapp_semantics`` produce rich annotations; properties without it
-    are still traced so that no tensor is silently baked as a constant.
+    Data properties are resolved lazily through proxies — no hardcoded
+    class list is required. Properties with ``_leapp_semantics`` produce
+    rich annotations; properties without it are still traced so that no
+    tensor is silently baked as a constant.
 
     State reads are deduplicated across observation and action paths via a
     shared cache, so a property like ``joint_pos`` that is read by both an
