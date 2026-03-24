@@ -35,6 +35,8 @@ from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import configclass
 
+HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
+
 # Default joint positions for the supported setup (G1 29DOF + Dex3).
 DEFAULT_JOINT_POS: dict[str, float] = {
     # legs
@@ -90,7 +92,7 @@ DEFAULT_JOINT_POS: dict[str, float] = {
 
 G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/mnt/Data/lw_v3/robots/g1_29dof_with_dex3_base_fix.usd",
+        usd_path=f"{HEALTHCARE_S3}/Robots/UnitreeG1/g1_29dof_with_dex3_base_fix/g1_29dof_with_dex3_base_fix.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

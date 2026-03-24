@@ -90,10 +90,8 @@ offset_dict = {
     "right_elbow_joint": -0.3,
 }
 
-# FIXME(mingxinz): revisit the USD_ROOT
-USD_ROOT = (
-    "https://isaac-dev.ov.nvidia.com/omni/web3/omniverse://isaac-dev.ov.nvidia.com/Library/IsaacHealthcare/0.5.0/Props/"
-)
+HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
+USD_ROOT = f"{HEALTHCARE_S3}/Props/LightWheel"
 
 
 @configclass
@@ -112,14 +110,14 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     scene = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Scene",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/LightWheel/scene03.usd",
+            usd_path=f"{USD_ROOT}/scene03.usd",
         ),
     )
 
     trocar_1 = RigidObjectCfg(
         prim_path="/World/envs/env_.*/trocar_1",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/LightWheel/Assets/Trocar002/Trocar002-xform-wo.usd",
+            usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
             collision_props=sim_utils.CollisionPropertiesCfg(
                 collision_enabled=True,
                 contact_offset=0.001,
@@ -136,7 +134,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/trocar_2",
         spawn=UsdFileCfg(
             usd_path=(
-                f"{USD_ROOT}/LightWheel/Assets/"
+                f"{USD_ROOT}/Assets/"
                 "DisposableLaparoscopicPunctureDevice001/"
                 "DisposableLaparoscopicPunctureDevice005-xform.usd"
             ),
@@ -152,7 +150,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     tray = ArticulationCfg(
         prim_path="/World/envs/env_.*/surgical_tray",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/LightWheel/Assets/SurgicalTray001/SurgicalTray001.usd",
+            usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
         ),
         init_state=ArticulationCfg.InitialStateCfg(pos=[-1.54919, 2.03365, 0.84554], rot=[0.0, 0.0, -0.70711, 0.70711]),
         actuators={},  # Empty dict for passive articulation (no motors)
