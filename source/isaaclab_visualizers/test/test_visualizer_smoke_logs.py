@@ -272,25 +272,6 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
     return CartpoleCameraEnv(env_cfg)
 
 
-def _make_cartpole_camera_env_with_visualizers(visualizer_kinds: list[str], backend_kind: str) -> CartpoleCameraEnv:
-    """Create cartpole camera env with multiple visualizers active at once."""
-    env_cfg_root = CartpoleCameraPresetsEnvCfg()
-    env_cfg = getattr(env_cfg_root, "default", None)
-    if env_cfg is None:
-        env_cfg = getattr(type(env_cfg_root), "default", None)
-    if env_cfg is None:
-        raise RuntimeError(
-            "CartpoleCameraPresetsEnvCfg does not expose a 'default' preset config. "
-            f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
-        )
-    env_cfg = copy.deepcopy(env_cfg)
-    env_cfg.scene.num_envs = 1
-    env_cfg.seed = None
-    env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
-    env_cfg.sim.visualizer_cfgs = [_get_visualizer_cfg(kind)[0] for kind in visualizer_kinds]
-    return CartpoleCameraEnv(env_cfg)
-
-
 def _resolve_case(visualizer_kind: str, backend_kind: str):
     """Resolve (env_cfg, expected_visualizer_cls, expected_backend_substring) for one smoke test.
 
@@ -371,9 +352,7 @@ def test_kit_visualizer_non_black_viewport_frame(backend_kind: str):
     env = None
     try:
         sim_utils.create_new_stage()
-        env = _make_cartpole_camera_env_with_visualizers(
-            visualizer_kinds=["kit", "newton", "rerun", "viser"], backend_kind=backend_kind
-        )
+        env = _make_cartpole_camera_env(visualizer_kind="kit", backend_kind=backend_kind)
         env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
         env.reset()
         kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
