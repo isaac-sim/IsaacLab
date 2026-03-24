@@ -17,7 +17,6 @@ from collections.abc import Mapping
 
 import leapp
 import torch
-import warp as wp
 from leapp import annotate
 
 # Disable TorchScript before importing task/environment modules so any
@@ -108,11 +107,11 @@ simulation_app = app_launcher.app
 import os
 
 import gymnasium as gym
-from managed_environment_annotator.export_annotator import patch_env_for_export
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.leapp.export_annotator import patch_env_for_export
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -122,23 +121,7 @@ from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 
-def _patch_warp_to_torch_passthrough() -> None:
-    """Make wp.to_torch idempotent for torch tensors during export."""
-    if getattr(wp.to_torch, "_leapp_passthrough_patch", False):
-        return
-
-    original_to_torch = wp.to_torch
-
-    def patched_to_torch(value, *args, **kwargs):
-        if isinstance(value, torch.Tensor):
-            return value
-        return original_to_torch(value, *args, **kwargs)
-
-    patched_to_torch._leapp_passthrough_patch = True  # type: ignore[attr-defined]
-    wp.to_torch = patched_to_torch
-
-
-def _get_actor_memory_module(policy_nn):
+def get_actor_memory_module(policy_nn):
     if hasattr(policy_nn, "memory_a"):
         return policy_nn.memory_a
     if hasattr(policy_nn, "memory_s"):
@@ -146,12 +129,12 @@ def _get_actor_memory_module(policy_nn):
     return None
 
 
-def _ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: torch.device, dtype: torch.dtype):
+def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: torch.device, dtype: torch.dtype):
     actor_state, _ = policy_nn.get_hidden_states()
     if actor_state is not None:
         return actor_state
 
-    memory = _get_actor_memory_module(policy_nn)
+    memory = get_actor_memory_module(policy_nn)
     if memory is None or not hasattr(memory, "rnn"):
         return None
 
@@ -166,7 +149,7 @@ def _ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: t
     return actor_state
 
 
-def _state_dict_from_actor_hidden(actor_hidden):
+def state_dict_from_actor_hidden(actor_hidden):
     if actor_hidden is None:
         return {}
     if isinstance(actor_hidden, tuple):
@@ -174,7 +157,7 @@ def _state_dict_from_actor_hidden(actor_hidden):
     return {"actor_state": actor_hidden}
 
 
-def _actor_hidden_from_registered(registered_state, original_hidden):
+def actor_hidden_from_registered(registered_state, original_hidden):
     if isinstance(original_hidden, tuple):
         if isinstance(registered_state, tuple):
             return registered_state
@@ -230,10 +213,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         )
     export_task_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
-    # required
+    # Patch only the observation groups consumed by the actor policy.
     obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
     if isinstance(obs_groups_cfg, Mapping):
-        required_obs_groups = set(obs_groups_cfg.get("policy", ["policy"]))
+        required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
     else:
         required_obs_groups = {"policy"}
     patch_env_for_export(
@@ -242,7 +225,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         export_method=args_cli.export_method,
         required_obs_groups=required_obs_groups,
     )
-    _patch_warp_to_torch_passthrough()
 
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -275,7 +257,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         # run everything in inference mode
         with torch.inference_mode():
             if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                actor_hidden = _ensure_actor_hidden_state_initialized(
+                actor_hidden = ensure_actor_hidden_state_initialized(
                     policy_nn,
                     batch_size=env.num_envs,
                     device=env.unwrapped.device,
@@ -283,18 +265,23 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
                 )
                 registered_state = annotate.state_tensors(
                     export_task_name,
-                    _state_dict_from_actor_hidden(actor_hidden),
+                    state_dict_from_actor_hidden(actor_hidden),
                 )
-                actor_memory = _get_actor_memory_module(policy_nn)
+                actor_memory = get_actor_memory_module(policy_nn)
                 if actor_memory is not None:
-                    actor_memory.hidden_state = _actor_hidden_from_registered(registered_state, actor_hidden)
+                    actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
+
+            # =============RUN POLICY=============
             actions = policy(obs)
+            # =============END POLICY=============
+
             if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
                 actor_hidden_after = policy_nn.get_hidden_states()[0]
                 annotate.update_state(
                     export_task_name,
-                    _state_dict_from_actor_hidden(actor_hidden_after),
+                    state_dict_from_actor_hidden(actor_hidden_after),
                 )
+
             # env stepping
             obs, _, _, _ = env.step(actions)
 

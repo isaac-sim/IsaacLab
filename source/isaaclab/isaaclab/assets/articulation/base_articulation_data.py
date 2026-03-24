@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import warp as wp
 from leapp import InputKindEnum
 
-from isaaclab.utils.leapp_semantics import (
+from isaaclab.utils.leapp.leapp_semantics import (
     POSE7_ELEMENT_NAMES,
     QUAT_WXYZ_ELEMENT_NAMES,
     WRENCH6_ELEMENT_NAMES,

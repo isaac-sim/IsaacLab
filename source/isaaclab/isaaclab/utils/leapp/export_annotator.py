@@ -44,10 +44,10 @@ from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
 
+from .leapp_semantics import resolve_leapp_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
-from .utils import ensure_torch_tensor
+from .utils import ensure_torch_tensor, patch_warp_to_torch_passthrough
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -398,7 +398,7 @@ class ExportPatcher:
             sem = TensorSemantics(
                 name=leapp_input_name,
                 ref=result,
-                kind=getattr(command_cfg, "cmd_hint", None),
+                kind=getattr(command_cfg, "cmd_kind", None),
                 element_names=getattr(command_cfg, "element_names", None),
             )
             return annotate.input_tensors(task_name, sem)
@@ -598,5 +598,6 @@ def patch_env_for_export(
     The underlying env, scene, assets, and tensors remain shared with the rest
     of the pipeline; only the manager call paths are redirected.
     """
+    patch_warp_to_torch_passthrough()
     patcher = ExportPatcher(task_name, export_method, required_obs_groups=required_obs_groups)
     patcher.setup(env)

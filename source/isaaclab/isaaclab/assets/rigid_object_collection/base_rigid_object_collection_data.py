@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import warp as wp
 from leapp import InputKindEnum
 
-from isaaclab.utils.leapp_semantics import (
+from isaaclab.utils.leapp.leapp_semantics import (
     leapp_tensor_semantics,
 )
 from isaaclab.utils.warp import ProxyArray

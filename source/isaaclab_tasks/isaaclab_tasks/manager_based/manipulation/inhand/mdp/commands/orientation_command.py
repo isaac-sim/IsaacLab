@@ -78,7 +78,7 @@ class InHandReOrientationCommand(CommandTerm):
         #    the trailing attempt at episode end counts as one unsuccessful attempt.
         self._completed_attempts = torch.zeros(self.num_envs, device=self.device)
 
-        self.cfg.cmd_hint = self.cfg.cmd_hint or "command/body/pose"
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
         self.cfg.element_names = self.cfg.element_names or ["x", "y", "z", "qw", "qx", "qy", "qz"]
 
     def __str__(self) -> str:

@@ -17,7 +17,7 @@ import torch
 import warp as wp
 from leapp import OutputKindEnum
 
-from ...utils.leapp_semantics import leapp_tensor_semantics
+from ...utils.leapp.leapp_semantics import leapp_tensor_semantics
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:

@@ -14,11 +14,11 @@ articulation.  All I/O resolution is driven by the ``kind`` field in the LEAPP Y
 from __future__ import annotations
 
 import logging
-import torch
-import yaml
 from dataclasses import dataclass
 from typing import Any
 
+import torch
+import yaml
 from leapp import InferenceManager
 
 from isaaclab.assets.articulation.articulation import Articulation
@@ -136,11 +136,11 @@ def _resolve_joint_ids(element_names: list | None, asset: Articulation) -> list[
 
 
 def _find_command_term_by_hint(kind: str, command_manager: CommandManager) -> str:
-    """Find the ``CommandTerm`` name whose ``cfg.cmd_hint`` matches ``kind``."""
+    """Find the ``CommandTerm`` name whose ``cfg.cmd_kind`` matches ``kind``."""
     for name, term in command_manager._terms.items():
-        if getattr(term.cfg, "cmd_hint", None) == kind:
+        if getattr(term.cfg, "cmd_kind", None) == kind:
             return name
-    raise ValueError(f"No command term with cmd_hint='{kind}'. Available terms: {list(command_manager._terms.keys())}")
+    raise ValueError(f"No command term with cmd_kind='{kind}'. Available terms: {list(command_manager._terms.keys())}")
 
 
 def _find_robot_asset(scene: InteractiveScene) -> Articulation:

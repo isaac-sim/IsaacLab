@@ -14,8 +14,8 @@ from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.leapp_semantics import resolve_leapp_element_names
 
+from .leapp_semantics import resolve_leapp_element_names
 from .utils import ensure_torch_tensor
 
 
