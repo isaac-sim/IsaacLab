@@ -12,9 +12,10 @@ per-task export subdirectory is removed after each test.
 """
 
 import os
-import pytest
 import shutil
 import subprocess
+
+import pytest
 
 # Root of the repository (three levels up from this file).
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))

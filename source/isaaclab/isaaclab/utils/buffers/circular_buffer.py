@@ -80,7 +80,8 @@ class CircularBuffer:
         """Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
 
         Returns:
-            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
+            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of
+            dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
         """
         return torch.transpose(self._buffer, dim0=0, dim1=1)
 
@@ -102,7 +103,8 @@ class CircularBuffer:
         # reset the number of pushes for the specified batch indices
         self._num_pushes[batch_ids_resolved] = 0
         if self._buffer is not None:
-            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
+            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns
+            # the cleared circular buffer after reset.
             self._buffer[:, batch_ids_resolved] = 0.0
 
     def append(self, data: torch.Tensor):
