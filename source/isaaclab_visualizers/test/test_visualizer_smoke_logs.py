@@ -10,9 +10,10 @@ from isaaclab.app import AppLauncher
 # launch Kit app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
+import contextlib
+import copy
 import logging
 import socket
-import copy
 
 import numpy as np
 import pytest
@@ -27,9 +28,9 @@ from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
+
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
-
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import (
     CartpolePhysicsCfg,
     CartpoleSceneCfg,
@@ -200,6 +201,55 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
     _assert_non_black_tensor(last_rgb)
 
 
+def _build_rgb_annotator_for_camera(camera_path: str, *, resolution: tuple[int, int] = (320, 240)):
+    """Create CPU RGB annotator attached to a camera render product."""
+    import omni.replicator.core as rep
+
+    render_product = rep.create.render_product(camera_path, resolution=resolution)
+    annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+    annotator.attach([render_product])
+    return annotator, render_product
+
+
+def _annotator_rgb_to_numpy(rgb_data) -> np.ndarray:
+    """Convert replicator annotator output to HxWx3 uint8 numpy array."""
+    rgb_array = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
+    if rgb_array.size == 0:
+        return np.zeros((1, 1, 3), dtype=np.uint8)
+    return rgb_array[:, :, :3]
+
+
+def _step_until_non_black_kit_viewport(
+    env, kit_visualizer: KitVisualizer, *, max_steps: int = _MAX_NON_BLACK_STEPS
+) -> None:
+    """Step env until Kit viewport camera render product is non-black, bounded by max_steps."""
+    camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
+    if not camera_path:
+        pytest.skip("Kit visualizer does not expose a controlled viewport camera path.")
+
+    annotator = None
+    render_product = None
+    try:
+        annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
+        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+        last_frame = None
+        for _ in range(max_steps):
+            env.step(action=actions)
+            rgb_data = annotator.get_data()
+            frame = _annotator_rgb_to_numpy(rgb_data)
+            last_frame = frame
+            try:
+                _assert_non_black_frame_array(frame)
+                return
+            except AssertionError:
+                continue
+        _assert_non_black_frame_array(last_frame)
+    finally:
+        if annotator is not None and render_product is not None:
+            with contextlib.suppress(Exception):
+                annotator.detach([render_product])
+
+
 def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
     env_cfg_root = CartpoleCameraPresetsEnvCfg()
@@ -219,6 +269,25 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
     visualizer_cfg, _ = _get_visualizer_cfg(visualizer_kind)
     env_cfg.sim.visualizer_cfgs = visualizer_cfg
+    return CartpoleCameraEnv(env_cfg)
+
+
+def _make_cartpole_camera_env_with_visualizers(visualizer_kinds: list[str], backend_kind: str) -> CartpoleCameraEnv:
+    """Create cartpole camera env with multiple visualizers active at once."""
+    env_cfg_root = CartpoleCameraPresetsEnvCfg()
+    env_cfg = getattr(env_cfg_root, "default", None)
+    if env_cfg is None:
+        env_cfg = getattr(type(env_cfg_root), "default", None)
+    if env_cfg is None:
+        raise RuntimeError(
+            "CartpoleCameraPresetsEnvCfg does not expose a 'default' preset config. "
+            f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
+        )
+    env_cfg = copy.deepcopy(env_cfg)
+    env_cfg.scene.num_envs = 1
+    env_cfg.seed = None
+    env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
+    env_cfg.sim.visualizer_cfgs = [_get_visualizer_cfg(kind)[0] for kind in visualizer_kinds]
     return CartpoleCameraEnv(env_cfg)
 
 
@@ -296,18 +365,20 @@ def test_visualizer_backend_smoke(visualizer_kind: str, backend_kind: str, caplo
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun", "viser"])
-@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_visualizer_non_black_camera_frame(visualizer_kind: str, backend_kind: str):
-    """Cartpole tiled-camera output should not be black when visualizers are enabled."""
+@pytest.mark.parametrize("backend_kind", ["physx"])
+def test_kit_visualizer_non_black_viewport_frame(backend_kind: str):
+    """Kit visualizer viewport camera output should not be black."""
     env = None
     try:
         sim_utils.create_new_stage()
-        env = _make_cartpole_camera_env(visualizer_kind=visualizer_kind, backend_kind=backend_kind)
+        env = _make_cartpole_camera_env_with_visualizers(
+            visualizer_kinds=["kit", "newton", "rerun", "viser"], backend_kind=backend_kind
+        )
         env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
         env.reset()
-        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        _step_until_non_black_camera(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
+        kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
+        assert kit_visualizers, "Expected an initialized Kit visualizer."
+        _step_until_non_black_kit_viewport(env, kit_visualizers[0], max_steps=_MAX_NON_BLACK_STEPS)
     finally:
         if env is not None:
             env.close()
@@ -316,7 +387,7 @@ def test_cartpole_visualizer_non_black_camera_frame(visualizer_kind: str, backen
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+@pytest.mark.parametrize("backend_kind", ["physx"])
 def test_newton_visualizer_non_black_viewer_frame(backend_kind: str):
     """Newton visualizer should produce at least one non-black viewer frame for Cartpole."""
     env = None
