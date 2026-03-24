@@ -46,8 +46,8 @@ class VisualizerCfg:
     camera_usd_path: str = "/World/envs/env_0/Camera"
     """Absolute USD path to a camera prim when camera_source='usd_path'."""
 
-    env_filter_mode: Literal["none", "env_filter_ids", "random_n"] = "none"
-    """Env filter mode: 'none', 'env_filter_ids', or 'random_n'."""
+    env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
+    """Env filter mode: 'none', 'env_ids', or 'random_n'."""
 
     env_filter_random_n: int = 64
     """If env_filter_mode='random_n', number of envs to sample."""
@@ -56,17 +56,17 @@ class VisualizerCfg:
     """Seed for deterministic env sampling."""
 
     env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
-    """If env_filter_mode='env_filter_ids', only these env indices are shown.
+    """If env_filter_mode='env_ids', only these env indices are shown.
 
     This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
     Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
     """
 
-    rendering_quality: str | None = None
-    """Name of the rendering quality profile for this visualizer.
+    rendering_mode: str | None = None
+    """Name of the rendering mode profile for this visualizer.
 
-    Selects an entry from :class:`isaaclab.sim.SimulationCfg.rendering_quality_cfgs`.
-    If None, no rendering quality overrides are applied and backend/native defaults are used.
+    Selects an entry from :class:`isaaclab.sim.SimulationCfg.rendering_mode_cfgs`.
+    If None, no rendering mode overrides are applied and backend/native defaults are used.
     """
 
     def get_visualizer_type(self) -> str | None:

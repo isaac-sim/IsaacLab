@@ -12,4 +12,8 @@ from isaaclab.utils import configclass
 class RendererCfg:
     """Configuration for a renderer."""
 
-    renderer_type: str = "default"
+    renderer_type: str | None = None
+    """Type identifier for selecting a renderer backend implementation."""
+
+    rendering_mode: str | None = None
+    """Name of the rendering mode profile to use with this renderer."""

@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compatibility wrapper for relocated rendering package."""
+"""Compatibility wrapper for relocated rendering-mode package."""
 
-from isaaclab.rendering.rendering_quality_presets import get_kit_rendering_preset
+from isaaclab.rendering_mode.rendering_mode_presets import get_kit_rendering_preset
 
 __all__ = ["get_kit_rendering_preset"]

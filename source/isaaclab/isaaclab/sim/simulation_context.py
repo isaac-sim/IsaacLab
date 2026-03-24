@@ -25,6 +25,10 @@ from isaaclab.physics.scene_data_requirements import (
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
+from isaaclab.rendering_mode.rendering_mode_utils import (
+    apply_mode_profile_to_visualizer_cfg,
+    apply_runtime_mode_profile_to_visualizer,
+)
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -166,6 +170,7 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
+        self._visualizer_mode_keys: dict[int, str | None] = {}
         self._scene_data_requirements = SceneDataRequirement()
         self._visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
         self._visualizer_step_counter = 0
@@ -188,111 +193,10 @@ class SimulationContext:
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    def _apply_kit_rendering_preset(self, preset_name: str) -> None:
-        apply_kit_rendering_preset(self.set_setting, preset_name)
-
-    def _apply_kit_rendering_quality_cfg(self, quality_cfg: RenderingQualityCfg) -> None:
-        apply_kit_rendering_quality_cfg(self.set_setting, quality_cfg)
-
-        if rendering_mode:
-            supported_rendering_modes = {"performance", "balanced", "quality"}
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
-                    f"{sorted(supported_rendering_modes)}."
-                )
-
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
-
-            if get_isaac_sim_version().major < 6:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            if os.path.exists(preset_filename):
-                with open(preset_filename) as file:
-                    preset_dict = toml.load(file)
-
-                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
-                    for key, value in data.items():
-                        key_path = f"{path}/{key}" if path else f"/{key}"
-                        if isinstance(value, dict):
-                            _apply_nested(value, key_path)
-                        else:
-                            self.set_setting(key_path.replace(".", "/"), value)
-
-                _apply_nested(preset_dict)
-            else:
-                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
-
-        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
-        field_to_setting = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-        }
-
-        for key, value in vars(render_cfg).items():
-            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
-                continue
-            setting_path = field_to_setting.get(key)
-            if setting_path is not None:
-                self.set_setting(setting_path, value)
-
-        # Raw overrides from render_cfg (stored via SettingsManager)
-        extra_settings = getattr(render_cfg, "carb_settings", None)
-        if extra_settings:
-            for key, value in extra_settings.items():
-                if "_" in key:
-                    path = "/" + key.replace("_", "/")
-                elif "." in key:
-                    path = "/" + key.replace(".", "/")
-                else:
-                    path = key
-                self.set_setting(path, value)
-
-        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
-        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
-        if antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=quality_cfg.kit_antialiasing_mode)
-            except Exception:
-                pass
-
-    def _apply_newton_quality_cfg_to_visualizer_cfg(self, visualizer_cfg: Any, quality_cfg: RenderingQualityCfg) -> None:
-        override_fields = {
-            "newton_enable_shadows": "enable_shadows",
-            "newton_enable_sky": "enable_sky",
-            "newton_enable_wireframe": "enable_wireframe",
-            "newton_sky_upper_color": "sky_upper_color",
-            "newton_sky_lower_color": "sky_lower_color",
-            "newton_light_color": "light_color",
-        }
-        for quality_field, viz_field in override_fields.items():
-            value = getattr(quality_cfg, quality_field, None)
-            if value is not None and hasattr(visualizer_cfg, viz_field):
-                setattr(visualizer_cfg, viz_field, value)
-
-    def _resolve_rendering_quality_name_for_visualizer_cfg(self, visualizer_cfg: Any) -> str | None:
-        return resolve_rendering_quality_name_for_visualizer_cfg(self.get_setting, visualizer_cfg)
-
-    def _resolve_rendering_quality_cfg(self, quality_name: str | None) -> RenderingQualityCfg | None:
-        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        return resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
-
-    def _apply_quality_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
-        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        apply_quality_profile_to_visualizer_cfg(
+    def _apply_mode_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
+        """Apply resolved rendering-mode profile to a visualizer config."""
+        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        apply_mode_profile_to_visualizer_cfg(
             self.get_setting,
             self.set_setting,
             visualizer_cfg,
@@ -300,7 +204,8 @@ class SimulationContext:
             logger,
         )
 
-    def _apply_runtime_mode_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
+    def _apply_runtime_mode_profile_to_visualizer(self, viz: BaseVisualizer, force: bool = False) -> None:
+        """Apply rendering-mode profile updates to an active visualizer instance."""
         mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
         apply_runtime_mode_profile_to_visualizer(
             self.get_setting,
@@ -481,6 +386,11 @@ class SimulationContext:
 
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
+        if self._is_cli_visualizer_disable_all():
+            return []
+        if self._is_cli_visualizer_explicit():
+            return self._get_cli_visualizer_types()
+
         visualizer_cfgs = self.cfg.visualizer_cfgs
         if visualizer_cfgs is None:
             return []
@@ -715,6 +625,7 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                self._apply_runtime_mode_profile_to_visualizer(viz)
                 if viz.is_closed or not viz.is_running():
                     if viz.is_closed:
                         logger.info("Visualizer closed: %s", type(viz).__name__)

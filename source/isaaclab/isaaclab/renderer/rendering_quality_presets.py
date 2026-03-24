@@ -3,6 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compatibility wrapper for relocated rendering presets module."""
+"""Compatibility wrapper for relocated rendering-mode presets module."""
 
-from isaaclab.rendering.rendering_quality_presets import *  # noqa: F401, F403
+from isaaclab.rendering_mode.rendering_mode_presets import *  # noqa: F401, F403
