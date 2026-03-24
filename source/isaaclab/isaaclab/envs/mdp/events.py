@@ -17,11 +17,11 @@ from __future__ import annotations
 import logging
 import math
 import re
-import torch
 from typing import TYPE_CHECKING, Literal
 
 import carb
 import omni.physics.tensors.impl.api as physx
+import torch
 from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Sdf, UsdGeom, Vt
 
@@ -394,6 +394,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
             # set the inertia tensors into the physics simulation
             self.asset.root_physx_view.set_inertias(inertias, env_ids)
 
+        # Update the robot's body masses in the asset data
+        self.asset.data.update_body_masses()
+
 
 def randomize_rigid_body_com(
     env: ManagerBasedEnv,
@@ -434,6 +437,9 @@ def randomize_rigid_body_com(
 
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
+
+    # Update the robot's body masses in the asset data
+    asset.data.update_body_masses()
 
 
 def randomize_rigid_body_collider_offsets(

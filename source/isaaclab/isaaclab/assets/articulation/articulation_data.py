@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import torch
 import weakref
 
 import omni.physics.tensors.impl.api as physx
+import torch
 from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.utils.math as math_utils
@@ -92,6 +92,13 @@ class ArticulationData:
         self._joint_vel = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
         self._body_incoming_joint_wrench_b = TimestampedBuffer()
+        # -- other quantities which are not always calculated but are useful to cache
+        self._body_masses = TimestampedBuffer()
+        self._total_mass = TimestampedBuffer()
+        self._center_of_mass_w = TimestampedBuffer()
+        self._center_of_mass_vel_w = TimestampedBuffer()
+        self._linear_momentum_w = TimestampedBuffer()
+        self._center_of_mass_acc_w = TimestampedBuffer()
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -824,6 +831,89 @@ class ArticulationData:
         its actor frame.
         """
         return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_com_ang_vel_w)
+
+    def update_body_masses(self):
+        """Update body masses from simulation.
+
+        This method should be called after any change to the articulation's body masses.
+        This method is slow and should only be called after randomizing.
+        """
+        self._body_masses.data = self._root_physx_view.get_masses().to(self.device)
+        self._body_masses.timestamp = self._sim_timestamp
+
+    @property
+    def robot_com_w(self) -> torch.Tensor:
+        """Robot center of mass position in world frame. Shape is (num_instances, 3).
+
+        This quantity is the position of the robot's center of mass frame relative to the world.
+        """
+        if self._center_of_mass_w.timestamp < self._sim_timestamp:
+            if self._body_masses.data is None:
+                self.update_body_masses()
+            # read data from simulation and set the buffer data and timestamp
+            masses = self._body_masses.data
+            com_positions_w = self.body_com_pose_w[..., :3]
+            self._center_of_mass_w.data = (masses.unsqueeze(-1) * com_positions_w).sum(dim=1) / masses.sum(
+                dim=1, keepdim=True
+            )
+
+            self._center_of_mass_w.timestamp = self._sim_timestamp
+
+        return self._center_of_mass_w.data
+
+    @property
+    def robot_com_vel_w(self) -> torch.Tensor:
+        """Robot center of mass velocity in world frame. Shape is (num_instances, 3).
+
+        This quantity is the velocity of the robot's center of mass frame relative to the world.
+        """
+
+        if self._center_of_mass_vel_w.timestamp < self._sim_timestamp:
+            if self._body_masses.data is None:
+                self.update_body_masses()
+            # Use the linear momentum for com vel
+            masses = self._body_masses.data
+            self._center_of_mass_vel_w.data = self.robot_lin_momentum_w / masses.sum(dim=1, keepdim=True)
+            self._center_of_mass_vel_w.timestamp = self._sim_timestamp
+
+        return self._center_of_mass_vel_w.data
+
+    @property
+    def robot_lin_momentum_w(self) -> torch.Tensor:
+        """Robot linear momentum in world frame. Shape is (num_instances, 3).
+
+        This quantity is the linear momentum of the robot's center of mass frame relative to the world.
+        """
+        if self._linear_momentum_w.timestamp < self._sim_timestamp:
+            if self._body_masses.data is None:
+                self.update_body_masses()
+            # read data from simulation and set the buffer data and timestamp
+            masses = self._body_masses.data
+            com_vel_w = self.body_com_lin_vel_w[..., :3]
+            self._linear_momentum_w.data = (masses.unsqueeze(-1) * com_vel_w).sum(dim=1)
+            self._linear_momentum_w.timestamp = self._sim_timestamp
+
+        return self._linear_momentum_w.data
+
+    @property
+    def robot_com_acc_w(self) -> torch.Tensor:
+        """Robot center of mass acceleration in world frame. Shape is (num_instances, 3).
+
+        This quantity is the acceleration of the robot's center of mass frame relative to the world.
+        """
+
+        if self._center_of_mass_acc_w.timestamp < self._sim_timestamp:
+            if self._body_masses.data is None:
+                self.update_body_masses()
+            # Use the linear momentum for com vel
+            masses = self._body_masses.data
+            com_acc_w = self.body_com_acc_w[..., :3]
+            self._center_of_mass_acc_w.data = (masses.unsqueeze(-1) * com_acc_w).sum(dim=1) / masses.sum(
+                dim=1, keepdim=True
+            )
+            self._center_of_mass_acc_w.timestamp = self._sim_timestamp
+
+        return self._center_of_mass_acc_w.data
 
     ##
     # Sliced properties.
