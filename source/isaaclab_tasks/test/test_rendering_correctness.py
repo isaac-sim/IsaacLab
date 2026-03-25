@@ -55,6 +55,10 @@ _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
 
+# Collects SSIM scores from all golden-image comparisons during the session.
+# Each entry: {"test": str, "backend": str, "renderer": str, "aov": str, "ssim": float, "passed": bool}
+_SSIM_SCORES: list[dict] = []
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -73,6 +77,16 @@ def cleanup_simulation_context():
     yield
 
     SimulationContext.clear_instance()
+
+
+@pytest.fixture(autouse=True)
+def _attach_ssim_properties(request):
+    """Attach SSIM scores collected during the test as JUnit XML properties."""
+    initial_count = len(_SSIM_SCORES)
+    yield
+    for entry in _SSIM_SCORES[initial_count:]:
+        key = f"ssim:{entry['backend']}-{entry['renderer']}-{entry['aov']}"
+        request.node.user_properties.append((key, f"{entry['ssim']:.4f}"))
 
 
 # ---------------------------------------------------------------------------
@@ -299,8 +313,8 @@ def _compare_images(
     result_image: Image.Image,
     golden_image: Image.Image,
     min_ssim: float = _MIN_SSIM_THRESHOLD,
-) -> tuple[bool, str | None]:
-    """Compare result and golden images using SSIM; return (True, None) if deemed equal.
+) -> tuple[bool, str | None, float]:
+    """Compare result and golden images using SSIM.
 
     Args:
         result_image: Result image as PIL Image to compare with golden image.
@@ -308,13 +322,14 @@ def _compare_images(
         min_ssim: Minimum SSIM score to consider images structurally similar.
 
     Returns:
-        (True, None) if images are deemed equal, else (False, error_message as str).
+        (passed, error_message_or_None, ssim_score). Score is 0.0 when comparison
+        cannot be performed (size/mode mismatch).
     """
     if result_image.size != golden_image.size:
-        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}."
+        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}.", 0.0
 
     if result_image.mode != golden_image.mode:
-        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}."
+        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}.", 0.0
 
     # Convert PIL images to (1, C, H, W) float tensors in [0, 1] for SSIM.
     result_tensor = torch.from_numpy(np.array(result_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
@@ -326,9 +341,10 @@ def _compare_images(
         return (
             False,
             f"SSIM score ({score:.4f}) is below the minimum threshold ({min_ssim:.4f}).",
+            score,
         )
 
-    return True, None
+    return True, None, score
 
 
 def _validate_camera_outputs(
@@ -386,7 +402,17 @@ def _validate_camera_outputs(
             pytest.fail(f"Error opening golden image: {e}")
 
         # validate the consistency of rendering outputs.
-        succeeded, error_message = _compare_images(result_image, golden_image, min_ssim)
+        succeeded, error_message, ssim_score = _compare_images(result_image, golden_image, min_ssim)
+
+        _SSIM_SCORES.append({
+            "test": test_name,
+            "backend": physics_backend,
+            "renderer": renderer,
+            "aov": data_type,
+            "ssim": ssim_score,
+            "passed": succeeded,
+        })
+
         if not succeeded:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")

@@ -24,6 +24,7 @@ except OSError as exc:
     sys.exit(0)
 
 passed, failed, errored, skipped = [], [], [], []
+ssim_scores = []  # (test_name, property_label, score_str, passed)
 total_time = 0.0
 
 
@@ -38,14 +39,25 @@ for tc in root.iter("testcase"):
     name = tc.get("classname", tc.get("name", "unknown"))
     t = safe_float(tc.get("time", 0))
     total_time += t
-    if tc.find("failure") is not None:
+    tc_failed = tc.find("failure") is not None
+    tc_errored = tc.find("error") is not None
+    if tc_failed:
         failed.append((name, t, tc.find("failure").get("message", "")))
-    elif tc.find("error") is not None:
+    elif tc_errored:
         errored.append((name, t, tc.find("error").get("message", "")))
     elif (skip_el := tc.find("skipped")) is not None:
         skipped.append((name, t, skip_el.get("message", "")))
     else:
         passed.append((name, t))
+
+    # Collect ssim:* properties emitted by test_rendering_correctness.
+    props = tc.find("properties")
+    if props is not None:
+        for prop in props.findall("property"):
+            prop_name = prop.get("name", "")
+            if prop_name.startswith("ssim:"):
+                label = prop_name[len("ssim:"):]
+                ssim_scores.append((name, label, prop.get("value", ""), not (tc_failed or tc_errored)))
 
 mins, secs = divmod(total_time, 60)
 time_str = f"{int(mins)}m:{secs:.0f}s"
@@ -91,5 +103,18 @@ if skipped:
     print("|------|--------|")
     for name, t, msg in skipped:
         print(f"| `{name}` | {sanitize_msg(msg)} |")
+    print("")
+    print("</details>")
+
+if ssim_scores:
+    print(f"\n<details><summary>🔵 SSIM Scores ({len(ssim_scores)})</summary>")
+    print("")
+    print("<br>")
+    print("")
+    print("| Test | AOV | SSIM | Status |")
+    print("|------|-----|------|--------|")
+    for name, label, score, ok in ssim_scores:
+        status = "PASS" if ok else "FAIL"
+        print(f"| `{name}` | {label} | {score} | {status} |")
     print("")
     print("</details>")
