@@ -441,6 +441,15 @@ def _collect_test_files(
     return test_files
 
 
+def _write_empty_report():
+    """Write an empty JUnit XML report so downstream CI steps find a valid file."""
+    os.makedirs("tests", exist_ok=True)
+    result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
+    report = JUnitXml()
+    report.write(f"tests/{result_file}")
+    print(f"Wrote empty report to tests/{result_file}")
+
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -509,7 +518,12 @@ def pytest_sessionstart(session):
     if not test_files:
         if quarantined_only:
             print("No quarantined tests configured — nothing to run.")
+            _write_empty_report()
             pytest.exit("No quarantined tests configured", returncode=0)
+        if filter_pattern:
+            print(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
+            _write_empty_report()
+            pytest.exit("No test files found for filter", returncode=0)
         print("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 
