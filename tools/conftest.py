@@ -95,6 +95,9 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
                         stdout_data += remaining_stdout
                         stderr_data += remaining_stderr
                     # Not a test timeout — tests completed, only cleanup hung.
+                    # We return 0 here intentionally: the process was still alive (hanging
+                    # in cleanup) so process.returncode is -9 from our kill(), not a real
+                    # test failure. Test results are captured in the XML report.
                     return 0, stdout_data, stderr_data, False
 
             # Test timeout: tests themselves didn't finish in time.
