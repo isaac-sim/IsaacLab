@@ -359,12 +359,11 @@ def _check_random_actions(
                 print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
                 return
 
-        try:
-            env = gym.make(task_name, cfg=env_cfg)
-        except ValueError as e:
-            # Config validation (e.g. Newton + multi-asset spawning) may reject
-            # certain preset combinations.  Skip instead of failing.
-            pytest.skip(str(e))
+        # TODO: Some Newton preset + multi-asset spawning combinations fail config validation
+        # here with a ValueError. Consider filtering invalid combinations in setup_environment()
+        # rather than forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround
+        # that caught the error and called pytest.skip().
+        env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
