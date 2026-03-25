@@ -96,7 +96,7 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._default_body_pose is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._default_body_pose = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._default_body_pose
 
     @property
