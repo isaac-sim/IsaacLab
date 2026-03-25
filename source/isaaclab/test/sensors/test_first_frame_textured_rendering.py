@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# TODO: These tests are flaky because textures may not stream in before the first frame capture.
-# A potential fix (polling for texture load instead of a fixed warmup) was prototyped in
-# https://github.com/isaac-sim/IsaacLab/pull/5097 — see commits:
+# TODO: These tests appear to be flaky because 3 warmup steps may not be enough for textures to stream in.
+# A polling-based fix was prototyped in https://github.com/isaac-sim/IsaacLab/pull/5097 — see commits:
 #   69e73530c84 Fix test_first_frame_textured_rendering (core 1/3): poll for texture load instead of fixed warmup
 #   1a7c4036da1 Fix test_first_frame_textured_rendering.py (core 1/3) - increase warmup time
 #   1632d3ae859 test_first_frame_textured_rendering.py: increase # of warmup steps
@@ -35,6 +34,9 @@ WIDTH = 256
 # grey default-material detection: channels within this tolerance and mean below threshold
 GREY_CHANNEL_TOLERANCE = 3.0
 GREY_MEAN_THRESHOLD = 85.0
+
+# number of sim steps to warm up before capturing the first frame
+WARMUP_STEPS = 3
 
 # number of extra sim steps before capturing the stabilised reference frame
 STABILISATION_STEPS = 5
@@ -124,7 +126,11 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     # Play sim
     sim.reset()
 
-    # Capture the first frame immediately after reset
+    # Warm up the renderer so textures have time to stream in
+    for _ in range(WARMUP_STEPS):
+        sim.step()
+
+    # Capture the first frame after warm-up
     sim.step()
     camera.update(dt)
     first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
@@ -165,7 +171,11 @@ def test_first_frame_is_textured_tiled_camera(setup_sim, device):
     # Play sim
     sim.reset()
 
-    # Capture the first frame immediately after reset
+    # Warm up the renderer so textures have time to stream in
+    for _ in range(WARMUP_STEPS):
+        sim.step()
+
+    # Capture the first frame after warm-up
     sim.step()
     camera.update(dt)
     first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
