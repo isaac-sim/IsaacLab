@@ -15,9 +15,6 @@ ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TIMEOUT = 1000
 """The default timeout for each test in seconds."""
 
-SHUTDOWN_GRACE_PERIOD = 60
-"""Grace period [s] after the test report is written before killing the process.
-Used when tests finish but the process hangs during shutdown."""
 
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 1000,
