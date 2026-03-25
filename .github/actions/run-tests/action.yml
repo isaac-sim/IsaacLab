@@ -161,12 +161,13 @@ runs:
             echo "🔵 Volume-mounting ${volume_mount_source} → /workspace/isaaclab"
           fi
 
-          # Run tests in container.
-          # --init: proper signal forwarding inside the container (PID 1 reaps + forwards signals)
-          # --stop-timeout 5: after SIGTERM, wait only 5s before SIGKILL (default is 10s)
-          # Running in foreground so the runner can kill the process group directly on cancellation.
+          # Run tests in a detached container and follow logs.  Running detached
+          # means the container lifecycle is independent of the shell — if the
+          # runner kills this step on cancellation, the `if: always()` cleanup
+          # step can still `docker kill` the container reliably.
+          # `docker logs -f` is the foreground process and is trivially killable.
           echo "🔵 Starting Docker container for tests..."
-          docker run --name $container_name \
+          docker run -d --name $container_name \
             --init --stop-timeout 5 \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
@@ -184,7 +185,18 @@ runs:
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
-            " && DOCKER_EXIT=0 || DOCKER_EXIT=$?
+            "
+
+          # Stream container logs to CI output (this is the killable foreground process).
+          docker logs -f $container_name &
+          local logs_pid=$!
+
+          # Wait for the container to exit and capture its exit code.
+          DOCKER_EXIT=$(docker wait $container_name) || DOCKER_EXIT=1
+
+          # Stop following logs.
+          kill $logs_pid 2>/dev/null || true
+          wait $logs_pid 2>/dev/null || true
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -262,10 +274,10 @@ runs:
           echo "::warning::junit_summary.py failed to parse $report — test results may be missing from the summary"
         fi
 
-    - name: Clean up container on cancellation
-      if: cancelled()
+    - name: Clean up Docker container
+      if: always()
       shell: bash
       run: |
-        echo "🟠 Workflow cancelled, force-removing container..."
+        echo "🔵 Cleaning up Docker container..."
         docker kill "${{ inputs.container-name }}" 2>/dev/null || true
         docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
