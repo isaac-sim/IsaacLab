@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
+from .async_retarget_loop import AsyncRetargetLoop
 from .command_handler import CommandHandler
 from .control_events import ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
@@ -131,6 +132,20 @@ class IsaacTeleopDevice:
         self._prev_right_a_pressed = False
         self._prev_control_is_active: bool | None = None
 
+        # Async advance state: background retarget loop with EMA pacing
+        # that produces results consumed by advance().
+        self._async_enabled = True
+        self._async_blocking = True
+        self._async_ema_alpha = 0.3
+        self._async_margin_s = 0.005
+        self._retarget_loop: AsyncRetargetLoop | None = None
+        self._cached_action: torch.Tensor | None = None
+
+        # Ensure the retarget loop is stopped before the lifecycle clears
+        # session/pipeline state (covers _on_pre_shutdown and other external
+        # shutdown paths that bypass __exit__).
+        self._session_lifecycle.add_on_stop_callback(self._stop_retarget_loop)
+
     def __del__(self):
         """Clean up resources when the object is destroyed."""
         if hasattr(self, "_command_handler"):
@@ -179,6 +194,8 @@ class IsaacTeleopDevice:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context manager and clean up the IsaacTeleop session."""
+        self._stop_retarget_loop()
+        self._async_enabled = False
         self._anchor_manager.cleanup()
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
@@ -213,6 +230,69 @@ class IsaacTeleopDevice:
         """
         self._command_handler.add_callback(key, func)
 
+    def set_async(
+        self,
+        enabled: bool = True,
+        blocking: bool = True,
+        *,
+        ema_alpha: float = 0.3,
+        margin_s: float = 0.005,
+    ) -> None:
+        """Enable or disable asynchronous advance mode.
+
+        When enabled, retargeting runs in a background thread with
+        EMA (Exponential Moving Average)-based pacing that predicts
+        when the next :meth:`advance` call will happen and starts each
+        retarget just early enough to finish in time.
+
+        With ``blocking=True`` (default), :meth:`advance` waits for the
+        background thread to produce a fresh result before returning.
+        Because the EMA pacer aims to finish just in time, the wait is
+        almost always instantaneous; the block acts as a safety net when
+        retarget occasionally runs longer than predicted.
+
+        With ``blocking=False``, :meth:`advance` returns immediately
+        with whatever result is available (may be stale if the background
+        thread hasn't finished yet).
+
+        The first call after enabling always runs synchronously to seed
+        the pipeline.
+
+        Args:
+            enabled: Whether to enable async mode.
+            blocking: When ``True`` (default), :meth:`advance` blocks
+                until a fresh result is available.  When ``False``,
+                returns immediately (possibly stale).  Ignored when
+                *enabled* is ``False``.
+            ema_alpha: EMA smoothing factor for timing prediction in
+                ``(0, 1]``.  Higher values adapt faster to timing
+                changes but are more sensitive to jitter.  The default
+                0.3 gives a half-life of ~2 samples, adapting within
+                ~44 ms at 45 Hz — empirically a good balance for
+                typical teleop frame rates (45-90 Hz).
+            margin_s: Safety margin [s] subtracted from the predicted
+                deadline.  Increase if retarget occasionally misses the
+                deadline.
+        """
+        needs_restart = (
+            enabled != self._async_enabled
+            or (enabled and blocking != self._async_blocking)
+            or (enabled and ema_alpha != self._async_ema_alpha)
+            or (enabled and margin_s != self._async_margin_s)
+        )
+        if not needs_restart:
+            return
+        self._stop_retarget_loop()
+        self._async_enabled = enabled
+        self._async_blocking = blocking
+        self._async_ema_alpha = ema_alpha
+        self._async_margin_s = margin_s
+        self._cached_action = None
+        mode = "off"
+        if enabled:
+            mode = "blocking" if blocking else "non-blocking"
+        logger.info("IsaacTeleop async advance: %s", mode)
+
     def advance(self, target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None) -> torch.Tensor | None:
         """Process current device state and return control commands.
 
@@ -220,6 +300,14 @@ class IsaacTeleopDevice:
         handles were not available at ``__enter__`` time), this method will
         attempt to start it on each call.  Once the user clicks "Start AR" and
         the handles become available, the session is created transparently.
+
+        When async mode is enabled (see :meth:`set_async`), the retargeting
+        pipeline runs in a background thread with EMA (Exponential Moving
+        Average)-based pacing.  By
+        default the call blocks until a fresh result is ready (the block
+        is almost always instantaneous because the pacer finishes just in
+        time).  This lets retargeting overlap with ``env.step()`` while
+        guaranteeing up-to-date data every frame.
 
         Args:
             target_T_world: Optional 4x4 transform matrix that rebases all
@@ -254,19 +342,91 @@ class IsaacTeleopDevice:
         if target_T_world is None and self._cfg.target_frame_prim_path is not None:
             target_T_world = self._get_target_frame_T_world()
 
-        # Step the session (handles lazy start and action extraction)
+        if self._async_enabled:
+            return self._advance_async(target_T_world)
+        return self._advance_sync(target_T_world)
+
+    def _advance_sync(self, target_T_world=None) -> torch.Tensor | None:
+        """Synchronous (original) advance path."""
         action = self._session_lifecycle.step(
             anchor_world_matrix_fn=self._anchor_manager.get_world_matrix,
             target_T_world=target_T_world,
         )
-
         if action is not None:
-            # Poll controller buttons (e.g. toggle anchor rotation on right 'A' press)
             self._poll_buttons()
 
         self._dispatch_control_callbacks()
 
         return action
+
+    def _advance_async(self, target_T_world=None) -> torch.Tensor | None:
+        """Async advance: read from the EMA-paced background retarget loop.
+
+        All USD/Kit interactions (anchor matrix, target-frame transform,
+        button polling) run on the calling (main) thread.  Only the
+        retarget computation runs in the background.
+
+        First call runs synchronously to seed the cache and starts the
+        background loop only once the session is confirmed alive.
+        Subsequent calls push fresh inputs from the main thread and
+        consume the latest result, blocking for freshness when
+        ``self._async_blocking`` is set.
+
+        If the background thread died with an exception, it is re-raised
+        here on the main thread after cleaning up the loop.
+        """
+        if self._retarget_loop is None:
+            action = self._advance_sync(target_T_world)
+            if action is None:
+                return None
+            self._cached_action = action
+            self._retarget_loop = AsyncRetargetLoop(
+                step_fn=lambda am, ttw: self._session_lifecycle.step(
+                    anchor_world_matrix_fn=lambda: am,
+                    target_T_world=ttw,
+                ),
+                ema_alpha=self._async_ema_alpha,
+                margin_s=self._async_margin_s,
+            )
+            self._retarget_loop.update_inputs(
+                self._anchor_manager.get_world_matrix(),
+                target_T_world,
+            )
+            self._retarget_loop.start()
+            return action
+
+        # Push current inputs from main thread so the background thread
+        # never touches USD/Kit APIs.
+        self._retarget_loop.update_inputs(
+            self._anchor_manager.get_world_matrix(),
+            target_T_world,
+        )
+
+        try:
+            action, fresh = self._retarget_loop.consume(block=self._async_blocking)
+        except Exception:
+            self._stop_retarget_loop()
+            raise
+
+        if action is not None:
+            self._cached_action = action
+            self._poll_buttons()
+        elif fresh:
+            # Background thread explicitly produced None (session down).
+            # Stop the loop so the next advance() re-enters the sync seed
+            # path, keeping session management on the main thread.
+            self._cached_action = None
+            self._stop_retarget_loop()
+
+        self._dispatch_control_callbacks()
+
+        return self._cached_action
+
+    def _stop_retarget_loop(self) -> None:
+        """Stop and discard the background retarget loop (idempotent)."""
+        if self._retarget_loop is not None:
+            self._retarget_loop.stop()
+            self._retarget_loop = None
 
     # ------------------------------------------------------------------
     # Control event -> callback bridge

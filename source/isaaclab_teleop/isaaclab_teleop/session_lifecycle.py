@@ -146,6 +146,11 @@ class TeleopSessionLifecycle:
         # CloudXR runtime launcher (created in start if configured, stopped in stop)
         self._cloudxr_launcher: CloudXRLauncher | None = None
 
+        # Callbacks fired at the top of stop(), before any state is cleared.
+        # Allows owners (e.g. IsaacTeleopDevice) to stop background threads
+        # that depend on the session being alive.
+        self._on_stop_callbacks: list[Callable[[], None]] = []
+
         # Retargeting tuning UI (created in start, closed in stop)
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
@@ -198,6 +203,18 @@ class TeleopSessionLifecycle:
     def is_active(self) -> bool:
         """Whether the teleop session is currently running."""
         return self._session is not None
+
+    def add_on_stop_callback(self, fn: Callable[[], None]) -> None:
+        """Register a callback to be invoked at the start of :meth:`stop`.
+
+        Callbacks run *before* any session state is cleared, so dependents
+        (e.g. background threads that call :meth:`step`) can be shut down
+        while the pipeline and session are still in a valid state.
+
+        Args:
+            fn: A no-argument callable.
+        """
+        self._on_stop_callbacks.append(fn)
 
     @property
     def pipeline(self):
@@ -316,8 +333,10 @@ class TeleopSessionLifecycle:
     def stop(self, exc_type=None, exc_val=None, exc_tb=None) -> None:
         """Shut down the session and clean up resources.
 
-        Closes the retargeting tuning UI and exits the ``TeleopSession``
-        context manager.  If the underlying OpenXR session was already torn
+        Fires registered on-stop callbacks first (so background consumers
+        can shut down while state is still valid), then closes the
+        retargeting tuning UI and exits the ``TeleopSession`` context
+        manager.  If the underlying OpenXR session was already torn
         down externally (e.g. "Stop AR"), cleanup errors are suppressed.
 
         Args:
@@ -325,6 +344,12 @@ class TeleopSessionLifecycle:
             exc_val: Exception value.
             exc_tb: Exception traceback.
         """
+        for fn in self._on_stop_callbacks:
+            try:
+                fn()
+            except Exception:
+                logger.debug("on-stop callback failed", exc_info=True)
+
         # Close the retargeting tuning UI first
         if self._retargeting_ui_ctx is not None:
             self._retargeting_ui_ctx.__exit__(exc_type, exc_val, exc_tb)
