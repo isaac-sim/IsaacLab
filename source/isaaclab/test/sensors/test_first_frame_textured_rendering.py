@@ -3,6 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# TODO: These tests are flaky because textures may not stream in before the first frame capture.
+# A potential fix (polling for texture load instead of a fixed warmup) was prototyped in
+# https://github.com/isaac-sim/IsaacLab/pull/5097 — see commits:
+#   69e73530c84 Fix test_first_frame_textured_rendering (core 1/3): poll for texture load instead of fixed warmup
+#   1a7c4036da1 Fix test_first_frame_textured_rendering.py (core 1/3) - increase warmup time
+#   1632d3ae859 test_first_frame_textured_rendering.py: increase # of warmup steps
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -28,12 +35,6 @@ WIDTH = 256
 # grey default-material detection: channels within this tolerance and mean below threshold
 GREY_CHANNEL_TOLERANCE = 3.0
 GREY_MEAN_THRESHOLD = 85.0
-
-# minimum number of sim steps before we start checking for textures
-MIN_WARMUP_STEPS = 30
-
-# maximum number of sim steps to wait for textures to stream in
-MAX_WARMUP_STEPS = 200
 
 # number of extra sim steps before capturing the stabilised reference frame
 STABILISATION_STEPS = 5
@@ -71,33 +72,20 @@ def setup_sim(device):
     sim.clear_instance()
 
 
-def _is_grey_default_material(frame: torch.Tensor) -> bool:
-    """Check if a frame looks like the grey default material (textures not yet loaded).
-
-    Args:
-        frame: Image tensor of shape (H, W, C) in [0, 255] float range.
-
-    Returns:
-        True if the frame appears to be the untextured grey default material.
-    """
-    mean_rgb = frame.mean(dim=(0, 1))
-    channels_equal = (mean_rgb[1] - mean_rgb[0]).abs() < GREY_CHANNEL_TOLERANCE and (
-        mean_rgb[2] - mean_rgb[0]
-    ).abs() < GREY_CHANNEL_TOLERANCE
-    all_low = mean_rgb.mean() < GREY_MEAN_THRESHOLD
-    return bool(channels_equal and all_low)
-
-
 def _assert_first_frame_textured(first_frame: torch.Tensor, stable_frame: torch.Tensor):
     """Verify that first_frame shows loaded textures and is consistent with stable_frame."""
     mean_first = first_frame.mean(dim=(0, 1))
     mean_stable = stable_frame.mean(dim=(0, 1))
 
     # Guard 1: not the grey default material
-    assert not _is_grey_default_material(first_frame), (
+    channels_equal = (mean_first[1] - mean_first[0]).abs() < GREY_CHANNEL_TOLERANCE and (
+        mean_first[2] - mean_first[0]
+    ).abs() < GREY_CHANNEL_TOLERANCE
+    all_low = mean_first.mean() < GREY_MEAN_THRESHOLD
+    assert not (channels_equal and all_low), (
         f"First frame looks like the grey default material "
         f"(mean RGB: {mean_first[0]:.1f}, {mean_first[1]:.1f}, {mean_first[2]:.1f}). "
-        f"Texture streaming may not have completed within {MAX_WARMUP_STEPS} steps."
+        "Texture streaming may not have completed before the first capture."
     )
 
     # Guard 2: first frame and stabilised frame are broadly consistent
@@ -136,17 +124,7 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     # Play sim
     sim.reset()
 
-    # Wait for textures to stream in: step at least MIN_WARMUP_STEPS, then
-    # poll up to MAX_WARMUP_STEPS until the frame is no longer the grey default.
-    for step in range(MAX_WARMUP_STEPS):
-        sim.step()
-        if step + 1 >= MIN_WARMUP_STEPS:
-            camera.update(dt)
-            frame = camera.data.output["rgb"][0].to(dtype=torch.float32)
-            if not _is_grey_default_material(frame):
-                break
-
-    # Capture the first textured frame
+    # Capture the first frame immediately after reset
     sim.step()
     camera.update(dt)
     first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
@@ -187,17 +165,7 @@ def test_first_frame_is_textured_tiled_camera(setup_sim, device):
     # Play sim
     sim.reset()
 
-    # Wait for textures to stream in: step at least MIN_WARMUP_STEPS, then
-    # poll up to MAX_WARMUP_STEPS until the frame is no longer the grey default.
-    for step in range(MAX_WARMUP_STEPS):
-        sim.step()
-        if step + 1 >= MIN_WARMUP_STEPS:
-            camera.update(dt)
-            frame = camera.data.output["rgb"][0].to(dtype=torch.float32)
-            if not _is_grey_default_material(frame):
-                break
-
-    # Capture the first textured frame
+    # Capture the first frame immediately after reset
     sim.step()
     camera.update(dt)
     first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
